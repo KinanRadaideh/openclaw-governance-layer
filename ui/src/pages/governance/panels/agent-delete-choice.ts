@@ -59,6 +59,11 @@ export function deletionNotice(result: GovernanceDeprovisionResult): {
     result.notMoved?.length
       ? t("governance.agents.deletedFullIncomplete", { paths: result.notMoved.join("; ") })
       : "",
+    // Reported beside the success, because OpenClaw says nothing about what it left
+    // (finding 376) and the operator was otherwise promised a clean end.
+    result.hostResidue
+      ? t("governance.agents.deletedFullResidue", { what: leftoverParts(result.hostResidue) })
+      : "",
   ].filter(Boolean);
   const outcome =
     result.hostDeletion === "full"
@@ -82,12 +87,8 @@ export function deletionNotice(result: GovernanceDeprovisionResult): {
 }
 
 /** The clause a creation notice carries when the new agent inherited a deleted agent's leftovers. */
-export function leftoversClause(
-  leftovers: GovernanceHostLeftovers | undefined,
-): string | undefined {
-  if (!leftovers) {
-    return undefined;
-  }
+/** What a set of leftovers holds, in the operator's words, for either notice. */
+function leftoverParts(leftovers: GovernanceHostLeftovers): string {
   const parts = [
     leftovers.workspaceFiles ? t("governance.agents.leftoverWorkspace") : "",
     leftovers.sessionHistory ? t("governance.agents.leftoverHistory") : "",
@@ -97,7 +98,15 @@ export function leftoversClause(
     leftovers.approvalSettings ? t("governance.agents.leftoverApprovals") : "",
     leftovers.agentFolder ? t("governance.agents.leftoverAgentFolder") : "",
   ].filter(Boolean);
-  return parts.length > 0
-    ? t("governance.agents.leftovers", { what: parts.join(", ") })
-    : undefined;
+  return parts.join(", ");
+}
+
+export function leftoversClause(
+  leftovers: GovernanceHostLeftovers | undefined,
+): string | undefined {
+  if (!leftovers) {
+    return undefined;
+  }
+  const what = leftoverParts(leftovers);
+  return what ? t("governance.agents.leftovers", { what }) : undefined;
 }

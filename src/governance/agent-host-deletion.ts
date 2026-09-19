@@ -72,6 +72,11 @@ export type HostAgentDeletion =
 
 export type HostAgentDeleter = (agentId: string) => Promise<HostAgentDeletion>;
 
+/** A finished full delete, with anything OpenClaw left behind (finding 376). */
+export type FullHostDeletionSuccess = Extract<HostAgentDeletion, { ok: true }> & {
+  residue?: HostLeftovers;
+};
+
 let registeredDeleter: HostAgentDeleter | undefined;
 
 /** Installs the Gateway's call into OpenClaw's `agents.delete`. Called once during startup. */
@@ -173,7 +178,7 @@ const HOST_REFUSAL_REMEDY: Record<Extract<HostAgentDeletion, { ok: false }>["cod
  */
 export async function runFullHostDeletion(
   agentId: string,
-): Promise<Extract<HostAgentDeletion, { ok: true }> | FullHostDeletionRefusal> {
+): Promise<FullHostDeletionSuccess | FullHostDeletionRefusal> {
   const id = normalizeAgentId(agentId);
   const deleter = registeredDeleter;
   if (!deleter) {
@@ -207,7 +212,15 @@ export async function runFullHostDeletion(
   }
   const outcome = await deleter(id);
   if (outcome.ok) {
-    return outcome;
+    // **What the delete left, read after it reports success** (finding 376). OpenClaw moves
+    // the agent database and can leave its SQLite side files behind, recreated by a handle
+    // that was still open, and reports no failure for them: measured live on 2026-09-18.
+    // Reported beside the success by the rule that an unfinished step travels with it
+    // (finding 229). **This read races the recreation** and catches only what is already
+    // there; the reliable report is the leftovers clause the next creation carries
+    // (`detectHostLeftovers` in `provisionAgent`), which is also the moment it matters.
+    const residue = await detectHostLeftovers(id).catch(() => undefined);
+    return residue ? { ...outcome, residue } : outcome;
   }
   return {
     ok: false,
@@ -259,7 +272,7 @@ export async function cleanUpGovernanceAfterFullDeletion(
 /** The ledger clause that says which deletion ran and what it did. Counts, never paths. */
 export function describeHostDeletion(
   mode: HostDeletionMode,
-  host?: { movedToTrash: readonly string[]; notMoved: readonly string[] },
+  host?: { movedToTrash: readonly string[]; notMoved: readonly string[]; residue?: HostLeftovers },
   cleanup?: GovernanceCleanup,
 ): string {
   if (mode === "roster") {
@@ -270,7 +283,8 @@ export function describeHostDeletion(
   const governance = cleanup
     ? `; ${cleanup.conversationTurnsRemoved} conversation turn(s) and ${cleanup.attachmentsReleased} unsent attachment(s) removed, ${cleanup.attachmentsKept} sent attachment(s) kept`
     : "";
-  return `; the way OpenClaw does: its scheduled jobs, exec-approval settings and session records removed${moved}${notMoved}${governance}`;
+  const residue = host?.residue ? ", and OpenClaw left folders of its own behind" : "";
+  return `; the way OpenClaw does: its scheduled jobs, exec-approval settings and session records removed${moved}${notMoved}${governance}${residue}`;
 }
 
 /** What a deleted agent of this id left on the host, as the next agent of the id would find it. */

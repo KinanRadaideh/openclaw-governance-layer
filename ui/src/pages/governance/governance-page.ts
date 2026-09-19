@@ -12,7 +12,13 @@ import { i18n, t } from "../../i18n/index.ts";
 import { enGovernance } from "../../i18n/locales/en-governance.ts";
 import { startInputOverflowTitles } from "../../lib/input-overflow-title.ts";
 import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
-import { agentLabel, isKnownAgentId, knownAgentIds, type AgentSources } from "./agent-directory.ts";
+import {
+  agentLabel,
+  isKnownAgentId,
+  knownAgentIds,
+  registeredAgentIds,
+  type AgentSources,
+} from "./agent-directory.ts";
 import { codexIds } from "./agent-directory.ts";
 import {
   GovernanceApi,
@@ -1212,7 +1218,7 @@ class GovernancePage extends OpenClawLightDomElement {
               busy: this.busy,
               canAdminister: canAdminister(this.identity),
               canManageAnyAgent: canManageAnyAgent(this.identity),
-              knownAgentIds: knownAgentIds(this.agentSources()),
+              knownAgentIds: registeredAgentIds(this.agents),
               agentLabel: (agentId) => agentLabel(this.agents, agentId),
               ...this.requestDrafts.slice(),
             })}

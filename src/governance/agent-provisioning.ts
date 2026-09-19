@@ -590,6 +590,12 @@ export type DeprovisionResult =
       /** Attachments kept because a ledger entry names them. The full delete only. */
       attachmentsKept?: number;
       /**
+       * What OpenClaw left on the host after reporting a successful full delete (finding
+       * 376): its SQLite side files, recreated by a handle that was still open, are the case
+       * measured. Absent when it left nothing.
+       */
+      hostResidue?: HostLeftovers;
+      /**
        * Why governance's own copies could not be removed, when they could not. Reported, not
        * thrown, for `auditError`'s reason: the agent is already gone.
        */
@@ -671,7 +677,9 @@ export async function deprovisionAgent(
   }
 
   const hostDeletion: HostDeletionMode = input.hostDeletion ?? "roster";
-  let hostOutcome: { movedToTrash: string[]; notMoved: string[] } | undefined;
+  let hostOutcome:
+    | { movedToTrash: string[]; notMoved: string[]; residue?: HostLeftovers }
+    | undefined;
   if (input.deleteFromHost && hostDeletion === "full") {
     // OpenClaw's own delete (decision C13). Its refusals all come before governance changes
     // anything, so a refused agent is still registered and still governed.
@@ -807,7 +815,11 @@ export async function deprovisionAgent(
     deletedFromHost: true,
     hostDeletion,
     ...(hostOutcome
-      ? { movedToTrash: hostOutcome.movedToTrash, notMoved: hostOutcome.notMoved }
+      ? {
+          movedToTrash: hostOutcome.movedToTrash,
+          notMoved: hostOutcome.notMoved,
+          ...(hostOutcome.residue ? { hostResidue: hostOutcome.residue } : {}),
+        }
       : {}),
     ...(cleanup
       ? {

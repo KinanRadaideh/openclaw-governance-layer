@@ -115,8 +115,11 @@ export const enGovernance: TranslationMap = {
       // capability to keep a sentence true. So the sentence is what changes.
       // It now says where masking applies rather than implying it is
       // everywhere, which is the honest version of the same promise.
+      // "In full" meant unmasked, and read as "the whole queue": the route serves a
+      // Viewer the requests for its own agents and those binding every agent, so one
+      // with no agents found an empty queue that held three (finding 378).
       canDoViewer:
-        "Viewer. You can read the audit trail for the agents assigned to you, with resource details masked there, and you can read the rule requests queue in full. You cannot change anything or prompt an agent.",
+        "Viewer. You can read the audit trail for the agents assigned to you, with resource details masked there, and the rule requests for those agents and for rules binding every agent, unmasked. You cannot change anything or prompt an agent.",
     },
     policy: {
       title: "Policy",
@@ -518,11 +521,13 @@ export const enGovernance: TranslationMap = {
         "What it does: removes the agent from OpenClaw's list of agents, as this page always has. Its working folder and files, its conversation history, its scheduled tasks and its saved command approvals all stay on the server.\nWhen to choose it: to keep what the agent produced, to look at or recover later.\nThe catch: an agent created later with the same name picks all of that up. It opens the same folder, sees the same history, runs the old scheduled tasks and gets the old approvals. The page says so when that happens.\nAudit ledger: nothing in it is removed or changed. One new entry records this deletion and says what was left behind.",
       deleteFullLabel: "Delete the way OpenClaw does",
       deleteFullExplain:
-        "What it does: runs OpenClaw's own delete. The agent's scheduled tasks, saved command approvals and session records are removed, and its working folder, its own folder and its conversation files are moved to a .Trash folder in the home folder of the account the Gateway runs as. Governance's copy of its dashboard conversations goes too; attachments already sent in a prompt are kept.\nWhen to choose it: for a clean end. An agent created later with the same name starts with nothing.\nThe catch: the files leave the agent's folders. Nothing on this page brings them back: someone with access to the server has to move them out of .Trash by hand, and they use disk space until then. It is refused while the agent is still working, and when the governance folder is inside one of the folders it would move.\nAudit ledger: nothing in it is removed or changed. One new entry records this deletion and lists what was removed. The ledger never held whole conversations or the contents of files, so those leave with the files.",
+        "What it does: runs OpenClaw's own delete. The agent's scheduled tasks, saved command approvals and session records are removed, and its working folder, its own folder and its conversation files are moved to a .Trash folder in the home folder of the account the Gateway runs as. Governance's copy of its dashboard conversations goes too; attachments already sent in a prompt are kept.\nWhen to choose it: for a clean end. An agent created later with the same name starts with nothing OpenClaw could remove; anything it leaves is named here and again when you create that name.\nThe catch: the files leave the agent's folders. Nothing on this page brings them back: someone with access to the server has to move them out of .Trash by hand, and they use disk space until then. It is refused while the agent is still working, and when the governance folder is inside one of the folders it would move.\nAudit ledger: nothing in it is removed or changed. One new entry records this deletion and lists what was removed. The ledger never held whole conversations or the contents of files, so those leave with the files.",
       deletedRoster:
         "Deleted from OpenClaw's agent list. Its files, history, scheduled tasks and approvals are still on the server.",
       deletedFull:
         "Deleted the way OpenClaw does: {count} folder(s) moved to .Trash in the Gateway account's home folder.",
+      deletedFullResidue:
+        "OpenClaw reported success but left this behind: {what}. An agent created with this name will pick it up, and the page says so when that happens.",
       deletedFullKept:
         "{attachments} sent attachment(s) were kept, because audit ledger entries name them.",
       deletedFullIncomplete:
@@ -740,8 +745,9 @@ export const enGovernance: TranslationMap = {
       settingReasonLabel: "Reason for this change",
       settingSubmit: "Request change",
       // Finding 366: a request for an agent deleted before anybody decided it.
+      // Finding 379: a request can also name an agent that was never registered.
       agentGone:
-        "The agent this request was made for has been deleted, and the name is either unregistered or now held by a different agent. Approving would write a rule or setting onto that name, so only Reject is offered.",
+        "The agent this request was made for has been deleted, or was never registered with governance, and the name is either unregistered or now held by a different agent. Approving would write a rule or setting onto that name, so only Reject is offered.",
     },
     kill: {
       title: "Emergency kill switch",

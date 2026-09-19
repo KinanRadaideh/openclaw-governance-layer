@@ -82,6 +82,14 @@ function warnDeprecatedApprovalTimeoutBehavior(approval: PluginApprovalRequest):
   );
 }
 
+function isDecidedResolution(resolution: PluginApprovalResolution): boolean {
+  return (
+    resolution === PluginApprovalResolutions.ALLOW_ONCE ||
+    resolution === PluginApprovalResolutions.ALLOW_ALWAYS ||
+    resolution === PluginApprovalResolutions.DENY
+  );
+}
+
 function notifyPluginApprovalResolution(
   approval: PluginApprovalRequest,
   resolution: PluginApprovalResolution,
@@ -103,7 +111,10 @@ function notifyPluginApprovalResolution(
           "Your approval decision was recorded, but its follow-up could not be completed. Check the requesting plugin before relying on a permanent change.",
       };
     }
-    if (!approvalId) {
+    // Only a person's decision has a follow-up: the Gateway refuses a report for a
+    // timed-out or cancelled approval, and each refusal was logged as a failure
+    // (finding 377).
+    if (!approvalId || !isDecidedResolution(resolution)) {
       return;
     }
     try {

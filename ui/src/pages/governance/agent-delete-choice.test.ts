@@ -46,7 +46,17 @@ function dialog(): Element | null {
   return document.body.querySelector("openclaw-modal-dialog");
 }
 
-function mountRegistry() {
+function mountRegistry(
+  overrides: {
+    username?: string;
+    role?: GovernanceIdentity["role"];
+    /** The owning account the listing route names; absent means "not in your group, or gone". */
+    adminUsername?: string | undefined;
+    ownerKnown?: boolean;
+    registered?: boolean;
+    removeChoiceFor?: string;
+  } = {},
+) {
   const container = document.createElement("div");
   document.body.append(container);
   const deprovisionAgent = vi.fn(
@@ -70,16 +80,29 @@ function mountRegistry() {
       },
       confirmThen: async () => {},
       identity: {
-        username: "ada",
-        role: "administrator",
+        username: overrides.username ?? "ada",
+        role: overrides.role ?? "administrator",
         assignedAgents: [],
       } as GovernanceIdentity,
       busy: false,
       agents: [
-        { agentId: "agent-a", displayName: "Support triage", adminId: "admin-1", registered: true },
+        {
+          agentId: "agent-a",
+          displayName: "Support triage",
+          adminId: "admin-1",
+          ...(overrides.ownerKnown === false
+            ? {}
+            : { adminUsername: overrides.adminUsername ?? "ada" }),
+          registered: overrides.registered ?? true,
+        },
       ],
       administrators: [],
-      drafts: drafts(),
+      drafts: {
+        ...drafts(),
+        ...(overrides.removeChoiceFor !== undefined
+          ? { removeChoiceFor: overrides.removeChoiceFor }
+          : {}),
+      },
       onDraft,
       refresh: async () => {},
     }),
@@ -158,6 +181,61 @@ describe("deleting an agent", () => {
   });
 });
 
+describe("who may act on an agent's registration", () => {
+  // The routes admit the owner and Root and refuse every other Administrator with 403
+  // (`mayAdministerAgent`). A control drawn on tier alone is one whose only outcome is a
+  // refusal: findings 197, 247, 249 and 369, and this row showed the owner beside it.
+  function rowButtons(container: HTMLElement): string[] {
+    return [...container.querySelectorAll("button")].map((button) => words(button).trim());
+  }
+
+  it("offers the owning Administrator both controls", () => {
+    const view = mountRegistry({ username: "ada", adminUsername: "ada", removeChoiceFor: "" });
+
+    expect(rowButtons(view.container)).toEqual(expect.arrayContaining(["Remove…", "Allow Codex"]));
+  });
+
+  it("offers neither to an Administrator who does not own the agent", () => {
+    const view = mountRegistry({ username: "sara", adminUsername: "ada", removeChoiceFor: "" });
+
+    const buttons = rowButtons(view.container);
+    expect(buttons).not.toContain("Remove…");
+    expect(buttons).not.toContain("Allow Codex");
+    // Nor Register: it is the unregistered row's button, and this agent is registered.
+    expect(buttons).not.toContain("Register");
+    // The row still says whose it is, which is the answer to "why can I not act on it".
+    expect(words(view.container)).toContain("ada");
+  });
+
+  it("offers them to Root on another Administrator's agent, which is how an agent is re-homed", () => {
+    const view = mountRegistry({
+      username: "kinan",
+      role: "root",
+      adminUsername: "ada",
+      removeChoiceFor: "",
+    });
+
+    expect(rowButtons(view.container)).toEqual(expect.arrayContaining(["Remove…", "Allow Codex"]));
+  });
+
+  it("still offers Register for an agent OpenClaw has and governance does not", () => {
+    const view = mountRegistry({
+      username: "sara",
+      adminUsername: "ada",
+      registered: false,
+      removeChoiceFor: "",
+    });
+
+    expect(rowButtons(view.container)).toContain("Register");
+  });
+
+  it("offers neither when the owner is not named, since only Root may act then", () => {
+    const view = mountRegistry({ username: "ada", ownerKnown: false, removeChoiceFor: "" });
+
+    expect(rowButtons(view.container)).not.toContain("Remove…");
+  });
+});
+
 describe("deleting the organisation", () => {
   it("asks how its agents are deleted, and sends that choice with the typed name", async () => {
     const container = document.createElement("div");
@@ -227,6 +305,26 @@ describe("what the page says afterwards", () => {
 
     expect(notice.warning).toBe(true);
     expect(notice.text).toContain("/x: busy");
+  });
+
+  it("says what OpenClaw left behind although it reported the delete a success (376)", () => {
+    const notice = deletionNotice({
+      agentId: "a",
+      displayName: "a",
+      deletedFromHost: true,
+      hostDeletion: "full",
+      movedToTrash: ["/w"],
+      hostResidue: {
+        workspaceFiles: false,
+        agentFolder: true,
+        sessionHistory: false,
+        scheduledJobs: 0,
+        approvalSettings: false,
+      },
+    });
+
+    expect(notice.warning).toBe(true);
+    expect(notice.text).toContain("left this behind: its agent folder");
   });
 
   it("tells whoever creates an agent what it inherited from a deleted one of the same name", () => {

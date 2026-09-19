@@ -252,6 +252,7 @@ type PageState = HTMLElement & {
   loading: boolean;
   policy: GovernancePolicyDocument | null;
   users: unknown[];
+  agents: unknown[];
   updateComplete: Promise<unknown>;
   requestUpdate(): void;
 };
@@ -274,7 +275,15 @@ async function mountPage(who: GovernanceIdentity): Promise<PageState> {
   const page = document.createElement("openclaw-governance-page") as PageState;
   document.body.append(page);
   await page.updateComplete;
-  Object.assign(page, { loading: false, users: [], identity: who, policy: policy() });
+  // The registry as `GET agents` returns it: the request form offers registered agents
+  // only (finding 379), so the page needs the entry the real one always loads.
+  Object.assign(page, {
+    loading: false,
+    users: [],
+    agents: [{ agentId: "mine", registered: true }],
+    identity: who,
+    policy: policy(),
+  });
   page.requestUpdate();
   await page.updateComplete;
   await page.updateComplete;

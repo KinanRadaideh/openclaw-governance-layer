@@ -57,6 +57,31 @@ export function canAdminister(identity: GovernanceIdentity | null): boolean {
   return identity?.role === "administrator" || identity?.role === "root";
 }
 
+/**
+ * Whether this account may act on one agent's **registration**: permit Codex,
+ * unregister, or delete it from the host.
+ *
+ * The axis is ownership, not tier. `mayAdministerAgent` in
+ * `governance-dashboard-agents.ts` admits the owner and Root and refuses every
+ * other Administrator with 403, so a control drawn on tier alone is one whose
+ * only outcome is a refusal (findings 197, 247, 249 and 369). The listing route
+ * sends `adminUsername` for exactly this comparison; when it is absent the owner
+ * is outside the caller's group or gone, and only Root may act.
+ */
+export function administersAgent(
+  identity: GovernanceIdentity | null,
+  agent: { adminUsername?: string },
+): boolean {
+  if (identity?.role === "root") {
+    return true;
+  }
+  return (
+    identity?.role === "administrator" &&
+    agent.adminUsername !== undefined &&
+    agent.adminUsername === identity.username
+  );
+}
+
 /** User and above may manage the agents assigned to them. */
 export function canManageAnyAgent(identity: GovernanceIdentity | null): boolean {
   return canAdminister(identity) || identity?.role === "user";

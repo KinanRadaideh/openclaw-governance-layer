@@ -2631,6 +2631,42 @@ describe("before_tool_call requireApproval handling", () => {
     expect(onResolution).toHaveBeenCalledWith(PluginApprovalResolutions.TIMEOUT);
   });
 
+  // The Gateway accepts a follow-up only for an approval a person decided, so a
+  // report after a timeout was refused and logged as a failed follow-up on every
+  // escalation nobody answered (finding 377). The deny row shows the same wait
+  // does see a report, which keeps the timeout row from passing vacuously.
+  it.each([
+    ["a timeout", null, false],
+    ["a person's deny", "deny", true],
+  ])(
+    "reports a follow-up to the Gateway only after a decision: %s",
+    async (_label, decision, reports) => {
+      hookRunner.runBeforeToolCall.mockResolvedValue({
+        params: { command: "safe-command" },
+        requireApproval: { title: "Follow-up", description: "Reports", onResolution: vi.fn() },
+      });
+      mockCallGateway.mockResolvedValueOnce({ id: "server-id-report", status: "accepted" });
+      mockCallGateway.mockResolvedValueOnce({ id: "server-id-report", decision });
+      mockCallGateway.mockResolvedValue({ ok: true });
+
+      await runBeforeToolCallHook({
+        toolName: "bash",
+        params: { command: "safe-command" },
+        ctx: { agentId: "main", sessionKey: "main" },
+      });
+      for (let tick = 0; tick < 5; tick += 1) {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 0);
+        });
+      }
+
+      const reported = mockCallGateway.mock.calls.some(
+        ([method]) => method === "plugin.approval.reportOutcome",
+      );
+      expect(reported).toBe(reports);
+    },
+  );
+
   it("blocks exact allow decisions excluded by the request", async () => {
     const onResolution = vi.fn();
     hookRunner.runBeforeToolCall.mockResolvedValue({

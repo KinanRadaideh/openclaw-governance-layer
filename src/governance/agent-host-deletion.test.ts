@@ -139,6 +139,25 @@ describe("the full delete", () => {
     expect(ledger).toContain("1 sent attachment(s) kept");
   });
 
+  it("reports what OpenClaw left behind although it reported success (376)", async () => {
+    // The stand-in deleter reports success and moves nothing, which is the shape the live
+    // delete takes when its SQLite side files are recreated by a handle still open: the
+    // agent is gone from the roster and its folders are not.
+    const { getRuntimeConfig } = await import("../config/config.js");
+    const workspace = resolveAgentWorkspaceDir(getRuntimeConfig(), scout);
+    await mkdir(workspace, { recursive: true });
+    await writeFile(path.join(workspace, "left-behind.txt"), "still here");
+
+    const result = await deprovisionAgent(
+      { agentId: scout, groupId, deleteFromHost: true, hostDeletion: "full" },
+      ACTOR,
+    );
+
+    expect(result).toMatchObject({ ok: true, hostDeletion: "full" });
+    expect(result.ok && result.hostResidue).toBeTruthy();
+    expect(await ledgerText()).toContain("left folders of its own behind");
+  });
+
   it("is refused before anything changes when no Gateway supplies OpenClaw's delete", async () => {
     clearHostAgentDeleter();
 

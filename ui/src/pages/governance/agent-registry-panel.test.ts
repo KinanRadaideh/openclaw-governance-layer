@@ -67,6 +67,9 @@ function agent(overrides: Partial<GovernanceAgentEntry> = {}): GovernanceAgentEn
     agentId: "agent-a",
     displayName: "Support triage",
     adminId: "admin-1",
+    // The listing route names the owner; here it is the Administrator signed in, since
+    // the registry offers Remove only to an agent's owner or Root (finding 375).
+    adminUsername: "administrator",
     registered: true,
     ...overrides,
   };

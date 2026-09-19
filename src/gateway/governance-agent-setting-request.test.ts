@@ -255,3 +255,57 @@ describe("a path request states its direction (A11)", () => {
     expect(await listRuleRequests(groupId)).toEqual([]);
   });
 });
+
+// Finding 379 (the live QA of 2026-09-19). An Administrator's form offered an agent OpenClaw
+// has and governance never registered; the route filed a request for it, and approval then
+// refused it forever, saying the agent "has been deleted since this request was made".
+describe("a setting request for an agent governance never registered (finding 379)", () => {
+  it("is refused at submission, says why, and stores nothing", async () => {
+    const res = await call("rule-requests", session("administrator"), {
+      agentId: "never-registered",
+      setting: "mode",
+      value: "monitor",
+      reason: "watch it",
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.type).toBe("agent_not_registered");
+    expect(res.body.error.message).toContain('"never-registered" is not registered');
+    expect(await listRuleRequests(groupId)).toEqual([]);
+  });
+
+  it("still files one for a registered agent", async () => {
+    const res = await call("rule-requests", session("administrator"), {
+      agentId: "mine",
+      setting: "mode",
+      value: "monitor",
+      reason: "watch it",
+    });
+
+    expect(res.status).toBe(200);
+    expect((await listRuleRequests(groupId)).map((request) => request.agentId)).toEqual(["mine"]);
+  });
+});
+
+describe("approving a request for a name no agent was registered under (finding 379)", () => {
+  it("is refused without claiming the agent was deleted", async () => {
+    // A rule request may name an agent its requester does not manage, by design, so a
+    // User can still file one for a name governance has never registered.
+    const filed = await call("rule-requests", session("user"), {
+      agentId: "never-registered",
+      resourceKind: "command",
+      pattern: "^pwd$",
+      reason: "please",
+    });
+    expect(filed.status).toBe(200);
+
+    const decided = await call("rule-requests/decide", session("administrator"), {
+      id: filed.body.id,
+      approve: true,
+    });
+
+    expect(decided.status).toBe(409);
+    expect(decided.body.error.message).toContain("or was never registered");
+    expect(decided.body.error.message).not.toContain("has been deleted since this request");
+  });
+});

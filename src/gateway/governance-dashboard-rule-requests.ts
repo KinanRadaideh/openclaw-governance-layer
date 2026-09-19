@@ -297,6 +297,24 @@ export async function handleGovernanceRuleRequestRoutes(
         });
         return true;
       }
+      // **Only a registered agent can have its setting changed (finding 379).** Approval
+      // refuses an agent not registered when the request was filed (370), so a request for
+      // one could never be approved and waited in the queue for a Reject. Only Administrator
+      // and Root reach this with an unregistered id (a User manages assigned agents alone,
+      // and assignment needs registration), and both can read the registry, so saying
+      // "not registered" discloses nothing `requireAgentInGroup`'s one message protects.
+      if ((await findAgent(settingAgentId))?.groupId !== groupId) {
+        sendJson(res, 409, {
+          error: {
+            message:
+              `Agent "${settingAgentId}" is not registered with governance in this organisation, ` +
+              "so a change to its setting could never be approved. Register it under Agents in " +
+              "your organisation first.",
+            type: "agent_not_registered",
+          },
+        });
+        return true;
+      }
       if (!isApplicableSettingValue(settingRaw, value)) {
         sendInvalidRequest(
           res,
@@ -449,8 +467,9 @@ export async function handleGovernanceRuleRequestRoutes(
       sendJson(res, 409, {
         error: {
           message:
-            `Agent "${pending.agentId}" has been deleted since this request was made, and the ` +
-            "name is unregistered or now held by a different agent, so approving would write a " +
+            // "Deleted since" alone was false for a name never registered (finding 379).
+            `Agent "${pending.agentId}" is not the agent this request was made for: it has been ` +
+            "deleted since, or was never registered with governance, so approving would write a " +
             "rule or setting for somebody the request was not about. Reject this request instead.",
           type: "agent_not_registered",
         },

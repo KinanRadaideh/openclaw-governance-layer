@@ -66,6 +66,8 @@ export type GovernanceDeprovisionResult = {
   movedToTrash?: string[];
   /** Paths it could not move, with its reason; creating an agent of this id waits on them. */
   notMoved?: string[];
+  /** What OpenClaw left behind although it reported success (finding 376). */
+  hostResidue?: GovernanceHostLeftovers;
   /** Dashboard conversation turns removed with the agent. The full delete only. */
   conversationTurnsRemoved?: number;
   /** Attachments kept because a ledger entry names them. The full delete only. */

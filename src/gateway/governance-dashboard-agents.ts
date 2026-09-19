@@ -544,6 +544,7 @@ export async function handleGovernanceAgentRoutes(
       ...(result.hostDeletion ? { hostDeletion: result.hostDeletion } : {}),
       ...(result.movedToTrash ? { movedToTrash: result.movedToTrash } : {}),
       ...(result.notMoved?.length ? { notMoved: result.notMoved } : {}),
+      ...(result.hostResidue ? { hostResidue: result.hostResidue } : {}),
       ...(result.conversationTurnsRemoved !== undefined
         ? { conversationTurnsRemoved: result.conversationTurnsRemoved }
         : {}),

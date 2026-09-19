@@ -140,7 +140,7 @@ describe("a request whose agent was deleted before it was decided (finding 366)"
     });
 
     expect([setting.status, rule.status]).toEqual([409, 409]);
-    expect(JSON.stringify(rule.body)).toContain("has been deleted since this request was made");
+    expect(JSON.stringify(rule.body)).toContain("is not the agent this request was made for");
     expect(await readAgentPolicyHoldings(groupId, "doomed")).toEqual({
       rules: 0,
       mode: false,

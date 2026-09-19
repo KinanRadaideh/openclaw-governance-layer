@@ -36,6 +36,19 @@ export type AgentSources = {
 };
 
 /**
+ * The agents a request may name: those governance has registered. Narrower than
+ * `knownAgentIds` on purpose, because approving a request for an agent that was not
+ * registered when it was filed is refused (370), so offering the host's unregistered
+ * agents offered a request that could never be approved (finding 379).
+ */
+export function registeredAgentIds(agents: readonly GovernanceAgentEntry[]): string[] {
+  return agents
+    .filter((agent) => agent.registered)
+    .map((agent) => agent.agentId)
+    .toSorted();
+}
+
+/**
  * Every agent id this page has seen, for the controls that take one.
  *
  * **The registry leads and the reconstruction follows (M4).** What follows
