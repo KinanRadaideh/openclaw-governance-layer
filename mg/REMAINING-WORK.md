@@ -32,6 +32,14 @@ was decided on 2026-09-09 (sweep register C5) and its row here had not been stru
 escalation from the Policy section. The task as Kinan wrote it, and what was built, are
 §"A12" below.
 
+**A13, added 2026-09-18, is open** and is the one item Claude can build: rename and re-own an agent
+from the dashboard, whose routes exist and which nothing on the page calls. §"A13" below has the task.
+The same day's live QA found and fixed findings 375 and 376 (§"The QA over 2026-09-11 to 15, driven
+live"). **On 2026-09-19 the dashboard was driven live again with a model connected**, which found
+and fixed **377–379** and opened decision **C15** (§"The live QA of 2026-09-19, with a model
+connected"); the same day every figure in `docs-notes/FIGURES.md` was re-audited (T17's
+material, fifteen corrected).
+
 **Numbered elsewhere:** T67 is finding 169, unexplained and never reproduced, kept in
 the sweep register; T65 and T66 were second numbers for T63 and T60 and are withdrawn
 (finding 343). **Findings are counted in `GOVERNANCE.md`'s register, not here**, and
@@ -390,11 +398,11 @@ all of them. Option (a) would not remove the deleted agent's ledger entries; it 
 option closest to T55. Both answers, with the evidence, are
 `docs-notes/CHAPTER3-MATERIAL.md` §3.5.90.
 
-### C13 decided: two ways to delete an agent (2026-09-15, BUILT, uncommitted)
+### C13 decided: two ways to delete an agent (2026-09-15, BUILT, COMMITTED AND PUSHED)
 
 **Paused mid-build at Kinan's request, then resumed and finished the same day** (§"Resumed and
-finished" below). Everything here is uncommitted, and nothing is committed or pushed until
-Kinan asks. `.codex/` is another agent's and is never part of a commit.
+finished" below). The implementation landed in `4107a3605fe` and `48e9e56a3a5`; the
+updated record landed in `298bf89b7fa`. `.codex/` is another agent's and is never part of a commit.
 
 **The decision (Kinan, 2026-09-15).** Deleting an agent opens a popup with two options,
 each explained on screen (what it does, when to choose it, the catch, and what happens to
@@ -422,7 +430,7 @@ to answer the eight follow-up questions with its own recommendations:
 8. **Finding 254's layout.** A full delete that would move a folder containing the
    governance directory is refused; list-only stays available.
 
-**Code written (all uncommitted).**
+**Code written and subsequently committed and pushed.**
 
 - `src/governance/agent-host-deletion.ts` (new): `HostDeletionMode`, the seam the Gateway
   installs OpenClaw's delete into (`registerHostAgentDeleter`), `runFullHostDeletion` (the
@@ -612,6 +620,154 @@ uncommitted.
   in 34–43 ms over five reads. The probe was a scratch file and is not in the repository.
 
 **Verified on the final tree, A12 included:** §"A12" above.
+
+### The QA over 2026-09-11 to 15, driven live (2026-09-18)
+
+**Method.** An isolated Gateway on port 18823 — its own `OPENCLAW_STATE_DIR`,
+`OPENCLAW_GOVERNANCE_DIR` and **its own HOME**, so OpenClaw's trash could not reach the real
+profile — started from a rebuilt `dist`, and the dashboard driven through a browser. Root
+bootstrapped, two Administrators created, agents provisioned and deleted both ways, a core
+rule switched off and on, the kill switch engaged and released, the sign-in throttle tripped,
+and the organisation deleted last. **Every outcome was checked against `policy.json`,
+`agents.json`, the audit ledger and the file system, never against the screen alone.**
+
+**Confirmed working:** the first-run form (205); C13 in full — the two-option dialog and its
+four explanations, cancel, the list-only delete and its notice, the leftovers clause on the
+next creation (372), OpenClaw's own delete moving three folders to `.Trash` with real NTFS
+ids (373's fix, without which it refuses), the same question asked once for a whole
+organisation, and the ledger kept (49 entries) with every account gone; a refusal showing its
+remedy (374); a core rule off and back on with both ledger entries (367); A12's per-agent
+escalation, landing as `agentAsk: { scout: "off" }` and in the ledger; the kill switch asking
+first, naming the agent, locking and releasing; and the lockout stating the wait (368).
+
+**Two findings, both fixed.** **375**: the registry drew _Allow/Disallow Codex_ and _Remove…_
+on tier while the routes check ownership, so a second Administrator was offered both on
+another's agent. **376**: OpenClaw's delete leaves the agent's SQLite side files and reports
+success, so C13's promise that the next agent of the name "starts with nothing" was false;
+the promise is now honest and the residue is reported. Both are written up in
+`GOVERNANCE.md`, design §3.5.92 and plain language §5.119.
+
+**375's fix was wrong once, and only the page showed it.** Gating _Remove…_ left its `else`,
+the _Register_ button, on a registered agent, so a non-owner was offered registration. Every
+unit test still passed: they asserted what had gone, not what had appeared. The tests now
+assert the absence of _Register_ as well.
+
+**Not covered, and why.** Anything needing a model: a User's rule request through A11, the
+_Observe_ row (369), dashboard escalations (T68) and a task surviving its tab (T63) all need a
+running prompt, and the QA Gateway has no model connected. The service worker (346) was left
+to the pass that found it.
+
+**Verified on the final tree (2026-09-18/19).** Four typechecks 0. Governance suite 3,176 passed,
+21 skipped, 0 failed, in 192 files and 2 skipped; its first run failed 2 in
+`agent-registry-panel.test.ts`, whose sample agent carried no owner name, which the route always
+sends, and was corrected. Whole `ui/src` suite 8,227 passed, 5 failed (A10's five, by their error).
+Browser project 199 in 22 files. Full lint gate exit 0 with the raised cap. Mutations: 375's gate
+(always-true and always-false) and its Register branch, and 376's residue read, each caught by exactly
+the tests it should. Not re-run: the mutation sweep of C13 and the host suites, which nothing changed.
+
+**Two traps for §4.** A gateway started from `.claude/launch.json` with no configuration
+exits **78** immediately (_"Missing config. Run `openclaw setup` or set gateway.mode=local"_),
+and the preview pane reported it as started with no logs at all; write a minimal
+`openclaw.json` (a `gateway.mode: "local"`, a token, and one agent) into the QA state
+directory first. And **point HOME at the QA directory**: OpenClaw's trash is
+`os.homedir()/.Trash`, so a full delete driven live otherwise moves an agent's files into the
+real profile.
+
+### The live QA of 2026-09-19, with a model connected (findings 377–379, decision C15)
+
+**Asked by Kinan:** pick dashboard features, QA them by driving the dashboard live, and record
+what could not be done in the T47 plan. **Method.** The isolated Gateway of 2026-09-18 (now
+launch entry `governance-gateway-qa6`, port 18825, its own state, governance and home
+directories) with a model for the first time: qa-lab's mock OpenAI server (`qa-mock-openai-6`,
+port 44080), which scripts replies and tool calls. Root, two Administrators (adm1 owning agent
+`scout`, adm2 owning nothing), a User (usr1, assigned scout), a User with no agents (usr0) and a
+Viewer; usr1 and adm1 signed in at once on `localhost` and `127.0.0.1`, which keep separate
+cookies; adm2 and the Viewer through the same routes with `curl`. Every outcome read from
+`policy.json`, the request store, the ledger and the Gateway log. Kinan pressed _Always allow_
+on one card by accident; it had already expired, and nothing reached the Gateway.
+
+**Pressed and passed (T47 rows):** 3.1.1–3.1.2, 3.2.1 (reply), 3.2.4, 3.2.5, 3.2.9, 3.2.12–3.2.13,
+3.6.4 (as the Viewer, head matching `scripts/verify-ledger.mjs`), 6b.1–6b.4, 6c.1, 6c.2, 6c.4,
+6c.7, 6c.10, 6c.11, 6c.13, 6d.5, 6d.6, 6d.9, 6d.10, 6d.13, and Q1's never-pressed Approve,
+Reject and Verify chain integrity. **Also confirmed:** `monitor` records a miss as `ask` and
+lets it run (FIGURES F3), and a prompt refused for want of a slot is recorded first (F10).
+
+**Three findings, all fixed.** **377** (low, T60's code): every unanswered escalation left a false
+_"plugin approval follow-up reporting failed"_ warning, because the hook reported an outcome the
+Gateway accepts only after a decision; the hook now reports only decisions. **378** (low): the
+Viewer's Identity sentence promised "the rule requests queue in full"; reworded. **379** (low): a
+setting request could be filed for an agent governance never registered, and never approved;
+refused at filing, the list narrowed to registered agents, and the approval refusal's "deleted
+since" corrected. The registers carry each: `GOVERNANCE.md`, design §3.5.93, plain language
+§5.120. **Counts: 379 found, 377 fixed, 1 open (169).**
+
+**Decision C15, Kinan's.** A request filed by _Always allow_ or _Would allow_ says _requested by
+hitl-approval_, the label for a proposal no account authored, although since T68 the answer
+comes from a named account the ledger already records. **Recommended:** attribute it to that
+account when the answer came from a signed-in governance session; keep the label for chat runs.
+Not built, because it moves the request into that account's per-account queue capacity.
+
+**A measurement, not a finding.** The kill switch confirmed a dashboard task's stop in 2,170 ms
+and 2,760 ms (signal 1.3 ms and 6.8 ms) on a laptop whose Gateway logged event-loop stalls of up
+to 8.6 s. Requirement 7 is one second: re-measure on the VPS before Chapter 4 quotes a number.
+
+**Not done, and why** (also at the top of `docs-notes/T47-TEST-PLAN.md`): screenshots (no visible
+browser window); three machines; a real model; the streaming half of 3.2.1; attachments (3.2.3);
+chat channels; 2.2.14, 3.1.6–3.1.7, 3.2.14, 6b.5, 6c.5, 6c.6, 6c.8, 6c.12, 6d.3, 6d.4, 6d.7, 6d.8,
+6d.11, 6d.14–6d.16; and Linux (T3).
+
+**Traps** (in `mg/HANDOFF.md` §4): the dashboard does not poll approvals in a hidden tab, and the
+Claude browser pane's tabs report hidden; the e2e Vitest config's global setup rebuilds `dist`
+and, killed at its cap, left it half-built under a running Gateway; and
+`agent-tools.before-tool-call.e2e.test.ts` fails 6 tests on Windows at HEAD (POSIX paths).
+
+**Verified on the final tree (2026-09-19).** Four typechecks 0. Governance suite 3,187 passed, 21
+skipped, 1 failed in 196 files: the failure was `agent-setting-request.test.ts`'s page fixture, which
+loaded no agent registry and so met 379's registered-only list with nothing; given the registry entry
+the real page always loads, that file passes 12/12. Whole `ui/src` suite 8,229 passed, 6 failed: A10's
+five (by their error) and `app-host.test.ts`'s locale retry, which passed alone three times out of
+three. Browser project 199 in 22 files. `agent-tools.before-tool-call.e2e.test.ts` 95 passed, 6 failed,
+the same six as at HEAD by title; `agent-tools.before-tool-call.embedded-mode.test.ts` fails one test,
+the same with the committed `approval.ts` swapped in. Mutations: 377's condition, 378's sentence and
+379's route check were each red before their fix, and 379's registered filter, disabled, turned exactly
+its test red. Live: 377 (no report after a timeout), 378 (the new sentence) and 379 (refused at filing,
+the list without `main`) on the rebuilt Gateway. Full lint gate exit 0 with the raised cap.
+
+### A13: rename and re-own an agent from the dashboard (added 2026-09-18, open)
+
+**Found by the live QA of 2026-09-18**, while checking which controls the registry draws against
+which routes check ownership. Not numbered as a finding, like A12, because nothing is wrong with
+what exists: a capability has no way to reach it.
+
+**What exists.** `POST agents/rename` and `POST agents/owner` in
+`src/gateway/governance-dashboard-agents.ts`, both behind `requireOwnership` (the owner or Root) and
+both recorded in the ledger; `renameAgent` and `setAgentOwner` in `ui/src/pages/governance/api.ts`.
+**What is missing.** Any control that calls them: neither client function has a caller outside the
+API files. So renaming an agent, or handing it to another Administrator, takes hand-written HTTP.
+
+**Why it matters.** Re-owning is how Root re-homes the agents of an Administrator who leaves, and it
+is the stated reason `mayAdministerAgent` exempts Root (an agent nobody can re-home is "a lockout
+with extra steps"). The M4-era passages in `GOVERNANCE.md` (§"The dashboard surface, stated
+honestly") and `mg/HANDOFF.md` said creating, renaming, re-owning and unregistering from the browser
+was M6's Administrator panel; M6 shipped create, register, unregister, delete and Codex, and not the
+other two. Findings 222 and 239 are the same shape.
+
+**The task.**
+
+1. On the registry row, for whoever `administersAgent` admits (the owner and Root), a **Rename**
+   control for the display name; the id never changes, since every rule and ledger entry uses it.
+2. For Root, a **Change owner** picker of the organisation's Administrators, following the create
+   form's owner picker; the route already refuses a non-Administrator or an account outside the
+   organisation.
+3. In a module of its own (the pattern is `panels/agent-delete-choice.ts`):
+   `agent-registry-panels.ts` is at 668 lines against the 700-line limit.
+4. Tests at the panel, like `agent-delete-choice.test.ts`, including a non-owner seeing neither
+   control (finding 375's lesson: assert what appears as well as what is gone), then drive it live.
+5. Record it in the three registers and T47.
+
+**Decision for Kinan, with a recommendation.** Build it (recommended: small, and re-homing is a
+real operator task), or record the omission as deliberate and say in Chapter 3 that renaming and
+re-owning are API-only.
 
 ### How items are marked
 

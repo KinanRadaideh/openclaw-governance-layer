@@ -25,7 +25,10 @@ Cross-references: `GOVERNANCE.md` (operator-facing overview + QA defect table),
 > deleted agent's leftovers (finding 372), what option (a) would and would not remove, and
 > how the options compare with T55; and §3.5.91 (2026-09-15, built), C13 decided and
 > built: the operator chooses between two ways to delete an agent, with findings 373 and 374
-> found on the way.
+> found on the way; and §3.5.92 (2026-09-18), the fortnight's work checked by driving the
+> dashboard live, which found 375 and 376; and §3.5.93 (2026-09-19), the same with a model
+> connected, which found 377–379, opened decision C15, and measured the kill switch's
+> confirmed stop above one second on the laptop (quote it with §3.5.93's qualification).
 > §3.1's status column was brought up to date
 > against the code on 2026-09-14.
 >
@@ -1670,8 +1673,12 @@ concurrency limit), built together because they are one feature seen from two
 sides: both are about a prompt being a _live thing an operator is watching_
 rather than a request that returns.
 
-> **Figure candidate.** The prompt lifecycle: claim a slot → record the intent →
-> stream snapshots → end (reply, cancel, or timeout) → record the outcome.
+> **Figure candidate.** The prompt lifecycle: record the intent → claim a slot
+> (refused, and the refusal recorded, when none is free) → stream snapshots → end
+> (reply, cancel, timeout, or the kill switch) → record the outcome. _(Corrected
+> 2026-09-19: this note put the slot before the record, and `promptAgent` has
+> always recorded first, so a prompt refused at capacity is still on the record.
+> FIGURES F10.)_
 
 #### Why the two belong together
 
@@ -10703,3 +10710,110 @@ The record, with every check run, is `mg/REMAINING-WORK.md` §"C13 decided".
 **For Chapter 5:** running the host's own operation rather than a copy brings its platform
 limits and its safety guards with it, and only a test that runs it for real, on the platform
 the work is done on, can see either. The mocks in upstream's own suite are what hid finding 373.
+
+### 3.5.92 The work of 2026-09-11 to 15, checked by driving it (findings 375 and 376)
+
+**Method, 2026-09-18.** An isolated Gateway — its own state directory, governance directory
+and home, so OpenClaw's trash could not reach the real profile — was started on port 18823
+and the dashboard driven through a browser: Root bootstrapped, two Administrators and the
+sign-in throttle exercised, and every outcome checked against `policy.json`, `agents.json`,
+the ledger and the file system rather than against the screen.
+
+**What it confirmed of the fortnight's work.** The first-run form on a fresh installation
+(205); C13 end to end — the two-option dialog with its four explanations, cancel, the
+list-only delete and its notice, the leftovers clause on the next creation (372), OpenClaw's
+own delete moving three folders to `.Trash` on Windows with real NTFS ids (373's fix, which
+that delete could not have run without), and the same choice asked once for a whole
+organisation, whose ledger was kept; a refusal showing its remedy (374); a core rule switched
+off and back on with both ledger entries (367); one agent's escalation set from the Policy
+section (A12), landing as `agentAsk` and in the ledger; the kill switch asking first and
+naming the agent, then locking and releasing it; and the lockout stating the wait (368).
+
+**Finding 375, and the fix that was wrong the first time.** Two registry controls were drawn
+on tier while their routes check ownership. What makes it worth recording is the second
+half: the first fix gated the Remove button, whose `else` branch is the _Register_ button, so
+a non-owning Administrator was then offered **Register** on an agent that was already
+registered. Every unit test passed, because they asserted what was absent and not what had
+appeared. The live page showed it immediately. The tests now assert the absence of Register
+too, and the case is in the sweep.
+
+**Finding 376.** OpenClaw's own delete reports success and can leave the agent's SQLite side
+files behind, recreated by a handle still open. C13's dialog promised a clean start, and the
+page's own leftovers clause contradicted it at the next creation. The promise is now what the
+product can keep, and what the delete leaves is reported beside its success.
+
+**For Chapter 5:** both findings are sentences that were true in a test and false on the
+running product — one because a fixture never had a second Administrator, one because a mocked
+delete never leaves anything behind.
+
+### 3.5.93 The dashboard driven with a model behind it (findings 377–379, decision C15)
+
+**Method, 2026-09-19.** The same isolated Gateway as §3.5.92, now with a model: qa-lab's mock
+OpenAI server, which scripts both the reply and the tool call it requests, so an escalation
+can be produced on demand without a real model's variability. Root, two Administrators, a
+User, a User with no agents and a Viewer; two sessions signed in at once in separate browser
+contexts. Every outcome was read from `policy.json`, the rule-request store, the ledger and the
+Gateway log. **Every row of the by-hand plan that needed a model or a User had never been
+pressed until this check** (§3.5.92 had neither).
+
+**What it confirmed.** A User's prompt, recorded against the account before the run; an
+escalation reaching the User's page and the owning Administrator's, and neither the second
+Administrator's nor the Viewer's (T68); _Always allow_ running the action once and filing a
+request with no dialog after it (T60); that request approved by hand and the next attempt
+allowed with no card; _Would allow_ on a lapsed escalation filing a request, rejected by hand;
+a User's posture request approved and applied (A11); a cancelled task's card withdrawn (363),
+a kill switch closing a card and ending the task (364), a task recovered after a reload and
+cancelled from _Active agent sessions_ with both views agreeing (T63), a third concurrent
+prompt refused, and no _Observe_ for a User (369); the browser cache holding no governance
+answer after sign-out (346); and the chain verified from the Viewer's page, with the head
+matching `scripts/verify-ledger.mjs`.
+
+**Two design claims checked against the running product for the first time.** Under the
+`monitor` posture a call no rule covers was recorded as `ask`, the verdict `enforce` would have
+given, and then ran, with nobody asked (FIGURES F3, corrected the same day to say so). And a
+prompt refused for want of a concurrency slot was recorded first and refused second, in that
+order in the ledger: the order the code has always had and the prompt-lifecycle figure had
+drawn backwards (F10).
+
+**Finding 377: a log that reported a failure on every unanswered escalation.** The approval
+hook reported an outcome to the Gateway after every escalation, and the Gateway accepts one
+only for an approval a person decided, so each timeout or cancellation produced a refused call
+and a warning, _"plugin approval follow-up reporting failed"_. Nothing was lost. The point for
+the report is the one this project keeps meeting: **an alarm that fires when nothing is wrong
+teaches the operator to ignore the alarm**. Fixed where the report is sent.
+
+**Finding 378: "in full".** The Viewer was told it could read the rule requests queue in full,
+and saw an empty queue that held three requests. The route shows a Viewer the requests for its
+own agents and those binding every agent, unmasked, as decision C2 chose; "in full" had meant
+_unmasked_. Finding 331 was this sentence being wider than the masking; 378 is its correction
+being wider than the queue.
+
+**Finding 379: a request that could never be approved.** An Administrator was offered, and the
+route accepted, a posture request for an agent governance never registered, which approval
+then refused for ever while saying the agent had been deleted. Refused now at filing, with the
+list narrowed to registered agents and the refusal's wording corrected. A **rule** request may
+still name an unregistered agent, deliberately: rule requests may name agents the requester
+does not manage, and refusing an unregistered name at filing would tell a User which agent ids
+exist — the existence-oracle argument §3.5 already makes for `requireAgentInGroup`.
+
+**Decision C15, for Kinan: who a request filed by "Always allow" is from.** It is recorded as
+`hitl-approval`, a label meaning _a proposal no account authored_, which was true when approval
+cards were answered in the Control UI by whoever held the Gateway credential. Since T68 a
+dashboard escalation is answered by a named governance account, and the ledger records that
+account in the same second; _Would allow_, pressed from a signed-in session, files its request
+under the same anonymous label. **Recommended:** attribute the request to the account when the
+answer came from a signed-in governance session, and keep `hitl-approval` for chat runs. It
+changes whose per-account queue capacity the request counts against, which is why it is a
+decision and not a repair.
+
+**A measurement for Chapter 4, and the qualification it needs.** Requirement 7 is one second.
+Locking a running dashboard task, the kill switch reported the signal in 1.3 ms and 6.8 ms and
+the _confirmed_ stop in 2,170 ms and 2,760 ms. The laptop's Gateway logged event-loop stalls of
+up to 8.6 seconds in the same minutes, so the number measures the machine as much as the
+product. **The report should quote both numbers, say which is which, and take the confirmed
+figure from the VPS** (T3, and T47 row 6c.7). Lockdown itself is in force before either number
+is taken (§3.5.10).
+
+**For Chapter 5:** all three findings are about what the product _says_, a log line, a
+sentence and a refusal. None of them could be seen without a second account, a model, or the
+Gateway's own log, which is the case for testing an oversight tool from each seat it has.

@@ -5515,3 +5515,67 @@ the committed files back in and diffing the failing titles.
 **The lesson.** Both defects hid behind imitation: upstream's tests mock the file system, and
 governance's tests of its refusals checked the server's reply, never what the page shows. The
 checks that found them ran the real thing.
+
+## 2026-09-18 and 19: the fortnight checked by driving it
+
+Kinan asked for the work of 2026-09-11 to 15 to be QA'd, and then for the dashboard to be driven
+live as part of it. A throwaway Gateway was started with its own state, governance directory and
+home, and the dashboard used as Root, two Administrators and a locked-out account, with every result
+checked in the stored files and the ledger. Most of the fortnight held: C13 ran end to end, OpenClaw's
+own delete moved real folders on Windows because of 373's fix, and 367, 368, 374 and A12 behaved as
+written.
+
+**Two findings, and a fix that was wrong the first time.** **375**: a second Administrator was offered
+Remove and Allow Codex on an agent the first one owned, and the server refuses both. The first fix hid
+Remove and thereby revealed Register, its other branch, on an agent that was already registered; every
+unit test passed, because each checked what was gone and none what had appeared. The live page showed
+it at once, and the wider suite then caught an older test whose sample agent had no owner name.
+**376**: the full delete's popup promised that the next agent of the name starts with nothing, and
+OpenClaw left two database side files behind; the promise now says what can be kept. The totals move
+to 376 found and 374 fixed, with 169 the one still open.
+
+**And a gap, A13.** Renaming an agent and giving it to another owner have routes and no control on the
+page, which leaves Root no way to re-home the agents of an Administrator who leaves. Recorded at the top
+of `mg/HANDOFF.md` for Kinan's decision.
+
+**The lesson.** A sentence can be true in every test and false on the running product. Both findings
+needed something the tests never had: a second Administrator, and a delete that really deletes.
+
+## 2026-09-19 (later): the dashboard driven with a model, and the figures re-audited
+
+Kinan asked for dashboard features to be QA'd by running the dashboard live, anything that could not
+be done to be reported and added to the T47 plan, every figure in `docs-notes/FIGURES.md` to be checked
+against the project in all three forms with a recommendation, and then a commit and push.
+
+**The live check, with a model this time.** The throwaway Gateway of the day before was given qa-lab's
+mock OpenAI server, which answers exactly as scripted and can be told to request a tool call. That made
+the rows needing an agent at work pressable for the first time: prompts, escalations reaching exactly
+the accounts that manage the agent, _Always allow_, approving and rejecting by hand, a posture request,
+cancel and kill switch closing a card, and a task surviving a page reload. Five accounts, two signed in
+at once through two hostnames, which keep separate cookies. Kinan pressed a card by accident; it had
+already expired and nothing reached the server.
+
+**Three findings, all fixed.** **377**: every unanswered escalation left a false "follow-up reporting
+failed" warning in the Gateway log. **378**: a Viewer was promised "the rule requests queue in full" and
+saw an empty queue that held three requests. **379**: an Administrator could file a setting request for
+an agent governance never registered, which could never be approved and whose refusal said the agent had
+been deleted. The totals move to 379 found and 377 fixed, with 169 the one still open.
+
+**A decision, C15**, on who a request from _Always allow_ is attributed to, and **a measurement**: the kill
+switch confirmed a task's stop in 2.2 and 2.8 seconds on a laptop that was visibly struggling, against a
+one-second requirement, so the VPS number is the one the report should quote.
+
+**Three traps, now in HANDOFF §4.** The dashboard does not look for approval cards in a hidden tab, and
+the browser the check drove reports its tabs hidden. The e2e test configuration rebuilds `dist` on the
+way in, was killed part-way, and left the running Gateway on a half-built bundle, which cost a rebuild.
+And one more upstream test file fails on Windows at HEAD for POSIX paths.
+
+**The figures.** Fifteen needed correcting. F3, the report's central figure, had a Mermaid block that did
+not parse; F10 had drawn the first two steps of a prompt's life in the wrong order since it was written,
+and the code confirmed the correct order live; F24's TikZ would have printed a command name in three
+boxes. Every figure now has all three forms, the Mermaid is parsed and rendered by Mermaid 11, and the
+summary table agrees with each figure's own advice: fourteen figures, twelve in Chapter 3.
+
+**The lesson.** All three findings were about what the product says, not what it does. Each needed a
+seat the tests never sit in: the Gateway's own log, a Viewer with no agents, an Administrator looking at
+an agent nobody registered.

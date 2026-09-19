@@ -14,7 +14,9 @@ Each entry carries a recommendation. **They are advice, not decisions**. The
 brief was to give you all three for every candidate so the choice is yours while
 writing.
 
-**Summary of the recommendations: keep 10, cut 7, merge 3.** _(Written for F1–F20. F22 was added 2026-09-01 as a keep, and **F23 and F24 were added 2026-09-11 for T60 and T63, both keeps** — so the drawable total is now 23, F18 being a cross-reference.)_ Twenty figures is a
+**The current recommendations are the summary table, "# Summary table" below:
+fourteen figures, twelve in Chapter 3 and two in Chapter 4 (2026-09-19).** The rest of
+this paragraph is as first written. **Summary of the recommendations: keep 10, cut 7, merge 3.** _(Written for F1–F20. F22 was added 2026-09-01 as a keep, and **F23 and F24 were added 2026-09-11 for T60 and T63, both keeps** — so the drawable total is now 23, F18 being a cross-reference.)_ Twenty figures is a
 lot for two chapters, and several candidates were notes-to-self rather than
 arguments. The ten recommended keeps are the ones where a reader genuinely
 understands something faster from the picture than from the paragraph.
@@ -168,6 +170,61 @@ other figure mentions anything changed in the three days. **Still not done:**
 nobody has compiled these. The TikZ edited in this pass keeps to the shared style
 block and the `\\\scriptsize` form.
 
+### 2026-09-19: every figure read against the code again, and the Mermaid parsed for the first time
+
+**Kinan asked for each figure to be checked against the project, to exist in prose,
+Mermaid and TikZ, and to carry a recommendation.** Every figure was read against the
+source it describes, not only against the last few days' changes, and three
+mechanical checks were run over the file. **Fifteen figures needed a correction,
+among them one Mermaid block that did not parse and two TikZ blocks not in the house
+form.**
+
+| Figure       | What was wrong                                                                                                                                                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **F3**       | **Its Mermaid did not parse.** The 2026-09-14 correction put a semicolon in a participant label, which ends a statement in a sequence diagram, so the report's central figure would not render. And no form said it drew the `enforce` posture; `monitor` and `off` end differently        |
+| **F10**      | **The order of the first two steps was backwards in every form**, and in `CHAPTER3-MATERIAL.md` §3.5.17. The code records the prompt and _then_ claims a slot, and has since 2026-08-21, so a prompt refused at capacity is still on the record                                            |
+| **F4**       | "A caller with no account may sign up." False since the one-organisation cap: sign-up works once, on an unclaimed installation, then answers 409                                                                                                                                           |
+| **F5**       | "A single form is chosen." Since findings 253 and 254 (2026-09-04) a workspace path is tested in both its short and absolute forms                                                                                                                                                         |
+| **F7**       | Called `readDeploymentStatus` a pure function. It is `async` and reads files, disk, memory and environment through injectable readers. Also named "Windows CI", which this repository does not run                                                                                         |
+| **F2**       | Gave the User only a _request_ for a rule, when a User writes rules and folder grants for its own agents unless Root withholds it (T27); and never said an Administrator acts on one agent only when it owns it (finding 375's subject)                                                    |
+| **F21**      | "An Administrator decides, per agent." It is the agent's owning Administrator, or Root (375)                                                                                                                                                                                               |
+| **F8**       | Described the ungoverned Codex relay and stopped, so the defect read as the current state. The fix is now stated                                                                                                                                                                           |
+| **F13**      | Drew one funnel; since T57 there are two. All three forms now draw `agentCommandInternal`, where every instruction is recorded, beside the tool-call hook                                                                                                                                  |
+| **F6**       | Silent on the concurrency slot, now that it absorbs F10. Added                                                                                                                                                                                                                             |
+| **F1**       | Its storage list left out the ledger's signing key and two per-organisation files                                                                                                                                                                                                          |
+| **F15**      | Its "prose form" was one line pointing at F14. Written, with the 34 reasons grouped from `qa-round11.test.ts`                                                                                                                                                                              |
+| **F17**      | Prose said "148 findings across twenty-eight rounds" (376 now), and the summary table said _keep_ while its section said _cut and replace_. Now cut; the replacement is a Chapter 4 number, compile last, and it is less mechanical than assumed (below)                                   |
+| **F23, F24** | **F24's TikZ would have printed the word "footnotesize" in three boxes** (`\\footnotesize`, the defect F21 had on 2026-09-05), and left the kill switch off its Stopping edge. Both lacked a figure environment, caption and label, and used private styles. Rewritten in the shared style |
+
+**Also:** the preamble lacked `decorations.pathreplacing`, which F11's brace needs;
+and the summary table disagreed with two figures' own recommendations (F2 keep, F17
+cut), so it was rebuilt and its numbers closed up: **fourteen figures, twelve in
+Chapter 3 and two in Chapter 4.**
+
+**The checks, and what each returned.**
+
+- **Forms, counted by heading** (`figures-check.mjs`, in the 2026-09-19 session's
+  scratchpad): 23 figures carry all three forms; F18 carries none because it is a
+  cross-reference, not a figure.
+- **LaTeX, scanned mechanically:** no line break that swallows a command, balanced
+  braces, only shared styles, and every block with a figure environment, caption
+  and a unique label (23 labels). **Run against the committed file first, it found
+  F24's three `\\footnotesize` and F23's and F24's missing environments**, so its
+  clean result on the new file means something.
+- **Mermaid, parsed and rendered by Mermaid 11** in a browser: 23 of 23 after the F3
+  fix; before it, F3 failed at line 7.
+- **Not done: compiling the TikZ.** This machine has no LaTeX toolchain. The scan
+  above catches the defects found so far; only a compile catches the rest.
+
+**F17's replacement, measured rather than assumed.** Of 376 findings, 176 carry a
+date in their `GOVERNANCE.md` index row; findings 1 to about 120 were recorded by QA
+pass without one. Findings over time is therefore counting from pass headings and
+commits, not a script over one table.
+
+**New work since 2026-09-14 checked for a figure it needs, and none does.** C13's two
+deletions, 372–376 and A12 are each a short table or a sentence: what each deletion
+removes is two rows, and a registry control drawn on ownership is a caption on F2.
+
 ---
 
 ## What to add to the LaTeX preamble
@@ -177,15 +234,18 @@ The PSUT template loads no drawing package, so add these to `main.tex` after
 
 ```latex
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta, positioning, shapes.geometric, fit, backgrounds, calc}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, fit, backgrounds, calc,
+                decorations.pathreplacing}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 ```
 
 `tikz` draws the diagrams; the libraries supply arrow heads, relative
-positioning, the diamond decision shape, and the ability to draw a box around a
-group of nodes. `pgfplots` is needed only for the two bar charts (Figures 15 and
-17). If you drop both charts, drop `pgfplots` with them.
+positioning, the diamond decision shape, the ability to draw a box around a
+group of nodes, and the brace F11 draws under its window
+(`decorations.pathreplacing`, which F11 needs and this list left out until
+2026-09-19). `pgfplots` is needed only for the two bar charts (F14 and F17). If
+you drop both charts, drop `pgfplots` with them.
 
 ### One shared style block
 
@@ -244,9 +304,12 @@ policy document, writes its decision to the hash-chained audit ledger, and
 returns one of three verdicts: allow, deny, or escalate to a human. Both doors
 lead to the same state on disk under `~/.openclaw/governance/`, and neither can
 reach it any other way. That state is split at one boundary: accounts, sessions,
-the agent registry and the ledger checkpoint are installation-wide, while each
-organisation's policy document, ledger, rule requests and attachments live under
-`groups/<groupId>/`.
+the agent registry, the ledger's signing key and its checkpoint are
+installation-wide, while each organisation's policy document, ledger, rule
+requests, attachments, conversations and held decisions live under
+`groups/<groupId>/`. _(Until 2026-09-19 this sentence left out the signing key
+(`ledger.key`) and the last two per-organisation files, `conversations.json` and
+`pending-decisions.json`, all of which `paths.ts` defines.)_
 
 ### Mermaid form
 
@@ -264,8 +327,8 @@ flowchart TB
     LEDGER["Hash-chained audit ledger"]
   end
   subgraph Disk["~/.openclaw/governance/"]
-    U["users.json · sessions.json<br/>agents.json · ledger-checkpoint.json<br/><i>installation-wide</i>"]
-    P["groups/&lt;groupId&gt;/<br/>policy.json · audit-ledger.jsonl<br/>rule-requests.json · attachments/<br/><i>per organisation</i>"]
+    U["users.json · sessions.json · agents.json<br/>ledger.key · ledger-checkpoint.json<br/><i>installation-wide</i>"]
+    P["groups/&lt;groupId&gt;/<br/>policy.json · audit-ledger.jsonl · rule-requests.json<br/>attachments/ · conversations.json · pending-decisions.json<br/><i>per organisation</i>"]
   end
   AGENT["LLM agent tool call"]
 
@@ -301,9 +364,10 @@ flowchart TB
 
   \node[gstore, below=16mm of api, xshift=16mm] (disk)
     {\texttt{users.json} \quad \texttt{sessions.json} \quad \texttt{agents.json}
-     \quad \texttt{ledger-checkpoint.json}\\[2pt]
+     \quad \texttt{ledger.key} \quad \texttt{ledger-checkpoint.json}\\[2pt]
      \texttt{groups/<groupId>/}\;\{\texttt{policy.json},
-     \texttt{audit-ledger.jsonl}, \texttt{attachments/}\}};
+     \texttt{audit-ledger.jsonl}, \texttt{rule-requests.json}, \texttt{attachments/},
+     \texttt{conversations.json}, \texttt{pending-decisions.json}\}};
   \node[gnote, below=0.5mm of disk]
     {\textasciitilde/.openclaw/governance/ --- top row installation-wide, bottom row per organisation};
 
@@ -373,18 +437,28 @@ The four tiers are strictly cumulative. A **Viewer** may read the policy and the
 sanitised ledger and verify the chain's integrity; it is oversight only and
 writes nothing. A **User** inherits all of that and gains the capabilities that
 concern _the agents assigned to it_: unmasked ledger resources, prompting those
-agents, answering the escalations their dashboard prompts raise (T68), asking an
-Administrator for a rule or a setting through the request queue, and, the one
+agents, answering the escalations their dashboard prompts raise (T68), writing
+rules and folder grants that bind only those agents (unless Root has withheld that
+account's authoring, T27), setting one of those agents' approval timeout, asking
+an Administrator for a rule or a setting through the request queue, and, the one
 most often misstated, **stopping and releasing those agents with the emergency
 kill switch**. An **Administrator** inherits both and manages agents rather than
-one agent: creating and registering them, assigning them to accounts, editing
-rules, changing the posture, setting the approval timeout, and deciding rule
-requests. **Root** inherits everything and adds the capabilities that concern the
+one agent: creating and registering them, assigning them to accounts, writing
+global rules, changing the posture and escalation for the installation or for one
+agent (A12), setting the approval timeout, and deciding requests. **What it does
+to one agent it does only to the agents it owns**: renaming, re-owning,
+unregistering, deleting from the host (where it chooses which of two deletions
+runs, C13) and permitting Codex all require ownership, with Root exempt (finding
+375 was the dashboard offering two of these to an Administrator who did not own
+the agent). **Root** inherits everything and adds the capabilities that concern the
 installation itself: account management, switching a shipped core denial off or
 back on, the agent backend, the deployment report, and, since T44, **deleting the
 organisation**, the one act that removes Root's own account. _(Until 2026-09-14
 this paragraph gave Root the approval timeout, which an Administrator has set since
-2026-09-03.)_ Because each tier is
+2026-09-03. Until 2026-09-19 it gave the User only a *request* for a rule, when
+the route lets a User write agent-scoped rules for its own agents unless Root
+withholds it, and it did not say an Administrator's agent-level acts are limited to
+the agents it owns.)_ Because each tier is
 a superset of the one below, no capability needs to be listed twice, and the only
 question at any endpoint is which tier it requires.
 
@@ -405,8 +479,8 @@ when the one-organisation-per-installation cap landed.)_
 ```mermaid
 flowchart BT
   V["Viewer<br/>read policy · read sanitised ledger · verify chain"]
-  U["User<br/>+ prompt, request rules, and stop<br/>the agents assigned to me"]
-  A["Administrator<br/>+ create and assign agents · edit rules<br/>change posture · decide requests"]
+  U["User<br/>+ prompt, write or request rules for,<br/>and stop the agents assigned to me"]
+  A["Administrator<br/>+ create, assign and delete my own agents<br/>global rules · posture · decide requests"]
   R["Root<br/>+ manage accounts · core denials<br/>backend · deployment report"]
   V --> U --> A --> R
 ```
@@ -418,15 +492,15 @@ flowchart BT
 \centering
 \begin{tikzpicture}[node distance=5mm]
   \node[gbox, minimum width=86mm] (v) {\textbf{Viewer}, read policy, read sanitised ledger, verify chain};
-  \node[gbox, minimum width=86mm, above=of v] (u) {\textbf{User}, \textit{and} prompt, request rules, and stop \emph{my} agents};
-  \node[gbox, minimum width=86mm, above=of u] (a) {\textbf{Administrator}, \textit{and} create and assign agents, edit rules, decide requests};
+  \node[gbox, minimum width=86mm, above=of v] (u) {\textbf{User}, \textit{and} prompt, write or request rules for, and stop \emph{my} agents};
+  \node[gbox, minimum width=86mm, above=of u] (a) {\textbf{Administrator}, \textit{and} create, assign and delete \emph{my own} agents, global rules, decide requests};
   \node[gbox, minimum width=86mm, above=of a] (r) {\textbf{Root}, \textit{and} manage accounts, core denials, backend, deployment report};
   \draw[gflow] (v) -- (u);
   \draw[gflow] (u) -- (a);
   \draw[gflow] (a) -- (r);
   \node[gnote, right=3mm of u, rotate=90, anchor=south] {inherits};
 \end{tikzpicture}
-\caption{Role hierarchy. Each tier inherits every capability below it. The emergency stop sits at \textbf{User}, scoped to the agents assigned to that account, not at Root.}
+\caption{Role hierarchy. Each tier inherits every capability below it. The emergency stop sits at \textbf{User}, scoped to the agents assigned to that account, not at Root. An Administrator acts on one agent only when it owns that agent; Root may act on any.}
 \label{fig:rbac}
 \end{figure}
 ```
@@ -474,6 +548,18 @@ permits that one call and **files a rule request** for an Administrator or Root 
 approve while signed in; it does not write a rule itself, because the person
 answering an approval prompt may hold no governance account at all.
 
+The sequence above is the `enforce` posture, the shipped default. The other two
+postures leave the early steps alone and change the ending. Under `monitor`, a
+call that no allow rule covers is recorded with the verdict `enforce` would have
+given and then allowed, with nobody asked; a matching deny rule still refuses.
+Under `off`, the gate returns as soon as it has read the policy, before the
+lockdown check, and records nothing. An Administrator can set the installation to
+`off`; no tier can set one agent to `off`, and a per-agent `off` written into
+`policy.json` by hand is dropped when the policy is loaded (finding 80).
+
+_(Added 2026-09-19. The figure never said which posture it drew, and `monitor`
+and `off` end differently from it (`policy-engine.ts`, `evaluateGovernancePolicy`).)_
+
 _(Corrected 2026-09-14. This paragraph and the Mermaid drew one matching step,
 "if a rule matches, the verdict is allow", which left out that a matching
 **deny** rule refuses before any allowance is read: the property that no later
@@ -501,7 +587,7 @@ sequenceDiagram
   participant G as Policy engine
   participant R as Agent registry
   participant L as Audit ledger
-  participant H as Human (dashboard: managing accounts; chat: Control UI)
+  participant H as Human (dashboard: managing accounts, chat: Control UI)
 
   A->>P: tool call
   P->>G: evaluate(toolName, params)
@@ -530,6 +616,7 @@ sequenceDiagram
     H-->>G: allow-once / allow-always / deny
     G->>L: append resolution
   end
+  Note over G: Drawn for enforce. monitor: a miss is recorded, then allowed.<br/>off: the gate returns after reading the policy and records nothing.
 ```
 
 ### TikZ form
@@ -563,7 +650,9 @@ sequenceDiagram
   \draw[gflow] (5.8,-8.2) -- node[glab,above] {approval request} (13.9,-8.2);
   \draw[gdash] (13.9,-8.8) -- node[glab,above] {allow once / always / deny} (5.8,-8.8);
 \end{tikzpicture}
-\caption{Policy decision sequence. An unregistered agent is refused before any
+\caption{Policy decision sequence, in the shipped \texttt{enforce} posture (under
+\texttt{monitor} a call no allow rule covers is recorded and then allowed; under
+\texttt{off} the gate records nothing). An unregistered agent is refused before any
 policy is read. Deny rules are checked before allow rules, so a matching denial
 refuses the call whatever any allowance says, even in monitor posture. Of the
 remaining paths, the first is taken when an allow rule matches and the other two
@@ -592,9 +681,12 @@ invites the reader to hunt for a difference between the two pictures.
 Reaching any governance route requires passing two independent checks. The
 browser first presents the Gateway's own credential, which is OpenClaw's existing
 mechanism and is unchanged by this project. Only then does the governance layer
-ask who the caller is. A caller with no account may sign up, which creates a Root
-account and, with it, a new organisation for that Root to be responsible for; an
-existing account supplies a username and password, verified with scrypt. Success
+ask who the caller is. On an installation nobody has claimed yet, the first
+visitor may sign up, which creates the Root account and, with it, the
+installation's one organisation; once that organisation exists the sign-up route
+refuses (409) and the page shows the sign-in form instead (finding 205). Every
+other account is created by Root from the dashboard, and signs in with a username
+and password verified with scrypt. Success
 issues a session token of
 thirty-two random bytes in an HttpOnly, SameSite=Strict cookie that expires after
 twelve hours, and every subsequent request re-resolves that session and compares
@@ -606,17 +698,23 @@ Gateway binds to loopback and remote access arrives through an SSH tunnel;
 requiring HTTPS would break the intended deployment without adding any
 protection. And the signup route is itself ungated, which is defensible only
 because of that same loopback binding: reaching it at all already requires the
-tunnel and the Gateway credential. The report should state this plainly rather
-than leave an examiner to find it.
+tunnel and the Gateway credential, and it works once, for whoever reaches an
+unclaimed installation first. The report should state this plainly rather than
+leave an examiner to find it.
+
+_(Corrected 2026-09-19. This paragraph and both drawings said "a caller with no
+account may sign up", which has been false since the one-organisation cap
+(2026-08-30): the route answers 409 once the installation is claimed,
+`governance-dashboard-auth.ts`.)_
 
 ### Mermaid form
 
 ```mermaid
 flowchart LR
   B["Browser"] --> G1["Gate 1<br/>Gateway credential"]
-  G1 --> W{"has an<br/>account?"}
-  W -->|no| BOOT["Sign up<br/>creates a Root<br/>and its organisation"]
-  W -->|yes| CRED["Username + password<br/>scrypt verify"]
+  G1 --> W{"installation<br/>claimed?"}
+  W -->|no, once| BOOT["Sign up<br/>creates the Root<br/>and the one organisation"]
+  W -->|yes| CRED["Sign in<br/>username + password<br/>scrypt verify"]
   BOOT --> TOK["Session token<br/>32 bytes, HttpOnly,<br/>SameSite=Strict, 12 h"]
   CRED --> TOK
   TOK --> G2["Gate 2<br/>role vs endpoint tier"]
@@ -631,9 +729,9 @@ flowchart LR
 \begin{tikzpicture}[node distance=7mm and 9mm]
   \node[gbox] (b) {Browser};
   \node[gbox, right=of b]  (g1) {Gate 1\\Gateway credential};
-  \node[gdec, right=of g1] (w)  {has an\\account?};
-  \node[gbox, above right=4mm and 9mm of w] (boot) {Sign up: creates a Root\\and its organisation};
-  \node[gbox, below right=4mm and 9mm of w] (cred) {Username + password\\scrypt verify};
+  \node[gdec, right=of g1] (w)  {installation\\claimed?};
+  \node[gbox, above right=4mm and 9mm of w] (boot) {Sign up, once: creates the Root\\and the one organisation};
+  \node[gbox, below right=4mm and 9mm of w] (cred) {Sign in: username + password\\scrypt verify};
   \node[gbox, right=24mm of w] (tok) {Session token\\32 bytes, HttpOnly\\SameSite=Strict, 12\,h};
   \node[gbox, right=of tok] (g2) {Gate 2\\role vs endpoint tier};
 
@@ -645,7 +743,8 @@ flowchart LR
   \draw[gflow] (cred) -| (tok);
   \draw[gflow] (tok) -- (g2);
 \end{tikzpicture}
-\caption{Two-gate authentication. Both gates are mandatory and independent.}
+\caption{Two-gate authentication. Both gates are mandatory and independent. Sign-up
+exists only until the installation is claimed.}
 \label{fig:auth}
 \end{figure}
 ```
@@ -672,9 +771,15 @@ only as strong as the string the gate builds. The path the agent wrote is
 therefore resolved before any rule sees it. First it is made absolute, with the
 home shortcut expanded and any parent-directory steps collapsed. Then symbolic
 links are followed, so the path names the file it actually refers to rather than
-one that points at it. Finally a single form is chosen: relative if the result
-lies inside the workspace, absolute if it lies outside. Only then is the rule
-applied. The example makes the consequence plain: `src/../../etc/passwd` begins
+one that points at it. Finally the forms are chosen: a path inside the workspace
+has two legitimate names, its short form relative to the workspace and its
+absolute form, and a rule is tested against both, while the short form is the
+one the ledger records; a path outside the workspace has only its absolute form.
+Only then is the rule applied. _(Until 2026-09-19 this read "a single form is
+chosen". Since 2026-09-04 a rule sees both names of a workspace path, because a
+rule written in one form had been missing calls that arrived in the other
+(findings 253 and 254; `resolveGovernedPathForms` in `path-normalize.ts`).)_ The example makes the
+consequence plain: `src/../../etc/passwd` begins
 with the characters `src/` and so satisfies a naive rule meaning "only inside
 src", but resolves to `/etc/passwd`, which does not, and is refused. The defence
 is structural rather than a filter: nothing searches for dangerous patterns, the
@@ -692,7 +797,7 @@ flowchart LR
   RAW["Path as the agent wrote it<br/>src/../../etc/passwd"]
   S1["1. Resolve<br/>expand ~, make absolute,<br/>collapse .."]
   S2["2. Follow links<br/>realpath"]
-  S3["3. Choose form<br/>relative inside workspace,<br/>absolute outside"]
+  S3["3. Choose forms<br/>inside workspace: short and absolute,<br/>outside: absolute"]
   OUT["/etc/passwd"]
   RULE{"Rule ^src/.*$"}
   RAW --> S1 --> S2 --> S3 --> OUT --> RULE
@@ -709,7 +814,7 @@ flowchart LR
   \node[gbox] (raw) {Path as the agent wrote it\\\texttt{src/../../etc/passwd}};
   \node[gbox, right=of raw] (s1) {1. Resolve\\expand \textasciitilde, make absolute,\\collapse \texttt{..}};
   \node[gbox, right=of s1]  (s2) {2. Follow links\\\texttt{realpath}};
-  \node[gbox, right=of s2]  (s3) {3. Choose form\\relative inside workspace,\\absolute outside};
+  \node[gbox, right=of s2]  (s3) {3. Choose forms\\inside workspace: short and absolute\\outside: absolute};
   \node[gbox, right=of s3]  (out) {\texttt{/etc/passwd}};
   \node[gdec, right=of out] (rule) {Rule\\\texttt{\^{}src/.*\$}};
   \node[gbox, right=of rule] (deny) {\textbf{DENIED}};
@@ -722,7 +827,8 @@ flowchart LR
   \draw[gflow] (rule) -- node[glab, above] {no match} (deny);
 \end{tikzpicture}}
 \caption{Path normalisation. The rule is matched against what the path resolves
-to, not against what the agent typed.}
+to, not against what the agent typed; a path inside the workspace is matched in
+both its short and its absolute form.}
 \label{fig:pathnorm}
 \end{figure}
 ```
@@ -763,7 +869,10 @@ check, and is refused outright if either fails. It is then refused again, withou
 being sent, if the agent is currently locked down, and that refusal is itself
 recorded with the account that attempted it. Only then is the prompt written to
 the ledger, before the run rather than after it, attributed to the username
-rather than to the agent. The run is finally handed to OpenClaw's ordinary
+rather than to the agent. Next it claims one of a bounded number of concurrent
+slots, two per account and six per installation; a prompt refused here has
+already been recorded, and its refusal is recorded beside it. The run is finally
+handed to OpenClaw's ordinary
 ingress, the same entry point the HTTP surface uses, with the sender marked as
 not the owner and a session key naming both the agent and the account. Everything
 downstream is unchanged, which is the point: had the layer built its own run
@@ -779,7 +888,9 @@ flowchart TD
   API --> LOCK{"agent locked<br/>down?"}
   LOCK -->|yes| REF["Refuse unsent<br/>record actor + reason<br/>409 to caller"]
   LOCK -->|no| REC["Record prompt in ledger<br/>actor = username<br/>BEFORE the run"]
-  REC --> ING["agentCommandFromIngress<br/>senderIsOwner = false"]
+  REC --> SLOT{"slot free?<br/>2 per account, 6 in all"}
+  SLOT -->|no| FULL["Refuse, record the refusal"]
+  SLOT -->|yes| ING["agentCommandFromIngress<br/>senderIsOwner = false"]
   ING --> RUN["Agent run<br/>agent:a:governance:user"]
 ```
 
@@ -793,19 +904,23 @@ flowchart TD
   \node[gbox, below=of u]   (api)  {Governance API\\role check + ownership check};
   \node[gdec, below=9mm of api] (lock) {agent locked\\down?};
   \node[gbox, below=9mm of lock] (rec) {Record prompt in ledger\\actor = username,\\\textit{before} the run};
-  \node[gbox, below=of rec] (ing) {\texttt{agentCommandFromIngress}\\\texttt{senderIsOwner = false}};
+  \node[gdec, below=9mm of rec] (slot) {slot free?};
+  \node[gbox, below=9mm of slot] (ing) {\texttt{agentCommandFromIngress}\\\texttt{senderIsOwner = false}};
   \node[gbox, below=of ing] (run) {Agent run\\\texttt{agent:a:governance:user}};
 
   \node[gbox, right=of api]  (deny) {403 Refused};
   \node[gbox, right=of lock] (ref)  {Refuse unsent,\\record actor + reason,\\409 to caller};
+  \node[gbox, right=of slot] (full) {Refuse,\\record the refusal\\\scriptsize 2 per account, 6 in all};
 
   \draw[gflow] (u)    -- node[glab,right] {\texttt{POST agent/prompt}} (api);
   \draw[gflow] (api)  -- (lock);
   \draw[gflow] (lock) -- node[glab,right] {no} (rec);
-  \draw[gflow] (rec)  -- (ing);
+  \draw[gflow] (rec)  -- (slot);
+  \draw[gflow] (slot) -- node[glab,right] {yes} (ing);
   \draw[gflow] (ing)  -- (run);
   \draw[gflow] (api)  -- node[glab,above] {either fails} (deny);
   \draw[gflow] (lock) -- node[glab,above] {yes} (ref);
+  \draw[gflow] (slot) -- node[glab,above] {no} (full);
 \end{tikzpicture}
 \caption{The governed prompt path. Where no runtime is attached to the agent, the
 ingress step returns an explicit ``no runtime attached'' rather than failing
@@ -822,8 +937,8 @@ silently.}
 
 **Recommendation: CUT.** Your own note argues it "illustrates the project's
 layering discipline better than any prose", and I disagree: the layering claim is
-made in one sentence, and a reader does not need a picture to accept that a pure
-function takes plain data. It is an internal code-organisation detail, not a
+made in one sentence, and a reader does not need a picture to accept that a
+function takes plain data and injectable readers. It is an internal code-organisation detail, not a
 design argument a reader will carry forward. The page is better spent on F11.
 
 ### Prose form
@@ -831,13 +946,21 @@ design argument a reader will carry forward. The page is better spent on F11.
 The deployment check is split at a deliberate seam. Everything that must touch
 the running Gateway, its configuration and its security audit, stays on the
 Gateway side and produces a plain data record. That record crosses one boundary
-into the governance side, where a single pure function turns it into the
-deployment verdict. The payoff is larger than tidiness: because the verdict
-function depends on nothing but its input, every check is testable on any
-platform with no Gateway, no socket and no configuration file, which is what
-allowed the permission table to be verified on Windows CI where the real answer
-is that those bits are not meaningful. The same shape recurs in the agent runner
-and the agent terminator.
+into the governance side, where one function turns it into the deployment
+verdict. That function does read the machine itself (the governance files'
+permissions, free disk space, memory, the platform and the environment), but
+through readers passed in as options, so a test replaces every one of them. The
+payoff is larger than tidiness: every check is testable on any platform with no
+Gateway, no socket and no configuration file, which is what allowed the
+permission table to be verified on Windows, where the real answer is that those
+bits are not meaningful. The same shape recurs in the agent runner and the agent
+terminator.
+
+_(Corrected 2026-09-19. This paragraph and both drawings called
+`readDeploymentStatus` a pure function that "depends on nothing but its input". It
+is `async`, takes the organisation's id, and reads the file system, disk, memory
+and environment through injectable options (`deployment-status.ts`). It also said
+"Windows CI", and this repository's Actions are switched off (T21).)_
 
 ### Mermaid form
 
@@ -847,13 +970,15 @@ flowchart LR
     CFG["Configuration"]
     SEC["Security audit"]
   end
-  subgraph GOV["Governance side, pure"]
+  subgraph GOV["Governance side, every read injectable"]
     FN["readDeploymentStatus()"]
+    RD["Injected readers<br/>file permissions · disk · memory · env"]
     OUT["Deployment verdict"]
   end
   CFG --> IN["DeploymentEnvironmentInput<br/>plain data"]
   SEC --> IN
   IN --> FN --> OUT
+  RD --> FN
 ```
 
 ### TikZ form
@@ -865,22 +990,25 @@ flowchart LR
   \node[gbox] (cfg) {Configuration};
   \node[gbox, below=of cfg] (sec) {Security audit};
   \node[gbox, right=of cfg, yshift=-6mm] (in) {\texttt{DeploymentEnvironmentInput}\\plain data};
-  \node[gbox, right=of in] (fn) {\texttt{readDeploymentStatus()}\\pure function};
+  \node[gbox, right=of in] (fn) {\texttt{readDeploymentStatus()}};
+  \node[gbox, below=of fn] (rd) {Injected readers\\\scriptsize file permissions, disk, memory, env};
   \node[gbox, right=of fn] (out) {Deployment verdict};
 
   \draw[gflow] (cfg) -- (in);
   \draw[gflow] (sec) -- (in);
   \draw[gflow] (in)  -- (fn);
+  \draw[gflow] (rd)  -- (fn);
   \draw[gflow] (fn)  -- (out);
 
   \begin{scope}[on background layer]
     \node[ggroup, fit=(cfg)(sec)] (g1) {};
-    \node[ggroup, fit=(fn)(out)]  (g2) {};
+    \node[ggroup, fit=(fn)(rd)(out)]  (g2) {};
   \end{scope}
-  \node[gnote, above=0.5mm of g1] {Gateway side, impure};
-  \node[gnote, above=0.5mm of g2] {Governance side, pure};
+  \node[gnote, above=0.5mm of g1] {Gateway side};
+  \node[gnote, above=0.5mm of g2] {Governance side, every read injectable};
 \end{tikzpicture}
-\caption{The deployment-status seam: one plain-data record crosses the boundary.}
+\caption{The deployment-status seam: one plain-data record crosses the boundary,
+and everything else the verdict reads is passed in, so a test can replace it.}
 \label{fig:seam}
 \end{figure}
 ```
@@ -906,7 +1034,9 @@ figure, three arguments, across two chapters.
 
 **Merge into it:** F13 (two entry points, one gate). Both say "several routes,
 one gate"; F13's Discord and dashboard entries can become two extra boxes feeding
-the in-process path.
+the in-process path. **Bring F13's second funnel with them** (its forms have drawn
+`agentCommandInternal` since 2026-09-19): the merged figure should show where the
+instruction is recorded as well as where the action is judged.
 
 ### Prose form
 
@@ -923,7 +1053,13 @@ into the host, which then runs the same hook and returns allow or block. The gat
 is identical in both arrangements. The difference is that the second is governed
 only if the relay was installed, and whether to install it was decided by a
 question that counted plugin policies. This layer is not a plugin, so the answer
-was no, and every tool call in that arrangement ran ungoverned.
+was no, and every tool call in that arrangement ran ungoverned. The fix made the
+relay's installation depend on the layer itself: on any real installation the
+relay is now always written (`governanceRequiresNativeToolRelay`, read by
+`native-hook-relay-events.ts`), so both arrangements reach the gate.
+
+_(Added 2026-09-19. The paragraph described the defect and stopped, so a reader
+could take the ungoverned path for the current state.)_
 
 ### Mermaid form
 
@@ -977,7 +1113,7 @@ flowchart TB
   \node[gnote, below=0.5mm of g2] {Native harness (Codex)};
 \end{tikzpicture}
 \caption{Two arrangements, one gate. The lower path is governed only if the relay
-hook was installed.}
+hook is installed, which on a governed installation it now always is.}
 \label{fig:twopaths}
 \end{figure}
 ```
@@ -1067,10 +1203,12 @@ cut F6, that also works, but not both.
 ### Prose form
 
 A prompt is a live thing an operator watches rather than a request that returns.
-Its lifecycle has five stages. It first claims one of a bounded number of
-concurrent slots, which matters because unbounded concurrency is a denial of
-service available to the lowest tier that can act. It then records its intent in
-the ledger before anything runs. While running it streams snapshots to the
+Its lifecycle has five stages. It first records its intent in the ledger, before
+anything runs. It then claims one of a bounded number of concurrent slots, two
+per account and six per installation, which matters because unbounded
+concurrency is a denial of service available to the lowest tier that can act; a
+prompt refused for want of a slot has therefore already left its record, and the
+refusal is recorded beside it. While running it streams snapshots to the
 dashboard, so the operator sees progress rather than a spinner. It ends in one of
 four ways: a reply, an explicit cancellation, a timeout, or the emergency kill
 switch, the middle two existing because a disconnected client previously left the
@@ -1081,12 +1219,19 @@ since 2026-09-12 (finding 350) the run continues, still listed with its Cancel,
 until one of the four occurs. A run that ends while its escalation waits withdraws
 the escalation (T69). Whichever way it ends, the outcome is recorded.
 
+_(Corrected 2026-09-19. Every form of this figure, and the candidate note in
+`CHAPTER3-MATERIAL.md` §3.5.17, put the slot before the record. `promptAgent` in
+`agent-conversation.ts` has recorded the prompt first and claimed the slot second
+since the feature was built (`d977c4e3ae8`, 2026-08-21), and the order is the
+stronger design: a refused prompt is still on the record.)_
+
 ### Mermaid form
 
 ```mermaid
 flowchart LR
-  S["Claim a slot<br/>bounded concurrency"] --> I["Record the intent<br/>in the ledger"]
-  I --> ST["Stream snapshots<br/>to the dashboard"]
+  I["Record the intent<br/>in the ledger"] --> S{"Claim a slot<br/>2 per account, 6 in all"}
+  S -->|none free| F["Refused<br/>the refusal recorded"]
+  S -->|claimed| ST["Stream snapshots<br/>to the dashboard"]
   ST --> E{"end"}
   E -->|reply| R["Reply delivered"]
   E -->|cancel| C["Cancelled"]
@@ -1104,9 +1249,10 @@ flowchart LR
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[node distance=6mm and 10mm]
-  \node[gbox] (s)  {Claim a slot\\bounded concurrency};
-  \node[gbox, right=of s]  (i)  {Record the intent\\in the ledger};
-  \node[gbox, right=of i]  (st) {Stream snapshots\\to the dashboard};
+  \node[gbox] (i)  {Record the intent\\in the ledger};
+  \node[gbox, right=of i]  (s)  {Claim a slot\\\scriptsize 2 per account, 6 in all};
+  \node[gbox, below=of s]  (f)  {Refused,\\\scriptsize the refusal recorded};
+  \node[gbox, right=of s]  (st) {Stream snapshots\\to the dashboard};
   \node[gdec, right=of st] (e)  {end};
   \node[gbox, above right=3mm and 9mm of e] (r) {Reply};
   \node[gbox, right=9mm of e]               (c) {Cancelled};
@@ -1114,8 +1260,9 @@ flowchart LR
   \node[gbox, below=3mm of t]               (k) {Kill switch};
   \node[gbox, right=34mm of e] (o) {Record the outcome};
 
-  \draw[gflow] (s) -- (i);
-  \draw[gflow] (i) -- (st);
+  \draw[gflow] (i) -- (s);
+  \draw[gflow] (s) -- node[glab, above] {claimed} (st);
+  \draw[gflow] (s) -- node[glab, right] {none free} (f);
   \draw[gflow] (st) -- (e);
   \draw[gflow] (e) -- (r);
   \draw[gflow] (e) -- (c);
@@ -1126,7 +1273,9 @@ flowchart LR
   \draw[gflow] (t) -| (o);
   \draw[gflow] (k) -| (o);
 \end{tikzpicture}
-\caption{The prompt lifecycle. A run ends in a reply, a cancellation, a timeout, or
+\caption{The prompt lifecycle. The prompt is recorded before it claims a slot, so
+a prompt refused at capacity is still on the record. A run ends in a reply, a
+cancellation, a timeout, or
 the emergency kill switch (finding 364); closing the browser tab does not end it
 (finding 350), and a run that ends while its escalation waits withdraws it.}
 \label{fig:promptlife}
@@ -1203,8 +1352,8 @@ that there are two of them.}
 \end{figure}
 ```
 
-_(This one needs `\usetikzlibrary{decorations.pathreplacing}` added to the
-preamble for the brace.)_
+_(The brace needs `decorations.pathreplacing`, which the preamble above now
+loads.)_
 
 ---
 
@@ -1334,7 +1483,8 @@ arrives, it reaches the same gate". F8 makes it about execution arrangements and
 F13 about user-facing entry points, but a reader sees one idea drawn twice. Add
 the Discord and dashboard boxes to F8 as inputs and delete this one.
 
-**There are two choke points as of T57 (2026-09-06), and this figure draws one.**
+**There are two choke points as of T57 (2026-09-06), and this figure drew one**
+_(until 2026-09-19, when all three forms below gained the second)_.
 `runBeforeToolCallHook` is where every _action_ converges. `agentCommandInternal`
 is where every _instruction_ converges — the local command path and every ingress
 path alike — and it is where a prompt is now recorded whatever surface it arrived
@@ -1350,9 +1500,15 @@ Agent activity starts in more than one place and every route converges on the
 same check. A message arriving from Discord or Telegram is routed by the host
 into a session keyed by channel and peer. A prompt typed into the governance
 dashboard produces a session keyed by agent and account instead. Both become an
-ordinary agent run, and every tool call in either passes through the host's
-before-tool-call hook and into the gate, which recovers the agent's identity from
-the session key. The verdict is written to the ledger and then applied: the tool
+ordinary agent run, and every run starts in the same function,
+`agentCommandInternal`, where every instruction is on the record before the run
+starts: a dashboard prompt was recorded under the account's name by its route, so
+this function passes it by, and anything else is recorded here under the labelled
+origin `host-prompt`, naming the channel.
+Every tool call in either run then passes through the host's before-tool-call hook
+and into the gate, which recovers the agent's identity from the session key. So
+there are two funnels, one for what the agent is asked to do and one for what it
+then tries. The verdict is written to the ledger and then applied: the tool
 runs, is refused, or is escalated into OpenClaw's existing approval machinery,
 which surfaces as buttons in the chat client or as a request on the dashboard.
 
@@ -1362,8 +1518,10 @@ which surfaces as buttons in the chat client or as a request on the dashboard.
 flowchart LR
   D["Discord / Telegram<br/>message"] --> HS["Host channel routing<br/>agent:id:discord:channel:peer"]
   G["Dashboard prompt"] --> GS["Governance conversation<br/>agent:id:governance:account"]
-  HS --> RUN["Agent run"]
-  GS --> RUN
+  HS --> CMD["agentCommandInternal<br/>the instruction recorded"]
+  GS --> CMD
+  CMD --> L
+  CMD --> RUN["Agent run"]
   RUN --> HOOK["runBeforeToolCallHook"]
   HOOK --> GATE["Governance gate<br/>agent id from session key"]
   GATE --> L[("Audit ledger")]
@@ -1384,23 +1542,28 @@ flowchart LR
   \node[gbox, below=of d] (g) {Dashboard prompt};
   \node[gbox, right=of d] (hs) {Host channel routing};
   \node[gbox, right=of g] (gs) {Governance conversation};
-  \node[gbox, right=of hs, yshift=-9mm] (run) {Agent run};
+  \node[gbox, right=of hs, yshift=-9mm] (cmd) {\texttt{agentCommandInternal}\\\scriptsize the instruction recorded};
+  \node[gbox, right=of cmd] (run) {Agent run};
   \node[gbox, right=of run] (hook) {\texttt{runBeforeToolCallHook}};
   \node[gbox, right=of hook] (gate) {Governance gate};
-  \node[gstore, below=9mm of gate] (l) {Audit ledger};
+  \node[gstore, below=14mm of run] (l) {Audit ledger};
   \node[gbox, right=of gate, yshift=9mm]  (t) {Tool runs};
   \node[gbox, right=of gate]              (x) {Refused};
   \node[gbox, right=of gate, yshift=-9mm] (a) {Approval machinery};
 
   \draw[gflow] (d) -- (hs); \draw[gflow] (g) -- (gs);
-  \draw[gflow] (hs) -- (run); \draw[gflow] (gs) -- (run);
+  \draw[gflow] (hs) -- (cmd); \draw[gflow] (gs) -- (cmd);
+  \draw[gflow] (cmd) -- (run);
   \draw[gflow] (run) -- (hook); \draw[gflow] (hook) -- (gate);
-  \draw[gflow] (gate) -- (l);
+  \draw[gflow] (cmd) |- (l);
+  \draw[gflow] (gate) |- (l);
   \draw[gflow] (gate) -- node[glab, above] {allow} (t);
   \draw[gflow] (gate) -- node[glab, above] {deny}  (x);
   \draw[gflow] (gate) -- node[glab, below] {ask}   (a);
 \end{tikzpicture}}
-\caption{Two entry points, one gate.}
+\caption{Two entry points, two funnels: every instruction is recorded in
+\texttt{agentCommandInternal}, and every action it leads to is judged at
+\texttt{runBeforeToolCallHook}.}
 \label{fig:entrypoints}
 \end{figure}
 ```
@@ -1519,8 +1682,22 @@ small type. F14 carries the argument better and fits the page.
 
 ### Prose form
 
-Covered by F14's prose above. If you want the catalogue itself, it belongs in an
-appendix as a table with a "governed" column, not as a figure.
+Of the fifty-two tools in the host's catalogue, eighteen reach the gate: the ones
+that read, write or edit files, run commands and background processes, fetch from
+the network, drive a desktop, execute code, or start further agents. The other
+thirty-four do not, and each carries a written reason, asserted by
+`qa-round11.test.ts`. Most act on the conversation, the agent's own session
+records, memory or the host's media and interface pipeline rather than on the
+machine; the outbound messaging tools are left to the permission their channel
+integration already requires; and the web search tools have no hostname for a
+rule to match. If you
+want the catalogue itself, it belongs in an appendix as a table with a "governed"
+column, not as a figure.
+
+_(Until 2026-09-19 this form read only "covered by F14's prose above". Counts
+re-measured the same day from `tool-catalog.ts` and `GOVERNED_TOOLS`: 52 in the
+catalogue, 18 of them governed; the registry's other four, `bash`, `grep`, `find`
+and `ls`, are not catalogue entries, as F14's note says.)_
 
 ### Mermaid form
 
@@ -1656,9 +1833,25 @@ is worse than none.
 > Keep the prose version of the age argument in the text, where "I judged these
 > by reading them" is an honest thing to write and a chart cannot say it.
 
+> **State on 2026-09-19: CUT the age chart; the replacement is not yet compiled,
+> and it is a Chapter 4 number, so compile it last** (`WRITING-GUIDE.md` says to
+> leave Chapter 4's numbers until last). The summary table said "Keep, re-derive"
+> while the updated suggestion above said cut, and the two now agree. **The
+> replacement is less mechanical than the suggestion above assumed, measured
+> today:** of the 376 findings, 176 carry a date in their `GOVERNANCE.md` index row
+> and 200 do not, findings 1 to about 120 among them, which were recorded by QA
+> pass rather than by date. Dating those needs the pass headings or the commit
+> that first recorded each, and the commit route is lumpy because work was at
+> times committed a fortnight after it was done. Either way it is counting, not
+> judging, which is the argument for it. The forms below still draw the age chart,
+> with its placeholder values, for the record.
+
 ### Prose form
 
-The project's 148 findings, across twenty-eight review rounds, were classified by
+_(A template for the age argument, kept for the record; its counts were never
+compiled. The finding total is 376 as of 2026-09-19, and this paragraph said 148.)_
+
+The project's findings, across its review rounds, were classified by
 the age of the code they were found in. The distribution is markedly uneven and
 does not favour old code.
 The largest group by a wide margin is code written within the same week as the
@@ -1709,9 +1902,9 @@ first:
   every node near coord/.append style={font=\scriptsize},
   x tick label style={font=\small},
 ]
-  % PLACEHOLDER VALUES. These four numbers sum to 148, the current finding
-  % total, but the split between the buckets is NOT measured. It has to be
-  % assigned by reading each finding. Replace before use.
+  % PLACEHOLDER VALUES. These four numbers sum to 148, the finding total when
+  % they were written (376 on 2026-09-19), and the split between the buckets
+  % was NEVER measured. Recommended cut; see the state note above.
   \addplot+[fill=black!45, draw=black!55]
     coordinates {(Same day,21) (Same week,58) (Earlier,44) (Inherited,25)};
 \end{axis}
@@ -1881,40 +2074,47 @@ flowchart LR
 
 # Summary table
 
-| #   | Figure                         | Recommendation        | Where           |
-| --- | ------------------------------ | --------------------- | --------------- |
-| F1  | Governance layer in Gateway    | **Keep** (absorb F4)  | Fig 3.1         |
-| F2  | RBAC hierarchy                 | Cut, keep the table   | -               |
-| F3  | Policy decision sequence       | **Keep**              | Fig 3.3 → 3.2   |
-| F4  | Two-gate authentication        | Merge into F1         | -               |
-| F5  | Path normalisation             | **Keep**              | Fig 3.3         |
-| F6  | Governed prompt path           | **Keep** (absorb F10) | Fig 3.4         |
-| F7  | Deployment-status seam         | Cut                   | -               |
-| F8  | Two paths to the gate          | **Keep** (absorb F13) | Fig 3.5         |
-| F9  | Four modules, one definition   | Cut                   | -               |
-| F10 | Prompt lifecycle               | Merge into F6         | -               |
-| F11 | Check-then-open window         | **Keep**              | Fig 3.6         |
-| F12 | Two groups on one installation | Cut (T49, 2026-09-15) | -               |
-| F13 | Two entry points, one gate     | Merge into F8         | -               |
-| F14 | Tool coverage before/after     | **Keep** (absorb F15) | Fig 4.1         |
-| F15 | Tool catalogue highlighted     | Merge into F14        | -               |
-| F16 | Rule row before/after          | Cut, use screenshots  | Fig 4.x (photo) |
-| F17 | Defects by age of code         | **Keep**, re-derive   | Fig 4.2         |
-| F18 | M-series cross-reference       | Cut, not a figure     | -               |
-| F19 | The tenant model               | **Keep**              | Fig 3.8         |
-| F20 | Same secret, several spellings | Cut, keep the table   | -               |
-| F21 | Two-layer Codex permission     | **Keep**              | Fig 3.10        |
-| F22 | Grant a folder, except…        | **Keep**              | Fig 3.11        |
-| F23 | "Always allow" after the card  | **Keep**              | Fig 3.12        |
-| F24 | A task's row and its slot      | **Keep**, small       | Fig 3.13        |
+| #   | Figure                         | Recommendation                             | Where                 |
+| --- | ------------------------------ | ------------------------------------------ | --------------------- |
+| F1  | Governance layer in Gateway    | **Keep** (absorb F4)                       | Fig 3.1               |
+| F2  | RBAC hierarchy                 | **Keep**, small, beside the table          | Fig 3.2               |
+| F3  | Policy decision sequence       | **Keep**                                   | Fig 3.3               |
+| F4  | Two-gate authentication        | Merge into F1                              | -                     |
+| F5  | Path normalisation             | **Keep**                                   | Fig 3.4               |
+| F6  | Governed prompt path           | **Keep** (absorb F10)                      | Fig 3.5               |
+| F7  | Deployment-status seam         | Cut                                        | -                     |
+| F8  | Two paths to the gate          | **Keep** (absorb F13, both funnels)        | Fig 3.6               |
+| F9  | Four modules, one definition   | Cut                                        | -                     |
+| F10 | Prompt lifecycle               | Merge into F6                              | -                     |
+| F11 | Check-then-open window         | **Keep**                                   | Fig 3.7               |
+| F12 | Two groups on one installation | Cut (T49, 2026-09-15)                      | -                     |
+| F13 | Two entry points, one gate     | Merge into F8                              | -                     |
+| F14 | Tool coverage before/after     | **Keep** (absorb F15)                      | Fig 4.1               |
+| F15 | Tool catalogue highlighted     | Merge into F14                             | -                     |
+| F16 | Rule row before/after          | Cut, use screenshots                       | Fig 4.x (photo)       |
+| F17 | Defects by age of code         | Cut; draw findings over time, compile last | Fig 4.2 (replacement) |
+| F18 | M-series cross-reference       | Cut, not a figure                          | -                     |
+| F19 | The tenant model               | **Keep**                                   | Fig 3.8               |
+| F20 | Same secret, several spellings | Cut, keep the table                        | -                     |
+| F21 | Two-layer Codex permission     | **Keep**                                   | Fig 3.9               |
+| F22 | Grant a folder, except…        | **Keep**                                   | Fig 3.10              |
+| F23 | "Always allow" after the card  | **Keep**                                   | Fig 3.11              |
+| F24 | A task's row and its slot      | **Keep**, small                            | Fig 3.12              |
 
-**Thirteen figures: eleven in Chapter 3, two in Chapter 4** (fourteen and twelve until 2026-09-15, when T49 cut F12; the Chapter 3 numbers after F11 close up by one), plus one screenshot
-pair for F16 if you want it. _(This read "Eleven figures: nine in Chapter 3" until
-2026-09-14: F22 was added on 2026-09-01 and F23 and F24 on 2026-09-11, all three
-as keeps, and the table was never extended. F22's proposed number also collided
-with F21's.)_ If fourteen is more than the chapters can carry, F24 and F10's
-merge into F6 are the first places to save a page; every other keep earns its page
-by explaining something a paragraph explains worse.
+**Fourteen figures: twelve in Chapter 3 and two in Chapter 4**, one of the two
+(F17's replacement) not yet compiled, plus one screenshot pair for F16 if you want
+it. The numbers in the last column are the ones to use; the "Proposed number" line
+under each heading is the number it was given when drafted.
+
+_(Corrected 2026-09-19. This table said "Cut, keep the table" for F2 and "Keep,
+re-derive" for F17, while each figure's own section had reversed that: F2 to keep
+on 2026-09-01, F17 to cut and replace the same day. Counting F2 makes fourteen,
+not thirteen, and F17's replacement keeps Chapter 4's slot. The Chapter 3 numbers
+are closed up. Earlier: it read "Thirteen figures: eleven in Chapter 3" from
+2026-09-15, when T49 cut F12, and "Eleven figures: nine in Chapter 3" until
+2026-09-14, when F22–F24 were added.)_ If fourteen is more than the chapters can
+carry, F24 and F10's merge into F6 are the first places to save a page; every other
+keep earns its page by explaining something a paragraph explains worse.
 
 ---
 
@@ -1935,8 +2135,10 @@ Two separate permissions stand between an agent and the Codex runtime, and they
 belong to different tiers. Root decides whether the backend exists on this
 installation at all, which is a deployment question: disabling it also withdraws
 the Codex-managed model catalogue and media understanding, and leaves supervised
-chats locked. An Administrator decides, per agent, which agents may use it, which
-is an agent's security boundary. Both must be open for an agent to reach that
+chats locked. The Administrator who owns an agent decides whether that agent may
+use it, which is an agent's security boundary; Root may decide it for any agent,
+and another Administrator may not (the dashboard offered that control to one until
+finding 375, 2026-09-18). Both must be open for an agent to reach that
 runtime, so neither permission alone opens the gap. The in-process runtime needs
 no permission at all and is always available, which is what makes default-off
 cost an operator nothing until they choose otherwise.
@@ -1947,7 +2149,7 @@ cost an operator nothing until they choose otherwise.
 flowchart LR
   A["Agent starts a session"] --> R{"Root: is the Codex<br/>backend enabled here?"}
   R -->|no| IP["In-process runtime<br/>denied search results withheld"]
-  R -->|yes| AD{"Administrator: is this agent<br/>permitted on Codex?"}
+  R -->|yes| AD{"Owning Administrator (or Root):<br/>is this agent permitted on Codex?"}
   AD -->|no| REF["Refused on Codex<br/>agent-not-permitted-on-codex"]
   AD -->|yes| CX["Codex runtime<br/>reach recorded, not withheld"]
   A -.always available.-> IP
@@ -1961,7 +2163,7 @@ flowchart LR
 \begin{tikzpicture}[node distance=8mm and 13mm]
   \node[gbox] (a) {Agent starts\\a session};
   \node[gdec, right=of a]  (r)  {Root:\\backend\\enabled?};
-  \node[gdec, right=of r]  (ad) {Administrator:\\agent\\permitted?};
+  \node[gdec, right=of r]  (ad) {Its owner:\\agent\\permitted?};
   \node[gbox, right=of ad] (cx) {Codex runtime\\\scriptsize reach recorded, not withheld};
   \node[gbox, below=16mm of ad] (ip) {In-process runtime\\\scriptsize denied results withheld};
   \node[gbox, below=9mm of cx]  (ref) {Refused\\\scriptsize \texttt{agent-not-permitted-on-codex}};
@@ -1977,7 +2179,8 @@ flowchart LR
   \node[gnote, above=1mm of ad] {agent boundary};
 \end{tikzpicture}
 \caption{The two-layer Codex permission. Both gates must be open; the in-process
-runtime needs neither.}
+runtime needs neither. The second gate is set by the Administrator who owns the
+agent, or by Root.}
 \label{fig:codexgates}
 \end{figure}
 ```
@@ -2147,22 +2350,36 @@ sequenceDiagram
 ### TikZ form
 
 ```latex
-\begin{tikzpicture}[font=\small, >=stealth]
-  \foreach \x/\name in {0/Operator, 3.6/Gateway, 7.2/Agent process, 10.8/Rule requests} {
-    \node[draw, rounded corners, minimum width=2.6cm, minimum height=0.7cm] at (\x,0) {\name};
-    \draw[dashed, gray] (\x,-0.4) -- (\x,-7.6);
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[yscale=0.86]
+  \foreach \x/\n in {0/{Operator}, 3.6/{Gateway}, 7.2/{Agent process}, 10.8/{Rule requests}} {
+    \node[gbox, minimum width=24mm] at (\x,0) {\n};
+    \draw[glife] (\x,-0.45) -- (\x,-7.6);
   }
-  \draw[->] (7.2,-1.0) -- node[above]{request, with explanation} (3.6,-1.0);
-  \draw[->] (3.6,-1.7) -- node[above]{card} (0,-1.7);
-  \draw[->] (0,-2.4) -- node[above]{Always allow} (3.6,-2.4);
-  \draw[->] (3.6,-3.1) -- node[above]{allow-always} (7.2,-3.1);
-  \node[fill=gray!15, rounded corners] at (7.2,-3.8) {runs once};
-  \draw[->] (7.2,-4.5) -- node[above]{file request} (10.8,-4.5);
-  \draw[->, dashed] (10.8,-5.2) -- node[above]{queue full} (7.2,-5.2);
-  \draw[->] (7.2,-5.9) -- node[above]{report outcome} (3.6,-5.9);
-  \draw[->] (3.6,-6.6) -- node[above]{``not saved''} (0,-6.6);
+  \draw[gflow] (7.2,-1.0) -- node[glab,above] {request, with explanation} (3.6,-1.0);
+  \draw[gflow] (3.6,-1.7) -- node[glab,above] {card} (0,-1.7);
+  \draw[gflow] (0,-2.4)   -- node[glab,above] {Always allow} (3.6,-2.4);
+  \draw[gflow] (3.6,-3.1) -- node[glab,above] {allow-always} (7.2,-3.1);
+  \node[gnote] at (7.2,-3.8) {the action runs once};
+  \draw[gflow] (7.2,-4.5) -- node[glab,above] {file a rule request} (10.8,-4.5);
+  \draw[gdash] (10.8,-5.2) -- node[glab,above] {queue full} (7.2,-5.2);
+  \draw[gflow] (7.2,-5.9) -- node[glab,above] {report outcome} (3.6,-5.9);
+  \draw[gflow] (3.6,-6.6) -- node[glab,above] {follow-up: ``not saved''} (0,-6.6);
 \end{tikzpicture}
+\caption{``Always allow'': the operator answers before the rule request exists.
+The action runs once, and the request is filed afterwards in the agent's process;
+when the organisation's queue (40 requests plus 20 per account) is full, the
+outcome travels back through the Gateway as a follow-up. Drawn for a chat run,
+whose operator is the Control UI; for a dashboard prompt the card and follow-up
+appear on the governance page, to the accounts that manage the agent.}
+\label{fig:alwaysallow}
+\end{figure}
 ```
+
+_(Rewritten 2026-09-19 in the shared style, with a figure environment, caption
+and label; it was the only sequence without them, and it drew the same content
+in local styles.)_
 
 ## F24: A task's row and its slot (added 2026-09-11)
 
@@ -2202,15 +2419,27 @@ stateDiagram-v2
 ### TikZ form
 
 ```latex
-\begin{tikzpicture}[font=\small, >=stealth, node distance=3.2cm,
-    state/.style={draw, rounded corners, align=center, minimum width=2.8cm, minimum height=1.1cm}]
-  \node[state] (run) {Running\\footnotesize listed $\cdot$ slot $\cdot$ Cancel};
-  \node[state, right=of run] (stop) {Stopping\\footnotesize listed $\cdot$ slot};
-  \node[state, below=1.6cm of stop] (save) {Saving reply\\footnotesize listed $\cdot$ \textbf{no slot}};
-  \node[below=1.2cm of save] (gone) {gone};
-  \draw[->] (run) -- node[above]{Cancel / timeout} (stop);
-  \draw[->] (stop) -- node[right]{unwinds} (save);
-  \draw[->] (run) |- node[pos=0.25, left]{model returned} (save);
-  \draw[->] (save) -- node[right]{saved} (gone);
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=10mm and 26mm]
+  \node[gbox, minimum width=34mm] (run)  {Running\\\scriptsize listed $\cdot$ holds a slot $\cdot$ Cancel};
+  \node[gbox, minimum width=34mm, right=of run] (stop) {Stopping\\\scriptsize listed $\cdot$ holds a slot};
+  \node[gbox, minimum width=34mm, below=14mm of stop] (save) {Saving reply\\\scriptsize listed $\cdot$ \textbf{slot released}};
+  \node[gnote, below=of save] (gone) {gone from the list};
+  \draw[gflow] (run)  -- node[glab, above] {Cancel, timeout or kill switch} (stop);
+  \draw[gflow] (stop) -- node[glab, right] {run unwinds} (save);
+  \draw[gflow] (run)  |- node[glab, pos=0.25, left] {model returned} (save);
+  \draw[gflow] (save) -- node[glab, right] {reply and ledger entry saved} (gone);
 \end{tikzpicture}
+\caption{A task's row and its slot. The row stays listed until the reply is saved,
+so a reopened page can recover it; the slot, which alone bounds concurrency, is
+released as soon as the task stops executing.}
+\label{fig:taskslot}
+\end{figure}
 ```
+
+_(Rewritten 2026-09-19. The previous TikZ wrote `\\footnotesize` three times, a
+line break followed by the literal word "footnotesize", which would have printed
+that word in every box, the defect F21 had on 2026-09-05. It also labelled the
+edge to Stopping "Cancel / timeout" without the kill switch the prose and Mermaid
+name (finding 364), and had no caption or label.)_

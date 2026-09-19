@@ -6,7 +6,7 @@ ordinary language. What broke, why it mattered, and what was done about it.
 
 It began with **round six**, the multi-agent audit, because that round found the
 most and taught the most, and every pass since has been added to it, up to
-finding 374 and decision C13, built on 2026-09-15. Rounds one to five
+finding 376 and the live check of 2026-09-18. Rounds one to five
 are summarised in §6.
 
 > **How to navigate this file. Added 2026-08-27, brought up to date 2026-09-14.** Sections are in the order
@@ -27,8 +27,8 @@ are summarised in §6.
 > `REMAINING-WORK.md`, so they have deliberately not been renumbered. Use the
 > numbers, not the position.
 >
-> **The newest material is §5.109–§5.118, at the end of the file** (2026-09-12
-> to 15): the dashboard driven through a real browser while things went wrong,
+> **The newest material is §5.109–§5.120, at the end of the file** (2026-09-12
+> to 19; §5.120 is the check with a model connected, findings 377–379): the dashboard driven through a real browser while things went wrong,
 > including the emergency stop that missed a task started from the dashboard
 > (§5.109–§5.110); a User's way to ask for a change, and a record that said
 > "done" when nothing had changed (§5.111); the week checked a second time
@@ -8265,3 +8265,73 @@ and the page now says so and suggests the other choice.
 **The lesson:** running the real thing, on the machine where the work is done, finds what
 imitations cannot. OpenClaw's tests imitated the file system, and that is exactly where the
 Windows problem was.
+
+## 5.119 Two things only found by using it (findings 375 and 376)
+
+On 18 September the fortnight's work was checked the way it is meant to be used: a separate,
+throwaway installation, opened in a browser, with accounts created and agents deleted for
+real. Most of it behaved as written — the delete choice and its explanations, the warning
+when a new agent picks up an old one's things, OpenClaw's own delete moving files to a
+.Trash folder, switching a shipped protection off and back on, setting one agent's
+escalation, the emergency stop asking before it locks, and the sign-in lockout saying how
+long to wait.
+
+**Two buttons that could only ever fail (finding 375).** With two Administrators signed up,
+the second saw **Remove** and **Allow Codex** on an agent belonging to the first — and the
+page even named the owner beside them. The server refuses both: an Administrator acts on the
+agents they own, and Root may act on any. So those buttons could produce nothing but a
+refusal. They are now shown only to the owner and to Root. The first attempt at the fix went
+wrong in a way the tests could not see: hiding **Remove** revealed **Register** in its place,
+offering to register an agent that was already registered. Opening the page showed it at once.
+
+**A promise the delete could not keep (finding 376).** "Delete the way OpenClaw does" told
+the operator that an agent created later with the same name starts with nothing. It usually
+does, but OpenClaw can leave two small database side-files behind, and the page then
+correctly told whoever created the next agent that it had inherited "its agent folder". The
+promise now says what the product can keep, and the deletion reports anything it left.
+
+**The lesson:** both sentences were true in the tests and false on the running system. One
+needed a second person signed in; the other needed a real deletion rather than a pretend one.
+
+## 5.120 Using it with an AI model behind it (findings 377, 378 and 379)
+
+On 19 September the dashboard was checked again on a throwaway installation, and this time a
+stand-in AI model was connected: a test program that answers exactly as scripted, so it can be
+told "try to run this command" and will. That made it possible, for the first time, to check
+everything that only happens when an agent is actually working: a person asking an agent to do
+something, the agent trying something no rule covers, a person being asked to approve it, a
+long task surviving a page reload, and the emergency stop ending a task mid-way. Almost all of
+it behaved as written. Three things did not, all small, and all about what the system _says_.
+
+**A false alarm in the log (finding 377).** Every time a request for approval was left
+unanswered and ran out of time, the server wrote a warning that something had "failed". Nothing
+had. The part of the system that files a follow-up after an answer was sending one even when
+there was no answer, and the server rightly refused it. Harmless, but a log that cries wolf on
+every quiet day is one people stop reading. It no longer sends one.
+
+**A sentence that promised more than the page shows (finding 378).** An account that can only
+watch (a Viewer) was told it could read "the rule requests queue in full". A Viewer sees the
+requests about its own agents and the ones that would apply to every agent, with nothing blacked
+out. "In full" was meant as "nothing blacked out", but it reads as "all of them", and a Viewer
+with no agents saw an empty list while three requests were waiting. The sentence now says what
+it means.
+
+**A request that could never be approved (finding 379).** An Administrator asking to change an
+agent's setting was offered an agent that OpenClaw had but the governance layer had never been
+told about. The request was accepted, and then approving it was refused for ever, with a message
+saying the agent had been deleted, which it had not; it had never been registered. Now only
+registered agents are offered, the request is refused straight away with the reason and what to
+do, and the message says "deleted, or never registered".
+
+**One question for Kinan (decision C15).** When someone presses "Always allow" on an approval,
+the system files a request to make it permanent, and records it as coming from nobody in
+particular. That made sense when anyone holding the server's password could press the button.
+Today the person pressing it on the governance page is a named account, and the audit trail
+already records who. The recommendation is to show that name on the request too.
+
+**One number to be careful with.** The design says an agent can be stopped within one second.
+Pressing the emergency stop, the signal went out in under 7 thousandths of a second, but the
+system took 2.2 and 2.8 seconds to _confirm_ the task had fully stopped, on a laptop that was
+visibly struggling at the time. The stop itself takes effect at once; it is the confirmation
+that took longer. The report should give both numbers and take the confirmed one from the proper
+server, not the laptop.
