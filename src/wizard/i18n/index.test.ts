@@ -98,4 +98,47 @@ describe("wizard i18n", () => {
       expect(collectLeafKeys(translations).toSorted(), locale).toEqual(english);
     }
   });
+  // T46/C4: an operator installing this fork must be told what it is. The banner and
+  // the completion text name the governance layer; the prompts in between are upstream's.
+  describe("governance wording (T46)", () => {
+    it("names the fork in both setup banners", () => {
+      expect(t("wizard.setup.intro", undefined, { locale: "en" })).toBe(
+        "OpenClaw Governance setup",
+      );
+      expect(t("wizard.guided.custodianIntro", undefined, { locale: "en" })).toContain(
+        "OpenClaw Governance",
+      );
+    });
+
+    it("says what the layer does in the guided banner", () => {
+      const banner = t("wizard.guided.custodianIntro", undefined, { locale: "en" });
+      expect(banner).toContain("policy");
+      expect(banner).toContain("audit ledger");
+    });
+
+    it("names the fork and the gate in the completion text", () => {
+      const done = t("wizard.guided.complete", undefined, { locale: "en" });
+      expect(done).toContain("OpenClaw Governance");
+      expect(done).toContain("policy gate");
+      expect(t("wizard.guided.completeWithoutAi", undefined, { locale: "en" })).toContain(
+        "OpenClaw Governance",
+      );
+    });
+
+    it("points next steps at the governance section and the first Root", () => {
+      for (const key of ["wizard.guided.nextSteps", "wizard.guided.nextStepsWithoutAi"] as const) {
+        const next = t(key, { workspace: "/tmp/w" }, { locale: "en" });
+        expect(next, key).toContain("Settings → Governance");
+        expect(next, key).toContain("first Root account");
+      }
+    });
+
+    // The next-steps block above is only printed when the operator skips AI setup.
+    // Everyone else ends on findMeLater, so the pointer has to be there as well.
+    it("points the closing note at governance for an operator who connected AI", () => {
+      const note = t("wizard.guided.findMeLater", undefined, { locale: "en" });
+      expect(note).toContain("Settings → Governance");
+      expect(note).toContain("first Root account");
+    });
+  });
 });

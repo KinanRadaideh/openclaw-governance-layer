@@ -9,6 +9,7 @@ import type { GatewayTlsConfig } from "../config/types.gateway.js";
 import type { PluginWebSearchProviderEntry } from "../plugins/types.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { withEnvAsync } from "../test-utils/env.js";
+import { t } from "./i18n/index.js";
 
 type DefaultModelAuthStatus = ReturnType<typeof AuthChoiceModelCheck.resolveDefaultModelAuthStatus>;
 type DefaultModelCatalogFacts = ReturnType<
@@ -657,7 +658,7 @@ describe("finalizeSetupWizard", () => {
     expectNoteNotContains(prompter, "Web UI:");
     expectNoteNotContains(prompter, gatewayToken);
     expect(prompter.outro).toHaveBeenCalledWith(
-      "OpenClaw is ready. When you're ready: openclaw dashboard",
+      `${t("wizard.guided.complete")} When you're ready: openclaw dashboard`,
     );
     expect(launchTuiCli).toHaveBeenCalledWith(
       expect.not.objectContaining({ local: true }),
@@ -694,7 +695,7 @@ describe("finalizeSetupWizard", () => {
       expectNoteNotContains(prompter, gatewayToken);
     }
     if (!enabled) {
-      expect(prompter.outro).toHaveBeenCalledWith("OpenClaw is ready.");
+      expect(prompter.outro).toHaveBeenCalledWith(t("wizard.guided.complete"));
     }
   });
 

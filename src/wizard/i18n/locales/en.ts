@@ -292,11 +292,12 @@ export const en = {
       codingAgentQuip:
         "I can see {labels} on this machine — good taste. Once your AI works I can bring their memories along too.",
       controlUiPreparing: "Preparing the Control UI…",
-      custodianIntro: "Hi — I'm OpenClaw. I keep this system running. Let's get you set up.",
+      custodianIntro:
+        "This is OpenClaw Governance. Every action an agent takes is checked against a policy before it runs, and written to an audit ledger. Let's get you set up.",
       failedOptionLine: "{label}: {reason}",
       failedOptionsIntro: "These didn't work just now:",
       findMeLater:
-        "You can always find me later — run `openclaw` in a terminal, or open Settings in the dashboard.",
+        "You can always find me later: run `openclaw` in a terminal, or open Settings in the dashboard. Governance lives under Settings → Governance. Create the first Root account there; it signs in separately from the Gateway token.",
       hatchingNow: "Hatching your agent now…",
       keepingCurrent: "Keeping the working AI you already have.",
       lookAroundManual: "No — I'll configure it manually",
@@ -309,8 +310,9 @@ export const en = {
       setupDone: "Everything's in place.",
       silentFailures:
         '{count} detected option(s) didn\'t respond — details under "See other options".',
-      complete: "OpenClaw is ready.",
-      completeWithoutAi: "OpenClaw setup is saved. Connect AI before opening chat.",
+      complete:
+        "OpenClaw Governance is ready. The policy gate is on, and agents stay refused until you register them.",
+      completeWithoutAi: "OpenClaw Governance setup is saved. Connect AI before opening chat.",
       detected: "AI detection complete.",
       detectedCandidate: "{label} — {detail}{recommended}",
       detectedGroupLabel: "Detected on this machine",
@@ -338,9 +340,9 @@ export const en = {
       invalidConfigUnknown: "- The config could not be parsed.",
       manualChoice: "How would you like to connect AI?",
       nextSteps:
-        "Workspace: {workspace}\nAdd a channel: `openclaw channels add`\nPrefer chatting? Run `openclaw setup` and say `connect telegram` (or `connect slack`).\nOpen the dashboard: `openclaw dashboard`\nChat later: `openclaw`",
+        "Workspace: {workspace}\nAdd a channel: `openclaw channels add`\nPrefer chatting? Run `openclaw setup` and say `connect telegram` (or `connect slack`).\nOpen the dashboard: `openclaw dashboard`\nSet up governance: open Settings → Governance in the dashboard and create the first Root account. It signs in separately from the Gateway token.\nChat later: `openclaw`",
       nextStepsWithoutAi:
-        "Workspace: {workspace}\nAdd AI later: re-run `openclaw onboard`\nAfter AI connects, add a channel: `openclaw channels add`\nOpen the dashboard: `openclaw dashboard`",
+        "Workspace: {workspace}\nAdd AI later: re-run `openclaw onboard`\nAfter AI connects, add a channel: `openclaw channels add`\nOpen the dashboard: `openclaw dashboard`\nSet up governance: open Settings → Governance in the dashboard and create the first Root account. It signs in separately from the Gateway token.",
       nextStepsTitle: "Next steps",
       noInferenceOptions:
         "No inference option is available yet. Sign in to Claude Code or Codex, or configure an API-key provider, then run onboarding again.",
@@ -378,7 +380,7 @@ export const en = {
       flowKeepModelHint: "Skip model/auth setup and keep the current default model.",
       flowQuickstart: "QuickStart (recommended)",
       flowQuickstartHint: "Recommended local setup. Change details later with {command}.",
-      intro: "OpenClaw setup",
+      intro: "OpenClaw Governance setup",
       invalidConfigTitle: "Invalid config",
       keepCurrent: "Keep current values",
       localGateway: "Local gateway (this machine)",
