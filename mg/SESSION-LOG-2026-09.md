@@ -5771,3 +5771,70 @@ in half. Every one of those compiled silently, with zero warnings, and would hav
 reached the panel. The 2026-09-05 audit read the figures, 2026-09-19 parsed them,
 today compiled them, and only looking at the output found these. **A figure needs all
 four, and the cheapest of them is the one nobody had done.**
+
+---
+
+## 2026-09-21: the Linux re-run, and requirement 9 closes
+
+**The last design requirement not fully met is met.** Requirement 9 asks that
+the system be deployable on Linux using open-source components only. The
+open-source half had been satisfied since the beginning, and the Linux half had
+been satisfied in substance since 2026-09-03: the fork was installed on a VPS,
+and on 2026-09-06 a live model drove an agent there and the gate refused it,
+with ledger entry 25 recording the denial. What kept the row at "partially" was
+narrower and duller than either: **the suite had not been re-run on Linux
+since**, so the only Linux number the project could quote, 2,548 passed and 133
+skipped, predated T44, the removal of the command line, and every sweep from
+2026-09-01 onward.
+
+Kinan brought the VPS to `0a7d51f1c12`, re-ran the installer, restarted the
+service and ran the three checks.
+
+| Check                                       | Result                                                     |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| Governance suite, Ubuntu                    | **3,211 passed / 16 skipped / 0 failed**, 197 files, 818 s |
+| Demonstration rehearsal                     | **20/20**                                                  |
+| Platform probe `governance-linux-check.mjs` | **14/14**, `platform=linux node=v22.23.2`                  |
+
+**The two platforms reconcile exactly, and that is the part worth writing down.**
+Windows reports 3,206 passed and 21 skipped; Linux reports 3,211 passed and 16
+skipped. Both are **3,227 tests**. Five tests that skip on Windows run on Linux,
+one extra file runs there, and nothing fails on either. A reader who is handed
+two different pass counts is entitled to wonder which platform is broken; a
+reader who is shown that the totals are identical and the difference is five
+POSIX-specific tests is being told something stronger than "it passes".
+
+**So requirement 9 is Met, all nine requirements are Met, and T3 is struck.** The
+backlog is re-derived from the rows at eight unstruck, one of which is T1, so
+**seven open**. The "Verified on Linux" caution in `docs-notes/WRITING-GUIDE.md`
+§4 is retired, and it is the first caution in that table ever to be retired
+rather than reworded.
+
+### Two things the daemon reported that are not requirement 9
+
+Both came out of `openclaw daemon restart && openclaw daemon status` and neither
+blocks the requirement, but both are recorded rather than waved past.
+
+- **The connectivity probe fails.** `Connectivity probe: failed, timeout`
+  against `ws://127.0.0.1:18789`, while the same output reports the runtime
+  `running (pid 132112, state active, sub running, last exit 0)` and owning the
+  port. The Gateway is up. Something about the probe's own credentials or
+  configuration is not. **This matters**, because the dashboard is what step 4
+  of the Linux plan needs and what the demonstration needs.
+- **Service configuration warnings.** The unit's PATH omits
+  `/root/.nvm/current/bin`, includes a version manager, and runs Node from nvm,
+  which the status output warns can break after an upgrade. It recommends
+  `openclaw doctor --repair`. `docs-notes/LINUX-INSTALL.md` §2c already
+  documents this class of problem for a bare VPS.
+
+### Chapter 3
+
+Three sections are written: the chapter opening, §3.1 (Chapter 1's nine
+requirements verbatim, at the supervisor's instruction that they be the same),
+and §3.2's opening. Table 3.1 gained a third column naming where each
+requirement is discussed, which turns the table from a scoreboard into an index.
+Requirement 9's row moved from "Partially met" to "Met" and the surrounding
+prose with it.
+
+**The next task is the four subsections of §3.2**, and it is written up in
+`mg/HANDOFF.md` §2b under "THE NEXT TASK" with the material for each one named.

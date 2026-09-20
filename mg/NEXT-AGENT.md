@@ -49,8 +49,9 @@ the ones that were wrong were the ones nobody re-ran.
 ## Where the project has reached (2026-09-20)
 
 - **The engineering is done and the project is in its documentation phase.** Nothing is
-  open that Claude can build alone. The backlog is nine unstruck rows, one of which (T1) is
-  not being done, so **eight open**, and they are Kinan's or the team's: `mg/HANDOFF.md` §6.
+  open that Claude can build alone. The backlog is **eight unstruck rows, one of which (T1) is
+  not being done, so seven open** (re-derived 2026-09-21, after T3 closed), and they are Kinan's
+  or the team's: `mg/HANDOFF.md` §6.
 - **Findings: 379 found, 377 fixed, 1 open** — 169, an observation nobody has reproduced.
   The register is `GOVERNANCE.md`; every finding also has a plain-language entry in
   `docs-notes/QA-IN-PLAIN-TERMS.md` and report material in `docs-notes/CHAPTER3-MATERIAL.md`.
@@ -72,6 +73,11 @@ the ones that were wrong were the ones nobody re-ran.
   agent from the registry) were built.
 
 ## What is left, and what to do next
+
+**Requirement 9 closed on 2026-09-21**, so **all nine design requirements are Met** and **T3 is
+struck**: the VPS was brought to `0a7d51f1c12` and the governance suite ran there at **3,211
+passed / 16 skipped / 0 failed** in 197 files, with the rehearsal 20/20 and the platform probe
+14/14. Windows and Linux reconcile exactly at 3,227 tests.
 
 **Chapter 3 is under way as of 2026-09-20.** It is drafted in LaTeX in
 `docs-notes/report/chapter3.tex`, the outline is agreed, and the conventions that hold it

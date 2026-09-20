@@ -127,6 +127,15 @@ git clone git@github.com:KinanRadaideh/openclaw-governance-layer.git /opt/opencl
 
 </details>
 
+> **`origin` means different things on the two machines, and the difference is
+> worth holding in your head.** On the VPS you clone the fork directly, so
+> **`origin` is the fork** and `git pull` from it is exactly right. On the
+> development machine `origin` is **upstream OpenClaw** and the fork is a second
+> remote called `personal`, which is why every note in this repository says
+> never to push to `origin`. That warning is about the development machine only.
+> Confirmed on the VPS 2026-09-20, where `git log` shows
+> `HEAD -> governance-layer, origin/governance-layer`.
+
 `governance-layer` is the branch that carries the work; `main` is upstream and
 has none of it. **Checking out the wrong branch is the failure that looks like
 success**. Everything installs, nothing is governed.

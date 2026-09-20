@@ -16,6 +16,16 @@ the authority, and correct whichever of these is stale.
 
 ## Where this pass got to
 
+> **State on 2026-09-21.** **Requirement 9 is MET and T3 is closed.** Kinan brought the VPS to
+> `0a7d51f1c12` and ran the three checks: governance suite **3,211 passed / 16 skipped / 0 failed**
+> in 197 files, rehearsal **20/20**, platform probe **14/14** on `platform=linux node=v22.23.2`.
+> Windows and Linux reconcile exactly at 3,227 tests; five skip on Windows and run on Linux.
+> **All nine design requirements are now Met.** Chapter 3 has its opening, §3.1 and §3.2's
+> opening with Table 3.1. **Next: the four subsections of §3.2**, written up in `mg/HANDOFF.md`
+> §2b under "THE NEXT TASK". Two things the daemon reported are still open and are not
+> requirement 9: the connectivity probe fails against `ws://127.0.0.1:18789` while the Gateway is
+> up and owns the port, and the service unit carries PATH warnings about nvm-managed Node.
+>
 > **State on 2026-09-20 (later).** Chapter 3 was started: its outline is agreed and drafted in
 > `docs-notes/report/chapter3.tex`, the conventions are in `mg/HANDOFF.md` §2b, and differences
 > between the built system and Chapters 1-2 are registered with their justifications in
