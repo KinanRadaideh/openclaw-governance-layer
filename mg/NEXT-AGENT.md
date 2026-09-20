@@ -73,7 +73,13 @@ the ones that were wrong were the ones nobody re-ran.
 
 ## What is left, and what to do next
 
-**Next, and waiting on Kinan's word: write Chapter 3.** T48 was answered yes on 2026-09-15,
+**Chapter 3 is under way as of 2026-09-20.** It is drafted in LaTeX in
+`docs-notes/report/chapter3.tex`, the outline is agreed, and the conventions that hold it
+together — where the report files are, how figures are cited, what `main.tex` still needs —
+are in `mg/HANDOFF.md` §2b. **Read §2b before writing a word of it.**
+`docs-notes/report/main-reference.tex` is a read-only copy of Kinan's live `main.tex`.
+
+_The instruction this replaced:_ **write Chapter 3.** T48 was answered yes on 2026-09-15,
 so the design has stopped moving. Start at `docs-notes/WRITING-GUIDE.md`, which maps every
 report section to its material, lists every number with the command that re-derives it, and
 names the claims the evidence does not support. **Do not start writing until Kinan says so.**

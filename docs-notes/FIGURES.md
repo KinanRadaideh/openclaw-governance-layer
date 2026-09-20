@@ -507,7 +507,7 @@ flowchart TB
   \node[gnote, fill=white, anchor=south west, xshift=1mm] at (gw.north west) {OpenClaw Gateway process};
 \end{tikzpicture}}
 \caption{Governance layer within the OpenClaw Gateway.}
-\label{fig:architecture}
+\label{fig:gov-architecture}
 \end{figure}
 ```
 
@@ -616,7 +616,7 @@ flowchart BT
   \node[gnote, rotate=90] at ([xshift=6mm]a.east |- u) {inherits};
 \end{tikzpicture}
 \caption{Role hierarchy. Each tier inherits every capability below it. The emergency stop sits at \textbf{User}, scoped to the agents assigned to that account, not at Root. An Administrator acts on one agent only when it owns that agent; Root may act on any.}
-\label{fig:rbac}
+\label{fig:gov-rbac}
 \end{figure}
 ```
 
@@ -785,7 +785,7 @@ is, for a dashboard prompt, an account that manages the agent, and for a chat ru
 whoever holds the Gateway credential. An ``allow always'' answer permits that one
 call and files a rule request for an administrator to approve; it does not write a
 rule by itself.}
-\label{fig:decision}
+\label{fig:gov-decision}
 \end{figure}
 ```
 
@@ -911,7 +911,7 @@ path is simply reduced to what it really means before being judged. One later
 addition completes the picture: the resolved path is not only matched against the
 rule but handed onward to the tool, so the file the gate judged is the file the
 tool opens. Without that the pipeline would answer correctly about a path the
-tool then resolved a second time, which is the race Figure~\ref{fig:toctou}
+tool then resolved a second time, which is the race Figure~\ref{fig:gov-toctou}
 describes.
 
 ### Mermaid form
@@ -955,7 +955,7 @@ flowchart LR
 \caption{Path normalisation. The rule is matched against what the path resolves
 to, not against what the agent typed; a path inside the workspace is matched in
 both its short and its absolute form.}
-\label{fig:pathnorm}
+\label{fig:gov-pathnorm}
 \end{figure}
 ```
 
@@ -1053,7 +1053,7 @@ flowchart TD
 \caption{The governed prompt path. Where no runtime is attached to the agent, the
 ingress step returns an explicit ``no runtime attached'' rather than failing
 silently.}
-\label{fig:promptpath}
+\label{fig:gov-promptpath}
 \end{figure}
 ```
 
@@ -1245,7 +1245,7 @@ flowchart TB
 \end{tikzpicture}
 \caption{Two arrangements, one gate. The lower path is governed only if the relay
 hook is installed, which on a governed installation it now always is.}
-\label{fig:twopaths}
+\label{fig:gov-twopaths}
 \end{figure}
 ```
 
@@ -1491,7 +1491,7 @@ sequenceDiagram
 \end{tikzpicture}
 \caption{The check-then-open window. Both resolutions are correct; the defect is
 that there are two of them.}
-\label{fig:toctou}
+\label{fig:gov-toctou}
 \end{figure}
 ```
 
@@ -1818,7 +1818,7 @@ host ships the same fifty-two tools either way; what changed is their compositio
 The governed share went from seven to eighteen, and, more to the point, the part
 that is not governed stopped being an unexamined gap and became thirty-four
 decisions each with a written reason.}
-\label{fig:coverage}
+\label{fig:gov-coverage}
 \end{figure}
 ```
 
@@ -2071,7 +2071,7 @@ written, and the split between the buckets has never been derived from the
 register. The shape is the argument (the distribution does not favour old code,
 which is why reviewing continuously beats reviewing once) but the numbers must be
 re-derived before this figure goes into the report.}
-\label{fig:defectage}
+\label{fig:gov-defectage}
 \end{figure}
 ```
 
@@ -2168,7 +2168,7 @@ flowchart TB
   \node[gnote, right=2mm of ui] {M6};
 \end{tikzpicture}
 \caption{The tenant model. Each subtask supplies a noun the next one needs.}
-\label{fig:tenant}
+\label{fig:gov-tenant}
 \end{figure}
 ```
 
@@ -2343,7 +2343,7 @@ flowchart LR
 \caption{The two-layer Codex permission. Both gates must be open; the in-process
 runtime needs neither. The second gate is set by the Administrator who owns the
 agent, or by Root.}
-\label{fig:codexgates}
+\label{fig:gov-codexgates}
 \end{figure}
 ```
 
@@ -2446,7 +2446,7 @@ flowchart TB
 \caption{A folder grant writes one allow and one deny per exception, denials
 first. The exception carves a hole in the grant because forbid beats allow
 independently of order.}
-\label{fig:foldergrant}
+\label{fig:gov-foldergrant}
 \end{figure}
 ```
 
@@ -2536,7 +2536,7 @@ when the organisation's queue (40 requests plus 20 per account) is full, the
 outcome travels back through the Gateway as a follow-up. Drawn for a chat run,
 whose operator is the Control UI; for a dashboard prompt the card and follow-up
 appear on the governance page, to the accounts that manage the agent.}
-\label{fig:alwaysallow}
+\label{fig:gov-alwaysallow}
 \end{figure}
 ```
 
@@ -2599,7 +2599,7 @@ stateDiagram-v2
 \caption{A task's row and its slot. The row stays listed until the reply is saved,
 so a reopened page can recover it; the slot, which alone bounds concurrency, is
 released as soon as the task stops executing.}
-\label{fig:taskslot}
+\label{fig:gov-taskslot}
 \end{figure}
 ```
 

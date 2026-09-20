@@ -1,0 +1,405 @@
+% =====================================================================
+% REFERENCE COPY of the report's main.tex, as Kinan supplied it on
+% 2026-09-20. It is NEWER than Documentation/GradProj/Grad_Proj___Current.pdf.
+%
+% THIS FILE IS A READ-ONLY REFERENCE. It is here so that an agent can
+% see the preamble, the labels already taken, the exact wording of the
+% requirements, constraints and standards, and the promises Chapter 1
+% makes about later chapters, without needing the (gitignored)
+% Documentation/ folder. Do not edit it expecting the change to reach
+% the report: the live document is Kinan's, outside this repository.
+% If he sends a newer copy, replace this file wholesale and say so.
+%
+% Two cosmetic things noted on arrival, both in Chapter 1, both left
+% as they are because this is a faithful copy. NEITHER BLOCKS THE BUILD:
+% Kinan compiles this in Overleaf and the text is all there.
+%   1. §1.4 "List of Design Constraints" and §1.5 "List of Engineering
+%      Standards" use \item outside any list environment. Measured on
+%      2026-09-20: pdflatex raises "Lonely \item--perhaps a missing list
+%      environment" once per item, recovers, and still writes the PDF.
+%      The entries just lose their bullets and indentation.
+%      \begin{itemize} ... \end{itemize} would tidy them.
+%   2. §1.1 refers to "Figure 1.1" as plain text rather than with
+%      \ref, so the number will not track if figures are reordered.
+% =====================================================================
+
+\documentclass[a4paper]{report}
+\renewcommand\bibname{References}
+\usepackage{style-PSUT-BSc-Eng}
+\usepackage{arabtex}
+\usepackage[table,xcdraw]{xcolor}
+\usepackage{multirow}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{pdfpages} % Package to include PDFs
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, fit, backgrounds, calc, decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+%\usepackage[title,titletoc]{appendix}
+%%% IMPORTANT NOTE
+%
+% This template requires Perl for the ``glossaries`` package to work
+%
+% If you are on Windows environment, download and configure ``Strawberry Perl`` to work with your Latex Editor of choice.
+% http://strawberryperl.com/
+%
+% to compile use: makeglossaries $basename
+%
+% It is possible to compile without using Perl (though NOT tested).
+%
+% use: makeindex -s $basename.ist -t $basename.glg -o $basename.gls $basename.glo
+%
+% Compile Procedure:
+%
+%      pdfLaTex
+%      BibTex
+%      makeglossaries $basename
+%      pdfLaTex
+%      pdfLaTex
+%
+%%%
+\usepackage[style=numeric, sorting=none]{biblatex}
+\addbibresource{references.bib}
+\begin{document}
+
+%%%                        %%%
+%%% Dissertation Info %%%
+%%%                        %%%
+\title{Design and Implementation of a Policy-Based Secure Governance Layer for Autonomous OS-Level Agents Using an OpenClaw Fork} % Capitalized each wordge
+\submitdate{Spring 2025-2026}
+\approveddate{7}{August}{2022}
+\author{Kinan Radaideh$^1$, Mohammad Al-Masri$^2$ \&    Malek Tluli$^2$} % Capitalized each word
+% Use this if students are from one program
+% \degree{\bsc}{\majorce}
+% Use this if students are from two programs
+\degree{\bsc}{\majorce}{\majorNISE}
+% Use this if students are from three programs
+% \degree{\bsc}{\majorce}{\majorIoT}{\majorelec} % \phd, \msc, \majorcs, \majorsec, \majords
+\doctype{\SDP} % \dissertation or \thesis
+
+%%%                %%%
+%%% Supervisor %%%
+%%%                %%%
+\supervisor{\capitalisewords{Dr. Haitham Al-Ani}} % Capitalized each word
+\supervisorjob{Professor of Computer Science}
+\supervisorTitle{Prof. }
+\supervisoruni{\psut}
+
+
+
+\beforepreface
+
+
+% %%%                        %%%
+% %%% Dedication Page %%%
+% %%%      (optional)     %%%
+% %%%                        %%%
+% \prefacesection{Dedication}{\large
+% I dedicate this work to....\\
+
+% \begin{flushright}
+% \vspace{0.5in}
+% \textbf{Enter Your Name}
+% \end{flushright}
+% }
+
+%%%                           %%%
+%%% Supervisor Signature Page %%%
+%%%                           %%%
+\newpage
+\begin{center}
+    This is to certify that I have examined\\
+    \vspace{0.2in}
+    this copy of an engineering documentation by\\
+    \vspace{0.2in}
+    Kinan Radaideh, Mohammad Al Masri, \& Malek Tluli\\
+    \vspace{0.1in}
+    \hrule
+    \vspace{1in}
+    And have found that it is complete and satisfactory in all respect,\\
+And that any and all revisions required by the final Examining Committee have been made\\
+    \vspace{1in}
+    \hrule
+    \vspace{0.2in}
+    Dr. Haitham Al-Ani (Supervisor)
+     \vspace{1in}
+    \hrule
+    \vspace{0.2in}
+    Dr. Ibrahim Sami (Department Head)
+\end{center}
+
+
+%%%                                  %%%
+%%% Acknowledgments Page %%%
+%%%           (optional)          %%%
+%%%                                  %%%
+\prefacesection{Acknowledgments}{\large
+Recognition or favorable notice for people.
+In the Acknowledgments section, you express gratitude to those who supported and contributed to your project. This can include:
+\begin{itemize}
+    \item Supervisor – Thank your professor, mentor, or advisor for their guidance.
+    \item Team Members – If applicable, acknowledge your colleagues or teammates.
+    \item Institutions and Organizations – Recognize your university, department, or any institution that supported you during your project.
+    \item Family and Friends – Show appreciation for their moral and emotional support.
+    \item Others – Mention any other individuals or entities that contributed significantly (e.g., industry professionals, companies, or research participants).
+
+\end{itemize}
+
+% \begin{flushright}
+% \vspace{0.5in}
+% \textbf{Enter Your Name}
+% \end{flushright}
+% }
+
+
+%%%                       %%%
+%%% Acronyms Page %%%
+%%%                       %%%
+%
+%After the acronyms have been included in the preamble, they can be used by means on the next commands:
+%
+%\acrlong{ }
+%Displays the phrase which the acronyms stands for. Put the label of the acronym inside the braces. In the example, \acrlong{gcd} prints Greatest Common Divisor.
+%
+%\acrshort{ }
+%Prints the acronym whose label is passed as parameter. For instance, \acrshort{gcd} renders as GCD.
+%\acrfull{ }
+%
+%Prints both, the acronym and its definition. In the example the output of \acrfull{lcm} is Least Common Multiple (LCM).
+%
+% \newacronym{gcd}{GCD}{Greatest Common Divisor} % Example
+
+\newpage
+%%%                     %%%
+%%% Abstract Page %%%
+%%%
+% \textbf{Keywords:\quad} Keyword1, Keyword2, …, Keyword n .
+}
+
+
+\afterpreface % to add list of table, figures, etc.
+
+
+
+\startchapters
+
+
+\chapter{Introduction}
+
+
+
+
+\section{Introduction}
+In recent years, the evolution of Artificial Intelligence (AI) has shifted from passive large language models (LLMs) to active, autonomous agents capable of interacting directly with computing environments~\cite{chen2025survey, mei2025aios}. Unlike traditional software, these agents can interpret high-level human objectives and decompose them into actionable steps, such as executing terminal commands, managing files, and interfacing with system-level APIs, as shown in Figure 1.1. This shift represents a significant milestone in automating complex administrative and developmental tasks.
+
+
+The \textbf{OpenClaw} framework is an open-source initiative designed to facilitate the deployment of such autonomous OS-level agents~\cite{anonymous2026systematic}. It provides the necessary infrastructure for an agent to "see" and "act" within a Linux-based environment by connecting reasoning engines (like GPT-4 or Claude) with the   operating system’s interface. By implementing a modular architecture, OpenClaw allows for the integration of various tools and execution environments, making it a powerful foundation for building digital assistants.
+
+However, as agents gain the ability to execute code and modify system configurations autonomously, they introduce unprecedented security risks. Without a robust governance layer, an agent may execute destructive commands, violate privacy regulations, or exceed its intended operational scope~\cite{jones2025systematization}. Existing frameworks often prioritize capability over control, leaving a demand for safe deployment of these technologies in professional and sensitive environments.
+
+This project addresses these challenges by developing a specialized fork of the OpenClaw framework. The focus is on implementing a policy-based secure governance layer that ensures agent autonomy is balanced with strict administrative oversight, least-privilege execution, and comprehensive auditability~\cite{anonymous2026governance}.
+
+
+\section{Objectives}
+The primary objective of this project is to design and implement a secure, policy-driven governance layer for autonomous AI agents by creating a specialized fork of the open-source OpenClaw framework. This project aims to bridge the critical gap between the capability and control of an agent. By delineating the specific capabilities of an agent through policies, the governance layer will ensure that autonomous operations are conducted safely, transparently, and in adherence to the principle of least privilege, as well as to the administer-defined policies.
+
+To achieve this goal, the project targets the following specific objectives:
+
+\begin{itemize}
+    \item \textbf{Establish a "Default-Deny" Security Posture:} Implement a foundational security architecture where all agent permissions and system access rights are disabled by default. Any resource access or execution capability must be explicitly authorized through administrator-defined policies, aligning with information security management standards (ISO/IEC 27001:2022)~\cite{ji2025taming}.
+    \item \textbf{Enforce Granular Resource Access Permissions:} Develop strict control mechanisms to govern the agent’s interaction with operating system resources. This is done with policies, including those enforcing path-level file system access, restricting the ability to trigger unauthorized processes, and implementing network allowlisting to manage external communications.
+    \item \textbf{Implement Robust Execution and Command Governance:} This part of the policy-based design concerns a comprehensive command allowlisting system. This ensures the agent is permitted to run only predefined, safe commands, thus neutralizing the risk of the agent inadvertently or maliciously executing destructive terminal commands~\cite{shan2025dont}.
+    \item \textbf{Enable Dynamic Session and Temporal Management:} Introduce fluid control over the agent's operational lifecycle. This part of the policy-based design includes the implementation of time-limited permissions that expire after a specific duration, as well as real-time session management that allows an administrator to monitor, suspend, or forcefully terminate an active agent session instantaneously, targeting a response time of one second or less.
+    \item \textbf{Ensure Secure and Comprehensive Auditability:} Design an immutable, detailed logging system that records all agent actions, system calls, and policy evaluations. This system must be engineered to provide complete transparency for administrative review while strictly preventing the leakage of sensitive data, such as credentials or secrets, into plaintext log files.
+    \item \textbf{Deploy a Secure Administrative Interface:} Develop a secure, user-friendly management interface, developed in adherence with OWASP secure coding practices, that allows administrators to configure agent roles, define access policies, and oversee agent behavior within the target Linux-based environment.
+\end{itemize}
+A policy evaluation allows administrators to understand why a verdict was given for any particular action.
+An example is given in Table \ref{tab:policy-eval}, which shows how a hypothetical action may be rejected based on a specific policy check. This data, stored in logs, will be useful to administrators investigating a session.
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.2}  % <-- Increases space between rows
+\caption{Example Policy Evaluation Log Entry}
+\label{tab:policy-eval}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Field} & \textbf{Example} \\
+\midrule
+Agent action & \texttt{rm -rf /tmp/old\_data} \\
+Policy checked & Command allowlist: \texttt{["ls", "cat", "grep"]} \\
+Evaluation result & \texttt{DENY} — command not in allowlist \\
+Rule triggered & \texttt{execution.command.deny} \\
+Timestamp & \texttt{2030-09-30 T18:28:01Z} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{Design Requirements}
+The design shall achieve the following requirements:
+
+\begin{enumerate}
+    \item The system shall be implemented using the Node.js runtime (version 18 or higher) and developed primarily in TypeScript with static type checking enabled.
+    \item The system shall provide a secure web-based dashboard that enables administrators to configure customized privilege policies, monitor active autonomous agent sessions, and manage system operations using role-based access control.
+    \item The system shall enforce a default-deny, policy-based security model that restricts autonomous agent access to operating system resources, including file system paths, process execution, and network communication, based on administrator-defined capabilities.
+    \item The system shall support customized, fine-grained privileges for autonomous agents, including path-level file access, command allowlisting, network allowlisting, and time-limited permissions.
+    \item The system shall continuously monitor autonomous agent activities and shall record 100\% of agent actions, policy decisions, and administrative approvals in an auditable logging system.
+    \item The system shall implement tamper-evident audit logging mechanisms to ensure the integrity and traceability of all recorded agent and administrative actions.
+    \item The system shall provide real-time administrative control capabilities, including the ability to suspend or terminate an autonomous agent session within a maximum response time of one second.
+    \item The system shall prevent sensitive data (such as secrets or credentials) from being written in plaintext to log files.
+    \item The system shall be deployable on a Linux-based operating system using open-source software components only.
+\end{enumerate}
+
+
+\section{List of Design Constraints}
+Three categories of constraints are considered:
+
+    \item \textbf{Economic:} The total cost of required API access and the rental of a virtual private server for one year shall not exceed 350 JOD.
+    \item \textbf{Manufacturability and Sustainability:} The system shall be deployable on a virtual private server with a minimum hardware specification of 8 GB RAM to ensure stable operation, scalability, and long-term maintainability.
+    \item \textbf{Ethical and Professional Responsibility:} The project shall ensure the ethical and responsible use of the OpenClaw framework by restricting its functionality to defensive, governance, and monitoring purposes and by preventing misuse that could violate security policies, privacy regulations, or professional computing ethics.
+
+\section{List of Engineering Standards}
+\item {\textbf{ISO/IEC 27001:2022:}}
+    ISO/IEC 27001:2022 is an internationally recognized engineering and security standard that specifies the requirements for establishing, implementing, maintaining, and continually improving an Information Security Management System (ISMS). In the context of this project, the standard serves as the foundational framework for application in policy enforcement, access control, audit logging, and risk management, especially as through the "Default-Deny" policy~\cite{anonymous2026four}. By adhering to the ISO/IEC 27001:2022 guidelines, the system ensures that all permissions of autonomous agents and access rights to operating system resources are systematically governed and heavily restricted by default. The standard mandates the implementation of robust, policy-driven access controls, which directly aligns with the project's design approach. Adherence to this standard ensures that the system maintains high levels of confidentiality, integrity, and availability, thereby mitigating risks associated with unauthorized access, resource exploitation, or malicious autonomous operations~\cite{anonymous2026framework}.
+
+
+    \item {\textbf{OWASP (Open Worldwide Application Security Project) Secure Coding Practices:}}
+    The OWASP Secure Coding Practices constitute a universally acknowledged benchmark for developing resilient software applications and mitigating security vulnerabilities~\cite{gong2025secure}. This project integrates these practices as the primary standard for engineering the secure management user interface. Implementing OWASP guidelines ensures the management user interface is protected against prevalent threat vectors, including injection attacks, broken authentication, and cross-site scripting (XSS). The standards also dictates the implementation of secure session management, cryptographic practices for data in transit, and robust error handling. This establishes a secure operational perimeter around the agent's control mechanisms, ensuring that the administrative oversight tools themselves cannot be compromised as vulnerabilities~\cite{ying2026uncovering}.
+
+
+\section{Preliminary Design}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\linewidth]{Images/architecture.jpeg}
+    \caption{Preliminary Design Architecture}
+    \label{fig:architecture}
+\end{figure}
+The preliminary design of the policy-based secure governance layer, shown in Figure ~\ref{fig:architecture}, is structured around two primary dimensions: the hierarchical access rights of the human operators managing the system, and the operational boundaries imposed on the autonomous agents through policies. The architecture is deployed on a Linux-based Virtual Private Server (VPS) with a minimum specification of 8 GB RAM to ensure stable statefulness. The system integrates a specialized fork of the OpenClaw framework (developed in Node.js and TypeScript) with an external Large Language Model (LLM) reasoning engine. To optimize token consumption and billing, the LLM integration utilizes an OAuth-based connection to LLM providers such as Kimi, rather than relying on standard API key billing.
+
+To maintain infrastructure security and comply with OWASP guidelines, the web-based administrative dashboard is intentionally isolated from the public internet~\cite{sharma2025policy}. It does not expose standard HTTP/HTTPS ports globally; rather, it listens only on localhost, and access requires secure cryptographic tunneling, specifically utilizing SSH local port forwarding (binding the VPS localhost port to the administrator's local machine), ensuring that the control plane remains entirely invisible to external network scanning.
+
+The system architecture is divided into four core functional components:
+\subsubsection*{1. Role-Based Access Control (RBAC) Hierarchy}
+To govern human interaction with the system, a four-tier hierarchical RBAC model is implemented within the dashboard. Each role  inherits the permissions of the roles below it:
+\begin{itemize}
+    \item \textbf{Root:} Acts as the absolute system owner. The Root role manages the human element of the system, including creating user accounts, defining high-level RBAC settings, assigning roles, and overseeing the deployment and network configurations of the governance layer on the VPS.
+    \item \textbf{Administrator:} Responsible for managing the security boundaries of the agents. Administrators configure customized privilege policies (including command matrices and network allowlisting) for specific agents and deploy new autonomous agent sessions. They possess real-time control to suspend or terminate active sessions and conduct advanced auditing by reviewing tamper-evident logs. While the Root role manages other human users, the Administrator role manages AI agents.
+    \item \textbf{User:} Granted targeted access to interact with and configure specific agents. Depending on configurations set by the Administrator, Users may strictly prompt the agents for task execution or be granted limited, scoped permissions to modify agent parameters.
+    \item \textbf{Viewer:} Possesses strictly read-only access. Viewers can monitor active agent operations, view system resource states (e.g., VPS CPU/RAM usage), and read sanitized audit logs permitted by the Root, but cannot interact with the agent or modify any system configurations.
+\end{itemize}
+
+\subsubsection*{2. The Nodes Gateway and Policy Enforcement}
+The core of the governance layer relies on a policy engine regulating the operation of the forked OpenClaw implementation, operating on a strict "default-deny" paradigm~\cite{foerster2026camels}. Upon initialization, autonomous agents possess zero system privileges. Capabilities must be explicitly authorized through administrator-defined matrices:
+\begin{itemize}
+    \item \textbf{Resource Access Permissions:} Controls the agent's interaction with the underlying OS. This enforces \textit{Path-Level File Access} (restricting read/write operations to specific, sandboxed directories) and \textit{Network Communication} (utilizing network allowlisting at the application layer to dictate which external IP addresses or domains the agent is permitted to contact).
+    \item \textbf{Execution \& Command Controls:} Governs the specific processes the agent can spawn. This relies heavily on strict \textit{Command Allowlisting}, ensuring the agent can only execute predefined, safe terminal commands (e.g., permitting \texttt{ls} or \texttt{cat} while blocking \texttt{rm} or \texttt{chmod}).
+    \item \textbf{Human-in-the-Loop (HITL) Interception:} The Gateway introduces an "Ask on Miss" fallback mechanism. If the agent attempts to execute a command or access a network resource that is neither explicitly allowed nor denied by the static policy, the execution is paused. A real-time prompt is forwarded to the Administrator's dashboard, requiring human approval or denial before the execution lifecycle can continue. Once an Administrator responds to the prompt, the response optionally becomes policy, ensuring that the miss does not occur again. Furthermore, the prompt times out if an Administrator does not respond within a time window preset by the Root, and is stored in a stack for an Administrator to handle when available. This feature will be toggled on or off by the Administrator for specific agents and by the Root for specific users.
+\end{itemize}
+
+Synthesizing the policy-based design thus described, the preliminary and non-exhaustive structure of a hypothetical policy is shown in Table \ref{tab:policy-rules}.
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.6}  % <-- Increases space between rows
+\caption{Example Policy Rules by Type}
+\label{tab:policy-rules}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Policy Type} & \textbf{Example Rule} \\
+\midrule
+File access & Agent may only read/write \texttt{/home/openclaw/workspace/*} \\
+Command allowlist & Agent may run \texttt{ls}, \texttt{cat}, \texttt{grep}. It may NEVER run \texttt{rm}, \texttt{curl}, \texttt{chmod}. \\
+Network & Agent may connect to \texttt{api.openweathermap.org:443}. All other domains are blocked. \\
+Time limits & These permissions expire after 2 hours. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+The system is protected from contradictory policies by prioritizing those created earlier, and notifying users when such a conflict appears so it may be resolved.
+
+\subsubsection*{3. Session Management and Emergency Controls}
+To guarantee that runaway agent processes do not exhaust VPS resources or cause system damage, the governance layer implements robust session management features.
+\begin{itemize}
+    \item \textbf{Temporal Scoping:} Agent permissions can be configured with time-to-live (TTL) restrictions, automatically revoking execution rights after a specified duration or upon task completion.
+    \item \textbf{Sub-Second Kill Switch:} Administrators are provided with an emergency termination mechanism within the dashboard. When triggered, the system utilizes OS-level signals (such as \texttt{SIGTERM} followed by \texttt{SIGKILL}) to forcefully terminate the agent's Node.js process and all orphaned child processes within a guaranteed response time of one second or less.
+\end{itemize}
+
+\subsubsection*{4. Comprehensive Auditability and Tracking}
+To ensure transparency and compliance with ISO/IEC 27001 standards, the system heavily enhances the native event logging capabilities of the OpenClaw framework. A continuous telemetry module records agent actions.
+\begin{itemize}
+    \item \textbf{Granular Event Tracking:} The log captures the precise timestamp, the agent ID, the raw LLM intent, the attempted system call payload, the policy engine's decision (Allow/Deny/Ask), and the identity of the human approver if HITL was triggered.
+    \item \textbf{Data Sanitization:} A pre-processing filter scans outgoing log data to ensure that sensitive plaintext elements, such as API keys, environment variables, or administrative passwords, are automatically masked or redacted before being written to the immutable log files. This ensures forensic trails can be reviewed safely without credential leakage.
+\end{itemize}
+
+\section{Load Distribution}
+
+This section outlines the division of responsibilities among the project members. To ensure the successful and timely completion of the OpenClaw secure governance layer, tasks have been distributed based on individual strengths, interests, availability, and project requirements, allowing all members to have a holistic view of the project as a whole, as detailed in Table \ref{tab:load_distribution}.
+
+\begin{table}[H]
+\centering
+\caption{Project Load Distribution}
+\label{tab:load_distribution}
+\renewcommand{\arraystretch}{1.5} % Adds breathing room to the rows
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Task} & \textbf{Kinan} & \textbf{Mohammad} & \textbf{Malek} & \textbf{From/To} \\ \hline
+Introduction & 50\% & 20\% & 30\% & March-April \\ \hline
+Background & 40\% & 20\% & 40\% & March-April \\ \hline
+Literature Review & 10\% & 60\% & 30\% & March-April \\ \hline
+Practical Section & 33.30\% & 33.30\% & 33.30\% & April-May \\ \hline
+\end{tabular}
+\end{table}
+
+\section{Document Organization}
+\label{sec:doc_org}
+
+This section outlines the structure of the remainder of the documentation, providing a brief overview of the contents covered in each part of the project.
+
+\begin{itemize}
+    \item \textbf{Chapter 1: Introduction} presents the foundational context of the project, including the motivation, core objectives, design requirements, realistic constraints, and the engineering standards guiding the development of the secure governance layer.
+
+    \item \textbf{Chapter 2: Background and Literature Review} establishes the theoretical foundations of autonomous AI agents. It reviews existing research on agent security vulnerabilities, such as prompt injections and privilege escalation, and analyzes current defense mechanisms, highlighting the gaps this project aims to resolve.
+
+    \item \textbf{Chapter 3: System Design} details the architectural framework of the proposed policy-based secure governance layer. It fully details the project requirements and the final system design.
+
+    \item \textbf{Chapter 4: Implementation and Evaluation} discusses the practical development phases of the specialized OpenClaw fork and the web-based administrative dashboard. It also evaluates the performance of the implementation using the Design Requirements as a benchmark.
+
+    \item \textbf{Conclusion and Future Work} summarizes the project's achievements in mitigating the risks of autonomous agents. It assesses the success of the controls implemented and outlines potential avenues for future research and system enhancements.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+% CHAPTER 2 of the live document follows here. It is long (the OpenClaw
+% architecture overview, the threat model, Node/TypeScript, Linux
+% administration principles, auditability, and eight reviewed papers)
+% and is NOT reproduced in this reference copy, because nothing in
+% Chapter 3's drafting depends on its exact wording. What Chapter 3
+% must answer from it is noted in docs-notes/report/chapter3.tex:
+%
+%   - Chapter 2 sets up prompt injection (direct and indirect) as the
+%     central extrinsic threat. Chapter 3 §"Security of the design"
+%     must answer it honestly: this layer contains the damage when
+%     persuasion succeeds; it does not prevent the persuasion.
+%   - Chapter 2 cites Shan et al.'s 17% sandbox-escape defence rate.
+%     Chapter 3's path canonicalisation is the direct answer to that,
+%     and the check-then-open window is the part it does not close.
+%   - Chapter 2's §"Tamper-Evident Logging and Traceability" describes
+%     SHA-256 hash chaining and Merkle trees in the abstract. Chapter 3
+%     must say which was built (a keyed HMAC-SHA256 chain, not a Merkle
+%     tree) so the two chapters do not contradict each other.
+%   - Chapter 2's §"Automated Data Sanitization" promises regex and
+%     entropy-based masking. Chapter 3 must state what redaction
+%     actually does, which is to reuse the host's own redaction at the
+%     ledger boundary.
+%
+% Chapter 2 ends with \printbibliography and an appendices block:
+%
+%   \printbibliography[heading=bibintoc, title={References}]
+%   \begin{appendices}
+%     \appendixchapter{Offering Template}
+%     \includepdf[pages=-]{proposal.pdf}
+%   \end{appendices}
+%   \end{document}
+%
+% Chapter 3 is inserted after Chapter 2 and before \printbibliography.
+% ---------------------------------------------------------------------

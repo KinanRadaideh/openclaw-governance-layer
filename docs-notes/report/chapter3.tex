@@ -1,0 +1,574 @@
+% =====================================================================
+% CHAPTER 3 — SYSTEM DESIGN
+% Graduation project: a policy-based secure governance layer for
+% autonomous OS-level agents, built as a hard fork of OpenClaw.
+% Kinan Radaideh, Mohammad Al-Masri, Malek Tluli. PSUT, Spring 2025-2026.
+%
+% STATUS: OUTLINE (2026-09-20). Every heading carries a one-line
+%   placeholder saying what the finished section will argue. Replace
+%   each placeholder with the real prose; the \sectionstub macro is
+%   defined below so every unwritten section is easy to find, and
+%   removing the last \sectionstub means the chapter is done.
+%
+% ---------------------------------------------------------------------
+% WHY EVERY HEADING HAS TEXT UNDER IT
+% ---------------------------------------------------------------------
+% LaTeX will not break a page immediately after a sectioning heading —
+% it sets a penalty so a heading is never left orphaned at the foot of a
+% page. When headings follow one another with nothing but comments
+% between them, there is no legal breakpoint anywhere in the run, the
+% whole block becomes unbreakable, and it overflows the bottom of the
+% page with an "Overfull \vbox" warning instead of continuing overleaf.
+% Measured on 2026-09-20: forty bare headings compile to 2 pages with an
+% overfull vbox; the same forty with one line of text each compile to 4
+% pages with none. Comments set no type, so they do not count.
+% Keep at least one line of real text under every heading.
+%
+% ---------------------------------------------------------------------
+% HOW TO USE THIS FILE
+% ---------------------------------------------------------------------
+% Paste the body below into main.tex after Chapter 2, or keep it here
+% and pull it in with \input{chapter3}. The \sectionstub definition has
+% to go in the preamble; it is repeated at the top of the body so the
+% file compiles on its own, and can be deleted once the chapter is done.
+%
+% The chapter is titled "System Design" because that is what §1.8
+% (Document Organization) promises the reader.
+%
+% ---------------------------------------------------------------------
+% HOUSE STYLE FOR THIS CHAPTER
+% ---------------------------------------------------------------------
+% 1. HEADINGS ARE NOUN PHRASES, two to four words, title case. Not
+%    sentences and not questions, following the two model reports in
+%    Documentation/GradProj/, whose Chapter 3 headings read "Packet
+%    Handling", "Voting Process", "System Architecture", "Smart
+%    Contract", "Donor Setup", "System Security". The argument goes in
+%    the prose, not the heading.
+% 2. AMERICAN SPELLING, because Chapters 1 and 2 already use it:
+%    "prioritize", "utilizes", "Data Sanitization", "organizations",
+%    "behavior". So: canonicalization, sanitization, organization,
+%    authorization, behavior. The repository's own notes are British
+%    English; do not carry that into the report.
+% 3. The section spine (requirements, analysis of requirements, analysis
+%    of constraints, different design approaches, then Developed Design
+%    last before the summary) is the spine both model reports use, and
+%    the one CHAPTER3-MATERIAL.md is keyed to.
+%
+% ---------------------------------------------------------------------
+% WHERE THE BUILT DESIGN DIFFERS FROM CHAPTERS 1 AND 2
+% ---------------------------------------------------------------------
+% It is normal and expected that the final implementation differs from
+% the preliminary design. What matters is that Chapter 3 states each
+% difference openly AND explains why the change was made. The register
+% of them, with the justification for each, is
+% docs-notes/report/DIVERGENCES.md. Sections that owe an explanation
+% carry a % DIVERGENCE comment pointing at it. Add to that file when a
+% new one is found, and add the reasoning, not just the fact.
+%
+% ---------------------------------------------------------------------
+% FIGURES: how they are referenced, and where to find them
+% ---------------------------------------------------------------------
+% The drawings are NOT in this file. They live in docs-notes/FIGURES.md,
+% which holds each figure three ways (prose, Mermaid, TikZ) with the
+% reasoning behind it. That file is the source of truth.
+%
+% Prose cites a figure by the label FIGURES.md already gives it, so the
+% two files cannot drift:
+%
+%     ...as shown in Figure~\ref{fig:gov-architecture}.
+%
+% Every Chapter 3 and 4 figure label is prefixed "fig:gov-". The prefix
+% is deliberate: Chapter 1 already uses \label{fig:architecture} for the
+% preliminary design figure, and without the prefix our F1 would have
+% silently collided with it. Keep the prefix for anything new. Tables
+% take "tab:gov-" for the same reason.
+%
+% TO SEE a figure:  open docs-notes/figures/report-figures.pdf at the
+%                   page in the table below.
+% TO GET its TikZ:  copy it from docs-notes/FIGURES.md under
+%                   "## F1: ..." -> "### TikZ form", or lift the whole
+%                   figure environment out of the generated file
+%                   docs-notes/figures/report-figures.tex.
+% TO REBUILD both:  node docs-notes/figures/build-figures.mjs
+%                   then run pdflatex on report-figures.tex.
+%
+% All fourteen compile clean and have been checked by eye (2026-09-20).
+%
+%   Prints as | FIGURES.md | Cite with                    | PDF page
+%   ----------+------------+------------------------------+---------
+%   Fig 3.1   | F1         | \ref{fig:gov-architecture}   |  1
+%   Fig 3.2   | F2         | \ref{fig:gov-rbac}           |  2
+%   Fig 3.3   | F3         | \ref{fig:gov-decision}       |  3
+%   Fig 3.4   | F5         | \ref{fig:gov-pathnorm}       |  4
+%   Fig 3.5   | F6         | \ref{fig:gov-promptpath}     |  5
+%   Fig 3.6   | F8         | \ref{fig:gov-twopaths}       |  6
+%   Fig 3.7   | F11        | \ref{fig:gov-toctou}         |  7
+%   Fig 3.8   | F19        | \ref{fig:gov-tenant}         |  8
+%   Fig 3.9   | F21        | \ref{fig:gov-codexgates}     |  9
+%   Fig 3.10  | F22        | \ref{fig:gov-foldergrant}    | 10
+%   Fig 3.11  | F23        | \ref{fig:gov-alwaysallow}    | 11
+%   Fig 3.12  | F24        | \ref{fig:gov-taskslot}       | 12
+%   Fig 4.1   | F14        | \ref{fig:gov-coverage}       | 13  (Chapter 4)
+%   Fig 4.2   | F17        | \ref{fig:gov-defectage}      | 14  (Chapter 4)
+%
+% main.tex already has tikz, the \usetikzlibrary line, pgfplots with
+% compat=1.18, and graphicx (via style-PSUT-BSc-Eng). It still needs the
+% shared \tikzset style block from FIGURES.md -> "One shared style
+% block", pasted after \pgfplotsset{compat=1.18}. Without it the figures
+% compile but lose every box, arrow and label style.
+% =====================================================================
+
+% Marks an unwritten section. Put this in the main.tex preamble; delete
+% it, and every use of it, once the chapter is written.
+\providecommand{\sectionstub}[1]{\emph{[Outline: #1]}\par}
+
+\chapter{System Design}
+\label{ch:design}
+
+The preceding chapter established that OS-level Agents introduce a kind of
+vulnerability that is cognitive rather than deterministic, and that what an
+attacker often manipulates is the reasoning of the agent itself. Any control
+that lives inside the model, or that relies on the model's own judgment to
+enforce it, therefore inherits the weakness it is meant to correct. The design
+in this chapter, briefly described in previous sections, starts with the
+assumption that the agent is untrusted, and a deterministic policy check is
+placed on the path that every tool call by an agent takes. This required that
+the governance layer is built as a hard fork compiled into the OpenClaw core
+rather than as a plugin installed alongside it. This commits the project to an
+entire upstream codebase, including native client applications that this work
+does not modify.
+
+On that foundation the layer adds five capabilities to the host: a default-deny
+policy gate on the tool-call path, a tamper-evident audit ledger, an emergency
+kill-switch that measures the time to a confirmed stop, four tiers of named
+human accounts with individual sessions and levels of authority, and a
+management interface through which each of these is operated. The chapter moves
+from requirement to finished system. Section~\ref{sec:gov-requirements} briefly
+restates the nine design requirements of Section~1.3.
+Section~\ref{sec:gov-reqanalysis} then analyzes them, describing the status the
+system has reached in relation to each one.
+Section~\ref{sec:gov-constraints} does the same for the design constraints of
+Section~1.4, and Section~\ref{sec:gov-standards} describes how the engineering
+standards of Section~1.5 are applied. Section~\ref{sec:gov-approaches} presents
+the alternatives that were seriously considered and the reason each was
+rejected, and Section~\ref{sec:gov-developed} describes the system as built, one
+design area at a time, ending with what the system does not defend against; in
+other words, accepted limitations. Where the developed design departs from the
+preliminary design of Chapter~1, the departure is stated where it arises and the
+reason is given with it.
+
+% =====================================================================
+\section{Design Requirements}
+\label{sec:gov-requirements}
+
+As stated in Chapter 1, the design shall achieve the following requirements:
+
+\begin{enumerate}
+    \item The system shall be implemented using the Node.js runtime (version 18 or higher) and developed primarily in TypeScript with static type checking enabled.
+    \item The system shall provide a secure web-based dashboard that enables administrators to configure customized privilege policies, monitor active autonomous agent sessions, and manage system operations using role-based access control.
+    \item The system shall enforce a default-deny, policy-based security model that restricts autonomous agent access to operating system resources, including file system paths, process execution, and network communication, based on administrator-defined capabilities.
+    \item The system shall support customized, fine-grained privileges for autonomous agents, including path-level file access, command allowlisting, network allowlisting, and time-limited permissions.
+    \item The system shall continuously monitor autonomous agent activities and shall record 100\% of agent actions, policy decisions, and administrative approvals in an auditable logging system.
+    \item The system shall implement tamper-evident audit logging mechanisms to ensure the integrity and traceability of all recorded agent and administrative actions.
+    \item The system shall provide real-time administrative control capabilities, including the ability to suspend or terminate an autonomous agent session within a maximum response time of one second.
+    \item The system shall prevent sensitive data (such as secrets or credentials) from being written in plaintext to log files.
+    \item The system shall be deployable on a Linux-based operating system using open-source software components only.
+\end{enumerate}
+
+
+% =====================================================================
+\section{Analysis of Design Requirements}
+\label{sec:gov-reqanalysis}
+
+Section~\ref{sec:gov-requirements} states what the design was asked to do. This
+section asks what each requirement demands of the design once it is read
+strictly, and reports the status the system has reached against it. The
+distinction matters because several of the requirements are short sentences
+that carry a great deal of weight: two of them turn on what a single phrase is
+taken to mean, and one of them was satisfied only after the first reading of it
+was abandoned. Table~\ref{tab:gov-reqstatus} summarizes the outcome. Eight of
+the nine requirements are met and the ninth, deployment on Linux, is partially
+met, for reasons given in Section~\ref{sec:gov-remaining-reqs}.
+
+\begin{table}[h]
+\centering
+\caption{Design requirement status}
+\label{tab:gov-reqstatus}
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{@{}c p{6.1cm} p{3.9cm}@{}}
+\toprule
+\textbf{\#} & \textbf{Requirement} & \textbf{Status} \\
+\midrule
+1 & Node.js and TypeScript, with static type checking & Met \\
+2 & Secure web dashboard with role-based access control & Met \\
+3 & Default-deny model over paths, execution and network & Met \\
+4 & Fine-grained, time-limited privileges & Met \\
+5 & Record 100\% of actions, decisions and approvals & Met \\
+6 & Tamper-evident audit logging & Met \\
+7 & Suspend or terminate a session within one second & Met; measured in Section~\ref{sec:gov-latency} \\
+8 & No plaintext secrets in log files & Met \\
+9 & Deployable on Linux, open-source components only & Partially met \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Four requirements are treated individually below, because in each case reading
+the requirement strictly either changed the design or changed what could
+honestly be claimed of it. Requirement 3 turned on where the check is placed
+rather than on what it decides. Requirement 5 turned on the meaning of
+\emph{every action}, and the first implementation of it was replaced. Requirement
+7 turned on what is being timed, the request to stop or the stop itself.
+Requirement 8 was met by reusing an existing component rather than writing a new
+one, which is a design decision and is presented as such. The remaining five
+requirements are taken together in Section~\ref{sec:gov-remaining-reqs}.
+
+\subsection{Enforcement Point}
+\sectionstub{Requirement 3. Why a default-deny gate has to sit on the
+host's own tool-call path rather than beside it, and what that costs in
+coverage.}
+
+\subsection{Audit Coverage}
+\sectionstub{Requirement 5. What recording one hundred percent of agent
+actions was first read as meaning, why that reading was abandoned, and
+the distinct decision that lets an unevaluated call be recorded as such
+rather than folded in with the allowed ones.}
+
+\subsection{Termination Latency}
+\label{sec:gov-latency}
+\sectionstub{Requirement 7. The difference between the stop signal being
+sent and the stop being confirmed, and which of the two the requirement
+is read as claiming.}
+
+\subsection{Credential Protection}
+\sectionstub{Requirement 8. Met by redacting at the ledger boundary with
+the host's own redaction rather than by reimplementing it.}
+
+\subsection{Remaining Requirements}
+\label{sec:gov-remaining-reqs}
+\sectionstub{Requirements 1, 2, 4, 6 and 9 in brief: what each asked,
+and what satisfying it implied for the design.}
+
+% =====================================================================
+\section{Analysis of Design Constraints}
+\label{sec:gov-constraints}
+
+\sectionstub{The three categories of Section 1.4, and what each one
+ruled out of the design.}
+
+% MATERIAL: CHAPTER3-MATERIAL.md "→ 3.3 Analysis of Design Constraints".
+
+\subsection{Economic Constraints}
+\sectionstub{The 350 JOD ceiling and the open-source-only stack, met in
+part by adding no new dependencies at all, which is a claim any reader
+can check.}
+
+\subsection{Manufacturability and Sustainability}
+\sectionstub{What the layer adds to resident memory and to startup time
+on an 8\,GB server, and the startup budget that was set and defended
+because of this constraint.}
+
+\subsection{Ethical and Professional Responsibility}
+\sectionstub{The design can subtract capability from an agent and never
+add it, and why that asymmetry was made structural rather than left to
+care.}
+
+\subsection{Accepted Limitations}
+\sectionstub{Constraints the design accepted rather than solved:
+English-only operator text, and development on Windows against a Linux
+deployment target.}
+
+% =====================================================================
+\section{Discussion of Engineering Standards}
+\label{sec:gov-standards}
+
+\sectionstub{How the design applies the two standards named in Section
+1.5, rather than restating what those standards are.}
+
+% NOTE: the one section with no material behind it in the repository.
+%   Write it from §1.5's wording plus the design as built.
+
+\subsection{ISO/IEC 27001:2022}
+\sectionstub{Policy-driven access control mapped onto the default-deny
+gate and its rule language; systematic governance of rights onto the
+four tiers and ownership; audit logging onto the hash-chained ledger;
+and risk treatment onto the baseline policy and the core denials that
+cannot be switched off at runtime.}
+
+\subsection{OWASP Secure Coding Practices}
+\sectionstub{Session management and authentication mapped onto the two
+gates on every governance request; error handling onto refusals that
+explain themselves without leaking; data in transit onto keeping the
+dashboard off the public internet behind an SSH tunnel; and input
+handling onto rule validation and path canonicalization.}
+
+% =====================================================================
+\section{Different Design Approaches}
+\label{sec:gov-approaches}
+
+\sectionstub{The alternatives that were genuinely weighed, each stated
+as the options and then the choice, with the reason the others lost.}
+
+% MATERIAL: CHAPTER3-MATERIAL.md "→ 3.4" holds two of these in full; the
+%   rest are recoverable from the §3.5 sections named under each heading.
+
+\subsection{Integration Strategy}
+\sectionstub{A fork compiled into the host's core, or a plugin beside
+it. Why a plugin cannot make a gate unavoidable.}
+% MATERIAL: §3.5.2b.
+
+\subsection{Gate Placement}
+\sectionstub{Where in the tool-call path the check belongs, and what
+each candidate position would and would not have seen.}
+% MATERIAL: §3.5.1, §3.5.25.
+
+\subsection{Host Interception}
+\sectionstub{How the host is told that the gate must be consulted: four
+options, one chosen.}
+% MATERIAL: "→ 3.4" §3.4.y, §3.5.15.
+
+\subsection{Path Representation}
+\sectionstub{Which form a file path takes when a rule is matched against
+it: three options, one chosen.}
+% MATERIAL: "→ 3.4" §3.4.x, §3.5.8.
+
+\subsection{Log Integrity}
+\sectionstub{A hash chain weighed against the alternatives, and what
+each would have cost in complexity and in trust.}
+% MATERIAL: §3.5.3, §3.5.9.
+
+\subsection{Operator Identity}
+\sectionstub{One shared Gateway credential, or a second and independent
+set of named accounts with their own sessions.}
+% MATERIAL: §3.5.6, §3.5.19.
+
+\subsection{Management Surfaces}
+\sectionstub{Three surfaces were built and one was removed, and why
+subtraction counts as a design decision rather than a retreat.}
+% MATERIAL: §3.5.77.
+
+\subsection{Tenancy Model}
+\sectionstub{How many organizations one installation holds. One, decided
+deliberately, with the structure for several deliberately kept.}
+% MATERIAL: §3.5.89.
+
+% =====================================================================
+\section{Developed Design}
+\label{sec:gov-developed}
+
+\sectionstub{The system as built, taken one design area at a time. Each
+part is introduced by what it is for, then how it works, then the one
+decision inside it that a reader would otherwise stop and question.}
+
+\subsection{System Architecture}
+\label{sec:gov-arch}
+\sectionstub{The layer inside the Gateway process; the two doors into
+it, one for the operator and one for agent activity; and the files it
+owns on disk. Figure~\ref{fig:gov-architecture}.}
+% FIGURE F1 -> \ref{fig:gov-architecture} (prints as Figure 3.1)
+% MATERIAL: §3.5.1, §3.5.2, §3.5.2b.
+
+\subsection{Policy Engine}
+\label{sec:gov-gate}
+\sectionstub{The component that turns a rule set and an attempted action
+into a decision.}
+
+\subsubsection{Rule Model}
+\sectionstub{Tiers, effects, access directions, resource kinds and
+expiry: the vocabulary a rule is written in.}
+% MATERIAL: §3.5.4, §3.5.12, §3.5.20; docs-notes/PERMISSION-SPEC.md.
+
+\subsubsection{Evaluation Order}
+\sectionstub{Why denials are read before allowances, and what that
+guarantees. Figure~\ref{fig:gov-decision}.}
+% FIGURE F3 -> \ref{fig:gov-decision} (prints as Figure 3.3)
+% MATERIAL: §3.5.5, §3.5.25.
+% DIVERGENCE from Chapter 1 (report/DIVERGENCES.md §1.3): §1.6 says
+%   conflicts are resolved by preferring the earlier rule. That is true
+%   of the conflict DETECTOR but not of evaluation, where a denial beats
+%   an allowance whatever the order. Complete the picture here.
+
+\subsubsection{Path Canonicalization}
+\sectionstub{Turning what an agent wrote into the path it resolves to on
+disk, before any rule is matched against it.
+Figure~\ref{fig:gov-pathnorm}.}
+% FIGURE F5 -> \ref{fig:gov-pathnorm} (prints as Figure 3.4)
+% MATERIAL: §3.5.8, §3.5.29.
+
+\subsubsection{Baseline Policy}
+\sectionstub{What an installation ships with: core denials that cannot
+be edited at runtime, and the allowances that make an agent useful
+before anyone has written a rule.}
+% MATERIAL: docs-notes/BASELINE-RULES.md.
+
+\subsubsection{Folder Grants}
+\sectionstub{Granting a directory with exceptions carved out of it, and
+why the denial is written first. Figure~\ref{fig:gov-foldergrant}.}
+% FIGURE F22 -> \ref{fig:gov-foldergrant} (prints as Figure 3.10)
+% MATERIAL: §3.5.66.
+
+\subsection{Audit Ledger}
+\label{sec:gov-ledger}
+\sectionstub{The append-only record of what was attempted, what was
+decided and who decided it.}
+
+\subsubsection{Entry Structure}
+\sectionstub{What a single entry holds, including the raw model intent
+that produced the action.}
+% MATERIAL: §3.5.3, §3.5.59.
+
+\subsubsection{Hash Chaining and Verification}
+\sectionstub{How each entry is bound to the one before it, and the
+independent verifier that detects any later edit.}
+% MATERIAL: §3.5.3; scripts/verify-ledger.mjs.
+% DIVERGENCE from Chapter 2 (report/DIVERGENCES.md §1.1): Chapter 2
+%   describes a Merkle tree; a keyed HMAC-SHA256 chain was built. State
+%   the difference AND why: the tree's advantage is proving one entry
+%   without reading the log, which no party here needs, and the keying
+%   is a strengthening over Chapter 2's plain SHA-256.
+
+\subsubsection{Administrative Logging}
+\sectionstub{Why administrative actions are recorded in the same chain
+as agent actions, and what each such entry must name.}
+% MATERIAL: §3.5.9, §3.5.63.
+
+\subsubsection{Data Sanitization}
+\sectionstub{What an audit trail is allowed not to see, and where
+redaction is applied so that it cannot be bypassed.}
+% MATERIAL: §3.5.28, §3.5.60.
+% DIVERGENCE from Chapter 2 (report/DIVERGENCES.md §1.2): Chapter 2
+%   promises regex and entropy-based masking; what was built reuses the
+%   host's own redactor at the ledger boundary. State the difference AND
+%   why: one tested redactor rather than two to maintain, and placement
+%   at the single write boundary beats cleverness applied per caller.
+
+\subsection{Access Control Model}
+\label{sec:gov-rbac}
+\sectionstub{Who the operators are, what each of them may do, and how
+the system decides. Figure~\ref{fig:gov-rbac}.}
+% FIGURE F2 -> \ref{fig:gov-rbac} (prints as Figure 3.2)
+
+\subsubsection{Role Hierarchy}
+\sectionstub{The four tiers, what each inherits from the one below, and
+the capability that deliberately does not sit at the top.}
+% MATERIAL: §3.5.4, §3.5.24; docs-notes/ROLE-MODEL.md.
+
+\subsubsection{Two-Gate Authentication}
+\sectionstub{The Gateway credential, and then the governance account
+session and its role, on every request.}
+% MATERIAL: §3.5.6, §3.5.19.
+
+\subsubsection{Ownership and Assignment}
+\sectionstub{What managing an agent resolves to in code: the two scope
+questions each tier answers independently.}
+% MATERIAL: docs-notes/ROLE-MODEL.md, §3.5.22, §3.5.30.
+
+\subsection{Prompt Execution Path}
+\label{sec:gov-promptpath}
+\sectionstub{A User prompting an agent they hold: the checks made, and
+the record written before the run rather than after it.
+Figure~\ref{fig:gov-promptpath}.}
+% FIGURE F6 -> \ref{fig:gov-promptpath} (prints as Figure 3.5)
+% MATERIAL: §3.5.11, §3.5.17.
+
+\subsection{Session Control}
+\label{sec:gov-killswitch}
+\sectionstub{The two ways an operator intervenes in a running agent, and
+what each one is able to reach.}
+
+\subsubsection{Agent Lockdown}
+\sectionstub{What a lockdown covers, including work the locked agent had
+already started, and why it outranks any allowing rule.}
+% MATERIAL: §3.5.38, §3.5.16.
+
+\subsubsection{Kill Switch}
+\sectionstub{Stopping a run, and why the design reports a confirmed stop
+rather than a signal that was sent.}
+% MATERIAL: §3.5.10, §3.5.21.
+% DIVERGENCE from Chapter 1 (report/DIVERGENCES.md §1.4): §1.6 promises
+%   a sub-second kill switch. The signal is milliseconds; the CONFIRMED
+%   stop measured 2.2 s and 2.8 s on the laptop. Give both numbers and
+%   say the design measures something stricter than Chapter 1 did.
+
+\subsection{Human-in-the-Loop Approvals}
+\label{sec:gov-approvals}
+\sectionstub{What happens when the policy neither allows nor denies an
+action and a person has to decide.}
+
+\subsubsection{Escalation Routing}
+\sectionstub{Who is entitled to answer a request, where it appears, and
+what happens when nobody answers in time.}
+% MATERIAL: §3.5.83.
+% DIVERGENCE from Chapter 1 (report/DIVERGENCES.md §1.5): §1.6 puts the
+%   timeout with Root and adds a per-user toggle. What was built sets
+%   escalation, posture and timeout per AGENT, by an Administrator, and
+%   has no per-user toggle.
+
+\subsubsection{Persistent Approvals}
+\sectionstub{What the ``always allow'' answer promises, what it does in
+practice, and the rule request it files for an administrator.
+Figure~\ref{fig:gov-alwaysallow}.}
+% FIGURE F23 -> \ref{fig:gov-alwaysallow} (prints as Figure 3.11)
+% MATERIAL: §3.5.81, §3.5.94.
+
+\subsection{Runtime Management}
+\label{sec:gov-runs}
+\sectionstub{How running work is represented, bounded and governed,
+including when the agent executes outside this process.}
+
+\subsubsection{Task and Slot Model}
+\sectionstub{The row an operator sees and the concurrency slot behind
+it, and why the two are released at different moments.
+Figure~\ref{fig:gov-taskslot}.}
+% FIGURE F24 -> \ref{fig:gov-taskslot} (prints as Figure 3.12)
+% MATERIAL: §3.5.82.
+
+\subsubsection{Secondary Runtime Governance}
+\sectionstub{The in-process path and the native harness, and the
+two-layer permission that governs the second.
+Figures~\ref{fig:gov-twopaths} and~\ref{fig:gov-codexgates}.}
+% FIGURE F8  -> \ref{fig:gov-twopaths}   (prints as Figure 3.6)
+% FIGURE F21 -> \ref{fig:gov-codexgates} (prints as Figure 3.9)
+% MATERIAL: §3.5.15, §3.5.62.
+
+\subsection{Tenancy and Agent Registry}
+\label{sec:gov-tenant}
+\sectionstub{One organization per installation, the storage that belongs
+to it, and the registry that gives the layer a noun for an agent.
+Figure~\ref{fig:gov-tenant}.}
+% FIGURE F19 -> \ref{fig:gov-tenant} (prints as Figure 3.8)
+% MATERIAL: §3.5.31, §3.5.33, §3.5.47, §3.5.89.
+
+\subsection{Agent Lifecycle}
+\label{sec:gov-lifecycle}
+\sectionstub{Registration as the precondition for being allowed
+anything; ownership and re-owning; and the two deletions, with what each
+one leaves behind on the host.}
+% MATERIAL: §3.5.33, §3.5.90, §3.5.91, §3.5.94.
+
+\subsection{Management Interface}
+\label{sec:gov-dashboard}
+\sectionstub{The HTTP control plane and the dashboard behind it, what
+its sections are for, and the rule that a control must never promise
+what the gate cannot keep.}
+% MATERIAL: §3.5.13, §3.5.37, §3.5.46, §3.5.80.
+
+\subsection{System Security}
+\label{sec:gov-security}
+\sectionstub{The threats this design answers, and the three it does not:
+the check-then-open window, a denied file still reachable on the native
+harness, and the fact that the layer governs what an agent does rather
+than why it does it. Figure~\ref{fig:gov-toctou}.}
+% FIGURE F11 -> \ref{fig:gov-toctou} (prints as Figure 3.7)
+% MATERIAL: §3.5.7, §3.5.61; mg/HANDOFF.md §7.
+% CAUTION: do not write that the layer prevents prompt injection. It
+%   contains the damage when persuasion succeeds. Chapter 2 sets this
+%   up, so this section should answer Chapter 2 directly.
+
+% =====================================================================
+\section{Summary}
+\label{sec:gov-designsummary}
+
+\sectionstub{What the chapter established, the one requirement left
+partially met, and the handover to Chapter 4, which tests the design
+against Section 1.3 as its benchmark.}
