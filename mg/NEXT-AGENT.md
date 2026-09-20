@@ -61,7 +61,8 @@ ones that were wrong were the ones nobody re-ran. Four were corrected on 2026-09
   reproduced). Register: `GOVERNANCE.md`; plain-language twin
   `docs-notes/QA-IN-PLAIN-TERMS.md`; report material
   `docs-notes/CHAPTER3-MATERIAL.md`.
-- **Everything is committed and pushed** at `43e40fee66f`. Verify rather than assume:
+- **Everything is committed and pushed.** A handover cannot name the commit that contains
+  it, so verify rather than assume:
   `git status --porcelain` and `git log --oneline personal/governance-layer..HEAD`.
   `.codex/` belongs to another agent and is never committed.
 
