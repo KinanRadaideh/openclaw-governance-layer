@@ -1,0 +1,6 @@
+# LaTeX build products. The sources are ../FIGURES.md and build-figures.mjs.
+*.pdf
+*.aux
+*.log
+*.out
+*.synctex.gz

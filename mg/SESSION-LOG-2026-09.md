@@ -5627,3 +5627,147 @@ time from a 6,500-line file, and the thing a newcomer needs first is short.
 **The lesson, and it is the same one this project keeps learning.** A document is only true
 on the day somebody re-runs what it claims. Everything in the new prompt names the command
 or the file that settles it, so the next reader can check rather than trust.
+
+---
+
+## 2026-09-20 (later): the wizard told to say what it is, and the figures compiled at last
+
+**Two of Kinan's decisions, taken and built the same day.** Neither is committed;
+both wait on his word.
+
+### C4: the setup wizard says what you installed
+
+**The complaint (T46) was that `openclaw onboard` presented upstream's text
+unchanged**, so an operator installing this project was never told what it was: no
+mention of the layer, the tiers, the ledger or the dashboard's second gate. Kinan
+chose the narrower of the two scopes: **banner and completion text only, not new
+prompts**, because new prompts touch more upstream files and grow the fork diff
+§3.5.2b measures, for wording the demo path never reads.
+
+**Six strings in `src/wizard/i18n/locales/en.ts`**, two banners and four pieces of
+completion text. The guided banner now says what the layer does in one sentence, the
+outro names the fork and says the gate is on and an unregistered agent stays refused,
+and both next-steps blocks point at Settings → Governance and the first Root account,
+noting it signs in separately from the Gateway token. **No new keys**, so the two
+Chinese catalogs stay in step and the parity test passes untouched.
+
+**Two things worth recording about how it was checked**, because the obvious check
+did not work.
+
+- **The test that pinned the old sentence is itself red at HEAD.**
+  `onboard-guided.test.ts` asserts the outro, and that test is one of twelve in the
+  file failing before any change of mine. So it could not prove the new wording. The
+  pinning moved to `src/wizard/i18n/index.test.ts`, four new tests that assert the
+  catalog directly and do not depend on the flow running. **Mutation-checked**:
+  reverting `en.ts` turns all four red, restoring it returns the file to its hash.
+- **The words were read as an operator sees them, not as assertions.** A throwaway
+  probe rendered every changed string through the real translator, with its
+  interpolation, and printed the blocks. That is what caught the governance next-step
+  line running twice as long as every neighbouring line; it was shortened before the
+  probe was deleted.
+
+**A reachability check moved half the change.** Asserting a string renders is not the
+same as asking whether anybody sees it. Grepping the call sites found that
+**`wizard.guided.nextSteps` is defined in all three locales and printed nowhere**: the
+only next-steps call site, `onboard-guided-manual.ts:174`, prints
+`nextStepsWithoutAi`, and it does so in the branch where the operator **skips** AI
+setup. So the governance pointer, as first written, reached only operators who declined
+to connect a model. Everyone else ends on `findMeLater`, a note printed at
+`onboard-guided.ts:685`, which is where the pointer now also sits (and which lost its em
+dash on the way). `nextSteps` keeps its line: it is dead today, correct if upstream ever
+wires it up, and cheaper to leave right than to leave wrong.
+
+**Two tests elsewhere had to move off the hardcoded sentence**:
+`setup.finalize.test.ts` composes the outro from the catalog, so it now asserts
+`t("wizard.guided.complete")` and the composition rather than a frozen string. Those
+two were the only real breaks; a diff of failing titles against a measured HEAD
+baseline showed four more differences in `setup.model-auth.test.ts` that are flaky
+and appear at HEAD too.
+
+**Checks**: `tsgo:core` and `tsgo:core:test` both 0, the type-aware lint wrapper 0 on
+all four touched files, and the wizard suite's failing-title set identical to HEAD's.
+
+### T17: fourteen figures compiled, and two defects four readings had missed
+
+**Kinan chose to have the TikZ drafted and compiled rather than redrawn by hand.**
+This machine had no LaTeX, which is why every previous pass over `FIGURES.md` says
+the compile is the one remaining risk it cannot close. MiKTeX was installed for the
+user, and the check that had been deferred since 2026-08-30 was finally run.
+
+**`docs-notes/figures/build-figures.mjs`** takes the TikZ out of `FIGURES.md` for the
+figures the summary table keeps, in the numbering it assigns, and writes one
+compilable document, a figure to a page. `FIGURES.md` stays the source of truth.
+
+**14 of 14 compile, with nothing dropped and nothing overflowing.** Getting there
+took two fixes, and the first is the interesting one.
+
+- **Five printed characters were being silently dropped.** F11 and F3 positioned
+  nodes off a braced coordinate, `above=8mm of {(1.6,0)}`. That form makes TikZ
+  typeset its own closing bracket with no font selected, and the character vanishes:
+  four in F11, one in F3, matching their uses exactly. **A reading cannot find this.**
+  Every brace balances, every control sequence exists, the figure still draws, and
+  the mechanical scan of 2026-09-19 passed it. It was proved with a two-case probe
+  before it was fixed, and both figures now declare a `\coordinate` and position off
+  its name.
+- **Three figures ran wider than the text block**, by 58, 39 and 13 pt. Each is now
+  wrapped in `\resizebox{\textwidth}{!}{…}`, which is what this file's own sizing note
+  already prescribed, and which adapts to whatever width the template sets.
+
+**The lesson is the same one this project keeps paying for, arriving a third time in
+this file**: a figure file is source code for a document, and source code is run, not
+read. The 2026-09-05 audit found a figure that could not compile by scanning; the
+2026-09-19 pass found one that would not parse by running Mermaid; this pass found
+two that compile and are wrong by compiling them.
+
+**Not covered**: the figures were compiled on their own, against this file's
+preamble, **not inside `main.tex`**. The template sets its own text width and loads
+its own packages, so a first compile there is still worth doing, and it is where the
+`\resizebox` widths settle.
+
+### One thing found and not fixed
+
+**`src/commands/onboard-guided.test.ts` fails 12 of its 23 tests at HEAD**, and no
+register mentioned it before today. The flow returns before `applySetup` or the outro
+is reached. **It is not the fork's**: `git diff main..HEAD` is empty for that file and
+its source, so both are upstream's untouched, and the governance layer has never gone
+near guided onboarding. The cause is undiagnosed. It is recorded in `HANDOFF.md` §4
+beside the other files that are red at HEAD, and **the finding counts are unchanged at
+379 / 377 / 1**, because it is not a defect of this project.
+
+### The figures, looked at rather than compiled (2026-09-20, later still)
+
+**Compiling proved LaTeX accepted them. Kinan asked whether they actually read**:
+is the text inside its box, is there room for each line, are the arrows where they
+belong, is the diagram comprehensible. Every page was rasterised and examined.
+
+**Nine of the fourteen had something wrong, and twelve defects were fixed.** F19,
+F21 and F22 were clean. The full table is in `docs-notes/FIGURES.md`
+§"2026-09-20"; the shape of them is what matters here:
+
+- **Two boxes on top of another box.** F1's three outcome boxes were shifted 9mm
+  apart while a `gbox` is 9mm tall, so they stacked edge to edge. F11's first two
+  marks were 2.7cm apart with 3.8cm boxes hung off them, so **"Gate resolves notes"
+  lost its last two letters behind the next box**.
+- **Three arrows that went through what they pointed at.** F1's policy-engine line
+  was drawn through the file store and out of its left side, across two rows of
+  filenames. F8's relay arrow turned to the right of the gate and was drawn back
+  through it, **striking out the words "Governance gate"**.
+- **Four labels sitting on top of something.** F5's _no match_ on **DENIED**, F6's
+  _either fails_ on **403 Refused**, F24's transition label on both its boxes, and
+  F1's _allow_ and _deny_ painting over their own arrow heads because a `glab` is
+  filled white.
+- **One label off the page.** F3's self-call annotation ran past the last lifeline
+  and out of the figure.
+- **Colour in a greyscale file.** `\addplot+` takes pgfplots' default cycle, so
+  F14 and F17 had blue, red and brown value labels in a file whose style block says
+  greyscale by design, and F14's "18" was dark blue on dark grey.
+- **A caption that contradicted its own figure.** F14's said the "after" bar "is not
+  full"; in the drawing both bars run the full fifty-two. Rewritten.
+
+**The lesson, and it is the third time this file has taught it.** A compile catches
+what LaTeX refuses and what runs past the margin. It does not catch a box over a
+box, an arrow through its own target, a label over its own arrow head, or a word cut
+in half. Every one of those compiled silently, with zero warnings, and would have
+reached the panel. The 2026-09-05 audit read the figures, 2026-09-19 parsed them,
+today compiled them, and only looking at the output found these. **A figure needs all
+four, and the cheapest of them is the one nobody had done.**

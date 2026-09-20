@@ -116,9 +116,9 @@ and reading is what three previous passes over this file did. **A figure file is
 source code for a document, and the same rule applies to it as to everything
 else here: run it, or at least parse it, rather than reading it.** Nobody had
 compiled these, which is why a figure that cannot compile survived three
-reviews. Compiling all 21 against the preamble in this file is the check that
-would close the remaining risk, and it needs a LaTeX toolchain this machine does
-not have.
+reviews. **That gap is closed: the fourteen kept figures were compiled on
+2026-09-20** (see the audit at the foot of this section list), which found two
+more defects that three readings had not.
 
 ### 2026-09-07: re-read against three days of change, and one figure described a removed feature
 
@@ -143,10 +143,10 @@ sentence sails through. The complementary check is the reverse direction: **take
 each removed or changed feature and grep the figures for it.** That is how these
 three were found, from a three-day commit list rather than from a read.
 
-**Still not done, and still the biggest remaining risk here:** nobody has
+**Done on 2026-09-20, and it was the biggest remaining risk here:** nobody had
 compiled these. F21's TikZ would not have compiled until 2026-09-05 and survived
-three reviews, and the only check that would close it needs a LaTeX toolchain
-this machine does not have.
+three reviews. The fourteen kept figures now compile clean, and compiling them
+found two defects reading had missed.
 
 ### 2026-09-14: re-read against 2026-09-12 to 14, and the central figure drew the gate without its denials
 
@@ -213,8 +213,9 @@ Chapter 3 and two in Chapter 4.**
   clean result on the new file means something.
 - **Mermaid, parsed and rendered by Mermaid 11** in a browser: 23 of 23 after the F3
   fix; before it, F3 failed at line 7.
-- **Not done: compiling the TikZ.** This machine has no LaTeX toolchain. The scan
-  above catches the defects found so far; only a compile catches the rest.
+- **Done 2026-09-20: compiling the TikZ.** MiKTeX was installed and the fourteen
+  kept figures compiled, individually and together. The scan above caught the
+  defects found before; the compile caught two it could not see.
 
 **F17's replacement, measured rather than assumed.** Of 376 findings, 176 carry a
 date in their `GOVERNANCE.md` index row; findings 1 to about 120 were recorded by QA
@@ -224,6 +225,101 @@ commits, not a script over one table.
 **New work since 2026-09-14 checked for a figure it needs, and none does.** C13's two
 deletions, 372–376 and A12 are each a short table or a sentence: what each deletion
 removes is two rows, and a registry control drawn on ownership is a caption on F2.
+
+---
+
+### 2026-09-20: compiled for the first time, and two defects that four readings had missed
+
+**T17's compile half, decided by Kinan on 2026-09-20.** MiKTeX was installed on the
+Windows machine and the **fourteen figures the summary table keeps** were compiled,
+each one on its own and then all together. Everything here is a measurement, not a
+reading.
+
+**The apparatus, so it can be re-run.** `docs-notes/figures/build-figures.mjs` takes
+the TikZ out of this file for the figures the summary table keeps, in the numbering
+that table assigns, and writes `docs-notes/figures/report-figures.tex`: one figure to
+a page, with the preamble and style block from the section below. This file stays the
+source of truth. Edit a figure here, re-run the script, compile again.
+
+```bash
+node docs-notes/figures/build-figures.mjs
+pdflatex -interaction=nonstopmode docs-notes/figures/report-figures.tex
+```
+
+**Result: 14 of 14 compile, with no dropped characters and nothing overflowing the
+text block.** Getting there took two fixes. **A second pass the same day looked at the
+rendered pages** and found twelve more defects across nine figures, which the compile
+could not see; it is the sub-section after this table.
+
+| Defect                                      | Figures         | What it was                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Five characters silently dropped**        | **F11**, **F3** | Both positioned nodes relative to a braced coordinate, `above=8mm of {(1.6,0)}`. That form makes TikZ typeset its own closing bracket with no font selected, and the character is dropped: `Missing character: There is no ) in font nullfont`. Four in F11, one in F3, matching their four and one uses exactly. Both now declare a `\coordinate` and position off its name, which is clean |
+| **Three figures wider than the text block** | F1, F3, F21     | 58, 39 and 13 pt over. Each is now wrapped in `\resizebox{\textwidth}{!}{…}`, which is what the sizing note below already prescribed for a wide figure, and which adapts to whatever text width the template sets rather than to the one measured here                                                                                                                                       |
+
+**Why a reading could not have found the first one.** It is not a malformed command.
+`above=8mm of {(1.6,0)}` is ordinary-looking TikZ, every brace balances, every control
+sequence exists, and the mechanical scan of 2026-09-19 passed it. The figure still
+draws correctly; what is lost is one bracket of printed text per use, which a reader
+of the source cannot see and a reader of the output would have to be looking for.
+**It took running the thing.** That is the same lesson as the Mermaid parse of
+2026-09-19 and the 2026-09-05 audit, arriving a third time: a figure file is source
+code, and source code is run rather than read.
+
+**Proved before it was fixed.** A two-case probe compiled the braced form and the
+declared-coordinate form side by side: two uses of the first produced exactly two
+dropped characters, the second produced none.
+
+#### The second half of the same day: looking at them
+
+**Compiling proved LaTeX accepted the figures. It said nothing about whether they
+read.** So every page was rasterised and examined: is each label inside the box it
+belongs to, is there room for every line, does every arrow start and end where it
+should, and does the diagram make its point. **Nine of the fourteen had something
+wrong, and twelve defects were fixed.** Three figures were clean at the first look:
+F19, F21 and F22.
+
+```bash
+node docs-notes/figures/build-figures.mjs
+pdflatex -interaction=nonstopmode -output-directory=<scratch> docs-notes/figures/report-figures.tex
+pdftocairo -png -r 200 <scratch>/report-figures.pdf <scratch>/page
+```
+
+| Figure  | What was wrong                                                                                                                                                                                                                                                   |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **F1**  | The three outcome boxes overlapped each other: `gbox` is 9mm tall and they were shifted 9mm apart, so they stacked edge to edge. Now 13mm, with one `minimum width` so they read as a set                                                                        |
+| **F1**  | The _allow_ and _deny_ arrow heads were painted over by their own labels, which are filled white. Only _ask_ looked connected. The labels now sit above the run                                                                                                  |
+| **F1**  | The policy engine's line to the store was routed `\|- (disk.west)`, which drew it **through the store, across two rows of filenames, and out of the left side**. It now drops onto the top edge                                                                  |
+| **F1**  | The group label sat inside the dashed box, on top of Gate 1. Moved above the border and filled                                                                                                                                                                   |
+| **F2**  | _inherits_ was positioned off the User row, which is narrower than the Administrator row, so the rotated label landed on the boxes. Now beside the stack                                                                                                         |
+| **F3**  | The self-call's three steps were one line 32mm to the right: it crossed three lifelines and **ran off the figure**. Now two lines beside the loop                                                                                                                |
+| **F5**  | _no match_ is wider than the 8mm gap it sat in, so it overlapped **DENIED**. Gap widened to 20mm                                                                                                                                                                 |
+| **F6**  | _either fails_ overlapped **403 Refused** the same way. Gap widened to 28mm                                                                                                                                                                                      |
+| **F8**  | The relay hook's arrow turned to the right of the gate, so it was **drawn back through the gate box and struck out the words "Governance gate"**. It now rises out of the relay and meets the in-process arrow at the same point, which is the figure's argument |
+| **F11** | The first two boxes overlapped: the marks were 2.7cm apart and the boxes ~3.8cm wide, so **"Gate resolves notes" lost its last two letters** behind the next box. Marks respaced                                                                                 |
+| **F11** | _the window_ was struck through by the Attacker box, and then by a lifeline. The box was dropped to 14mm and the label filled                                                                                                                                    |
+| **F14** | `\addplot+` takes pgfplots' default cycle, which **coloured the value labels blue, red and brown** in a file that is greyscale by design. Set explicitly, with white text on the dark segments and no label on a zero                                            |
+| **F17** | The same colour leak. Its caption now says in its first three words that the values are placeholders, because the figure is legible enough to be mistaken for a measurement                                                                                      |
+| **F23** | _the action runs once_ had a lifeline running through the words. Filled                                                                                                                                                                                          |
+| **F24** | _Cancel, timeout or kill switch_ was wider than the gap and overlapped **both** boxes. Two lines                                                                                                                                                                 |
+
+**One caption contradicted its own figure.** F14's said "the `after` bar is not
+full", and in the drawing both bars run the full fifty-two. What is not full is the
+_governed_ part of it. Rewritten to say what the picture shows.
+
+**What the compile could and could not catch, stated plainly, because it is the
+lesson.** A compile catches what LaTeX refuses and what runs past the margin. It
+does not catch a box on top of another box, an arrow drawn through the thing it
+points at, a label covering its own arrow head, or a word cut in half: all of those
+compiled silently and would have reached the panel. **A figure needs three passes,
+and this file has now had all three: read against the code, run through a parser,
+and looked at.**
+
+**What this does not cover.** The figures were compiled **on their own**, against the
+preamble in the section below, not inside `main.tex`. The PSUT template sets its own
+text width, loads its own fonts and may load packages that interact, so **a first
+compile inside the template is still worth doing** and the `\resizebox` widths will
+settle themselves when it happens. `graphicx` must be loaded for `\resizebox`; the
+template already loads it for its images.
 
 ---
 
@@ -273,7 +369,11 @@ PSUT template is not a colour document.
 
 A note on sizing: if a figure runs wide, wrap it in
 `\resizebox{\textwidth}{!}{ ... }` rather than changing the font sizes. That
-keeps every figure's type at the same relative scale.
+keeps every figure's type at the same relative scale. **`\resizebox` comes from
+`graphicx`**, which the PSUT template already loads for its images; add it if you
+are compiling the figures on their own. **F1, F3 and F21 are wrapped this way
+already**: compiling them on 2026-09-20 measured them 58, 39 and 13 pt wider than
+the text block, and nothing else overflowed.
 
 ---
 
@@ -349,6 +449,9 @@ flowchart TB
 ```latex
 \begin{figure}[htbp]
 \centering
+  % Measured too wide for the text block when compiled (2026-09-20), so it is
+  % scaled to the text width rather than having its font sizes changed.
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[node distance=6mm and 10mm]
   \node[gbox] (ui) {Control UI\\Settings $\rightarrow$ Governance};
   \node[gnote, above=1mm of ui] {Operator browser, via SSH tunnel};
@@ -371,9 +474,11 @@ flowchart TB
   \node[gnote, below=0.5mm of disk]
     {\textasciitilde/.openclaw/governance/ --- top row installation-wide, bottom row per organisation};
 
-  \node[gbox, right=12mm of ledger, yshift=9mm]  (allow) {Tool executes};
-  \node[gbox, right=12mm of ledger]              (deny)  {Blocked};
-  \node[gbox, right=12mm of ledger, yshift=-9mm] (ask)   {Human approval};
+  % 13mm apart, not 9: a gbox is 9mm tall, so 9mm of shift stacks them edge to edge.
+  % One minimum width so the three outcomes read as one set.
+  \node[gbox, minimum width=34mm, right=20mm of ledger, yshift=13mm]  (allow) {Tool executes};
+  \node[gbox, minimum width=34mm, right=20mm of ledger]               (deny)  {Blocked};
+  \node[gbox, minimum width=34mm, right=20mm of ledger, yshift=-13mm] (ask)   {Human approval};
 
   \draw[gflow] (ui)     -- (auth);
   \draw[gflow] (auth)   -- (rbac);
@@ -383,17 +488,24 @@ flowchart TB
   \draw[gflow] (engine) -- (ledger);
   \draw[gflow] (api)    -- (disk);
   \draw[gflow] (ledger) -- (disk);
-  \draw[gflow] (engine.west) -- ++(-6mm,0) |- (disk.west);
+  % Straight down onto the store's top edge. "|- (disk.west)" ran the line through
+  % the store and out of its left side, across the text (found by looking, 2026-09-20).
+  \coordinate (enginedrop) at ([xshift=-6mm]engine.west);
+  \draw[gflow] (engine.west) -- (enginedrop) -- (enginedrop |- disk.north);
 
-  \draw[gflow] (engine.east) -- ++(4mm,0) |- (allow.west) node[glab, pos=0.75] {allow};
-  \draw[gflow] (engine.east) -- ++(4mm,0) |- (deny.west)  node[glab, pos=0.75] {deny};
-  \draw[gflow] (engine.east) -- ++(4mm,0) |- (ask.west)   node[glab, pos=0.75] {ask};
+  % Labels sit above the horizontal run: a glab is filled white, and on the run
+  % itself it painted over the arrow head it was meant to name.
+  \draw[gflow] (engine.east) -- ++(4mm,0) |- node[glab, above, pos=0.78] {allow} (allow.west);
+  \draw[gflow] (engine.east) -- ++(4mm,0) |- node[glab, above, pos=0.78] {deny}  (deny.west);
+  \draw[gflow] (engine.east) -- ++(4mm,0) |- node[glab, above, pos=0.78] {ask}   (ask.west);
 
   \begin{scope}[on background layer]
     \node[ggroup, fit=(auth)(rbac)(api)(pipe)(engine)(ledger)] (gw) {};
   \end{scope}
-  \node[gnote, anchor=north west] at (gw.north west) {OpenClaw Gateway process};
-\end{tikzpicture}
+  % Above the dashed border, not inside it: anchored north west the label sat on
+  % top of the Gate 1 box (found by looking, 2026-09-20).
+  \node[gnote, fill=white, anchor=south west, xshift=1mm] at (gw.north west) {OpenClaw Gateway process};
+\end{tikzpicture}}
 \caption{Governance layer within the OpenClaw Gateway.}
 \label{fig:architecture}
 \end{figure}
@@ -498,7 +610,10 @@ flowchart BT
   \draw[gflow] (v) -- (u);
   \draw[gflow] (u) -- (a);
   \draw[gflow] (a) -- (r);
-  \node[gnote, right=3mm of u, rotate=90, anchor=south] {inherits};
+  % Beside the stack and clear of it. "right=3mm of u" measured off the User row,
+  % which is narrower than the Administrator row, so the label landed on top of the
+  % boxes (found by looking, 2026-09-20).
+  \node[gnote, rotate=90] at ([xshift=6mm]a.east |- u) {inherits};
 \end{tikzpicture}
 \caption{Role hierarchy. Each tier inherits every capability below it. The emergency stop sits at \textbf{User}, scoped to the agents assigned to that account, not at Root. An Administrator acts on one agent only when it owns that agent; Root may act on any.}
 \label{fig:rbac}
@@ -624,6 +739,9 @@ sequenceDiagram
 ```latex
 \begin{figure}[htbp]
 \centering
+  % Measured too wide for the text block when compiled (2026-09-20), so it is
+  % scaled to the text width rather than having its font sizes changed.
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[yscale=0.86]
   \foreach \x/\n in {0/{LLM agent}, 2.9/{Tool pipeline}, 5.8/{Policy engine},
                      8.7/{Agent registry}, 11.3/{Audit ledger}, 13.9/{Human}} {
@@ -638,8 +756,14 @@ sequenceDiagram
   \draw[gdash] (5.8,-3.6) -- node[glab,above] {block: register the agent first} (0,-3.6);
 
   \draw[gflow] (5.8,-4.3) -- ++(0.8,0) -- ++(0,-0.5) -- (5.8,-4.8);
-  \node[glab, right=32mm of {(5.8,-4.55)}, anchor=west]
-    {locked down? \quad extract resource \quad deny rules, then allow rules};
+  % Off a declared coordinate: "of {(x,y)}" drops its own closing bracket
+  % into nullfont (found by compiling, 2026-09-20).
+  \coordinate (selfloop) at (5.8,-4.55);
+  % Close to the loop and on two lines. At 32mm out and on one line it ran past the
+  % last lifeline and off the figure (found by looking, 2026-09-20); glab is filled,
+  % so the lifelines it does cross stay out of the words.
+  \node[glab, right=12mm of selfloop, align=left]
+    {locked down? \quad extract resource\\deny rules, then allow rules};
 
   \draw[gflow] (5.8,-5.5) -- node[glab,above] {append decision + intent} (11.3,-5.5);
 
@@ -649,7 +773,7 @@ sequenceDiagram
 
   \draw[gflow] (5.8,-8.2) -- node[glab,above] {approval request} (13.9,-8.2);
   \draw[gdash] (13.9,-8.8) -- node[glab,above] {allow once / always / deny} (5.8,-8.8);
-\end{tikzpicture}
+\end{tikzpicture}}
 \caption{Policy decision sequence, in the shipped \texttt{enforce} posture (under
 \texttt{monitor} a call no allow rule covers is recorded and then allowed; under
 \texttt{off} the gate records nothing). An unregistered agent is refused before any
@@ -817,7 +941,9 @@ flowchart LR
   \node[gbox, right=of s2]  (s3) {3. Choose forms\\inside workspace: short and absolute\\outside: absolute};
   \node[gbox, right=of s3]  (out) {\texttt{/etc/passwd}};
   \node[gdec, right=of out] (rule) {Rule\\\texttt{\^{}src/.*\$}};
-  \node[gbox, right=of rule] (deny) {\textbf{DENIED}};
+  % 20mm, not the default 8: "no match" is wider than the gap and sat on the box
+  % (found by looking, 2026-09-20).
+  \node[gbox, right=20mm of rule] (deny) {\textbf{DENIED}};
 
   \draw[gflow] (raw) -- (s1);
   \draw[gflow] (s1)  -- (s2);
@@ -908,7 +1034,9 @@ flowchart TD
   \node[gbox, below=9mm of slot] (ing) {\texttt{agentCommandFromIngress}\\\texttt{senderIsOwner = false}};
   \node[gbox, below=of ing] (run) {Agent run\\\texttt{agent:a:governance:user}};
 
-  \node[gbox, right=of api]  (deny) {403 Refused};
+  % 28mm, not the default 14: "either fails" is wider than the gap and sat on the
+  % box (found by looking, 2026-09-20).
+  \node[gbox, right=28mm of api]  (deny) {403 Refused};
   \node[gbox, right=of lock] (ref)  {Refuse unsent,\\record actor + reason,\\409 to caller};
   \node[gbox, right=of slot] (full) {Refuse,\\record the refusal\\\scriptsize 2 per account, 6 in all};
 
@@ -1101,7 +1229,10 @@ flowchart TB
   \draw[gflow] (a2) -- (help);
   \draw[gflow] (help) -- (relay);
   \draw[gflow] (h1.east) -- ++(5mm,0) |- (gate.west);
-  \draw[gflow] (relay.east) -- ++(5mm,0) |- (gate.west);
+  % Up out of the relay, then into the gate's west side. Going right first put the
+  % turn to the right of gate.west, so the line was drawn back through the gate and
+  % struck out its label (found by looking, 2026-09-20).
+  \draw[gflow] (relay.north) |- (gate.west);
   \draw[gflow] (gate) -- node[glab, above] {allow} (ok);
   \draw[gflow] (gate) -- node[glab, below] {deny}  (no);
 
@@ -1332,19 +1463,31 @@ sequenceDiagram
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[xscale=1.0]
-  \draw[gflow] (0,0) -- (10.5,0) node[right, font=\scriptsize] {time};
+  \draw[gflow] (0,0) -- (15,0) node[right, font=\scriptsize] {time};
 
-  \node[gbox, above=8mm of {(1.6,0)}]  (g)  {Gate resolves \texttt{notes}\\$\rightarrow$ \texttt{safe.txt}};
-  \node[gbox, above=8mm of {(4.3,0)}]  (a)  {Gate allows\\(judged \texttt{safe.txt})};
-  \node[gbox, below=8mm of {(6.0,0)}]  (x)  {Attacker repoints\\\texttt{notes} $\rightarrow$ \texttt{secret.txt}};
-  \node[gbox, above=8mm of {(8.6,0)}]  (t)  {Tool resolves \texttt{notes}\\$\rightarrow$ \texttt{secret.txt}};
+  % Positioning is taken off declared coordinates: "of {(x,y)}" typesets its own
+  % closing bracket in nullfont and silently drops it (found by compiling, 2026-09-20).
+  % The marks were 1.6/4.3/6.0/8.6 apart, which is narrower than the boxes hung off
+  % them: the first two boxes overlapped and "Gate resolves notes" lost its last two
+  % letters behind the second box (found by looking, 2026-09-20).
+  \coordinate (m1) at (2.2,0);
+  \coordinate (m2) at (6.4,0);
+  \coordinate (m3) at (9.2,0);
+  \coordinate (m4) at (12.8,0);
 
-  \foreach \p in {1.6, 4.3, 8.6} { \draw[glife] (\p,0) -- (\p,0.8); }
-  \draw[glife] (6.0,0) -- (6.0,-0.8);
-  \foreach \p in {1.6, 4.3, 6.0, 8.6} { \fill (\p,0) circle (1.1pt); }
+  \node[gbox, above=8mm of m1]  (g)  {Gate resolves \texttt{notes}\\$\rightarrow$ \texttt{safe.txt}};
+  \node[gbox, above=8mm of m2]  (a)  {Gate allows\\(judged \texttt{safe.txt})};
+  % 14mm, not 8: the brace's label sits in the gap, and at 8mm the box struck it out.
+  \node[gbox, below=14mm of m3] (x)  {Attacker repoints\\\texttt{notes} $\rightarrow$ \texttt{secret.txt}};
+  \node[gbox, above=8mm of m4]  (t)  {Tool resolves \texttt{notes}\\$\rightarrow$ \texttt{secret.txt}};
+
+  \foreach \p in {2.2, 6.4, 12.8} { \draw[glife] (\p,0) -- (\p,0.8); }
+  \draw[glife] (9.2,0) -- (9.2,-1.4);
+  \foreach \p in {2.2, 6.4, 9.2, 12.8} { \fill (\p,0) circle (1.1pt); }
 
   \draw[decorate, decoration={brace, amplitude=4pt}, draw=black!60]
-    (4.3,-0.35) -- (8.6,-0.35) node[midway, below=4pt, font=\scriptsize\itshape] {the window};
+    (6.4,-0.35) -- (12.8,-0.35)
+    node[midway, below=4pt, font=\scriptsize\itshape, fill=white, inner sep=1.5pt] {the window};
 \end{tikzpicture}
 \caption{The check-then-open window. Both resolutions are correct; the defect is
 that there are two of them.}
@@ -1653,18 +1796,28 @@ composition changes. That is the point of the figure.
   xlabel={Tools shipped by the host},
   legend style={at={(0.5,-0.55)}, anchor=north, legend columns=3, draw=none,
                 font=\scriptsize},
-  every node near coord/.append style={font=\scriptsize},
-  nodes near coords=\pgfmathprintnumber\pgfplotspointmeta,
+  % "\addplot+" takes pgfplots' default cycle, which colours the value labels
+  % blue, red and brown. This file is greyscale by design, so the plots are set
+  % explicitly and the labels are told what colour to be (found by looking,
+  % 2026-09-20). Explicit symbolic meta lets a zero segment carry no label.
+  every node near coord/.append style={font=\scriptsize, text=black},
+  point meta=explicit symbolic,
 ]
-  \addplot+[fill=black!55, draw=black!55] coordinates {(7,Before) (18,After)};
-  \addplot+[fill=black!25, draw=black!45] coordinates {(0,Before) (34,After)};
-  \addplot+[fill=black!5,  draw=black!45] coordinates {(45,Before) (0,After)};
+  \addplot[fill=black!55, draw=black!55, nodes near coords,
+           every node near coord/.append style={text=white}]
+    coordinates {(7,Before) [7] (18,After) [18]};
+  \addplot[fill=black!25, draw=black!45, nodes near coords]
+    coordinates {(0,Before) [] (34,After) [34]};
+  \addplot[fill=black!5,  draw=black!45, nodes near coords]
+    coordinates {(45,Before) [45] (0,After) []};
   \legend{Governed, Ungoverned with a written reason, Unexamined}
 \end{axis}
 \end{tikzpicture}
-\caption{Tool coverage before and after. The ``after'' bar is not full: what
-changed is that the uncovered part became a set of recorded decisions rather than
-an unmeasured gap.}
+\caption{Tool coverage before and after. Both bars are the same length, because the
+host ships the same fifty-two tools either way; what changed is their composition.
+The governed share went from seven to eighteen, and, more to the point, the part
+that is not governed stopped being an unexamined gap and became thirty-four
+decisions each with a written reason.}
 \label{fig:coverage}
 \end{figure}
 ```
@@ -1833,8 +1986,9 @@ is worse than none.
 > Keep the prose version of the age argument in the text, where "I judged these
 > by reading them" is an honest thing to write and a chart cannot say it.
 
-> **State on 2026-09-19: CUT the age chart; the replacement is not yet compiled,
-> and it is a Chapter 4 number, so compile it last** (`WRITING-GUIDE.md` says to
+> **State on 2026-09-19: CUT the age chart; the replacement is a Chapter 4 number,
+> so fill its data last** (its TikZ compiles clean as of 2026-09-20, with placeholder
+> counts; what is still open is the data, not the drawing) (`WRITING-GUIDE.md` says to
 > leave Chapter 4's numbers until last). The summary table said "Keep, re-derive"
 > while the updated suggestion above said cut, and the two now agree. **The
 > replacement is less mechanical than the suggestion above assumed, measured
@@ -1899,19 +2053,24 @@ first:
   symbolic x coords={Same day, Same week, Earlier, Inherited},
   xtick=data, axis lines*=left, tick style={draw=none},
   ylabel={Findings}, nodes near coords,
-  every node near coord/.append style={font=\scriptsize},
+  % text=black: "\addplot+" would take pgfplots' cycle and colour the labels blue,
+  % and this file is greyscale by design (found by looking, 2026-09-20).
+  every node near coord/.append style={font=\scriptsize, text=black},
   x tick label style={font=\small},
 ]
   % PLACEHOLDER VALUES. These four numbers sum to 148, the finding total when
   % they were written (376 on 2026-09-19), and the split between the buckets
   % was NEVER measured. Recommended cut; see the state note above.
-  \addplot+[fill=black!45, draw=black!55]
+  \addplot[fill=black!45, draw=black!55]
     coordinates {(Same day,21) (Same week,58) (Earlier,44) (Inherited,25)};
 \end{axis}
 \end{tikzpicture}
-\caption{Defects by the age of the code containing them. The distribution does
-not favour old code, which is the argument for reviewing continuously rather than
-once.}
+\caption{\textbf{Placeholder values, not measured.} Defects by the age of the code
+containing them. The four bars sum to 148, the finding total when they were
+written, and the split between the buckets has never been derived from the
+register. The shape is the argument (the distribution does not favour old code,
+which is why reviewing continuously beats reviewing once) but the numbers must be
+re-derived before this figure goes into the report.}
 \label{fig:defectage}
 \end{figure}
 ```
@@ -2101,9 +2260,9 @@ flowchart LR
 | F23 | "Always allow" after the card  | **Keep**                                   | Fig 3.11              |
 | F24 | A task's row and its slot      | **Keep**, small                            | Fig 3.12              |
 
-**Fourteen figures: twelve in Chapter 3 and two in Chapter 4**, one of the two
-(F17's replacement) not yet compiled, plus one screenshot pair for F16 if you want
-it. The numbers in the last column are the ones to use; the "Proposed number" line
+**Fourteen figures: twelve in Chapter 3 and two in Chapter 4**, all fourteen compiled
+clean on 2026-09-20 (F17's replacement still carries placeholder counts), plus one
+screenshot pair for F16 if you want it. The numbers in the last column are the ones to use; the "Proposed number" line
 under each heading is the number it was given when drafted.
 
 _(Corrected 2026-09-19. This table said "Cut, keep the table" for F2 and "Keep,
@@ -2160,6 +2319,9 @@ flowchart LR
 ```latex
 \begin{figure}[htbp]
 \centering
+  % Measured too wide for the text block when compiled (2026-09-20), so it is
+  % scaled to the text width rather than having its font sizes changed.
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[node distance=8mm and 13mm]
   \node[gbox] (a) {Agent starts\\a session};
   \node[gdec, right=of a]  (r)  {Root:\\backend\\enabled?};
@@ -2177,7 +2339,7 @@ flowchart LR
 
   \node[gnote, above=1mm of r]  {deployment};
   \node[gnote, above=1mm of ad] {agent boundary};
-\end{tikzpicture}
+\end{tikzpicture}}
 \caption{The two-layer Codex permission. Both gates must be open; the in-process
 runtime needs neither. The second gate is set by the Administrator who owns the
 agent, or by Root.}
@@ -2361,7 +2523,8 @@ sequenceDiagram
   \draw[gflow] (3.6,-1.7) -- node[glab,above] {card} (0,-1.7);
   \draw[gflow] (0,-2.4)   -- node[glab,above] {Always allow} (3.6,-2.4);
   \draw[gflow] (3.6,-3.1) -- node[glab,above] {allow-always} (7.2,-3.1);
-  \node[gnote] at (7.2,-3.8) {the action runs once};
+  % Filled, so the lifeline it crosses does not run through the words.
+  \node[gnote, fill=white] at (7.2,-3.8) {the action runs once};
   \draw[gflow] (7.2,-4.5) -- node[glab,above] {file a rule request} (10.8,-4.5);
   \draw[gdash] (10.8,-5.2) -- node[glab,above] {queue full} (7.2,-5.2);
   \draw[gflow] (7.2,-5.9) -- node[glab,above] {report outcome} (3.6,-5.9);
@@ -2426,7 +2589,9 @@ stateDiagram-v2
   \node[gbox, minimum width=34mm, right=of run] (stop) {Stopping\\\scriptsize listed $\cdot$ holds a slot};
   \node[gbox, minimum width=34mm, below=14mm of stop] (save) {Saving reply\\\scriptsize listed $\cdot$ \textbf{slot released}};
   \node[gnote, below=of save] (gone) {gone from the list};
-  \draw[gflow] (run)  -- node[glab, above] {Cancel, timeout or kill switch} (stop);
+  % Two lines: on one it was wider than the 26mm gap and overlapped both boxes
+  % (found by looking, 2026-09-20).
+  \draw[gflow] (run)  -- node[glab, above, align=center] {Cancel, timeout\\or kill switch} (stop);
   \draw[gflow] (stop) -- node[glab, right] {run unwinds} (save);
   \draw[gflow] (run)  |- node[glab, pos=0.25, left] {model returned} (save);
   \draw[gflow] (save) -- node[glab, right] {reply and ledger entry saved} (gone);

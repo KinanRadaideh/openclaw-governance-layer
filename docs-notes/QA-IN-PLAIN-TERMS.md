@@ -6,7 +6,7 @@ ordinary language. What broke, why it mattered, and what was done about it.
 
 It began with **round six**, the multi-agent audit, because that round found the
 most and taught the most, and every pass since has been added to it, up to
-finding 376 and the live check of 2026-09-18. Rounds one to five
+finding 379 and the live check of 2026-09-19. Rounds one to five
 are summarised in §6.
 
 > **How to navigate this file. Added 2026-08-27, brought up to date 2026-09-14.** Sections are in the order
@@ -27,7 +27,7 @@ are summarised in §6.
 > `REMAINING-WORK.md`, so they have deliberately not been renumbered. Use the
 > numbers, not the position.
 >
-> **The newest material is §5.109–§5.120, at the end of the file** (2026-09-12
+> **The newest material is §5.109–§5.121, at the end of the file** (2026-09-12
 > to 19; §5.120 is the check with a model connected, findings 377–379, and §5.121 the two decisions built after it): the dashboard driven through a real browser while things went wrong,
 > including the emergency stop that missed a task started from the dashboard
 > (§5.109–§5.110); a User's way to ask for a change, and a record that said
@@ -37,7 +37,7 @@ are summarised in §6.
 > answered yes for a new agent (§5.114); and the control an Administrator was missing
 > for one agent's escalation, built (§5.115); and why one organisation per server is the
 > boundary, and the code for several stays (§5.116); and a test showing that a new agent
-> given a deleted agent's name gets everything the old one left behind (§5.117); and deleting an agent now asking which way, with what building it found (§5.118). _(This line said "§5.86–5.91" until
+> given a deleted agent's name gets everything the old one left behind (§5.117); and deleting an agent now asking which way, with what building it found (§5.118); the two faults that only using it by hand turned up (§5.119); the check with an AI model behind it (§5.120); and the two decisions built the same day (§5.121). _(This line said "§5.86–5.91" until
 > 2026-09-14, while twenty-one sections had been added past it, and "§5.42–5.44
 > (M5)" for four days before that: this document's own subject, arriving in its
 > navigation note twice.)_

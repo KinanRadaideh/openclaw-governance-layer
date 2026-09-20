@@ -54,7 +54,12 @@ the ones that were wrong were the ones nobody re-ran.
 - **Findings: 379 found, 377 fixed, 1 open** — 169, an observation nobody has reproduced.
   The register is `GOVERNANCE.md`; every finding also has a plain-language entry in
   `docs-notes/QA-IN-PLAIN-TERMS.md` and report material in `docs-notes/CHAPTER3-MATERIAL.md`.
-- **Everything is committed and pushed.** Verify, do not assume:
+- **Uncommitted, and waiting on Kinan: C4 and T17, both built on 2026-09-20.** C4 reworded
+  the setup wizard's banner and completion text to name the fork (six strings in
+  `src/wizard/i18n/locales/en.ts`, four new pinning tests); T17 compiled all fourteen kept
+  figures for the first time and then examined every rendered page: 14 of 14 clean, after
+  fourteen defects that four readings had missed.
+  Everything before that is committed and pushed. Verify, do not assume:
   `git status --porcelain` and `git log --oneline personal/governance-layer..HEAD`.
   `.codex/` is another agent's and is never committed.
 - **Last checks, on 2026-09-20:** four typechecks 0; governance suite 3,206 passed / 0
@@ -80,7 +85,7 @@ The rest, none of it Claude's alone:
 | **Rebuild the VPS**                  | Kinan     | `mg/HANDOFF.md` §8. It is a fortnight behind and lacks finding 346's security fix           |
 | **T47, the by-hand test plan**       | All three | `docs-notes/T47-TEST-PLAN.md`, 211 rows. Its top lists what the live checks could not press |
 | **T3, Linux**                        | Kinan     | The one design requirement not fully met; re-measure the kill switch there (caveat 5)       |
-| **T17, the figures**                 | Kinan     | Audited and corrected; nobody has compiled the TikZ, which needs a LaTeX toolchain          |
+| **T17, the figures**                 | Kinan     | Compiled and visually QA'd 2026-09-20, 14 of 14 clean; awaiting your approval               |
 | **T13, T18, T46, T58, T59, C4, C10** | Kinan     | Reading, the report, wizard wording, and two decisions: `mg/HANDOFF.md` §6                  |
 
 ## How Kinan wants you to work
