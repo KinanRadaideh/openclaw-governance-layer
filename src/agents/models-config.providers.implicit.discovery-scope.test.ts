@@ -10,6 +10,7 @@ import { withEnvAsync } from "../test-utils/env.js";
 
 const mocks = vi.hoisted(() => ({
   prepareProviderStaticCatalog: vi.fn(),
+  resolveOwningPluginIdsForProviderRef: vi.fn(),
   resolveRuntimePluginDiscoveryProviders: vi.fn(),
   runProviderCatalog: vi.fn(),
   runProviderStaticCatalog: vi.fn(),
@@ -34,6 +35,10 @@ vi.mock("../plugins/provider-discovery.js", () => ({
     result?: { provider?: unknown; providers?: Record<string, unknown> } | null;
   }) => result?.providers ?? (result?.provider ? { [provider.id]: result.provider } : {}),
   prepareProviderStaticCatalog: mocks.prepareProviderStaticCatalog,
+}));
+// The cold owner lookup rediscovers every plugin on disk; record calls instead of scanning.
+vi.mock("../plugins/providers.js", () => ({
+  resolveOwningPluginIdsForProviderRef: mocks.resolveOwningPluginIdsForProviderRef,
 }));
 
 import {
@@ -162,6 +167,41 @@ describe("resolveImplicitProviders startup discovery scope", () => {
       providers: [anthropic],
     });
     expect(prepared.providers).toEqual([openai, anthropic]);
+  });
+
+  it("answers provider ownership from the prepared snapshot without rediscovering plugins", async () => {
+    await prepareImplicitProviderStaticCatalog({
+      config: {},
+      env: {} as NodeJS.ProcessEnv,
+      pluginMetadataSnapshot: {
+        index: { plugins: [] } as never,
+        manifestRegistry: { plugins: [], diagnostics: [] },
+        owners: metadataOwners({
+          providers: new Map([["openai", ["openai"]]]),
+        }),
+      },
+      // A config-only provider has no owning plugin in the snapshot.
+      providerDiscoveryProviderIds: ["openai", "custom-local"],
+    });
+
+    expect(mocks.resolveOwningPluginIdsForProviderRef).not.toHaveBeenCalled();
+    const discoveryOptions = firstMockArg(
+      mocks.resolveRuntimePluginDiscoveryProviders,
+      "runtime plugin discovery",
+    ) as { onlyPluginIds?: string[] };
+    expect(discoveryOptions?.onlyPluginIds).toEqual(["custom-local", "openai"]);
+  });
+
+  it("resolves provider ownership through plugin discovery without a prepared snapshot", async () => {
+    mocks.resolveOwningPluginIdsForProviderRef.mockReturnValueOnce(["openai"]);
+
+    await prepareImplicitProviderStaticCatalog({
+      config: {},
+      env: {} as NodeJS.ProcessEnv,
+      providerDiscoveryProviderIds: ["openai"],
+    });
+
+    expect(mocks.resolveOwningPluginIdsForProviderRef).toHaveBeenCalledTimes(1);
   });
 
   it("passes startup provider scopes as plugin owner filters", async () => {

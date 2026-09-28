@@ -8,7 +8,7 @@ import {
 } from "../../plugins/config-state.js";
 import { isPluginEnabledByDefaultForPlatform } from "../../plugins/default-enablement.js";
 import {
-  loadPluginRegistrySnapshot,
+  loadPluginRegistrySnapshotWithMetadata,
   normalizePluginsConfigWithRegistry,
 } from "../../plugins/plugin-registry.js";
 import {
@@ -52,8 +52,14 @@ function resolveSelectedMemoryPluginIds(params: {
   if (isTestDefaultMemorySlotDisabled(params.config ?? {})) {
     return [];
   }
-  const registry = loadPluginRegistrySnapshot(params);
-  const plugins = normalizePluginsConfigWithRegistry(params.config?.plugins, registry);
+  const { snapshot: registry, manifestRegistry } = loadPluginRegistrySnapshotWithMetadata(params);
+  // Reuse the manifests the registry read already holds; without them the normalizer rereads
+  // every plugin manifest on disk.
+  const plugins = normalizePluginsConfigWithRegistry(
+    params.config?.plugins,
+    registry,
+    manifestRegistry ? { manifestRegistry } : {},
+  );
   const memorySlot = plugins.slots.memory;
   if (
     typeof memorySlot !== "string" ||

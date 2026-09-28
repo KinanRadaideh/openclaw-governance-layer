@@ -4,7 +4,10 @@ import {
   getActiveDiagnosticsTimelineSpan,
   measureDiagnosticsTimelineSpanSync,
 } from "../infra/diagnostics-timeline.js";
-import { getCurrentPluginMetadataSnapshot } from "./current-plugin-metadata-snapshot.js";
+import {
+  getCurrentPluginMetadataSnapshot,
+  rememberWorkspacePluginMetadataSnapshot,
+} from "./current-plugin-metadata-snapshot.js";
 import { resolveActivePluginInstallRoots } from "./install-root-context.js";
 import { hashJson } from "./installed-plugin-index-hash.js";
 import { resolveInstalledPluginIndexPolicyHash } from "./installed-plugin-index-policy.js";
@@ -331,7 +334,18 @@ export function resolvePluginMetadataSnapshot(
         : {}),
     });
     if (!current) {
-      return loadPluginMetadataSnapshot(params);
+      const loaded = loadPluginMetadataSnapshot(params);
+      if (
+        params.workspaceDir !== undefined &&
+        params.index === undefined &&
+        params.pluginIds === undefined &&
+        params.pluginIdScope === undefined
+      ) {
+        // A new agent workspace misses the Gateway's snapshot; share this scan with its other
+        // readers (model runtime, skills, auth lookups) for the rest of the generation.
+        rememberWorkspacePluginMetadataSnapshot(loaded);
+      }
+      return loaded;
     }
     if (!params.index) {
       return current;

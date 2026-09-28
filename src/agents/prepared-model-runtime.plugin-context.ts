@@ -53,17 +53,25 @@ function preparePluginLoadContext(
   return context;
 }
 
+/** Resolves the plugin metadata owned by one prepared workspace generation. */
+export function resolveOwnedPluginMetadataSnapshot(
+  input: PreparedModelRuntimeInput,
+  env: NodeJS.ProcessEnv,
+): PluginMetadataSnapshot {
+  return resolvePluginMetadataSnapshot({
+    config: input.config,
+    env,
+    ...(input.workspaceDir ? { workspaceDir: input.workspaceDir } : {}),
+  });
+}
+
 /** Resolves and attaches the plugin facts owned by one prepared workspace generation. */
 export function prepareOwnedPluginLoadContext(
   input: PreparedModelRuntimeInput,
   env: NodeJS.ProcessEnv,
   registry: PluginRegistry | undefined,
+  metadataSnapshot: PluginMetadataSnapshot = resolveOwnedPluginMetadataSnapshot(input, env),
 ): PluginMetadataSnapshot {
-  const metadataSnapshot = resolvePluginMetadataSnapshot({
-    config: input.config,
-    env,
-    ...(input.workspaceDir ? { workspaceDir: input.workspaceDir } : {}),
-  });
   preparePluginLoadContext(input, env, registry, metadataSnapshot);
   return metadataSnapshot;
 }

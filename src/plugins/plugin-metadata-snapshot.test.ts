@@ -1,6 +1,9 @@
 // Verifies lifecycle snapshot loading, ownership facts, and immutable boundaries.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setCurrentPluginMetadataSnapshot } from "./current-plugin-metadata-snapshot.js";
+import {
+  getCurrentPluginMetadataSnapshot,
+  setCurrentPluginMetadataSnapshot,
+} from "./current-plugin-metadata-snapshot.js";
 import { clearCurrentPluginMetadataSnapshot } from "./current-plugin-metadata-state.js";
 import type { PluginDiscoveryResult } from "./discovery.js";
 import { resolveInstalledPluginIndexPolicyHash } from "./installed-plugin-index-policy.js";
@@ -425,6 +428,69 @@ describe("plugin metadata snapshot", () => {
     expect(resolvePluginMetadataSnapshot({ config, env: {} })).toBe(snapshot);
     expect(loadPluginRegistrySnapshotWithMetadata).not.toHaveBeenCalled();
     expect(loadPluginManifestRegistryForInstalledIndex).not.toHaveBeenCalled();
+  });
+
+  it("scans a new agent workspace once per Gateway generation and shares it with its readers", () => {
+    const config = {};
+    const index = makeIndex();
+    index.policyHash = resolveInstalledPluginIndexPolicyHash(config);
+    loadPluginRegistrySnapshotWithMetadata.mockReturnValue({
+      source: "provided",
+      snapshot: index,
+      diagnostics: [],
+    });
+    const gateway = loadPluginMetadataSnapshot({
+      config,
+      env: {},
+      index,
+      workspaceDir: "/ws/main",
+    });
+    setCurrentPluginMetadataSnapshot(gateway, { config, env: {}, workspaceDir: "/ws/main" });
+    loadPluginRegistrySnapshotWithMetadata.mockClear();
+
+    const created = resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" });
+    // Skills, auth lookups, and registry reads all resolve through the current-snapshot owner.
+    expect(resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" })).toBe(
+      created,
+    );
+    expect(getCurrentPluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" })).toBe(
+      created,
+    );
+    expect(loadPluginRegistrySnapshotWithMetadata).toHaveBeenCalledTimes(1);
+    expect(
+      getCurrentPluginMetadataSnapshot({
+        config: { plugins: { allow: ["other"] } },
+        env: {},
+        workspaceDir: "/ws/new",
+      }),
+    ).toBeUndefined();
+
+    // A new Gateway generation drops workspace snapshots built from the previous one.
+    setCurrentPluginMetadataSnapshot(gateway, { config, env: {}, workspaceDir: "/ws/main" });
+    expect(
+      getCurrentPluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" }),
+    ).toBeUndefined();
+    expect(resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" })).not.toBe(
+      created,
+    );
+    expect(loadPluginRegistrySnapshotWithMetadata).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps workspace loads fresh without a Gateway-owned generation", () => {
+    const config = {};
+    const index = makeIndex();
+    index.policyHash = resolveInstalledPluginIndexPolicyHash(config);
+    loadPluginRegistrySnapshotWithMetadata.mockReturnValue({
+      source: "provided",
+      snapshot: index,
+      diagnostics: [],
+    });
+
+    const first = resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" });
+    const second = resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" });
+
+    expect(second).not.toBe(first);
+    expect(loadPluginRegistrySnapshotWithMetadata).toHaveBeenCalledTimes(2);
   });
 
   it("propagates the current-snapshot bypass to the registry reader", () => {

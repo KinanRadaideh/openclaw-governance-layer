@@ -145,15 +145,18 @@ function resolveProviderPluginScopeFromProviderIds(params: {
 }): string[] {
   const pluginIds = new Set<string>();
   for (const id of params.providerIds) {
+    // A snapshot-backed resolver is authoritative for this config/workspace generation: a miss
+    // means no plugin owns the id (for example a config-only provider). Falling through to the
+    // cold lookup would rediscover every plugin on disk synchronously, once per unowned id.
     const owners =
-      params.resolveOwners?.(id) ??
-      resolveOwningPluginIdsForProviderRef({
-        provider: id,
-        config: params.config,
-        workspaceDir: params.workspaceDir,
-        env: params.env,
-      }) ??
-      [];
+      (params.resolveOwners
+        ? params.resolveOwners(id)
+        : resolveOwningPluginIdsForProviderRef({
+            provider: id,
+            config: params.config,
+            workspaceDir: params.workspaceDir,
+            env: params.env,
+          })) ?? [];
     if (owners.length > 0) {
       for (const owner of owners) {
         pluginIds.add(owner);

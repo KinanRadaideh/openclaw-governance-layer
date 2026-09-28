@@ -78,6 +78,14 @@ let activeTemporaryPluginMetadataSnapshotLease:
   | TemporaryPluginMetadataSnapshotLeaseState
   | undefined;
 
+// Other agent workspaces' snapshots for the current publication revision only.
+let workspacePluginMetadataSnapshots:
+  | {
+      revision: CurrentPluginMetadataSnapshotRevision;
+      byWorkspaceDir: Map<string, PluginMetadataSnapshot>;
+    }
+  | undefined;
+
 const SCOPED_PLUGIN_METADATA_SNAPSHOT_KEY = Symbol.for("openclaw.scopedPluginMetadataSnapshot");
 const scopedPluginMetadataSnapshot = resolveGlobalSingleton<
   AsyncLocalStorage<ScopedPluginMetadataSnapshot>
@@ -403,9 +411,14 @@ export function getCurrentPluginMetadataSnapshot(
     }
   }
 
-  const { snapshot, configFingerprint, compatiblePolicyHashes, compatibleConfigFingerprints } =
-    getCurrentPluginMetadataSnapshotState();
-  return resolveCompatiblePluginMetadataSnapshot(
+  const {
+    snapshot,
+    configFingerprint,
+    compatiblePolicyHashes,
+    compatibleConfigFingerprints,
+    revision,
+  } = getCurrentPluginMetadataSnapshotState();
+  const current = resolveCompatiblePluginMetadataSnapshot(
     {
       snapshot: snapshot as PluginMetadataSnapshot | undefined,
       configFingerprint,
@@ -415,4 +428,33 @@ export function getCurrentPluginMetadataSnapshot(
     },
     params,
   );
+  if (current || params.workspaceDir === undefined) {
+    return current;
+  }
+  const workspaceSnapshot =
+    workspacePluginMetadataSnapshots?.revision === revision
+      ? workspacePluginMetadataSnapshots.byWorkspaceDir.get(params.workspaceDir)
+      : undefined;
+  return resolveCompatiblePluginMetadataSnapshot(
+    { snapshot: workspaceSnapshot, configFingerprint: workspaceSnapshot?.configFingerprint },
+    params,
+  );
+}
+
+/**
+ * Records an unscoped snapshot built for another agent workspace so later readers of that
+ * workspace reuse it instead of rediscovering every plugin on disk. Entries belong to the
+ * current publication: any new revision (replacement, clear, temporary lease) drops them, and
+ * each workspace keeps only its latest snapshot, so this never holds historical generations.
+ */
+export function rememberWorkspacePluginMetadataSnapshot(snapshot: PluginMetadataSnapshot): void {
+  const { snapshot: current, revision } = getCurrentPluginMetadataSnapshotState();
+  // Only a Gateway-owned generation has a lifecycle that invalidates these entries.
+  if (!current || snapshot.workspaceDir === undefined || snapshot.pluginIds !== undefined) {
+    return;
+  }
+  if (workspacePluginMetadataSnapshots?.revision !== revision) {
+    workspacePluginMetadataSnapshots = { revision, byWorkspaceDir: new Map() };
+  }
+  workspacePluginMetadataSnapshots.byWorkspaceDir.set(snapshot.workspaceDir, snapshot);
 }

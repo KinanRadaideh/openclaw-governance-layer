@@ -52,7 +52,10 @@ import {
   toStaticCatalogEntry,
   type PreparedConfiguredRuntimeModel,
 } from "./prepared-model-runtime.configured.js";
-import { prepareOwnedPluginLoadContext } from "./prepared-model-runtime.plugin-context.js";
+import {
+  prepareOwnedPluginLoadContext,
+  resolveOwnedPluginMetadataSnapshot,
+} from "./prepared-model-runtime.plugin-context.js";
 import type {
   PreparedModelRuntimeBuildStats,
   PreparedModelRuntimeCatalogMode,
@@ -224,6 +227,11 @@ export async function prepareWorkspaceBuildGroup(
     throw new Error("prepared model runtime workspace group is empty");
   }
   const env = input.env ?? process.env;
+  const pluginMetadataStartedAt = performance.now();
+  // Resolve first: for a new agent workspace this is the one plugin scan, and the runtime
+  // registry load below (memory-slot selection) then reuses it instead of scanning again.
+  const pluginMetadataSnapshot = resolveOwnedPluginMetadataSnapshot(input, env);
+  const pluginMetadataMs = performance.now() - pluginMetadataStartedAt;
   const runtimePluginStartedAt = performance.now();
   const runtimePluginRegistry = !input.readOnly
     ? loadAgentRuntimePluginRegistryHandle({
@@ -236,9 +244,7 @@ export async function prepareWorkspaceBuildGroup(
     : undefined;
   const runtimePluginMs = performance.now() - runtimePluginStartedAt;
   return await withPluginRuntimeRegistryScope(runtimePluginRegistry, async () => {
-    const pluginMetadataStartedAt = performance.now();
-    const pluginMetadataSnapshot = prepareOwnedPluginLoadContext(input, env, runtimePluginRegistry);
-    const pluginMetadataMs = performance.now() - pluginMetadataStartedAt;
+    prepareOwnedPluginLoadContext(input, env, runtimePluginRegistry, pluginMetadataSnapshot);
     const matchesStaticModelId = createStaticModelIdMatcher({
       manifestPlugins: pluginMetadataSnapshot.plugins,
     });
