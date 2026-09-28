@@ -82,8 +82,9 @@ export async function handleGovernanceFolderGrantRoutes(
     return true;
   }
 
-  const { folder, exceptions, agentId, access } = body as {
+  const { folder, description, exceptions, agentId, access } = body as {
     folder?: unknown;
+    description?: unknown;
     exceptions?: unknown;
     agentId?: unknown;
     access?: unknown;
@@ -110,7 +111,7 @@ export async function handleGovernanceFolderGrantRoutes(
       sendJson(res, 403, {
         error: {
           message:
-            "Only an Administrator may grant a folder to every agent. Specify agentId to scope it to an agent you manage.",
+            "Only an Administrator may grant a folder to every agent. Choose one of the agents you manage for this grant.",
           type: "forbidden",
         },
       });
@@ -125,6 +126,8 @@ export async function handleGovernanceFolderGrantRoutes(
       groupId,
       {
         folder,
+        // Checked by `grantFolderWithExceptions` (T70), whose refusal becomes a 400 below.
+        description: typeof description === "string" ? description : "",
         exceptions: exceptionList,
         ...(scopedAgentId ? { agentId: scopedAgentId } : {}),
         ...(access ? { access } : {}),

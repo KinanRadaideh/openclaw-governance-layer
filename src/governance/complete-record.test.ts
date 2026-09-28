@@ -63,7 +63,11 @@ describe("every action is recorded, governed or not", () => {
   it("distinguishes ungoverned from allowed", async () => {
     // The distinction is the point: "nothing permitted this" is a different
     // fact from "a rule permitted this", and only one indicates a policy gap.
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx);
     await evaluateGovernancePolicy({ toolName: "mystery_tool", params: {} }, ctx);
     // Creating the rule is itself an audited administrative act, so the chain
@@ -107,7 +111,11 @@ describe("every action is recorded, governed or not", () => {
   });
 
   it("keeps the chain valid across mixed governed and ungoverned entries", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     for (let index = 0; index < 10; index += 1) {
       await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx);
       await evaluateGovernancePolicy({ toolName: `tool-${index}`, params: { i: index } }, ctx);

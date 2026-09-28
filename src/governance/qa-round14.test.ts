@@ -107,6 +107,7 @@ async function allow(pattern: string, agentId?: string): Promise<void> {
       ...doc.rules,
       {
         id: `qa14-${pattern}-${agentId ?? "global"}`,
+        description: "test rule",
         resourceKind: "command",
         effect: "allow",
         tier: "admin",
@@ -433,8 +434,8 @@ describe("qa round 14. Clash detection is atomic with the write", () => {
       agentId: "agent-a",
     };
     const [first, second] = await Promise.all([
-      addRuleChecked(TEST_GROUP, { ...candidate }, "kinan"),
-      addRuleChecked(TEST_GROUP, { ...candidate }, "malek"),
+      addRuleChecked(TEST_GROUP, { description: "test rule", ...candidate }, "kinan"),
+      addRuleChecked(TEST_GROUP, { description: "test rule", ...candidate }, "malek"),
     ]);
     // Both writes land. The design reports clashes rather than refusing them.
     const stored = (await loadPolicy(TEST_GROUP)).rules.filter(
@@ -451,7 +452,12 @@ describe("qa round 14. Clash detection is atomic with the write", () => {
     await enforceStrictly();
     const result = await addRuleChecked(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^something-nobody-else-wrote$", agentId: "agent-a" },
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^something-nobody-else-wrote$",
+        agentId: "agent-a",
+      },
       "kinan",
     );
     expect(result.conflicts).toEqual([]);

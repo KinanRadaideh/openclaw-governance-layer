@@ -12,10 +12,15 @@
 // internals and inverting the dependency direction.
 //
 // Instead the Gateway *registers* a terminator at startup. Governance calls it
-// if present and records the outcome. When nothing is registered, the CLI, a
-// unit test, a Gateway that has not finished starting, lockdown still applies
-// and the result says plainly that no in-flight run could be reached, rather
-// than pretending the agent was stopped.
+// if present and records the outcome. When nothing is registered, a unit test
+// or a Gateway that has not finished starting, lockdown still applies and the
+// result says plainly that no in-flight run could be reached, rather than
+// pretending the agent was stopped.
+//
+// Corrected 2026-09-21: this list used to begin with the CLI, which was removed
+// on 2026-09-07. Both operator surfaces are now served by the Gateway process
+// that registers the terminator, so an unregistered terminator is a startup or
+// test condition rather than something an operator meets.
 import { endPromptRunsForAgent, promptRunsStillExecuting } from "./prompt-runs.js";
 
 export type AgentTerminationResult = {
@@ -96,8 +101,9 @@ export type TerminationOutcome = {
    * True when every signalled run was observed to leave the registry.
    *
    * False means one of two different things, and the caller should not conflate
-   * them either: no probe was available to watch (a CLI invocation, a test), or
-   * the runs were still present when the wait expired.
+   * them either: no probe was available to watch (a test, or a Gateway that has
+   * not finished starting), or the runs were still present when the wait
+   * expired.
    */
   stoppedConfirmed: boolean;
   /** Runs still present when the wait gave up. Empty when confirmed. */

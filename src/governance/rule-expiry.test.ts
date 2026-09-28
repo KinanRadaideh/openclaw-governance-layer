@@ -60,6 +60,7 @@ afterEach(async () => {
 function rule(overrides: Partial<PolicyRule> = {}): PolicyRule {
   return {
     id: "r1",
+    description: "test rule",
     resourceKind: "command",
     pattern: "^ls$",
     createdAt: new Date(NOW).toISOString(),
@@ -101,6 +102,7 @@ describe("time-limited rules", () => {
     await addRule(
       TEST_GROUP,
       {
+        description: "test rule",
         resourceKind: "command",
         pattern,
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
@@ -173,7 +175,11 @@ describe("retention of lapsed rules", () => {
         }),
       ];
     });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^new$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^new$" },
+      TEST_ACTOR,
+    );
     const ids = (await loadPolicy(TEST_GROUP)).rules.map((r) => r.id);
     expect(ids).not.toContain("ancient");
     expect(ids.some((id) => id.startsWith("command-"))).toBe(true);
@@ -206,13 +212,18 @@ describe("the ruleset is bounded", () => {
     const doc = defaultPolicyDocument();
     doc.rules = Array.from({ length: MAX_POLICY_RULES }, (_unused, index) => ({
       id: `r${index}`,
+      description: "test rule",
       resourceKind: "command" as const,
       pattern: `^cmd-${index}$`,
       createdAt: new Date().toISOString(),
     }));
     await savePolicy(TEST_GROUP, doc);
     await expect(
-      addRule(TEST_GROUP, { resourceKind: "command", pattern: "^one-more$" }, "kinan"),
+      addRule(
+        TEST_GROUP,
+        { description: "test rule", resourceKind: "command", pattern: "^one-more$" },
+        "kinan",
+      ),
     ).rejects.toBeInstanceOf(TooManyRulesError);
   });
 
@@ -223,6 +234,7 @@ describe("the ruleset is bounded", () => {
     const doc = defaultPolicyDocument();
     doc.rules = Array.from({ length: MAX_POLICY_RULES }, (_unused, index) => ({
       id: `r${index}`,
+      description: "test rule",
       resourceKind: "command" as const,
       pattern: `^cmd-${index}$`,
       createdAt: longAgo,
@@ -230,7 +242,11 @@ describe("the ruleset is bounded", () => {
     }));
     await savePolicy(TEST_GROUP, doc);
     await expect(
-      addRule(TEST_GROUP, { resourceKind: "command", pattern: "^one-more$" }, "kinan"),
+      addRule(
+        TEST_GROUP,
+        { description: "test rule", resourceKind: "command", pattern: "^one-more$" },
+        "kinan",
+      ),
     ).resolves.toMatchObject({ pattern: "^one-more$" });
   });
 });

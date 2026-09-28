@@ -223,7 +223,11 @@ describe("the viewer tier is confidentiality, not just read-only", () => {
   it("hides installation-wide administrative entries from a scoped account", async () => {
     // An installation-wide change carries no agent, so the scope filter keeps
     // it to Administrator and above. A User must not learn the posture changed.
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "kinan",
+    );
     expect(projectLedgerForActor(await tailLedger(TEST_GROUP), user)).toHaveLength(0);
   });
 });
@@ -236,6 +240,7 @@ describe("a denial cannot be turned into an allow by malformed input", () => {
       ask: "off",
       rules: [
         {
+          description: "test rule",
           id: "bad",
           resourceKind: "command",
           pattern: "([unclosed",
@@ -259,6 +264,7 @@ describe("a denial cannot be turned into an allow by malformed input", () => {
       ask: "off",
       rules: [
         {
+          description: "test rule",
           id: "bad-date",
           resourceKind: "command",
           pattern: "^ls$",

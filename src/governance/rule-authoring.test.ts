@@ -94,11 +94,15 @@ async function pathVerdict(toolName: string, path: string): Promise<string> {
 describe("an operator's own denial behaves like a shipped one", () => {
   it("forbids what it names", async () => {
     await enforceStrictly();
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "kinan",
+    );
     expect(await commandVerdict("ls")).toBe("allow");
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", effect: "deny", pattern: "^ls$" },
+      { description: "test rule", resourceKind: "command", effect: "deny", pattern: "^ls$" },
       "kinan",
     );
     expect(await commandVerdict("ls")).toBe("block");
@@ -110,10 +114,14 @@ describe("an operator's own denial behaves like a shipped one", () => {
     await enforceStrictly();
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", effect: "deny", pattern: "^deploy$" },
+      { description: "test rule", resourceKind: "command", effect: "deny", pattern: "^deploy$" },
       "kinan",
     );
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^deploy$" }, "kinan");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^deploy$" },
+      "kinan",
+    );
     expect(await commandVerdict("deploy")).toBe("block");
   });
 
@@ -125,7 +133,7 @@ describe("an operator's own denial behaves like a shipped one", () => {
     await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", ask: "on-miss" });
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", effect: "deny", pattern: "^deploy$" },
+      { description: "test rule", resourceKind: "command", effect: "deny", pattern: "^deploy$" },
       "kinan",
     );
     expect(await commandVerdict("deploy")).toBe("block");
@@ -133,10 +141,20 @@ describe("an operator's own denial behaves like a shipped one", () => {
 
   it("is scoped to its agent and does not leak to another", async () => {
     await enforceStrictly();
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", effect: "deny", pattern: "^ls$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "kinan",
+    );
+    await addRule(
+      TEST_GROUP,
+      {
+        description: "test rule",
+        resourceKind: "command",
+        effect: "deny",
+        pattern: "^ls$",
+        agentId: "agent-a",
+      },
       "kinan",
     );
     expect(await commandVerdict("ls", "agent-a")).toBe("block");
@@ -145,10 +163,15 @@ describe("an operator's own denial behaves like a shipped one", () => {
 
   it("expires like any other rule", async () => {
     await enforceStrictly();
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "kinan",
+    );
     await addRule(
       TEST_GROUP,
       {
+        description: "test rule",
         resourceKind: "command",
         effect: "deny",
         pattern: "^ls$",
@@ -163,7 +186,7 @@ describe("an operator's own denial behaves like a shipped one", () => {
   it("is stored at the admin tier and stays removable", async () => {
     const rule = await addRule(
       TEST_GROUP,
-      { resourceKind: "command", effect: "deny", pattern: "^ls$" },
+      { description: "test rule", resourceKind: "command", effect: "deny", pattern: "^ls$" },
       "kinan",
     );
     expect(rule.tier).toBe("admin");
@@ -177,7 +200,13 @@ describe("an operator's own denial behaves like a shipped one", () => {
     await expect(
       addRule(
         TEST_GROUP,
-        { resourceKind: "command", effect: "deny", tier: "core", pattern: "^ls$" },
+        {
+          description: "test rule",
+          resourceKind: "command",
+          effect: "deny",
+          tier: "core",
+          pattern: "^ls$",
+        },
         "kinan",
       ),
     ).rejects.toBeInstanceOf(ImmutableRuleError);
@@ -186,7 +215,7 @@ describe("an operator's own denial behaves like a shipped one", () => {
   it("is recorded in the audit trail with its author", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", effect: "deny", pattern: "^ls$" },
+      { description: "test rule", resourceKind: "command", effect: "deny", pattern: "^ls$" },
       "kinan",
     );
     const entry = (await tailLedger(TEST_GROUP, 20)).at(-1);
@@ -197,7 +226,7 @@ describe("an operator's own denial behaves like a shipped one", () => {
   it("keeps its effect across a reload from disk", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", effect: "deny", pattern: "^ls$" },
+      { description: "test rule", resourceKind: "command", effect: "deny", pattern: "^ls$" },
       "kinan",
     );
     const reloaded = await loadPolicy(TEST_GROUP);
@@ -211,7 +240,7 @@ describe("an operator's own denial behaves like a shipped one", () => {
     await enforceStrictly();
     const denial = await addRule(
       TEST_GROUP,
-      { resourceKind: "command", effect: "deny", pattern: "^ls$" },
+      { description: "test rule", resourceKind: "command", effect: "deny", pattern: "^ls$" },
       "kinan",
     );
     const doc = await loadPolicy(TEST_GROUP);
@@ -237,7 +266,7 @@ describe("a rule narrowed to one direction", () => {
     await enforceStrictly();
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", access: "read", pattern: "^notes/.*$" },
+      { description: "test rule", resourceKind: "path", access: "read", pattern: "^notes/.*$" },
       "kinan",
     );
     expect(await pathVerdict("read", "notes/a.txt")).toBe("allow");
@@ -246,10 +275,20 @@ describe("a rule narrowed to one direction", () => {
 
   it("forbids only the direction it names. The surprising case", async () => {
     await enforceStrictly();
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^notes/.*$" }, "kinan");
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", effect: "deny", access: "write", pattern: "^notes/.*$" },
+      { description: "test rule", resourceKind: "path", pattern: "^notes/.*$" },
+      "kinan",
+    );
+    await addRule(
+      TEST_GROUP,
+      {
+        description: "test rule",
+        resourceKind: "path",
+        effect: "deny",
+        access: "write",
+        pattern: "^notes/.*$",
+      },
       "kinan",
     );
     expect(await pathVerdict("write", "notes/a.txt")).toBe("block");
@@ -260,10 +299,14 @@ describe("a rule narrowed to one direction", () => {
 
   it("forbids both directions when it names neither", async () => {
     await enforceStrictly();
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^notes/.*$" }, "kinan");
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", effect: "deny", pattern: "^notes/.*$" },
+      { description: "test rule", resourceKind: "path", pattern: "^notes/.*$" },
+      "kinan",
+    );
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "path", effect: "deny", pattern: "^notes/.*$" },
       "kinan",
     );
     for (const toolName of ["read", "write", "edit"]) {
@@ -275,7 +318,13 @@ describe("a rule narrowed to one direction", () => {
     await enforceStrictly();
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", effect: "deny", access: "read", pattern: "^notes/.*$" },
+      {
+        description: "test rule",
+        resourceKind: "path",
+        effect: "deny",
+        access: "read",
+        pattern: "^notes/.*$",
+      },
       "kinan",
     );
     expect(

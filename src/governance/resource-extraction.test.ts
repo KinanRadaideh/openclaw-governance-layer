@@ -77,7 +77,11 @@ describe("resource extraction edge cases", () => {
   });
 
   it("matches path rules written with forward slashes on Windows-style paths", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/allowed[.]ts$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "path", pattern: "^src/allowed[.]ts$" },
+      TEST_ACTOR,
+    );
     const decision = await evaluateGovernancePolicy(
       { toolName: "write", params: { path: "src\\allowed.ts" } },
       ctx,
@@ -92,7 +96,11 @@ describe("resource extraction edge cases", () => {
   });
 
   it("reads a path from either path or file_path", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^ok[.]txt$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "path", pattern: "^ok[.]txt$" },
+      TEST_ACTOR,
+    );
     expect(
       verdict(
         await evaluateGovernancePolicy({ toolName: "read", params: { path: "ok.txt" } }, ctx),
@@ -106,7 +114,11 @@ describe("resource extraction edge cases", () => {
   });
 
   it("governs bash the same way it governs exec", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^echo .*$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^echo .*$" },
+      TEST_ACTOR,
+    );
     expect(
       verdict(
         await evaluateGovernancePolicy({ toolName: "bash", params: { command: "echo hi" } }, ctx),
@@ -132,7 +144,7 @@ describe("resource extraction edge cases", () => {
   it("keeps the query string out of the matched network resource", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "network", pattern: "^api[.]example[.]com$" },
+      { description: "test rule", resourceKind: "network", pattern: "^api[.]example[.]com$" },
       TEST_ACTOR,
     );
     const decision = await evaluateGovernancePolicy(
@@ -143,7 +155,11 @@ describe("resource extraction edge cases", () => {
   });
 
   it("treats an anchored command rule as exact, not a prefix", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx)),
     ).toBe("allow");

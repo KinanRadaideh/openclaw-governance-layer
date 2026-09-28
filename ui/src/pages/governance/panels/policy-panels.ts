@@ -39,6 +39,7 @@ import {
   renderSettingsValue,
 } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
+import { MAX_RULE_DESCRIPTION_LENGTH } from "../api.policy-writes.ts";
 import type {
   GovernanceAgentAccess,
   GovernanceAgentPolicyView,
@@ -65,6 +66,7 @@ import { renderFolderGrantPanel, type RuleNotices } from "./folder-grant-panel.t
 import { formatDuration } from "./format.ts";
 import { renderAgentAskRow, renderObserveAgentRow } from "./policy-agent-overrides.ts";
 import { renderAgentTimeoutRow } from "./policy-agent-timeout.ts";
+import type { PolicyDrafts } from "./policy-drafts.ts";
 import { renderPolicyReadingNotes } from "./policy-reading-notes.ts";
 import { renderRootPolicySettings } from "./policy-root-settings.ts";
 
@@ -138,42 +140,6 @@ function codexSearchCaveatApplies(rule: GovernancePolicyRule, props: PolicyPanel
   }
   return rule.agentId ? permitted.includes(rule.agentId) : true;
 }
-
-/** Fields an operator is part-way through typing in the policy panels. */
-export type PolicyDrafts = {
-  newRuleKind: GovernancePolicyRule["resourceKind"];
-  newRuleEffect: "allow" | "deny";
-  newRuleAccess: "" | "read" | "write";
-  newRulePattern: string;
-  newRuleTtl: string;
-  newRuleAgentId: string;
-  /**
-   * The folder-grant form's own fields.
-   *
-   * Separate from the add-rule drafts on purpose: an operator often has a
-   * half-written rule in one form while using the other, and sharing state
-   * would silently clear their work.
-   */
-  folderGrant: {
-    folder: string;
-    exceptions: string;
-    agentId: string;
-    /** What the last grant wrote, listed back so the operator sees the rules. */
-    written: { pattern: string; effect: string }[] | null;
-  };
-  postureAgentId: string;
-  /** Which agent the per-agent escalation control is aimed at (A12). */
-  askAgentId: string;
-  /** Which agent the per-agent escalation timeout control is aimed at. */
-  agentTimeoutAgentId: string;
-  /** The seconds typed into it, kept as text so a half-typed number survives. */
-  agentTimeoutSeconds: string;
-  agentPolicyAgentId: string;
-  /** Root-only settings, reachable from the dashboard only since finding 140. */
-  hitlTimeoutDraft: string;
-  userAskUsername: string;
-  ruleFilter: RuleFilter;
-};
 
 export type PolicyPanelProps = PanelEffects & {
   policy: GovernancePolicyDocument | null;
@@ -500,8 +466,6 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
           onDraft: (patch) =>
             props.onDraft({ folderGrant: { ...props.drafts.folderGrant, ...patch } }),
           written: props.drafts.folderGrant.written,
-          onWritten: (written) =>
-            props.onDraft({ folderGrant: { ...props.drafts.folderGrant, written } }),
           onRuleNotices: props.onRuleNotices,
         })
       : nothing,
@@ -623,49 +587,47 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         // what a person recognises a rule by. So the description becomes the
         // title, and the pattern moves to a monospace line beneath it, still
         // complete and still exact. Nothing is hidden, the emphasis is
-        // simply put where a human reads. An operator-written rule with no
-        // description falls back to its pattern, which is then genuinely the
-        // best name it has.
+        // simply put where a human reads. Every rule has a description since
+        // T70, core, baseline and operator alike, so there is no fallback: a
+        // title that was sometimes a sentence and sometimes a pattern was the
+        // inconsistency T70 removed.
         //
         // The deny badge stays on the title line: it is the first thing that
         // has to be true about a rule, and it was the fix for allow and deny
         // rules being indistinguishable.
         title: html`${rule.effect === "deny"
           ? html`<strong>${t("governance.policy.denyBadge")}</strong> `
-          : nothing}${rule.description
-          ? html`${rule.description}`
-          : html`<code>${rule.pattern}</code>`}`,
-        description: html`${rule.description
-          ? html`<code class="governance-rule__pattern">${rule.pattern}</code><br />`
-          : nothing}${rule.resourceKind}${
-          // A rule narrowed to one direction reads identically to one
-          // covering both unless the list says so, and the difference is
-          // the whole point of the narrowing.
-          rule.access
-            ? ` (${rule.access === "read" ? t("governance.policy.readOnlyBadge") : t("governance.policy.writeOnlyBadge")})`
-            : ""
-        }
-        · ${tierLabel(rule.tier)} ·
-        ${rule.agentId
-          ? `agent ${rule.agentId}`
-          : t("governance.policy.globalScope")}${formatRuleLifetime(rule.expiresAt)}${
-          // **Option A's requirement, and the reason it is on the row rather
-          // than only in a dialog.** A denial on a path is fully enforced
-          // against a direct open on every backend; what Codex cannot do is
-          // remove the file from a *search result*. An operator who wrote this
-          // rule weeks ago, reading the list today, is the person who needs to
-          // know that. The moment of authoring is not where the
-          // misunderstanding happens, which is finding 150's whole lesson.
-          //
-          // Shown only where it is true: a path denial, on an installation that
-          // has Codex enabled, binding an agent actually permitted onto it.
-          // Over-warning would train operators to ignore it.
-          codexSearchCaveatApplies(rule, props)
-            ? html`<br /><span class="settings-row__hint"
-                  >${t("governance.policy.codexSearchCaveat")}</span
-                >`
-            : nothing
-        }`,
+          : nothing}${rule.description}`,
+        description: html`<code class="governance-rule__pattern">${rule.pattern}</code
+          ><br />${rule.resourceKind}${
+            // A rule narrowed to one direction reads identically to one
+            // covering both unless the list says so, and the difference is
+            // the whole point of the narrowing.
+            rule.access
+              ? ` (${rule.access === "read" ? t("governance.policy.readOnlyBadge") : t("governance.policy.writeOnlyBadge")})`
+              : ""
+          }
+          · ${tierLabel(rule.tier)} ·
+          ${rule.agentId
+            ? `agent ${rule.agentId}`
+            : t("governance.policy.globalScope")}${formatRuleLifetime(rule.expiresAt)}${
+            // **Option A's requirement, and the reason it is on the row rather
+            // than only in a dialog.** A denial on a path is fully enforced
+            // against a direct open on every backend; what Codex cannot do is
+            // remove the file from a *search result*. An operator who wrote this
+            // rule weeks ago, reading the list today, is the person who needs to
+            // know that. The moment of authoring is not where the
+            // misunderstanding happens, which is finding 150's whole lesson.
+            //
+            // Shown only where it is true: a path denial, on an installation that
+            // has Codex enabled, binding an agent actually permitted onto it.
+            // Over-warning would train operators to ignore it.
+            codexSearchCaveatApplies(rule, props)
+              ? html`<br /><span class="settings-row__hint"
+                    >${t("governance.policy.codexSearchCaveat")}</span
+                  >`
+              : nothing
+          }`,
         // No delete control on a core rule: the server refuses it, and
         // offering a button that cannot work is worse than offering none.
         //
@@ -717,7 +679,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                       props.confirmThen(
                         {
                           message: t("governance.confirm.disableCoreRule"),
-                          details: rule.description ?? rule.pattern,
+                          details: rule.description,
                           confirmLabel: t("governance.policy.coreRuleDisable"),
                         },
                         () => props.api().setCoreRule(rule.id, false),
@@ -734,7 +696,9 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                   props.confirmThen(
                     {
                       message: t("governance.confirm.removeRule"),
-                      details: `${rule.resourceKind} ${rule.pattern}`,
+                      // Named by what it is for as well as what it matches,
+                      // so the operator confirms the rule they meant (T70).
+                      details: `${rule.description}: ${rule.resourceKind} ${rule.pattern}`,
                       confirmLabel: t("governance.policy.removeRule"),
                     },
                     () => props.api().removeRule(rule.id),
@@ -839,6 +803,25 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                 }}
               />
               ${
+                // **Required (T70).** The rule's title in every policy view and
+                // its reason in the ledger; without it the list falls back to a
+                // regular expression nobody else can read. Wider than the other
+                // fields because it is a sentence.
+                html`<input
+                  class="input"
+                  type="text"
+                  required
+                  style="flex:2;min-width:16rem"
+                  maxlength=${MAX_RULE_DESCRIPTION_LENGTH}
+                  aria-label=${t("governance.policy.descriptionLabel")}
+                  placeholder=${t("governance.policy.descriptionPlaceholder")}
+                  .value=${props.drafts.newRuleDescription}
+                  @input=${(e: Event) => {
+                    props.onDraft({ newRuleDescription: (e.target as HTMLInputElement).value });
+                  }}
+                />`
+              }
+              ${
                 // **The agent field is required for a User and optional for
                 // an Administrator, and the form has to say so.**
                 //
@@ -891,7 +874,10 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
               />
               <button
                 class="btn primary"
-                ?disabled=${!props.drafts.newRulePattern}
+                ?disabled=${!props.drafts.newRulePattern ||
+                !props.drafts.newRuleDescription.trim() ||
+                // Blank means every agent, which the server refuses below Administrator.
+                (!props.canAdminister && !props.drafts.newRuleAgentId.trim())}
                 @click=${() =>
                   props.run(async () => {
                     const ttl = Number.parseInt(props.drafts.newRuleTtl, 10);
@@ -899,6 +885,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                     const created = await props.api().addRule({
                       resourceKind: props.drafts.newRuleKind,
                       pattern: props.drafts.newRulePattern,
+                      description: props.drafts.newRuleDescription.trim(),
                       ...(Number.isFinite(ttl) && ttl > 0 ? { ttlMinutes: ttl } : {}),
                       ...(agentId ? { agentId } : {}),
                       // Sent only when they carry meaning: `allow` is the
@@ -910,12 +897,14 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                         : {}),
                     });
                     props.onDraft({ newRulePattern: "" });
+                    props.onDraft({ newRuleDescription: "" });
                     props.onDraft({ newRuleTtl: "" });
-                    props.onDraft({ newRuleAgentId: "" });
-                    // Effect and access deliberately survive the reset. An
+                    // Effect, access and the agent deliberately survive the reset. An
                     // operator writing a denial is usually writing several,
                     // and silently reverting to `allow` between them is how
-                    // somebody grants what they meant to forbid.
+                    // somebody grants what they meant to forbid. Clearing the agent
+                    // was the same trap one field over (finding 389): the next rule
+                    // silently bound every agent, and the folder grant already kept it.
                     // Surface the clash rather than letting the operator walk
                     // away believing a restriction took hold that did not, and
                     // beside it a pattern that is valid but broader than it
@@ -943,6 +932,12 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                       >${t("governance.policy.agentRequiredHint")}</span
                     >`
               }
+              <span class="settings-row__hint governance-rule-description-count"
+                >${t("governance.policy.descriptionCount", {
+                  used: String(props.drafts.newRuleDescription.length),
+                  max: String(MAX_RULE_DESCRIPTION_LENGTH),
+                })}</span
+              >
             </div>
           `,
         })

@@ -1,6 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { renderSettingsRow } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
+import { MAX_RULE_DESCRIPTION_LENGTH } from "../api.policy-writes.ts";
 import type { GovernanceApi, GovernanceRuleConflict, GovernanceRuleWarning } from "../api.ts";
 
 /**
@@ -22,17 +23,41 @@ export type FolderGrantPanelProps = {
   busy: boolean;
   /** Whether this account may write a rule binding every agent. */
   canAdminister: boolean;
-  draft: { folder: string; exceptions: string; agentId: string };
-  onDraft: (patch: Partial<FolderGrantPanelProps["draft"]>) => void;
+  draft: { folder: string; description: string; exceptions: string; agentId: string };
+  /**
+   * Applies a change to the draft, or to `written`, in **one** write.
+   *
+   * Clearing the fields and recording what was written used to be two calls,
+   * each spreading the draft as it stood when the button was drawn, so the
+   * second put back everything the first had cleared: after a grant the folder,
+   * the exceptions and (since T70) the purpose all reappeared in the form.
+   */
+  onDraft: (
+    patch: Partial<
+      FolderGrantPanelProps["draft"] & { written: { pattern: string; effect: string }[] }
+    >,
+  ) => void;
   /**
    * What the last grant wrote. The page's own `run()` already refreshes the
    * data and displays any error, so this panel reports the one thing `run()`
    * cannot know: which rules came out of a single click.
    */
   written: { pattern: string; effect: string }[] | null;
-  onWritten: (written: { pattern: string; effect: string }[]) => void;
   /** Shows the clashes a grant reported, in the page's notice beside the add-rule form's. */
   onRuleNotices: (notices: RuleNotices) => void;
+};
+
+/**
+ * The form with nothing typed in it, and nothing written yet: the page's initial
+ * state and what signing out restores. One definition, because the page spelled
+ * it twice and each new field (T70's purpose) had to be added to both.
+ */
+export const EMPTY_FOLDER_GRANT = {
+  folder: "",
+  description: "",
+  exceptions: "",
+  agentId: "",
+  written: null,
 };
 
 /** What a policy write reported beyond success, for the page's notice band. */
@@ -118,6 +143,21 @@ export function renderFolderGrantPanel(
           .value=${draft.folder}
           @input=${(e: Event) => props.onDraft({ folder: (e.target as HTMLInputElement).value })}
         />
+        <!--
+          Required (T70): the purpose leads the description of the grant and of
+          every exception it writes, so each rule says what it is for when it is
+          later read on its own in the rule list or the ledger.
+        -->
+        <input
+          class="input"
+          required
+          maxlength=${MAX_RULE_DESCRIPTION_LENGTH}
+          aria-label=${t("governance.policy.folderGrantPurposeLabel")}
+          placeholder=${t("governance.policy.folderGrantPurposePlaceholder")}
+          .value=${draft.description}
+          @input=${(e: Event) =>
+            props.onDraft({ description: (e.target as HTMLInputElement).value })}
+        />
         <textarea
           class="input"
           rows="2"
@@ -127,26 +167,33 @@ export function renderFolderGrantPanel(
           @input=${(e: Event) =>
             props.onDraft({ exceptions: (e.target as HTMLTextAreaElement).value })}
         ></textarea>
+        <!-- Blank means every agent, which the server refuses below Administrator. -->
         <input
           class="input"
+          ?required=${!props.canAdminister}
           aria-label=${t("governance.policy.folderGrantAgentLabel")}
-          placeholder=${t("governance.policy.folderGrantAgentPlaceholder")}
+          placeholder=${props.canAdminister
+            ? t("governance.policy.folderGrantAgentPlaceholder")
+            : t("governance.policy.agentRequiredPlaceholder")}
           .value=${draft.agentId}
           @input=${(e: Event) => props.onDraft({ agentId: (e.target as HTMLInputElement).value })}
         />
         <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
           <button
             class="btn primary"
-            ?disabled=${busy || !draft.folder.trim()}
+            ?disabled=${busy ||
+            !draft.folder.trim() ||
+            !draft.description.trim() ||
+            (!props.canAdminister && !draft.agentId.trim())}
             @click=${() =>
               props.run(async () => {
                 const agentId = draft.agentId.trim();
                 const result = await props.api().grantFolder({
                   folder: draft.folder.trim(),
+                  description: draft.description.trim(),
                   exceptions,
                   ...(agentId ? { agentId } : {}),
                 });
-                props.onDraft({ folder: "", exceptions: "" });
                 // The notice the add-rule form raises, for the same reason: a
                 // grant that clashes with an existing rule was written in silence.
                 props.onRuleNotices({
@@ -157,17 +204,28 @@ export function renderFolderGrantPanel(
                 // The agent deliberately survives the reset, matching the
                 // add-rule form: somebody granting one folder to an agent is
                 // usually granting several.
-                props.onWritten([
-                  { pattern: result.grant.pattern, effect: "allow" },
-                  ...result.exceptions.map((rule: { pattern: string }) => ({
-                    pattern: rule.pattern,
-                    effect: "deny",
-                  })),
-                ]);
+                props.onDraft({
+                  folder: "",
+                  description: "",
+                  exceptions: "",
+                  written: [
+                    { pattern: result.grant.pattern, effect: "allow" },
+                    ...result.exceptions.map((rule: { pattern: string }) => ({
+                      pattern: rule.pattern,
+                      effect: "deny",
+                    })),
+                  ],
+                });
               })}
           >
             ${t("governance.policy.folderGrantButton")}
           </button>
+          <span class="settings-row__hint"
+            >${t("governance.policy.descriptionCount", {
+              used: String(draft.description.length),
+              max: String(MAX_RULE_DESCRIPTION_LENGTH),
+            })}</span
+          >
           ${
             // Said in the form rather than discovered from a refusal, matching
             // the add-rule form's hint.

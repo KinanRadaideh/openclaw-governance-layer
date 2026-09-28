@@ -114,15 +114,29 @@ async function get(
 
 describe("agent → policies", () => {
   it("gives an Administrator every rule binding an agent, global and scoped", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^only-a$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
       TEST_ACTOR,
     );
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^only-b$", agentId: "agent-b" },
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^only-a$",
+        agentId: "agent-a",
+      },
+      TEST_ACTOR,
+    );
+    await addRule(
+      TEST_GROUP,
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^only-b$",
+        agentId: "agent-b",
+      },
       TEST_ACTOR,
     );
 
@@ -145,7 +159,12 @@ describe("agent → policies", () => {
   it("lets a Viewer read an agent they were assigned", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^only-a$", agentId: "agent-a" },
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^only-a$",
+        agentId: "agent-a",
+      },
       TEST_ACTOR,
     );
 
@@ -189,7 +208,12 @@ describe("policy → agents", () => {
   it("names the single agent an agent-scoped rule binds", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^only-a$", agentId: "agent-a" },
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^only-a$",
+        agentId: "agent-a",
+      },
       TEST_ACTOR,
     );
     const policy = await loadPolicy(TEST_GROUP);
@@ -207,15 +231,19 @@ describe("policy → agents", () => {
   });
 
   it("says a global rule binds future agents as well as the known ones", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^x$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
       TEST_ACTOR,
     );
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^y$", agentId: "agent-b" },
+      { description: "test rule", resourceKind: "command", pattern: "^x$", agentId: "agent-a" },
+      TEST_ACTOR,
+    );
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^y$", agentId: "agent-b" },
       TEST_ACTOR,
     );
     const policy = await loadPolicy(TEST_GROUP);
@@ -237,15 +265,24 @@ describe("policy → agents", () => {
   });
 
   it("does not hand a scoped User an inventory of other agents", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^x$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
       TEST_ACTOR,
     );
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^y$", agentId: "secret-agent" },
+      { description: "test rule", resourceKind: "command", pattern: "^x$", agentId: "agent-a" },
+      TEST_ACTOR,
+    );
+    await addRule(
+      TEST_GROUP,
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^y$",
+        agentId: "secret-agent",
+      },
       TEST_ACTOR,
     );
     const policy = await loadPolicy(TEST_GROUP);
@@ -271,7 +308,12 @@ describe("policy → agents", () => {
   it("refuses a rule scoped to an agent the caller may not see", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^y$", agentId: "secret-agent" },
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^y$",
+        agentId: "secret-agent",
+      },
       TEST_ACTOR,
     );
     const policy = await loadPolicy(TEST_GROUP);

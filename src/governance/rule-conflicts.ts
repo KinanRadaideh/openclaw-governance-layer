@@ -279,7 +279,7 @@ export function detectRuleConflicts(
       message:
         `A ${denial.tier ?? "admin"}-tier deny rule already refuses this ` +
         `${candidate.resourceKind} (pattern "${denial.pattern}"` +
-        `${denial.description ? `, ${denial.description}` : ""}). Denials are ` +
+        `, ${denial.description}). Denials are ` +
         `evaluated before allowances, so the new rule will never take effect` +
         `${denial.tier === "core" ? " and the denial cannot be removed at runtime" : ""}.`,
     });

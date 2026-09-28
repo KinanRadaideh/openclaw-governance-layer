@@ -164,6 +164,9 @@ export const enGovernance: TranslationMap = {
         "Writes the allow rule and the deny rules for you. Everything it creates appears below as ordinary rules you can edit or remove one at a time.",
       folderGrantFolderLabel: "Folder to allow",
       folderGrantFolderPlaceholder: "e.g. src: the agent may read and write everything below it",
+      folderGrantPurposeLabel: "Why this folder is allowed (required)",
+      folderGrantPurposePlaceholder:
+        "Purpose (required), e.g. The build agent compiles and tests the project",
       folderGrantExceptionsLabel: "Paths inside it that stay forbidden",
       folderGrantExceptionsPlaceholder:
         "One per line, e.g. src/secrets. Leave empty to allow the whole folder",
@@ -205,6 +208,9 @@ export const enGovernance: TranslationMap = {
       // page did not follow it.
       kindLabel: "Resource kind",
       patternLabel: "Rule pattern",
+      descriptionLabel: "Rule description (required)",
+      descriptionPlaceholder: "Why this rule exists (required), e.g. Lets the agent list files",
+      descriptionCount: "Description required: {used} of {max} characters",
       ruleAgentLabel: "Agent this rule applies to",
       ttlLabel: "Rule lifetime in minutes",
       agentPlaceholder: "Agent id (blank = all agents)",
@@ -408,6 +414,12 @@ export const enGovernance: TranslationMap = {
       // Shown on the account row so Root can read the management tree off
       // the list, rather than only being made to choose it at creation.
       answersTo: "Answers to {username}",
+      // Moving an account to another Administrator (finding 383). The refusal to demote
+      // or delete an Administrator told Root to do this, and nothing on the page could.
+      answersToLabel: "Administrator this account answers to",
+      confirmRehome:
+        "Move this account to another Administrator? It must hold only agents that Administrator owns; remove any others from its agents first.",
+      rehomeAction: "Move account",
       // Shown when a manager is required and none is picked yet. The
       // no-Administrators-at-all case has always been explained
       // (`noAdministrators`); this, the ordinary case, left a dead button
@@ -472,6 +484,10 @@ export const enGovernance: TranslationMap = {
       title: "Waiting for your answer",
       hint: "An agent you manage asked before doing something no rule covers. Only accounts that manage this agent see this question, and your answer is recorded under your name.",
       dismiss: "Dismiss",
+      // Finding 386: a press that arrived after the question was answered elsewhere, cancelled
+      // or expired. The card goes with the next read, so this is what is left to say so.
+      answerNotUsed:
+        "Your answer to “{title}” was not used: the question had already been answered by another account, cancelled, or had expired. The agent's conversation and the audit ledger show the answer that was.",
     },
     pending: {
       title: "Awaiting your decision",
@@ -523,7 +539,8 @@ export const enGovernance: TranslationMap = {
       confirmOwner: "Give “{name}” to {owner}?",
       confirmOwnerDetails:
         "Users and Viewers who answer to {previous} lose this agent, because an agent is assigned only to accounts under its own Administrator; {owner} can assign it again. The change is recorded in the audit ledger.",
-      reowned: "“{name}” is now owned by {owner}.",
+      // An event, like `renamed`: it stays true if the owner is changed again elsewhere.
+      reowned: "Gave “{name}” to {owner}.",
       closeEdit: "Close",
       unregister: "Remove from governance",
       unregisterExplain:
@@ -589,6 +606,9 @@ export const enGovernance: TranslationMap = {
       ownerPlaceholder: "Choose who owns this agent...",
       ownerRootSuffix: "{username} (you, Root)",
       create: "Create agent",
+      // Shown while an agent is being created (finding 384): the wait is long and was silent.
+      creating:
+        "Creating {name}. This can take a minute or more; the emergency stop stays available meanwhile.",
       created:
         "Created {id}, and OpenClaw has picked it up. That id is what you use to talk to it, write rules for it, or stop it.",
       // Appended only when the id was already carrying something (T55). Kept to

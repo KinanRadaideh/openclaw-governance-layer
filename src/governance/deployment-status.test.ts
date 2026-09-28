@@ -21,6 +21,8 @@ import {
   type ReadDeploymentStatusOptions,
 } from "./deployment-status.js";
 import { ledgerCheckpointFilePath, ledgerFilePath } from "./paths.js";
+import { loadPolicy, savePolicy } from "./policy-store.js";
+import type { PolicyDocument } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
@@ -591,5 +593,36 @@ describe("the gate's own off switch is reported (2026-09-05)", () => {
   it("passes on an ordinary installation with no VITEST variable at all", async () => {
     const status = await readDeploymentStatus(TEST_GROUP, conformingInput(), options({ env: {} }));
     expect(gateCheck(status)?.status).toBe("pass");
+  });
+});
+
+// Finding 390. With the posture set to Off for every agent the report read "0 failed" and
+// "the shipped enforce default is in force", because no check read the policy's posture.
+describe("the posture in force is reported (finding 390)", () => {
+  async function withPolicy(patch: Partial<PolicyDocument>) {
+    await savePolicy(TEST_GROUP, { ...(await loadPolicy(TEST_GROUP)), ...patch });
+    return checkFor(await statusOf(), "deployment.posture_enforce");
+  }
+
+  it("passes when every agent is enforced", async () => {
+    expect((await withPolicy({ mode: "enforce" })).status).toBe("pass");
+  });
+
+  it("fails when governance is switched off", async () => {
+    const check = await withPolicy({ mode: "off" });
+    expect(check.status).toBe("fail");
+    expect(check.detail).toContain("switched off");
+  });
+
+  it("warns for Monitor, installation-wide or for one agent", async () => {
+    expect((await withPolicy({ mode: "monitor" })).status).toBe("warn");
+    const one = await withPolicy({ mode: "enforce", agentMode: { scout: "monitor" } });
+    expect(one.status).toBe("warn");
+    expect(one.detail).toContain("scout");
+  });
+
+  it("no longer claims enforcement in the gate-armed check", async () => {
+    const armed = checkFor(await statusOf(), "deployment.gate_not_disarmed");
+    expect(armed.detail).not.toContain("enforce default is in force");
   });
 });

@@ -37,7 +37,7 @@
 // Nothing here is new path logic. All three steps reuse helpers the host
 // already ships and already tests.
 import { realpath } from "node:fs/promises";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { resolveToCwd } from "../agents/sessions/tools/path-utils.js";
 import { formatPathRelativeToCwdOrAbsolute } from "../agents/utils/paths.js";
 
@@ -174,16 +174,49 @@ export type GovernedPathResolution = {
 export async function resolveGovernedPath(
   raw: string,
   cwd?: string,
+  foreignRoots: readonly string[] = [],
 ): Promise<GovernedPathResolution> {
   const base = cwd ?? process.cwd();
   const absolute = resolveToCwd(raw, base);
   const canonicalPath = await canonicalize(absolute);
   const canonicalBase = await canonicalize(base);
+  const short = formatPathRelativeToCwdOrAbsolute(canonicalPath, canonicalBase);
   return {
-    resource: clamp(formatPathRelativeToCwdOrAbsolute(canonicalPath, canonicalBase)),
+    // Inside another agent's workspace nested under this one, the absolute form, so
+    // the baseline's "inside the workspace" allowance cannot reach it (finding 385).
+    resource: clamp(
+      insideNestedRoot(short, base, foreignRoots) ? canonicalPath.split(sep).join("/") : short,
+    ),
     absolute: canonicalPath,
     redirected: !addressesSameFile(absolute, canonicalPath),
   };
+}
+
+/**
+ * Whether a workspace-relative path lies in another agent's workspace nested under
+ * this one's (finding 385).
+ *
+ * OpenClaw places each non-default agent at `<agents.defaults.workspace>/<id>` when
+ * onboarding has set that default, which it does, so the default agent's workspace
+ * contains every other agent's. Compared in the relative form rather than by
+ * resolving each root, because the roots come from the same configuration as `cwd`
+ * and a `realpath` per agent per call is the freshness polling the gate avoids.
+ */
+function insideNestedRoot(short: string, base: string, foreignRoots: readonly string[]): boolean {
+  if (/^([A-Za-z]:\/|\/)/.test(short)) {
+    return false;
+  }
+  const fold = (value: string) => (process.platform === "win32" ? value.toLowerCase() : value);
+  const path = fold(short);
+  return foreignRoots.some((root) => {
+    const nested = relative(resolve(base), resolve(root)).split(sep).join("/");
+    // A root equal to, or outside, this workspace is not nested in it.
+    if (!nested || nested === ".." || nested.startsWith("../") || isAbsolute(nested)) {
+      return false;
+    }
+    const prefix = fold(nested);
+    return path === prefix || path.startsWith(`${prefix}/`);
+  });
 }
 
 /**
@@ -236,8 +269,9 @@ export async function resolveGovernedPath(
 export async function resolveGovernedPathForms(
   raw: string,
   cwd?: string,
+  foreignRoots: readonly string[] = [],
 ): Promise<{ recorded: string; forms: string[] }> {
-  const resolution = await resolveGovernedPath(raw, cwd);
+  const resolution = await resolveGovernedPath(raw, cwd, foreignRoots);
   const absolute = clamp(resolution.absolute.split(sep).join("/"));
   return {
     recorded: resolution.resource,
@@ -257,7 +291,11 @@ export async function resolveGovernedPathForms(
  * otherwise make every in-workspace file look like it had escaped, and every
  * short rule would stop matching.
  */
-export async function normalizeGovernedPath(raw: string, cwd?: string): Promise<string> {
+export async function normalizeGovernedPath(
+  raw: string,
+  cwd?: string,
+  foreignRoots: readonly string[] = [],
+): Promise<string> {
   // The three steps live in `resolveGovernedPath`:
   //   1. expand `~` and `file://`, make absolute, collapse `..`. The step
   //      that closes the traversal hole;
@@ -265,5 +303,5 @@ export async function normalizeGovernedPath(raw: string, cwd?: string): Promise<
   //      differently;
   //   3. short form inside the workspace, absolute outside, forward slashes.
   // This wrapper keeps the one-string signature every extractor already uses.
-  return (await resolveGovernedPath(raw, cwd)).resource;
+  return (await resolveGovernedPath(raw, cwd, foreignRoots)).resource;
 }

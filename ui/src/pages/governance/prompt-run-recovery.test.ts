@@ -426,3 +426,35 @@ describe("prompt recovery in the conversation and active sessions", () => {
     await sending;
   });
 });
+
+// Finding 387. A run the kill switch stopped showed its reason twice: as the agent's turn
+// in the transcript ("The run did not complete: …") and again as an alert beneath it,
+// because the controller also raised the outcome's error that the transcript records.
+describe("a stopped run's reason is said once", () => {
+  it("leaves the reason to the transcript turn that records it", async () => {
+    const h = harness();
+    const stopped = "The agent was stopped by the emergency kill switch.";
+    await h.controller.showConversation("scout");
+    vi.spyOn(GovernanceApi.prototype, "promptAgentStreaming").mockResolvedValue({
+      ok: false,
+      runId: "r1",
+      sessionKey: "agent:scout:governance:lina",
+      reply: "",
+      error: stopped,
+      ending: "kill-switch",
+    } as never);
+    h.transcript.mockResolvedValue({
+      agentId: "scout",
+      supported: true,
+      turns: [
+        { id: "u", role: "user", body: "long task", at: 1 },
+        { id: "a", role: "agent", body: "", at: 2, error: stopped },
+      ],
+    } as never);
+    h.controller.setDraft("long task");
+    await h.controller.sendPrompt();
+    h.draw();
+    const said = (h.conversation.textContent ?? "").split(stopped).length - 1;
+    expect(said).toBe(1);
+  });
+});

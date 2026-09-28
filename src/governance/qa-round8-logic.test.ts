@@ -75,14 +75,22 @@ describe("requirement 3: default-deny actually denies", () => {
   it("a rule for one kind never authorises another kind", async () => {
     // Each resource kind is a separate world; a command allowlist must not
     // become a path allowlist by accident.
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: ".*" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: ".*" },
+      "tester",
+    );
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "read", params: { path: "x" } }, ctx)),
     ).toBe("block");
   });
 
   it("removing the rule that permitted an action restores the denial", async () => {
-    const rule = await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    const rule = await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx)),
     ).toBe("allow");
@@ -103,6 +111,7 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
     await addRule(
       TEST_GROUP,
       {
+        description: "test rule",
         resourceKind: "command",
         pattern: "^ls$",
         expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
@@ -118,6 +127,7 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
     await addRule(
       TEST_GROUP,
       {
+        description: "test rule",
         resourceKind: "command",
         pattern: "^ls$",
         expiresAt: new Date(Date.now() - 1_000).toISOString(),
@@ -135,7 +145,12 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
     const pattern = "^deploy$";
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern, expiresAt: new Date(Date.now() + 60_000).toISOString() },
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
       "tester",
     );
     expect(
@@ -168,7 +183,11 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
 
 describe("requirement 5: the record is complete and ordered", () => {
   it("records an entry for every decision, in the order they happened", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx);
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "rm -rf /" } }, ctx);
     const agentEntries = (await tailLedger(TEST_GROUP)).filter(
@@ -182,7 +201,11 @@ describe("requirement 5: the record is complete and ordered", () => {
     // The property that makes the trail answer the question an investigation
     // starts from: was this allowed because it was legitimate, or because
     // somebody widened the rules moments earlier?
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "kinan",
+    );
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx);
     const entries = await tailLedger(TEST_GROUP);
     expect(entries.at(0)?.entryKind).toBe("admin");
@@ -195,7 +218,11 @@ describe("requirement 5: the record is complete and ordered", () => {
 
   it("keeps the chain verifiable through a full mixed workload", async () => {
     await setMode(TEST_GROUP, "enforce", "kinan");
-    const rule = await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
+    const rule = await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "kinan",
+    );
     for (let index = 0; index < 5; index += 1) {
       await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx);
       await evaluateGovernancePolicy({ toolName: "mystery", params: { i: index } }, ctx);
@@ -209,7 +236,11 @@ describe("requirement 5: the record is complete and ordered", () => {
 
 describe("requirement 7: the kill switch overrides everything else", () => {
   it("denies a locked agent even for an action an active rule permits", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx)),
@@ -217,7 +248,11 @@ describe("requirement 7: the kill switch overrides everything else", () => {
   });
 
   it("does not leak the lockdown to a different agent", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
     expect(
       verdict(
@@ -230,7 +265,11 @@ describe("requirement 7: the kill switch overrides everything else", () => {
   });
 
   it("releasing restores exactly the access the rules describe, no more", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
     await releaseAgentLockdown(TEST_GROUP, "agent-a", "kinan");
     expect(
@@ -275,7 +314,11 @@ describe("posture semantics", () => {
 
 describe("agent scoping", () => {
   it("a global rule binds every agent", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     for (const agentId of ["agent-a", "agent-b", "agent-c"]) {
       expect(
         verdict(
@@ -292,7 +335,7 @@ describe("agent scoping", () => {
   it("an agent-scoped rule binds only that agent", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
       "tester",
     );
     expect(
@@ -311,7 +354,7 @@ describe("agent scoping", () => {
   it("an unidentified caller is not authorised by an agent-scoped rule", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
       "tester",
     );
     expect(

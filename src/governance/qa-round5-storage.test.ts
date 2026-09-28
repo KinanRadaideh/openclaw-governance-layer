@@ -152,7 +152,13 @@ describe("a corrupted policy document degrades to default-deny, not to a crash",
       JSON.stringify({
         ...defaultPolicyDocument(),
         rules: [
-          { id: "ok", resourceKind: "command", pattern: "^ls$", createdAt: "2026-01-01" },
+          {
+            id: "ok",
+            description: "test rule",
+            resourceKind: "command",
+            pattern: "^ls$",
+            createdAt: "2026-01-01",
+          },
           { id: "broken", resourceKind: "command" },
           null,
         ],
@@ -218,6 +224,7 @@ describe("a rule keeps its generated id", () => {
     const rule = await addRule(
       TEST_GROUP,
       {
+        description: "test rule",
         id: undefined,
         resourceKind: "command",
         pattern: "^ls$",

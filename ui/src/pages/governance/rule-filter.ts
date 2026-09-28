@@ -108,7 +108,7 @@ export function filterRules(
       }
       return (
         rule.pattern.toLowerCase().includes(needle) ||
-        (rule.description ?? "").toLowerCase().includes(needle) ||
+        rule.description.toLowerCase().includes(needle) ||
         (rule.agentId ?? "").toLowerCase().includes(needle)
       );
     })

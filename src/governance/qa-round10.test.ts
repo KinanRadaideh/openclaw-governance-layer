@@ -58,6 +58,7 @@ async function withRules(rules: PolicyRule[]): Promise<void> {
 function rule(overrides: Partial<PolicyRule> & Pick<PolicyRule, "pattern">): PolicyRule {
   return {
     id: `r-${overrides.pattern}`,
+    description: "test rule",
     resourceKind: "command",
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,

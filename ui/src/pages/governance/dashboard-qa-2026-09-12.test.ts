@@ -41,7 +41,14 @@ type PageState = {
   agents: GovernanceAgentEntry[];
   policy: GovernancePolicyDocument | null;
   newRulePattern: string;
-  folderGrant: { folder: string; exceptions: string; agentId: string; written: null };
+  newRuleDescription: string;
+  folderGrant: {
+    folder: string;
+    description: string;
+    exceptions: string;
+    agentId: string;
+    written: null;
+  };
   killNotice: KillNotice | null;
   conversationStateForTests: Record<string, unknown>;
   ledger: GovernanceLedgerEntry[];
@@ -75,6 +82,7 @@ function identity(
 function rule(id: string, fields: Partial<GovernancePolicyRule> = {}): GovernancePolicyRule {
   return {
     id,
+    description: `test rule ${id}`,
     resourceKind: "command",
     pattern: `^${id}$`,
     createdAt: "2026-09-12T10:00:00.000Z",
@@ -87,7 +95,7 @@ function policyWith(
   lockedAgents: string[] = [],
 ): GovernancePolicyDocument {
   return {
-    version: 1,
+    version: 2,
     mode: "enforce",
     ask: "off",
     agentMode: {},
@@ -141,6 +149,7 @@ describe("a write's clash report reaches the screen", () => {
       identity: identity("root"),
       policy: policyWith([]),
       newRulePattern: "^report\\.csv$",
+      newRuleDescription: "Lets the agent read the report",
     });
     page.api = () =>
       fakeApi({
@@ -184,6 +193,7 @@ describe("a write's clash report reaches the screen", () => {
         identity: identity("root"),
         policy: policyWith([]),
         newRulePattern: "^report\\.csv$",
+        newRuleDescription: "Lets the agent read the report",
       });
       page.api = () =>
         fakeApi({
@@ -222,7 +232,13 @@ describe("a write's clash report reaches the screen", () => {
     await mount({
       identity: identity("root"),
       policy: policyWith([]),
-      folderGrant: { folder: "C:/reports", exceptions: "", agentId: "", written: null },
+      folderGrant: {
+        folder: "C:/reports",
+        description: "Lets the agent read the reports",
+        exceptions: "",
+        agentId: "",
+        written: null,
+      },
     });
     page.api = () =>
       fakeApi({

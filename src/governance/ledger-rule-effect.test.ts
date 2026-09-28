@@ -61,7 +61,12 @@ describe("a rule-change entry records which direction the change went", () => {
   it("says a denial is a denial", async () => {
     await addRule(
       group,
-      { resourceKind: "network", pattern: "^registry\\.npmjs\\.org$", effect: "deny" },
+      {
+        description: "test rule",
+        resourceKind: "network",
+        pattern: "^registry\\.npmjs\\.org$",
+        effect: "deny",
+      },
       ACTOR,
     );
 
@@ -73,7 +78,11 @@ describe("a rule-change entry records which direction the change went", () => {
     // and stays silent for the other reads as an incomplete record of the
     // second, and "silence means allow" is exactly the convention an auditor
     // cannot check.
-    await addRule(group, { resourceKind: "command", pattern: "^ls$" }, ACTOR);
+    await addRule(
+      group,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      ACTOR,
+    );
 
     expect(await lastAdd()).toContain("allow");
   });
@@ -81,11 +90,20 @@ describe("a rule-change entry records which direction the change went", () => {
   it("distinguishes the two entries the folder grant writes as one act", async () => {
     // The case that found this. Both are path rules over overlapping patterns
     // and they mean opposite things.
-    await addRule(group, { resourceKind: "path", pattern: "^/srv/app(/|$)" }, ACTOR);
+    await addRule(
+      group,
+      { description: "test rule", resourceKind: "path", pattern: "^/srv/app(/|$)" },
+      ACTOR,
+    );
     const allow = await lastAdd();
     await addRule(
       group,
-      { resourceKind: "path", pattern: "^/srv/app/secrets(/|$)", effect: "deny" },
+      {
+        description: "test rule",
+        resourceKind: "path",
+        pattern: "^/srv/app/secrets(/|$)",
+        effect: "deny",
+      },
       ACTOR,
     );
     const deny = await lastAdd();
@@ -98,7 +116,11 @@ describe("a rule-change entry records which direction the change went", () => {
   });
 
   it("records the direction of a path rule's access, which is a different grant", async () => {
-    await addRule(group, { resourceKind: "path", pattern: "^/srv/app/.*", access: "write" }, ACTOR);
+    await addRule(
+      group,
+      { description: "test rule", resourceKind: "path", pattern: "^/srv/app/.*", access: "write" },
+      ACTOR,
+    );
 
     expect(await lastAdd()).toContain("write");
   });
@@ -108,7 +130,7 @@ describe("a rule-change entry records which direction the change went", () => {
     // protection was taken away needs the direction most of all.
     const rule = await addRule(
       group,
-      { resourceKind: "path", pattern: "^/etc/shadow$", effect: "deny" },
+      { description: "test rule", resourceKind: "path", pattern: "^/etc/shadow$", effect: "deny" },
       ACTOR,
     );
 
@@ -124,7 +146,11 @@ describe("a rule-change entry records which direction the change went", () => {
     // The fields that were already there must survive the change: this entry
     // is the one an investigation reads, and narrowing it would be a worse
     // defect than the one being fixed.
-    await addRule(group, { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" }, ACTOR);
+    await addRule(
+      group,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+      ACTOR,
+    );
 
     const resource = await lastAdd();
     expect(resource).toContain("command");

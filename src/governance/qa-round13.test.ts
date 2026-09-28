@@ -98,6 +98,7 @@ async function onlyDenialsCanRefuse(kind: "command" | "path" | "network"): Promi
       ...doc.rules,
       {
         id: `qa13-open-${kind}`,
+        description: "test rule",
         resourceKind: kind,
         effect: "allow",
         tier: "admin",
@@ -205,6 +206,7 @@ describe("qa round 13. Control surfaces are governed (findings 71–73)", () => 
         ...doc.rules,
         {
           id: "qa13-screenshot",
+          description: "test rule",
           resourceKind: "command",
           effect: "allow",
           tier: "admin",

@@ -43,6 +43,7 @@ describe("the ledger records an extension of a temporary rule", () => {
     const temporary = await addRuleChecked(
       group,
       {
+        description: "test rule",
         resourceKind: "command",
         pattern: "^git fetch$",
         agentId: "agent-a",
@@ -53,7 +54,12 @@ describe("the ledger records an extension of a temporary rule", () => {
 
     const permanent = await addRuleChecked(
       group,
-      { resourceKind: "command", pattern: "^git fetch$", agentId: "agent-a" },
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^git fetch$",
+        agentId: "agent-a",
+      },
       ACTOR,
     );
 
@@ -64,7 +70,12 @@ describe("the ledger records an extension of a temporary rule", () => {
   it("says nothing extra for a rule that extends nothing", async () => {
     await addRuleChecked(
       group,
-      { resourceKind: "command", pattern: "^git fetch$", agentId: "agent-a" },
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^git fetch$",
+        agentId: "agent-a",
+      },
       ACTOR,
     );
 

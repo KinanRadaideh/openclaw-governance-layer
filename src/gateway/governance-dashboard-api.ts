@@ -48,6 +48,7 @@ import {
   isRuleAccess,
   isRuleEffect,
   resolveRuleTtl,
+  validateRuleDescription,
   validateRulePattern,
 } from "../governance/rule-validation.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
@@ -715,7 +716,7 @@ export async function handleGovernanceApiRequest(
         sendJson(res, 403, {
           error: {
             message:
-              "Only an Administrator may create a global rule. Specify agentId to scope it to an agent you manage.",
+              "Only an Administrator may create a rule for every agent. Choose one of the agents you manage for this rule.",
             type: "forbidden",
           },
         });
@@ -731,6 +732,13 @@ export async function handleGovernanceApiRequest(
     const validatedRulePattern = validateRulePattern(pattern);
     if (!validatedRulePattern.ok) {
       sendInvalidRequest(res, validatedRulePattern.error);
+      return true;
+    }
+    // Required (T70), and checked here so a caller that bypasses the dashboard
+    // is refused with the reason rather than reaching the store's own check.
+    const validatedDescription = validateRuleDescription(description);
+    if (!validatedDescription.ok) {
+      sendInvalidRequest(res, validatedDescription.error);
       return true;
     }
     const ttl = resolveRuleTtl(ttlMinutes);
@@ -787,7 +795,7 @@ export async function handleGovernanceApiRequest(
         {
           resourceKind,
           pattern: validatedRulePattern.pattern,
-          ...(typeof description === "string" && description ? { description } : {}),
+          description: validatedDescription.description,
           ...(ttl.expiresAt ? { expiresAt: ttl.expiresAt } : {}),
           ...(scopedAgentId ? { agentId: scopedAgentId } : {}),
           ...(isRuleEffect(effect) ? { effect } : {}),

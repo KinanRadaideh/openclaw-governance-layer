@@ -259,7 +259,7 @@ type PageState = HTMLElement & {
 
 function policy(): GovernancePolicyDocument {
   return {
-    version: 1,
+    version: 2,
     mode: "enforce",
     ask: "off",
     agentMode: { mine: "monitor" },

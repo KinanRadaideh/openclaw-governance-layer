@@ -224,13 +224,18 @@ export const CORE_RULES: readonly SeedRule[] = Object.freeze([
     // Matched on the subcommand pair rather than on the binary name, because
     // the binary has many spellings (`openclaw`, `node openclaw.mjs`, `npx
     // openclaw`, a global shim) and the subcommand has one. A denial is still a
-    // backstop: the real fix is a login on the CLI, which closes A6 at the same
-    // time and is tracked as future work.
+    // backstop: the real fix was a login on the CLI; the CLI was removed instead on
+    // 2026-09-07 (`old-docs/removed-cli-surface/`), and this denial was kept.
     // ---------------------------------------------------------------------
     pattern:
       "(?:^|[^A-Za-z0-9_.-])governance\\s+(?:policy|agent|kill|ledger|sessions|pending|users)\\b",
     selfProtecting: true,
-    description: "The governance command line, which can switch the gate off",
+    // Worded for the build it ships in (finding 388): the command line was removed on
+    // 2026-09-07 and the denial stays as a backstop in case it is restored. The opening is
+    // unchanged on purpose, because `seedRuleId` derives the rule's id from it and the
+    // ledger refers to that id.
+    description:
+      "The governance command line, which can switch the gate off (removed from this build; kept as a backstop in case it is restored)",
   },
   {
     resourceKind: "command",

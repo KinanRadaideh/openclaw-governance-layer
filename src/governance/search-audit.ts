@@ -49,6 +49,7 @@
 // any parsing.
 import { isAbsolute, resolve } from "node:path";
 import { resolveAgentGroup } from "./agent-group.js";
+import { nestedAgentWorkspaceRoots } from "./agent-workspace-roots.js";
 import { appendLedgerEntry } from "./audit-ledger.js";
 import { resolveGovernedPathForms } from "./path-normalize.js";
 import { matchesPattern } from "./pattern-match.js";
@@ -215,15 +216,22 @@ function applicableDenials(
   rules: readonly PolicyRule[],
   agentId: string | undefined,
   nowMs: number,
-): PolicyRule[] {
-  return rules.filter(
-    (rule) =>
-      rule.effect === "deny" &&
-      rule.resourceKind === "path" &&
-      (rule.access === undefined || rule.access === "read") &&
-      !isRuleExpired(rule, nowMs) &&
-      (rule.agentId === undefined || rule.agentId === agentId),
-  );
+): Pick<PolicyRule, "pattern">[] {
+  return [
+    ...rules.filter(
+      (rule) =>
+        rule.effect === "deny" &&
+        rule.resourceKind === "path" &&
+        (rule.access === undefined || rule.access === "read") &&
+        !isRuleExpired(rule, nowMs) &&
+        (rule.agentId === undefined || rule.agentId === agentId),
+    ),
+    // Another agent's workspace nested inside this one is withheld from a search the
+    // way a denial is: the gate will not let this agent read it unasked (finding 385).
+    ...nestedAgentWorkspaceRoots(agentId).map((root) => ({
+      pattern: `^${root.replaceAll("\\", "/").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(/|$)`,
+    })),
+  ];
 }
 
 /**

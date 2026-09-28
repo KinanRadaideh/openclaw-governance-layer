@@ -7,7 +7,7 @@
 // issued by /control-ui/governance/login. Hence `credentials: "same-origin"`.
 import type { GovernanceRole } from "../../../../src/governance/roles.ts";
 import type { GovernanceUserRecord, OrganisationDeletionResponse } from "./api.accounts.ts";
-import { GOVERNANCE_UNREACHABLE_MESSAGE, GovernanceApiError } from "./api.errors.ts";
+import { GOVERNANCE_UNREACHABLE_MESSAGE, GovernanceApiError, refusal } from "./api.errors.ts";
 
 export { GOVERNANCE_UNREACHABLE_MESSAGE, GovernanceApiError } from "./api.errors.ts";
 
@@ -57,7 +57,8 @@ export type GovernancePolicyRule = {
   id: string;
   resourceKind: "command" | "path" | "network";
   pattern: string;
-  description?: string;
+  /** Why the rule exists. Every stored rule carries one (T70); it is the rule's title. */
+  description: string;
   createdAt: string;
   expiresAt?: string;
   createdBy?: string;
@@ -77,7 +78,8 @@ export type GovernancePolicyRule = {
 };
 
 export type GovernancePolicyDocument = {
-  version: 1;
+  /** 2 since every rule gained a required description (T70). */
+  version: 2;
   mode: "enforce" | "monitor" | "off";
   ask: "off" | "on-miss";
   /** Per-agent overrides of `ask`; absent key means the agent uses the default. */
@@ -450,7 +452,7 @@ export class GovernanceApi {
         typeof error?.message === "string"
           ? [error.message, remedy].filter(Boolean).join(" ")
           : `Request failed (${response.status})`;
-      throw new GovernanceApiError(message, response.status, opts?.authenticating === true);
+      throw refusal(message, response.status, this.authToken, opts?.authenticating === true);
     }
     return parsed as T;
   }
@@ -955,7 +957,7 @@ export class GovernanceApi {
       } catch {
         // A non-JSON error body is still an error; the status carries it.
       }
-      throw new GovernanceApiError(failure, response.status);
+      throw refusal(failure, response.status, this.authToken);
     }
 
     const reader = response.body.getReader();

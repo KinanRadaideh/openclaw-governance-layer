@@ -59,6 +59,7 @@ import type { SecurityAuditFinding } from "../security/audit.types.js";
 import { shortenHomePath } from "../utils.js";
 import { attachmentStoreStats } from "./attachment-store.js";
 import { hasCheckpointForGroup } from "./audit-ledger.js";
+import { coreRules, seedRuleId } from "./baseline-policy.js";
 import { MIN_SUPPLIED_KEY_LENGTH } from "./ledger-key.js";
 import {
   governanceHomeDir,
@@ -554,7 +555,13 @@ export async function readDeploymentStatus(
   // an installation that looks clean on this report while a credential denial
   // is switched off would be worse than one with no report at all.
   // -------------------------------------------------------------------
-  const disabledCore = (await loadPolicyForDeployment(groupId)).disabledCoreRules ?? [];
+  const policy = await loadPolicyForDeployment(groupId);
+  const disabledCore = policy.disabledCoreRules ?? [];
+  // Named by description as well as id: since T70 the description is every rule's title.
+  const coreDescriptions = new Map(coreRules().map((rule) => [seedRuleId(rule), rule.description]));
+  const disabledNames = disabledCore.map((id) =>
+    coreDescriptions.has(id) ? `${coreDescriptions.get(id)} (${id})` : id,
+  );
   checks.push(
     disabledCore.length === 0
       ? check(
@@ -570,9 +577,54 @@ export async function readDeploymentStatus(
           // deliberate reduction of the floor the report's central claim rests
           // on, and Chapter 4 quotes this output as evidence.
           "fail",
-          `${disabledCore.length} core rule(s) switched off by Root: ${disabledCore.join(", ")}.`,
+          `${disabledCore.length} core rule(s) switched off by Root: ${disabledNames.join("; ")}.`,
           "Switch it back on in the Policy section of the governance dashboard, or record the deviation deliberately. This report is evidence, and it should say what is actually in force.",
         ),
+  );
+
+  // -------------------------------------------------------------------
+  // The posture in force (finding 390).
+  //
+  // Nothing here read it, so with governance switched off for every agent this report
+  // said 0 failed and that enforcement was in force. Off fails for the reason a
+  // switched-off core rule does. Monitor warns rather than fails: it is the documented
+  // way to discover rules from real behaviour, forbid rules and the kill switch still
+  // apply under it, and it is still a period in which nothing unlisted is blocked.
+  // -------------------------------------------------------------------
+  const monitored = Object.entries(policy.agentMode ?? {})
+    .filter(([, mode]) => mode === "monitor")
+    .map(([agentId]) => agentId);
+  checks.push(
+    policy.mode === "off"
+      ? check(
+          "deployment.posture_enforce",
+          "Governance is enforcing",
+          "fail",
+          "Governance is switched off for every agent: nothing is checked, blocked or recorded, the core denials and the kill switch included.",
+          "Set the posture back to Enforce in the Policy section of the governance dashboard.",
+        )
+      : policy.mode === "monitor"
+        ? check(
+            "deployment.posture_enforce",
+            "Governance is enforcing",
+            "warn",
+            "The installation is in Monitor: forbid rules and the kill switch still apply, and every action no rule covers is allowed and only recorded.",
+            "Set the posture back to Enforce in the Policy section once the rules you were discovering are written.",
+          )
+        : monitored.length > 0
+          ? check(
+              "deployment.posture_enforce",
+              "Governance is enforcing",
+              "warn",
+              `Enforcing, except ${monitored.length} agent(s) in Monitor, where actions no rule covers are allowed and only recorded: ${monitored.join(", ")}.`,
+              "Use default on each agent's posture row in the Policy section once its rules are written.",
+            )
+          : check(
+              "deployment.posture_enforce",
+              "Governance is enforcing",
+              "pass",
+              "Enforce is the posture for every agent: an action no rule covers is asked about or refused.",
+            ),
   );
 
   // -------------------------------------------------------------------
@@ -672,7 +724,9 @@ export async function readDeploymentStatus(
           "deployment.gate_not_disarmed",
           "The governance gate is armed",
           "pass",
-          "The test-only posture that disables the gate does not apply here, so the shipped enforce default is in force.",
+          // What the gate enforces is the posture check's to say (finding 390); this sentence used
+          // to claim enforcement while the posture was Off.
+          "The test-only posture that disables the gate does not apply here.",
         ),
   );
 

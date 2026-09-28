@@ -8,6 +8,7 @@ const HOUR = 3_600_000;
 function existing(overrides: Partial<PolicyRule> = {}): PolicyRule {
   return {
     id: "existing-1",
+    description: "test rule",
     resourceKind: "command",
     pattern: "^ls$",
     createdAt: new Date(NOW - 10 * HOUR).toISOString(),
@@ -167,18 +168,24 @@ describe("QA pass: clash warnings must not overstate coverage", () => {
     // catch-all lapses the candidate is the only thing granting access, and an
     // operator who believes the message may delete it.
     const soon = new Date(Date.now() + 60_000).toISOString();
-    const conflicts = detectRuleConflicts([{ ...base, id: "r1", pattern: ".*", expiresAt: soon }], {
-      resourceKind: "command",
-      pattern: "^ls$",
-    });
+    const conflicts = detectRuleConflicts(
+      [{ description: "test rule", ...base, id: "r1", pattern: ".*", expiresAt: soon }],
+      {
+        resourceKind: "command",
+        pattern: "^ls$",
+      },
+    );
     expect(conflicts).toEqual([]);
   });
 
   it("still reports a catch-all that genuinely covers the candidate", () => {
-    const conflicts = detectRuleConflicts([{ ...base, id: "r1", pattern: ".*" }], {
-      resourceKind: "command",
-      pattern: "^ls$",
-    });
+    const conflicts = detectRuleConflicts(
+      [{ description: "test rule", ...base, id: "r1", pattern: ".*" }],
+      {
+        resourceKind: "command",
+        pattern: "^ls$",
+      },
+    );
     expect(conflicts.at(0)?.kind).toBe("covered-by-catch-all");
   });
 
@@ -187,10 +194,13 @@ describe("QA pass: clash warnings must not overstate coverage", () => {
     // pattern matches far more than it appears to. `^` and `$` are zero-width
     // and match every string; `.` and `.+` match every non-empty one.
     for (const pattern of ["^", "$", ".", ".+", "^.+$", "(.+)", "[\\s\\S]*"]) {
-      const conflicts = detectRuleConflicts([{ ...base, id: "r1", pattern }], {
-        resourceKind: "command",
-        pattern: "^ls$",
-      });
+      const conflicts = detectRuleConflicts(
+        [{ description: "test rule", ...base, id: "r1", pattern }],
+        {
+          resourceKind: "command",
+          pattern: "^ls$",
+        },
+      );
       expect(conflicts.at(0)?.kind, `pattern ${pattern}`).toBe("covered-by-catch-all");
     }
   });

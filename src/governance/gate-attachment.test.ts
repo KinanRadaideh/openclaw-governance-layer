@@ -97,7 +97,11 @@ describe("the policy gate is reached through the host's tool hook", () => {
   });
 
   it("lets an allowed command through", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     const outcome = await runBeforeToolCallHook({
       toolName: "exec",
       params: { command: "ls" },
@@ -107,7 +111,11 @@ describe("the policy gate is reached through the host's tool hook", () => {
   });
 
   it("enforces lockdown through the hook", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     await lockAgent(TEST_GROUP, "agent-a");
     const outcome = await runBeforeToolCallHook({
       toolName: "exec",

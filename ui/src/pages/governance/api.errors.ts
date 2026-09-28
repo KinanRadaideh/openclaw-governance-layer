@@ -26,6 +26,15 @@ export const GOVERNANCE_UNREACHABLE_MESSAGE =
  * no error. By then "unreachable" is false, and "it failed" may be too if the
  * connection dropped after the Gateway acted, so it says exactly what is known.
  */
+/**
+ * What a request is told when it went out without the Gateway credential (finding 396).
+ *
+ * Happens between the Gateway answering HTTP again and the page's connection to it
+ * being re-established; the next refresh carries the credential and works.
+ */
+export const GOVERNANCE_NOT_CONNECTED_MESSAGE =
+  "The dashboard is reconnecting to the Gateway, so this could not be checked yet. It will retry on its own; if you pressed a button, try it again in a moment.";
+
 export const GOVERNANCE_RECONNECTED_MESSAGE =
   "The Gateway is reachable again, but it could not be reached when you last pressed a button, so that action may not have taken effect. Check the page, and try again if it did not.";
 
@@ -59,8 +68,27 @@ export class GovernanceApiError extends Error {
      * model to carry into an incident.
      */
     readonly authenticating = false,
+    /**
+     * The request carried no Gateway credential, so its 401 is the Gateway's own
+     * gate and not the governance session (finding 396). The page's credential is
+     * the device token its connection received, which is gone while the Gateway
+     * restarts; reading that 401 as a lost session signed every operator out.
+     */
+    readonly withoutGatewayCredential = false,
   ) {
     super(message);
     this.name = "GovernanceApiError";
   }
+}
+
+/** A refusal as the page must read it: a 401 to a request sent bare is the Gateway's gate (finding 396). */
+export function refusal(
+  message: string,
+  status: number,
+  credential: string | null,
+  authenticating = false,
+): GovernanceApiError {
+  return status === 401 && !credential && !authenticating
+    ? new GovernanceApiError(GOVERNANCE_NOT_CONNECTED_MESSAGE, status, false, true)
+    : new GovernanceApiError(message, status, authenticating);
 }

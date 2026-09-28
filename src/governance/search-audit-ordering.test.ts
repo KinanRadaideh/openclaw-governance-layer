@@ -55,7 +55,11 @@ beforeEach(async () => {
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
   resetLedgerKeyCacheForTests();
   TEST_GROUP = await seedGroupWithAgents([AGENT]);
-  await addRule(TEST_GROUP, { resourceKind: "path", pattern: ".*\\.env$", effect: "deny" }, ACTOR);
+  await addRule(
+    TEST_GROUP,
+    { description: "test rule", resourceKind: "path", pattern: ".*\\.env$", effect: "deny" },
+    ACTOR,
+  );
 });
 
 afterEach(async () => {

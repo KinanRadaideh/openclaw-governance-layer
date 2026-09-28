@@ -94,7 +94,7 @@ describe("T23. The gate binds the call to the path it judged", () => {
     // approval, voice confirmation, trusted tool policies, plugin hooks.
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^safe/.*$", access: "read" },
+      { description: "test rule", resourceKind: "path", pattern: "^safe/.*$", access: "read" },
       TEST_ACTOR,
     );
     const decision = await evaluateGovernancePolicy(
@@ -131,7 +131,7 @@ describe("T23. The gate binds the call to the path it judged", () => {
     // testing the binding rather than the verdict.
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^safe/.*$", access: "read" },
+      { description: "test rule", resourceKind: "path", pattern: "^safe/.*$", access: "read" },
       TEST_ACTOR,
     );
     const decision = await evaluateGovernancePolicy(
@@ -151,7 +151,7 @@ describe("T23. The gate binds the call to the path it judged", () => {
     }
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^safe/.*$", access: "write" },
+      { description: "test rule", resourceKind: "path", pattern: "^safe/.*$", access: "write" },
       TEST_ACTOR,
     );
     const decision = await evaluateGovernancePolicy(
@@ -171,7 +171,7 @@ describe("T23. The gate binds the call to the path it judged", () => {
     // not read.
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^safe/.*$", access: "write" },
+      { description: "test rule", resourceKind: "path", pattern: "^safe/.*$", access: "write" },
       TEST_ACTOR,
     );
     const decision = await evaluateGovernancePolicy(
@@ -213,7 +213,7 @@ describe("T23. The gate binds the call to the path it judged", () => {
     }
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^safe/.*$", access: "read" },
+      { description: "test rule", resourceKind: "path", pattern: "^safe/.*$", access: "read" },
       TEST_ACTOR,
     );
     const decision = await evaluateGovernancePolicy(
@@ -240,7 +240,7 @@ describe("T23. The gate binds the call to the path it judged", () => {
     }
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^safe/.*$", access: "read" },
+      { description: "test rule", resourceKind: "path", pattern: "^safe/.*$", access: "read" },
       TEST_ACTOR,
     );
     const decision = await evaluateGovernancePolicy(

@@ -263,17 +263,25 @@ export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResul
       rows.push(
         renderSettingsRow({
           // The rule's own sentence, not its regular expression. Finding 99,
-          // applied here rather than rediscovered.
-          title: rule.description || rule.pattern,
+          // applied here rather than rediscovered; every rule carries one since
+          // T70, and the exact pattern stays on the line beneath.
+          title: rule.description,
           description: `${rule.resourceKind} · ${rule.pattern}${
             rule.expiresAt ? ` · ${t("governance.rules.expires")} ${rule.expiresAt}` : ""
           }`,
+          // The effect in words as well as colour (finding 391): the title is the
+          // operator's free text, so it cannot be relied on to say allow or forbid.
           control: renderSettingsStatus({
             kind: rule.effect === "deny" ? "warn" : "ok",
-            label:
+            label: `${
+              rule.effect === "deny"
+                ? t("governance.policy.effectDeny")
+                : t("governance.policy.effectAllow")
+            } · ${
               scope === "global"
                 ? t("governance.agentPolicy.viaGlobal")
-                : t("governance.agentPolicy.viaAgent"),
+                : t("governance.agentPolicy.viaAgent")
+            }`,
           }),
         }),
       );

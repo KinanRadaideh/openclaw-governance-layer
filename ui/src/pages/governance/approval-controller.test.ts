@@ -138,6 +138,32 @@ describe("waiting approvals on the governance page", () => {
     expect(page.controller.slice().errors.size).toBe(0);
   });
 
+  // Finding 386. Two accounts answered one escalation; the second press arrived after
+  // the first and was refused with 404, and the read that followed removed the card and
+  // the refusal with it, so the operator who pressed Allow never learned the answer used
+  // was somebody else's Deny.
+  it("says an answer was not used after its card has gone, until dismissed", async () => {
+    const page = harness();
+    await page.controller.refresh();
+    page.decide.mockRejectedValueOnce(
+      new GovernanceApiError("That approval is no longer waiting.", 404),
+    );
+    page.setView({ approvals: [], notices: [] });
+    page.controller.slice().decide("plugin:1", "allow-once");
+    await vi.waitFor(() => expect(page.decide).toHaveBeenCalled());
+    await page.controller.refresh();
+
+    const notices = page.controller.slice().notices;
+    expect(page.controller.slice().approvals).toEqual([]);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.message).toContain("Governance: unlisted path");
+    expect(notices[0]?.message).toContain("not used");
+
+    page.controller.slice().dismissNotice(notices[0]!.id);
+    await page.controller.refresh();
+    expect(page.controller.slice().notices).toEqual([]);
+  });
+
   it("keeps a dismissed follow-up dismissed across reads", async () => {
     const page = harness();
     const notice = {

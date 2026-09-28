@@ -148,7 +148,12 @@ describe("qa round 12. The gate works on a real chat deployment", () => {
     });
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^deploy$", agentId: "agent-a" },
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^deploy$",
+        agentId: "agent-a",
+      },
       "kinan",
     );
     expect(

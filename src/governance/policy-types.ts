@@ -66,7 +66,22 @@ export type PolicyRule = {
   access?: RuleAccess;
   /** Regular expression (string form) tested against the extracted resource string. */
   pattern: string;
-  description?: string;
+  /**
+   * Why the rule exists, in words another operator can act on later (T70).
+   *
+   * **Required on every stored rule.** A regular expression says what the engine
+   * matches; it does not say what the rule is for, and a policy that can only be
+   * read by parsing `[eE][nN][vV]` is one nobody can audit. The same field is the
+   * rule's title in every policy view and travels into the ledger entry that
+   * records the rule being added or removed, so there is one sentence per rule
+   * rather than a title and a reason that can drift apart.
+   *
+   * Written by a person where a person authors the rule (the add-rule form, a
+   * folder grant's stated purpose, a rule request's reason) and declared in
+   * source for the core and baseline rules. **Never consulted by evaluation**:
+   * it explains a rule and has no effect on what the rule matches.
+   */
+  description: string;
   createdAt: string;
   /**
    * ISO timestamp after which the rule stops applying.
@@ -107,8 +122,18 @@ export type PolicyRule = {
   selfProtecting?: boolean;
 };
 
+/**
+ * The stored document's format.
+ *
+ * **2 since T70**, when every rule gained a required `description`. A version-1
+ * document is repaired once as it is read (`loadPolicy`) and written back as
+ * version 2 by the next policy write; a version-2 document is trusted to carry a
+ * description on every rule, and one that does not is malformed.
+ */
+export const POLICY_DOCUMENT_VERSION = 2;
+
 export type PolicyDocument = {
-  version: 1;
+  version: typeof POLICY_DOCUMENT_VERSION;
   mode: GovernanceMode;
   /** Installation-wide default for unlisted actions. */
   ask: AskMode;
@@ -260,7 +285,7 @@ export const MAX_HITL_TIMEOUT_SECONDS = 86_400;
  */
 export function defaultPolicyDocument(): PolicyDocument {
   return {
-    version: 1,
+    version: POLICY_DOCUMENT_VERSION,
     mode: "enforce",
     ask: "on-miss",
     agentMode: {},

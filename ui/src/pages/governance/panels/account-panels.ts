@@ -54,6 +54,7 @@ import type {
   GovernanceRuleRequest,
   GovernanceUserRecord,
 } from "../api.ts";
+import { renderAnswersToControl } from "./account-manager-control.ts";
 import { renderAgentSettingRequestRow } from "./agent-setting-request.ts";
 import type { RuleRequestDrafts } from "./rule-request-drafts.ts";
 import { renderRuleRequestPreview } from "./rule-request-preview.ts";
@@ -93,8 +94,9 @@ const ASSIGNABLE_ROLE_OPTIONS: ReadonlyArray<{ value: GovernanceRole; label: str
  * Viewer is unchanged. Only an Administrator being demoted needs a successor
  * chosen, and the first other Administrator is chosen rather than prompted for:
  * the alternative is another control on the busiest row of the page, and the
- * choice is visible in the confirmation and changeable afterwards through the
- * ordinary manager field.
+ * choice is visible in the confirmation and changeable afterwards with the row's
+ * "Administrator this account answers to" picker (finding 383; before it, no such
+ * field existed and this sentence was untrue).
  */
 /** Who a request is from: the account that answered an escalation, when one did (C15). */
 function requester(request: GovernanceRuleRequest): string {
@@ -291,8 +293,12 @@ export class AccountsController {
    * the field: the owner of the state is the right place to know which part of
    * it must not outlive a session.
    */
-  clearSecrets(): void {
-    this.drafts = { ...this.drafts, passwordEdits: {}, orgConfirmName: "" };
+  reset(): void {
+    // All of it, not only the secrets (finding 392). This used to clear the per-row
+    // passwords and the organisation confirmation and keep the rest, which kept the
+    // half-typed new account, its password included, for the next account signed in.
+    // `orgNotice` is handed to the page before the sign-out, so nothing is lost here.
+    this.drafts = emptyAccountDrafts();
     this.host.requestUpdate();
   }
 }
@@ -473,6 +479,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
                       );
                     },
                   })}
+            ${renderAnswersToControl(user, props)}
             ${user.role === "user" || user.role === "viewer"
               ? html`<input
                     class="input"

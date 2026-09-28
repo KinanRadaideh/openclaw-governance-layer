@@ -171,8 +171,11 @@ export function renderRootPolicySettings(
     // enforces regardless.
     ...(policy.switchedOffCoreRules ?? []).map((rule) =>
       renderSettingsRow({
-        title: rule.description ?? rule.pattern,
-        description: t("governance.policy.coreRuleOffHint"),
+        // Description first and the exact pattern beneath, as in the rule list (T70).
+        title: rule.description,
+        description: html`<code class="governance-rule__pattern">${rule.pattern}</code><br />${t(
+            "governance.policy.coreRuleOffHint",
+          )}`,
         control: isRoot
           ? html`<button
               class="btn"

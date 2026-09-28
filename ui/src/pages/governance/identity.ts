@@ -49,7 +49,13 @@ export function isSessionLost(err: unknown): boolean {
   // left showing out-of-date information" — an event that had not happened, on
   // a screen the operator was already looking at, in place of the server's own
   // "Invalid credentials", which `run()` then never reached.
-  return err instanceof GovernanceApiError && err.status === 401 && !err.authenticating;
+  // Nor is a 401 to a request that carried no Gateway credential (finding 396).
+  return (
+    err instanceof GovernanceApiError &&
+    err.status === 401 &&
+    !err.authenticating &&
+    !err.withoutGatewayCredential
+  );
 }
 
 /** Administrator and Root: the tiers that may change policy and accounts. */

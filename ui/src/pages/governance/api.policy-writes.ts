@@ -7,8 +7,21 @@
 // there is still one place to look for "what can this dashboard call".
 import type { GovernancePolicyRule, GovernanceRuleCreation } from "./api.ts";
 
+/**
+ * The longest rule description the server accepts, mirrored as the inputs'
+ * `maxlength`. Mirrored by hand from `MAX_RULE_DESCRIPTION_LENGTH` in
+ * `src/governance/rule-validation.ts`, because the dashboard bundle does not
+ * import from `src/`; the server refuses a longer one regardless.
+ */
+export const MAX_RULE_DESCRIPTION_LENGTH = 500;
+
 export type FolderGrantRequest = {
   folder: string;
+  /**
+   * Why the folder is granted (T70). Required; the server refuses a blank one and
+   * carries it into the description of the grant and of every exception.
+   */
+  description: string;
   exceptions: string[];
   /** Omit for a grant binding every agent, which needs Administrator. */
   agentId?: string;
@@ -43,7 +56,12 @@ export type FolderGrantResponse = {
 export type AddRuleRequest = {
   resourceKind: GovernancePolicyRule["resourceKind"];
   pattern: string;
-  description?: string;
+  /**
+   * Why the rule exists, in words another operator can act on (T70). Required,
+   * at most `MAX_RULE_DESCRIPTION_LENGTH` characters; the server refuses a blank
+   * one and trims what it stores.
+   */
+  description: string;
   ttlMinutes?: number;
   /** Omit for a global rule (Administrator+); set to scope to one agent. */
   agentId?: string;

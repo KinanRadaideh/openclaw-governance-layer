@@ -108,7 +108,7 @@ describe("who may grant a folder", () => {
   it("lets an Administrator grant one binding every agent", async () => {
     const before = await ruleCount();
     const reply = await post(
-      { folder: "work", exceptions: ["work/secrets"] },
+      { folder: "work", description: "test grant", exceptions: ["work/secrets"] },
       session("administrator"),
     );
 
@@ -120,7 +120,10 @@ describe("who may grant a folder", () => {
     // The tier split this control inherits from `policy/rules`: managing your
     // own agent is not managing everybody's.
     const before = await ruleCount();
-    const reply = await post({ folder: "work" }, session("user", [AGENT]));
+    const reply = await post(
+      { folder: "work", description: "test grant" },
+      session("user", [AGENT]),
+    );
 
     expect(reply.status).toBe(403);
     expect(await ruleCount()).toBe(before);
@@ -128,7 +131,10 @@ describe("who may grant a folder", () => {
 
   it("lets a User grant a folder to an agent assigned to them", async () => {
     const before = await ruleCount();
-    const reply = await post({ folder: "work", agentId: AGENT }, session("user", [AGENT]));
+    const reply = await post(
+      { folder: "work", description: "test grant", agentId: AGENT },
+      session("user", [AGENT]),
+    );
 
     expect(reply.status).toBe(200);
     expect(await ruleCount()).toBe(before + 1);
@@ -136,7 +142,10 @@ describe("who may grant a folder", () => {
 
   it("refuses a User an agent that is not theirs", async () => {
     const before = await ruleCount();
-    const reply = await post({ folder: "work", agentId: "agent-b" }, session("user", [AGENT]));
+    const reply = await post(
+      { folder: "work", description: "test grant", agentId: "agent-b" },
+      session("user", [AGENT]),
+    );
 
     expect(reply.status).toBe(403);
     expect(await ruleCount()).toBe(before);
@@ -144,7 +153,10 @@ describe("who may grant a folder", () => {
 
   it("refuses a Viewer outright", async () => {
     const before = await ruleCount();
-    const reply = await post({ folder: "work", agentId: AGENT }, session("viewer", [AGENT]));
+    const reply = await post(
+      { folder: "work", description: "test grant", agentId: AGENT },
+      session("viewer", [AGENT]),
+    );
 
     expect(reply.status).toBe(403);
     expect(await ruleCount()).toBe(before);
@@ -158,7 +170,10 @@ describe("what the route refuses to accept", () => {
   });
 
   it("rejects exceptions that are not an array of strings", async () => {
-    const reply = await post({ folder: "work", exceptions: [1, 2] }, session("administrator"));
+    const reply = await post(
+      { folder: "work", description: "test grant", exceptions: [1, 2] },
+      session("administrator"),
+    );
     expect(reply.status).toBe(400);
   });
 
@@ -167,7 +182,7 @@ describe("what the route refuses to accept", () => {
     // what they meant. Hiding it behind a 500 would leave them guessing, and the
     // message names both paths and what to do instead.
     const reply = await post(
-      { folder: "work", exceptions: ["etc/passwd"] },
+      { folder: "work", description: "test grant", exceptions: ["etc/passwd"] },
       session("administrator"),
     );
 
@@ -176,7 +191,10 @@ describe("what the route refuses to accept", () => {
   });
 
   it("rejects an access value it does not understand", async () => {
-    const reply = await post({ folder: "work", access: "sideways" }, session("administrator"));
+    const reply = await post(
+      { folder: "work", description: "test grant", access: "sideways" },
+      session("administrator"),
+    );
     expect(reply.status).toBe(400);
   });
 });

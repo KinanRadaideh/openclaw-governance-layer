@@ -66,7 +66,11 @@ async function entryFor(action: string): Promise<LedgerEntry | undefined> {
 
 describe("policy changes are attributable", () => {
   it("records who added a rule, and what the rule actually grants", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "kinan",
+    );
     const entry = await entryFor(ADMIN_ACTIONS.ruleAdd);
     expect(entry?.actor).toBe("kinan");
     // Scope and lifetime, not just the pattern: the same pattern is a very
@@ -80,7 +84,7 @@ describe("policy changes are attributable", () => {
   it("describes a removed rule in full, because nothing else still holds it", async () => {
     const rule = await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^src/.*$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "path", pattern: "^src/.*$", agentId: "agent-a" },
       "kinan",
     );
     await removeRule(TEST_GROUP, rule.id, "malek");
@@ -116,14 +120,18 @@ describe("policy changes are attributable", () => {
     // projectLedgerForActor filters by agent, so this field decides visibility.
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
       "kinan",
     );
     expect((await entryFor(ADMIN_ACTIONS.ruleAdd))?.agentId).toBe("agent-a");
   });
 
   it("marks an installation-wide change as belonging to no single agent", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "kinan",
+    );
     expect((await entryFor(ADMIN_ACTIONS.ruleAdd))?.agentId).toBe("-");
   });
 });
@@ -340,7 +348,11 @@ describe("tamper-evidence survives the added fields", () => {
   it("detects an actor stripped from an administrative entry", async () => {
     // The mirror image: covering your tracks by deleting the field that names
     // you, leaving the action recorded but unattributed.
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "mallory");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "mallory",
+    );
     const raw = await readFile(ledgerFilePath(TEST_GROUP), "utf8");
     const line = raw.trim().split("\n").at(-1);
     const parsed = JSON.parse(line ?? "{}") as LedgerEntry & { actor?: string };
@@ -350,7 +362,11 @@ describe("tamper-evidence survives the added fields", () => {
   });
 
   it("detects an actor's name being changed to somebody else's", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "mallory");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "mallory",
+    );
     const raw = await readFile(ledgerFilePath(TEST_GROUP), "utf8");
     const parsed = JSON.parse(raw.trim().split("\n").at(-1) ?? "{}") as LedgerEntry;
     await writeFile(
@@ -366,7 +382,11 @@ describe("tamper-evidence survives the added fields", () => {
   it("keeps one chain for agent and administrative activity, in order", async () => {
     // Interleaving is the point of a single chain: "the rule was widened, then
     // the agent used it" is only legible when both appear in one sequence.
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "kinan",
+    );
     await appendFile(ledgerFilePath(TEST_GROUP), "", "utf8");
     await setAskMode(TEST_GROUP, "off", "kinan");
     const entries = await tailLedger(TEST_GROUP);

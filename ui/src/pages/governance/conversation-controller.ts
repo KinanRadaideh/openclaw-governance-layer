@@ -561,7 +561,7 @@ export class ConversationController implements ReactiveController {
     this.stopping = false;
     this.changed();
     try {
-      const outcome = await this.bridge.api().promptAgentStreaming(
+      await this.bridge.api().promptAgentStreaming(
         agentId,
         message,
         {
@@ -599,15 +599,11 @@ export class ConversationController implements ReactiveController {
       // queued, because the files are already uploaded and making the operator
       // pick them again would be a second failure caused by the first.
       this.attachments = [];
-      if (!outcome.ok) {
-        // A cancellation is not a failure and is not reported as one. The
-        // operator asked for it, they already know, and dressing it up as an
-        // error is how a page teaches somebody to stop reading its errors.
-        this.error =
-          outcome.ending === "cancelled"
-            ? null
-            : (outcome.error ?? t("governance.conversation.failed"));
-      }
+      // **A run that returned is not raised here as an error** (finding 387). The server
+      // records every unfinished run as the agent's turn, with its reason, before it
+      // answers, and the transcript reloaded below renders that turn; raising the same
+      // reason here showed it twice. A cancellation was already left alone, because the
+      // operator asked for it. Only a prompt that never ran (the catch below) reaches here.
     } catch (err) {
       if (session !== this.sessionVersion) {
         return;

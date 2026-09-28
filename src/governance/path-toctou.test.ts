@@ -118,7 +118,7 @@ describe("the window between the gate's resolve and the tool's open", () => {
 
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^safe/.*$", access: "read" },
+      { description: "test rule", resourceKind: "path", pattern: "^safe/.*$", access: "read" },
       TEST_ACTOR,
     );
     expect(
@@ -191,7 +191,7 @@ describe("the window between the gate's resolve and the tool's open", () => {
     }
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^escape/.*$", access: "read" },
+      { description: "test rule", resourceKind: "path", pattern: "^escape/.*$", access: "read" },
       TEST_ACTOR,
     );
 
@@ -215,7 +215,7 @@ describe("the window between the gate's resolve and the tool's open", () => {
     await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^escape/.*$", access: "read" },
+      { description: "test rule", resourceKind: "path", pattern: "^escape/.*$", access: "read" },
       TEST_ACTOR,
     );
     expect(

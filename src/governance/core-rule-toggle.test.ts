@@ -124,7 +124,11 @@ describe("the five that are Root's to decide", () => {
   it("lets an operator rule take effect once the core denial is off", async () => {
     const sudo = idFor("privilege-escalation");
     const { addRule } = await import("./policy-store.js");
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^sudo ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^sudo ls$" },
+      TEST_ACTOR,
+    );
 
     // A core denial is consulted before allow rules, so the allowance is inert
     // while it stands. This is the whole reason an operator might need the

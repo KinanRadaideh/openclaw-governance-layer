@@ -198,6 +198,16 @@ export class AgentRegistryController {
   hostConnected(): void {}
 
   /**
+   * Back to an empty panel when a session ends (finding 392). The row notices and the
+   * provisioning form are the previous account's, and the page's own reset never
+   * reached them because they live here.
+   */
+  reset(): void {
+    this.drafts = emptyAgentRegistryDrafts();
+    this.host.requestUpdate();
+  }
+
+  /**
    * The half of the panel's props that this controller owns.
    *
    * **Spread this last.** `onDraft` is a name several panels use, and the page
@@ -549,19 +559,31 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
         ?disabled=${props.busy || !name || ownerMissing}
         @click=${() =>
           void props.run(async () => {
-            const result = await props.api().provisionAgent({
-              displayName: name,
-              ...(ownerChosen ? { adminId: ownerChosen } : {}),
-              ...(props.drafts.provisionId.trim()
-                ? { agentId: props.drafts.provisionId.trim() }
-                : {}),
-              ...(props.drafts.provisionWorkspace.trim()
-                ? { workspace: props.drafts.provisionWorkspace.trim() }
-                : {}),
-              ...(props.drafts.provisionModel.trim()
-                ? { model: props.drafts.provisionModel.trim() }
-                : {}),
+            // Said while it runs (finding 384): creating an agent takes 35 to 77 s, and the
+            // page otherwise showed nothing but greyed-out controls for the whole wait.
+            props.onDraft({
+              provisionNotice: t("governance.agents.creating", { name }),
+              provisionNoticeWarning: false,
             });
+            const result = await props
+              .api()
+              .provisionAgent({
+                displayName: name,
+                ...(ownerChosen ? { adminId: ownerChosen } : {}),
+                ...(props.drafts.provisionId.trim()
+                  ? { agentId: props.drafts.provisionId.trim() }
+                  : {}),
+                ...(props.drafts.provisionWorkspace.trim()
+                  ? { workspace: props.drafts.provisionWorkspace.trim() }
+                  : {}),
+                ...(props.drafts.provisionModel.trim()
+                  ? { model: props.drafts.provisionModel.trim() }
+                  : {}),
+              })
+              .catch((err: unknown) => {
+                props.onDraft({ provisionNotice: "" });
+                throw err;
+              });
             // The notice distinguishes "created and running" from "created,
             // not yet visible". Collapsing them would make the success message
             // a claim the page has not checked. The green tick this project

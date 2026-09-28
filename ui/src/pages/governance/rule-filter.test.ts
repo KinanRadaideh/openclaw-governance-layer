@@ -19,6 +19,7 @@ function rule(
 ): GovernancePolicyRule {
   return {
     id: `rule-${overrides.pattern}`,
+    description: `test rule ${overrides.pattern}`,
     resourceKind: "command",
     createdAt: "2026-08-21T00:00:00.000Z",
     ...overrides,

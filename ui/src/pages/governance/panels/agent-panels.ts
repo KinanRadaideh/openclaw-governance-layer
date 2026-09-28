@@ -471,30 +471,37 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
             // where the operator means an agent that is real but idle, which
             // is legitimate and must stay possible, so this informs rather
             // than blocks.
-            typed && !props.isKnownAgentId(typed)
+            // **Not this operator's to stop is asked first** (finding 394). A User's known
+            // set excludes other accounts' agents, so the unknown-id sentence ("locking it
+            // down will still succeed") used to win for an agent the button refuses.
+            typed && !props.canAdminister && !canManageAgent(props.identity, typed)
               ? html`<div class="settings-empty" role="status" style="flex-basis:100%">
-                  ${t("governance.kill.unknownAgent")}
+                  ${t("governance.kill.notYourAgent")}
                 </div>`
-              : // Known, and **not governed**, which is neither of the two
-                // states below it. The kill switch acts through the policy
-                // layer, and an unregistered agent has no record there for a
-                // lockdown to attach to, so the server refuses — with the
-                // tier's message, which is false for the tier that reads it
-                // most. Said here, with the step that fixes it, because the
-                // remedy is one section up on the same page.
-                typed && unregistered(props, typed)
+              : typed && !props.isKnownAgentId(typed)
                 ? html`<div class="settings-empty" role="status" style="flex-basis:100%">
-                    ${t("governance.kill.unregisteredAgent")}
+                    ${t("governance.kill.unknownAgent")}
                   </div>`
-                : // Known to the page, and not this operator's to stop. Said here
-                  // rather than left to the server's 403, because the field is
-                  // free text and an emergency control that fails after you press
-                  // it is the wrong place to learn you typed someone else's agent.
-                  typed && !canManageAgent(props.identity, typed)
+                : // Known, and **not governed**, which is neither of the two
+                  // states below it. The kill switch acts through the policy
+                  // layer, and an unregistered agent has no record there for a
+                  // lockdown to attach to, so the server refuses — with the
+                  // tier's message, which is false for the tier that reads it
+                  // most. Said here, with the step that fixes it, because the
+                  // remedy is one section up on the same page.
+                  typed && unregistered(props, typed)
                   ? html`<div class="settings-empty" role="status" style="flex-basis:100%">
-                      ${t("governance.kill.notYourAgent")}
+                      ${t("governance.kill.unregisteredAgent")}
                     </div>`
-                  : nothing
+                  : // Known to the page, and not this operator's to stop. Said here
+                    // rather than left to the server's 403, because the field is
+                    // free text and an emergency control that fails after you press
+                    // it is the wrong place to learn you typed someone else's agent.
+                    typed && !canManageAgent(props.identity, typed)
+                    ? html`<div class="settings-empty" role="status" style="flex-basis:100%">
+                        ${t("governance.kill.notYourAgent")}
+                      </div>`
+                    : nothing
           }
           <datalist id="governance-known-agents">
             ${
@@ -509,20 +516,24 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
           </datalist>
           <button
             class="btn danger"
-            ?disabled=${props.busy ||
-            !typed ||
-            !canManageAgent(props.identity, typed) ||
-            // **`unregistered` joins the disable list** (finding 341). The
-            // warning above tells the operator the stop will be refused, and
-            // the button beside it stayed pressable — measured as Root, who
-            // passes `canManageAgent` for any id. This page's own rule, stated
-            // where the role picker drops `root`, is that it "does not offer a
-            // control whose only possible outcome is a refusal", and an agent
-            // governance holds no record for is exactly that: there is nothing
-            // to lock down, whoever is asking. Distinct from the *unknown* id
-            // one branch up, which stays enabled on purpose: an id this page
-            // has never seen may still be a real, idle agent.
-            unregistered(props, typed)}
+            ?disabled=${
+              // **Not `props.busy`** (finding 384). `busy` is page-wide, so creating an
+              // agent (35 to 77 s) disabled the emergency stop for the whole wait. The
+              // confirmation still stands between a press and a lockdown.
+              !typed ||
+              !canManageAgent(props.identity, typed) ||
+              // **`unregistered` joins the disable list** (finding 341). The
+              // warning above tells the operator the stop will be refused, and
+              // the button beside it stayed pressable — measured as Root, who
+              // passes `canManageAgent` for any id. This page's own rule, stated
+              // where the role picker drops `root`, is that it "does not offer a
+              // control whose only possible outcome is a refusal", and an agent
+              // governance holds no record for is exactly that: there is nothing
+              // to lock down, whoever is asking. Distinct from the *unknown* id
+              // one branch up, which stays enabled on purpose: an id this page
+              // has never seen may still be a real, idle agent.
+              unregistered(props, typed)
+            }
             @click=${() =>
               // Asked first, like Stop in Active agent sessions, which locks the same
               // agent the same way (Kimi QA 1, bug 12). Lockdown is the most

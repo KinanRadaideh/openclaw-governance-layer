@@ -44,6 +44,7 @@ import {
 import {
   describeRuleRisks,
   isRuleAccess,
+  MAX_RULE_DESCRIPTION_LENGTH,
   validateRulePattern,
 } from "../governance/rule-validation.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
@@ -164,8 +165,11 @@ function isFiledForCurrentAgent(
  * had been submitted and the Administrator deciding it read a reason that stopped
  * mid-sentence with no mark. Refused instead, as usernames and agent display names
  * already are, and mirrored as the form's maxlength.
+ *
+ * The rule description's limit since T70, because an approved reason becomes the
+ * created rule's description.
  */
-const MAX_REQUEST_REASON_LENGTH = 500;
+const MAX_REQUEST_REASON_LENGTH = MAX_RULE_DESCRIPTION_LENGTH;
 
 export type RuleRequestRouteContext = {
   requireRole: (
@@ -551,7 +555,16 @@ export async function handleGovernanceRuleRequestRoutes(
             // gate: after approving, a write to the escalated path came back
             // allowed.
             ...(decided.access ? { access: decided.access } : {}),
-            description: `Requested by ${decided.requestedBy}: ${decided.reason}`,
+            // The request's mandatory reason is the rule's description (T70), so
+            // the justification an Administrator approved is the sentence the rule
+            // is listed under and the ledger records.
+            // The account that answered an escalation, when one did (C15), rather than
+            // the internal label its proposal is filed under (finding 393).
+            description: `Requested by ${
+              decided.answeredBy
+                ? `${decided.answeredBy}, answering an escalation`
+                : decided.requestedBy
+            }: ${decided.reason}`,
             createdBy: session.username,
           },
           auditActor(session),

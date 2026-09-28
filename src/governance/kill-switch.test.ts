@@ -60,7 +60,11 @@ afterEach(async () => {
 
 describe("lockdown", () => {
   it("blocks every subsequent governed action, even an allowlisted one", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     expect(
       await evaluateGovernancePolicy(
         { toolName: "exec", params: { command: "ls" } },
@@ -78,7 +82,11 @@ describe("lockdown", () => {
   });
 
   it("does not affect other agents", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     await lockDownAgent(TEST_GROUP, "agent-a");
     const other = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
@@ -88,7 +96,11 @@ describe("lockdown", () => {
   });
 
   it("is reversible", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     await lockDownAgent(TEST_GROUP, "agent-a");
     await releaseAgentLockdown(TEST_GROUP, "agent-a");
     expect((await loadPolicy(TEST_GROUP)).lockedAgents).not.toContain("agent-a");
@@ -225,8 +237,20 @@ describe("requirement #7. Termination latency", () => {
   it("completes well inside the one-second bound", async () => {
     registerAgentTerminator(() => ({ abortedRunIds: ["run-1"] }));
     const result = await lockDownAgent(TEST_GROUP, "agent-a");
-    // The whole operation: policy write (with cross-process lock), abort
-    // signal, and the audit-ledger append.
+    // What this number covers: the policy write (under a cross-process lock)
+    // and the abort, up to and including the wait for confirmation when a probe
+    // is registered. **Not** the audit-ledger append, which happens after
+    // `elapsedMs` is taken (kill-switch.ts).
+    //
+    // Corrected 2026-09-21. This comment used to end "and the audit-ledger
+    // append", and §4.x.8 of CHAPTER3-MATERIAL.md said the same, so the report
+    // would have claimed the bound covered the recording as well as the stop.
+    // Measured rather than reasoned: holding the ledger's own file lock for
+    // 600 ms delays the call to 585 ms of observable wall clock while the
+    // reported figure stays at 9.9 ms, with the entry still written.
+    //
+    // No probe is registered in this test, so no confirmation wait occurs here
+    // and the figure is the lockdown-and-dispatch path alone.
     expect(result.elapsedMs).toBeLessThan(1000);
     expect(result.termination.elapsedMs).toBeLessThan(1000);
   });

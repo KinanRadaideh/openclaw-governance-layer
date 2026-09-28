@@ -23,6 +23,7 @@ import { parseGovernanceSessionKey } from "./agent-conversation.js";
 import { resolveAgentGroup } from "./agent-group.js";
 import { readAgentIntent } from "./agent-intent.js";
 import { findAgent } from "./agent-registry.js";
+import { nestedAgentWorkspaceRoots } from "./agent-workspace-roots.js";
 import { takeResolvingApprovalAnswerer, type ApprovalAnswerer } from "./approval-answerers.js";
 import {
   appendLedgerEntry,
@@ -342,6 +343,7 @@ async function resolveGovernedParamBinding(
   event: ToolCallEvent,
   spec: GovernedToolSpec,
   cwd?: string,
+  foreignRoots?: readonly string[],
 ): Promise<Record<string, unknown> | undefined> {
   if (spec.resourceKind !== "path") {
     return undefined;
@@ -363,11 +365,30 @@ async function resolveGovernedParamBinding(
   if (typeof raw !== "string") {
     return undefined;
   }
-  const resolved = await resolveGovernedPath(raw, cwd);
+  const resolved = await resolveGovernedPath(raw, cwd, foreignRoots);
   if (!resolved.redirected) {
     return undefined;
   }
   return { ...event.params, [key]: resolved.absolute };
+}
+
+/**
+ * What an escalation's proposal says happened, which is also the approved rule's
+ * description (T70), so it states the fact and nothing addressed to the approver
+ * (finding 393). It used to end "Approving makes that permanent; rejecting leaves it
+ * needing approval each time.", which the rule then carried as its title for good.
+ */
+export function escalationRequestReason(input: {
+  agentId: string;
+  toolName: string;
+  resourceKind: string;
+  resource: string;
+  access?: string;
+}): string {
+  return (
+    `Agent "${input.agentId}" asked to run "${input.toolName}" against ` +
+    `${input.resourceKind} "${input.resource}"${input.access ? ` (${input.access})` : ""}.`
+  );
 }
 
 /**
@@ -462,11 +483,7 @@ export async function proposeRuleFromEscalation(
       ...(input.answeredBy
         ? { answeredBy: input.answeredBy.name, answeredByRole: input.answeredBy.role }
         : {}),
-      reason:
-        `Requested after an escalation: agent "${agentId}" requested ` +
-        `"${input.toolName}" against ${input.resourceKind} "${input.resource}"` +
-        `${input.access ? ` (${input.access})` : ""}. ` +
-        "Approving makes that permanent; rejecting leaves it needing approval each time.",
+      reason: escalationRequestReason({ ...input, agentId }),
     });
     return { status: "pending", requestId: request.id };
   } catch (error) {
@@ -543,6 +560,7 @@ async function resolvePathMatchForms(
   spec: GovernedToolSpec,
   resources: readonly string[],
   cwd?: string,
+  foreignRoots?: readonly string[],
 ): Promise<(resource: string) => readonly string[]> {
   if (spec.resourceKind !== "path") {
     return (resource) => [resource];
@@ -557,7 +575,7 @@ async function resolvePathMatchForms(
     // several. Measured against the alternative — threading a second return
     // value through every extractor in `resource-extraction.ts` — this keeps
     // the change inside the gate, where the defect is.
-    byResource.set(resource, (await resolveGovernedPathForms(resource, cwd)).forms);
+    byResource.set(resource, (await resolveGovernedPathForms(resource, cwd, foreignRoots)).forms);
   }
   return (resource) => byResource.get(resource) ?? [resource];
 }
@@ -818,9 +836,12 @@ export async function evaluateGovernancePolicy(
   // resolves to itself and cannot disagree with the first: what the rules are
   // matched against and what the tool is handed are the same file by
   // construction rather than by timing.
-  const paramBinding = await resolveGovernedParamBinding(event, spec, ctx.cwd);
+  // Other agents' workspaces nested inside this one, which are not this agent's
+  // project however they are spelled (finding 385). Paths only.
+  const foreignRoots = spec.resourceKind === "path" ? nestedAgentWorkspaceRoots(ctx.agentId) : [];
+  const paramBinding = await resolveGovernedParamBinding(event, spec, ctx.cwd, foreignRoots);
   const judgedEvent = paramBinding ? { ...event, params: paramBinding } : event;
-  const resources = await spec.extract(judgedEvent, ctx.cwd);
+  const resources = await spec.extract(judgedEvent, ctx.cwd, foreignRoots);
   // **Both spellings of every path resource, matched against; one of them
   // recorded** (finding 253).
   //
@@ -832,7 +853,7 @@ export async function evaluateGovernancePolicy(
   // safe and why it cannot reopen the traversal hole.
   //
   // Only paths have a second spelling: a command or a URL is one string.
-  const matchForms = await resolvePathMatchForms(spec, resources, ctx.cwd);
+  const matchForms = await resolvePathMatchForms(spec, resources, ctx.cwd, foreignRoots);
   if (resources.length === 0) {
     // A governed tool whose payload yielded nothing to check. Typically a
     // shape the extractor does not recognise. We still do not fail closed on
@@ -933,7 +954,7 @@ export async function evaluateGovernancePolicy(
       block: true,
       blockReason:
         `governance: ${spec.resourceKind} "${first.resource}" is refused by a ` +
-        `${first.rule.tier ?? "admin"}-tier deny rule (${first.rule.description ?? first.rule.pattern})` +
+        `${first.rule.tier ?? "admin"}-tier deny rule (${first.rule.description})` +
         (first.rule.tier === "core" ? ". Core rules cannot be overridden by policy." : "."),
     };
   }

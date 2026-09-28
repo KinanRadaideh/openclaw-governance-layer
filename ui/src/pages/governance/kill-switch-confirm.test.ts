@@ -10,7 +10,7 @@
 // (that helper is the Control UI's own, tested where it lives).
 import { render } from "lit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { i18n } from "../../i18n/index.ts";
+import { i18n, t } from "../../i18n/index.ts";
 import { enGovernance } from "../../i18n/locales/en-governance.ts";
 import { GovernanceApi, type GovernanceIdentity } from "./api.ts";
 import { canAdminister, canManageAnyAgent } from "./identity.ts";
@@ -18,11 +18,13 @@ import { renderKillSwitchSection } from "./panels/agent-panels.ts";
 
 const AGENT = "scout";
 
-function harness() {
+function harness(
+  options: { busy?: boolean; role?: "administrator" | "user"; typed?: string } = {},
+) {
   const identity: GovernanceIdentity = {
     username: "ada",
-    role: "administrator",
-    assignedAgents: [],
+    role: options.role ?? "administrator",
+    assignedAgents: options.role === "user" ? [AGENT] : [],
   };
   const confirmThen = vi.fn(async (_options: unknown, _action: () => Promise<unknown>) => {});
   const engageKillSwitch = vi.fn(async (_agentId: string) => {});
@@ -36,12 +38,12 @@ function harness() {
         await action();
       },
       confirmThen,
-      busy: false,
+      busy: options.busy ?? false,
       policy: null,
       identity,
       canAdminister: canAdminister(identity),
       canManageAnyAgent: canManageAnyAgent(identity),
-      killAgentId: AGENT,
+      killAgentId: options.typed ?? AGENT,
       agents: [{ agentId: AGENT, registered: true }],
       knownAgentIds: [AGENT],
       isKnownAgentId: (agentId) => agentId === AGENT,
@@ -54,7 +56,7 @@ function harness() {
   const lockDown = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
     (button) => button.textContent?.trim() === "Lock down",
   );
-  return { confirmThen, engageKillSwitch, onDraft, lockDown };
+  return { confirmThen, engageKillSwitch, onDraft, lockDown, text: container.textContent ?? "" };
 }
 
 beforeEach(() => {
@@ -91,5 +93,25 @@ describe("the kill switch's Lock down button", () => {
 
     expect(h.engageKillSwitch).toHaveBeenCalledWith(AGENT);
     expect(h.onDraft).toHaveBeenCalledWith({ killAgentId: "" });
+  });
+});
+
+describe("the kill switch stays usable while the page is busy (finding 384)", () => {
+  it("leaves Lock down pressable while another dashboard action is in flight", () => {
+    // Creating an agent keeps the page busy for 35 to 77 seconds; the emergency stop
+    // was disabled for all of it.
+    const h = harness({ busy: true });
+    expect(h.lockDown?.disabled).toBe(false);
+    h.lockDown!.click();
+    expect(h.confirmThen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("what a User is told about an agent that is not theirs (finding 394)", () => {
+  it("says the agent is not theirs to stop, not that the lockdown will succeed", () => {
+    const h = harness({ role: "user", typed: "beta" });
+    expect(h.lockDown?.disabled).toBe(true);
+    expect(h.text).not.toContain("will still succeed");
+    expect(h.text).toContain(t("governance.kill.notYourAgent"));
   });
 });

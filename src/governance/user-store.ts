@@ -814,6 +814,8 @@ export async function setUserRole(
     }
     const becomesManaged = role === "user" || role === "viewer";
     const nextManager = managedBy ?? (becomesManaged ? user.managedBy : undefined);
+    const previousManager = user.managedBy;
+    let managerName: string | undefined;
     if (becomesManaged) {
       if (!nextManager) {
         throw new MissingManagerError(
@@ -833,16 +835,27 @@ export async function setUserRole(
         throw new MissingManagerError("an account cannot be its own Administrator");
       }
       user.managedBy = nextManager;
+      managerName = manager.username;
     } else {
       if (managedBy) {
         throw new MissingManagerError(`a ${role} answers to the group, not to an Administrator`);
       }
       delete user.managedBy;
     }
+    // Crossing between the tiers that hold agents by assignment and the ones that reach
+    // them by role releases the list (finding 382). Above User it is inert; kept, a
+    // later demotion carried it to a different Administrator, whose User then held
+    // and could prompt an agent that Administrator does not own.
+    const wasManaged = user.role === "user" || user.role === "viewer";
+    const released = wasManaged === becomesManaged ? [] : user.assignedAgents;
+    user.assignedAgents = wasManaged === becomesManaged ? user.assignedAgents : [];
     const previous = user.role;
     user.role = role;
     await writeGovernanceJson(usersFilePath(), file);
-    return { username: user.username, previous, groupId: user.groupId };
+    // A same-role move to another Administrator (finding 383) says so; "user -> user" would not.
+    const rehomedTo =
+      previous === role && previousManager !== nextManager ? managerName : undefined;
+    return { username: user.username, previous, groupId: user.groupId, released, rehomedTo };
   });
   if (!changed) {
     return false;
@@ -853,7 +866,13 @@ export async function setUserRole(
     // Both roles, because a privilege escalation is only visible as a
     // transition, "now an administrator" does not say whether that was a
     // promotion or a demotion.
-    target: `account ${changed.username} role ${changed.previous} -> ${role}`,
+    target:
+      (changed.rehomedTo
+        ? `account ${changed.username} now answers to ${changed.rehomedTo}`
+        : `account ${changed.username} role ${changed.previous} -> ${role}`) +
+      (changed.released.length > 0
+        ? ` (assigned agents released: ${changed.released.join(", ")})`
+        : ""),
     subjectId: userId,
   });
   return true;

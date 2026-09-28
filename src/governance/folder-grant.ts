@@ -43,7 +43,7 @@ import type { AuditActorInput } from "./admin-audit.js";
 import { normalizeGovernedPath } from "./path-normalize.js";
 import { addRuleChecked, type AddRuleResult } from "./policy-store.js";
 import type { RuleAccess } from "./policy-types.js";
-import { validateRulePattern } from "./rule-validation.js";
+import { validateRuleDescription, validateRulePattern } from "./rule-validation.js";
 
 /**
  * How many exceptions one grant may carry.
@@ -86,6 +86,12 @@ export class FolderGrantError extends Error {
 export type FolderGrantInput = {
   /** The folder being granted, as an operator would type it. */
   folder: string;
+  /**
+   * Why the folder is being granted, in the operator's words (T70). Required,
+   * and carried into the description of every rule the grant writes, so each
+   * one says what it is for when it is later read on its own.
+   */
+  description: string;
   /** Paths inside it that stay denied. May be empty. */
   exceptions?: readonly string[];
   /** Agent this applies to. Absent means every agent, which needs Administrator. */
@@ -148,6 +154,12 @@ export async function grantFolderWithExceptions(
   if (!folder) {
     throw new FolderGrantError("a folder is required");
   }
+  // Validated here rather than in the route, for the reason `subtreePattern`
+  // gives: every surface that grants a folder inherits it.
+  const purpose = validateRuleDescription(input.description);
+  if (!purpose.ok) {
+    throw new FolderGrantError(purpose.error);
+  }
   const exceptions = (input.exceptions ?? []).map((entry) => entry.trim()).filter(Boolean);
   if (exceptions.length > MAX_EXCEPTIONS) {
     throw new FolderGrantError(
@@ -193,7 +205,9 @@ export async function grantFolderWithExceptions(
           // leave the excepted path *writable*, which is the opposite of what
           // "except this" means to the person who typed it. An exception is an
           // exception to the whole folder.
-          description: `Exception to the grant on ${folder}: ${exceptions[index]}`,
+          // The operator's purpose leads, because it is the rule's title; the
+          // generated half says which part of the grant this rule is.
+          description: `${purpose.description} (exception to the grant on ${folder}: ${exceptions[index]})`,
           ...scope,
         },
         actor,
@@ -210,8 +224,8 @@ export async function grantFolderWithExceptions(
       ...(input.access ? { access: input.access } : {}),
       description:
         exceptions.length > 0
-          ? `Grant on ${folder}, except ${exceptions.join(", ")}`
-          : `Grant on ${folder}`,
+          ? `${purpose.description} (grant on ${folder}, except ${exceptions.join(", ")})`
+          : `${purpose.description} (grant on ${folder})`,
       ...scope,
     },
     actor,

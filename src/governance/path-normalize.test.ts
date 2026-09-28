@@ -130,7 +130,11 @@ describe("path traversal (B2: rules could be walked around)", () => {
   });
 
   it("blocks the documented traversal attack end to end", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/.*$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "path", pattern: "^src/.*$" },
+      TEST_ACTOR,
+    );
     // The rule allows the project's own source directory.
     expect(
       verdict(
@@ -150,7 +154,11 @@ describe("path traversal (B2: rules could be walked around)", () => {
   });
 
   it("applies the same rule identically to read and to apply_patch", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/app[.]ts$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "path", pattern: "^src/app[.]ts$" },
+      TEST_ACTOR,
+    );
     const absolute = join(workspace, "src", "app.ts");
     expect(
       verdict(
@@ -189,7 +197,11 @@ describe("symbolic links", () => {
       expect(resolved.startsWith("notes/")).toBe(false);
       expect(resolved).toContain("secret.txt");
 
-      await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^notes/.*$" }, TEST_ACTOR);
+      await addRule(
+        TEST_GROUP,
+        { description: "test rule", resourceKind: "path", pattern: "^notes/.*$" },
+        TEST_ACTOR,
+      );
       expect(
         verdict(
           await evaluateGovernancePolicy(
@@ -308,12 +320,17 @@ describe("both spellings of an in-workspace path bind (253)", () => {
     const absolute = join(workspace, "src").split(sep).join("/");
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^src(/|$)", effect: "allow" },
+      { description: "test rule", resourceKind: "path", pattern: "^src(/|$)", effect: "allow" },
       TEST_ACTOR,
     );
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: `^${absolute}(/|$)`, effect: "deny" },
+      {
+        description: "test rule",
+        resourceKind: "path",
+        pattern: `^${absolute}(/|$)`,
+        effect: "deny",
+      },
       TEST_ACTOR,
     );
 
@@ -333,7 +350,12 @@ describe("both spellings of an in-workspace path bind (253)", () => {
     const absolute = join(workspace, "src").split(sep).join("/");
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: `^${absolute}(/|$)`, effect: "allow" },
+      {
+        description: "test rule",
+        resourceKind: "path",
+        pattern: `^${absolute}(/|$)`,
+        effect: "allow",
+      },
       TEST_ACTOR,
     );
 
@@ -351,7 +373,12 @@ describe("both spellings of an in-workspace path bind (253)", () => {
     const absolute = join(workspace, "src").split(sep).join("/");
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: `^${absolute}(/|$)`, effect: "allow" },
+      {
+        description: "test rule",
+        resourceKind: "path",
+        pattern: `^${absolute}(/|$)`,
+        effect: "allow",
+      },
       TEST_ACTOR,
     );
 
@@ -374,7 +401,7 @@ describe("the second spelling costs nothing where it means nothing (253)", () =>
     // it did, and a command that merely looks like a path is not resolved.
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^ls( .*)?$", effect: "allow" },
+      { description: "test rule", resourceKind: "command", pattern: "^ls( .*)?$", effect: "allow" },
       TEST_ACTOR,
     );
 
@@ -399,12 +426,17 @@ describe("the second spelling costs nothing where it means nothing (253)", () =>
     const absolute = join(workspace, "src").split(sep).join("/");
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^src(/|$)", effect: "allow" },
+      { description: "test rule", resourceKind: "path", pattern: "^src(/|$)", effect: "allow" },
       TEST_ACTOR,
     );
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: `^${absolute}(/|$)`, effect: "deny" },
+      {
+        description: "test rule",
+        resourceKind: "path",
+        pattern: `^${absolute}(/|$)`,
+        effect: "deny",
+      },
       TEST_ACTOR,
     );
 

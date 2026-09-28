@@ -212,6 +212,7 @@ describe("tier floors", () => {
 describe("agent scope", () => {
   it("lets a User create a rule for an assigned agent", async () => {
     const result = await call("POST", "policy/rules", session("user", ["agent-a"]), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^ls$",
       agentId: "agent-a",
@@ -222,6 +223,7 @@ describe("agent scope", () => {
 
   it("refuses a User creating a rule for an agent they were not assigned", async () => {
     const result = await call("POST", "policy/rules", session("user", ["agent-a"]), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^ls$",
       agentId: "agent-b",
@@ -232,6 +234,7 @@ describe("agent scope", () => {
   it("refuses a User creating a global rule", async () => {
     // No agentId means the rule binds every agent, Administrator territory.
     const result = await call("POST", "policy/rules", session("user", ["agent-a"]), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^ls$",
     });
@@ -241,6 +244,7 @@ describe("agent scope", () => {
 
   it("allows an Administrator to create a global rule", async () => {
     const result = await call("POST", "policy/rules", session("administrator"), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^ls$",
     });
@@ -251,12 +255,13 @@ describe("agent scope", () => {
   it("authorizes rule removal against the rule's stored scope, not the caller's claim", async () => {
     const globalRule = await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^global$" },
+      { description: "test rule", resourceKind: "command", pattern: "^global$" },
       TEST_ACTOR,
     );
     const foreignRule = await addRule(
       TEST_GROUP,
       {
+        description: "test rule",
         resourceKind: "command",
         pattern: "^foreign$",
         agentId: "agent-b",
@@ -266,6 +271,7 @@ describe("agent scope", () => {
     const ownRule = await addRule(
       TEST_GROUP,
       {
+        description: "test rule",
         resourceKind: "command",
         pattern: "^own$",
         agentId: "agent-a",
@@ -298,15 +304,19 @@ describe("agent scope", () => {
   });
 
   it("hides another agent's rules from a scoped account's policy read", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^global$" }, TEST_ACTOR);
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^a$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "command", pattern: "^global$" },
       TEST_ACTOR,
     );
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^b$", agentId: "agent-b" },
+      { description: "test rule", resourceKind: "command", pattern: "^a$", agentId: "agent-a" },
+      TEST_ACTOR,
+    );
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^b$", agentId: "agent-b" },
       TEST_ACTOR,
     );
     const result = await call("GET", "policy", session("user", ["agent-a"]));
@@ -320,6 +330,7 @@ describe("agent scope", () => {
 describe("input validation", () => {
   it("rejects an invalid regex before it can become a silently dead rule", async () => {
     const result = await call("POST", "policy/rules", session("administrator"), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "[unclosed",
     });
@@ -328,6 +339,7 @@ describe("input validation", () => {
 
   it("rejects an unknown resource kind", async () => {
     const result = await call("POST", "policy/rules", session("administrator"), {
+      description: "test rule",
       resourceKind: "telepathy",
       pattern: "^x$",
     });
@@ -533,12 +545,14 @@ describe("Viewer visibility", () => {
   it("sees the configuration for its own agents and for no others", async () => {
     for (const agentId of ["agent-a", "agent-b"]) {
       await call("POST", "policy/rules", session("administrator"), {
+        description: "test rule",
         resourceKind: "command",
         pattern: `^echo ${agentId}$`,
         agentId,
       });
     }
     await call("POST", "policy/rules", session("administrator"), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^echo global$",
     });
@@ -821,6 +835,7 @@ describe("reading a conversation back", () => {
 describe("authoring a deny rule", () => {
   it("lets a User forbid something for an agent they manage", async () => {
     const result = await call("POST", "policy/rules", session("user", ["agent-a"]), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^deploy$",
       effect: "deny",
@@ -836,12 +851,14 @@ describe("authoring a deny rule", () => {
     // A denial narrows rather than widens, so it needs no *new* authorization,
     // but "global" still means every agent, which is not a User's to decide.
     const asUser = await call("POST", "policy/rules", session("user", ["agent-a"]), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^deploy$",
       effect: "deny",
     });
     expect(asUser.status).toBe(403);
     const asAdmin = await call("POST", "policy/rules", session("administrator"), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^deploy$",
       effect: "deny",
@@ -851,6 +868,7 @@ describe("authoring a deny rule", () => {
 
   it("refuses a denial for an agent outside the caller's scope", async () => {
     const result = await call("POST", "policy/rules", session("user", ["agent-a"]), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^deploy$",
       effect: "deny",
@@ -861,6 +879,7 @@ describe("authoring a deny rule", () => {
 
   it("still refuses a Viewer by tier", async () => {
     const result = await call("POST", "policy/rules", session("viewer", ["agent-a"]), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^deploy$",
       effect: "deny",
@@ -874,6 +893,7 @@ describe("authoring a deny rule", () => {
     // into a permission.
     for (const effect of ["forbid", "DENY", true, 1]) {
       const result = await call("POST", "policy/rules", session("administrator"), {
+        description: "test rule",
         resourceKind: "command",
         pattern: "^deploy$",
         effect,
@@ -884,6 +904,7 @@ describe("authoring a deny rule", () => {
 
   it("warns that a catch-all denial disables the agent", async () => {
     const result = await call("POST", "policy/rules", session("administrator"), {
+      description: "test rule",
       resourceKind: "command",
       pattern: ".*",
       effect: "deny",
@@ -897,6 +918,7 @@ describe("authoring an access-narrowed rule", () => {
   it("accepts read and write on a path rule", async () => {
     for (const access of ["read", "write"] as const) {
       const result = await call("POST", "policy/rules", session("administrator"), {
+        description: "test rule",
         resourceKind: "path",
         pattern: `^notes/${access}/.*$`,
         access,
@@ -911,6 +933,7 @@ describe("authoring an access-narrowed rule", () => {
     // operator believing a narrowing took hold that does nothing.
     for (const resourceKind of ["command", "network"] as const) {
       const result = await call("POST", "policy/rules", session("administrator"), {
+        description: "test rule",
         resourceKind,
         pattern: "^x$",
         access: "read",
@@ -921,6 +944,7 @@ describe("authoring an access-narrowed rule", () => {
 
   it("rejects an access value it does not understand", async () => {
     const result = await call("POST", "policy/rules", session("administrator"), {
+      description: "test rule",
       resourceKind: "path",
       pattern: "^notes/.*$",
       access: "readwrite",
@@ -930,6 +954,7 @@ describe("authoring an access-narrowed rule", () => {
 
   it("warns that a narrowed denial leaves the other direction permitted", async () => {
     const result = await call("POST", "policy/rules", session("administrator"), {
+      description: "test rule",
       resourceKind: "path",
       pattern: "^notes/.*$",
       effect: "deny",
@@ -941,6 +966,7 @@ describe("authoring an access-narrowed rule", () => {
 
   it("keeps writing an ordinary allow rule unchanged when neither field is sent", async () => {
     const result = await call("POST", "policy/rules", session("administrator"), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^ls$",
     });

@@ -109,6 +109,7 @@ describe("a pending rule request says what approving it would do", () => {
     await addRuleChecked(
       groupId,
       {
+        description: "test rule",
         resourceKind: "command",
         pattern: "^ls$",
         agentId: "agent-a",

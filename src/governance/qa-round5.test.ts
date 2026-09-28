@@ -92,7 +92,11 @@ describe("the governed tool registry matches the tools OpenClaw actually ships",
   });
 
   it("allows a file edit that a path rule covers", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^workspace/.*$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "path", pattern: "^workspace/.*$" },
+      TEST_ACTOR,
+    );
     const decision = await evaluateGovernancePolicy(
       { toolName: "edit", params: { path: "workspace/main.ts", edits: [] } },
       ctx,

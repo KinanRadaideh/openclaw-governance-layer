@@ -155,7 +155,11 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
 
 describe("the emergency stop, end to end", () => {
   it("an allowed action becomes a blocked one, and the agent stays blocked", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     // Before: the agent may run the allowlisted command.
     expect(
       verdict(
@@ -184,7 +188,11 @@ describe("the emergency stop, end to end", () => {
   });
 
   it("stops only the named agent", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     await post("kill", session("administrator"), { agentId: "a1" });
 
     expect(
@@ -251,7 +259,11 @@ describe("the emergency stop, end to end", () => {
   });
 
   it("is reversible, and the release is recorded too", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     await post("kill", session("administrator"), { agentId: "a1" });
     const release = await post("kill", session("administrator"), { agentId: "a1", locked: false });
 
@@ -305,7 +317,11 @@ describe("round thirteen's three silent failures stay closed", () => {
       ask: "off",
       agentMode: { a1: "monitor" },
     });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     await post("kill", session("administrator"), { agentId: "a1" });
 
     expect(
@@ -325,7 +341,11 @@ describe("round thirteen's three silent failures stay closed", () => {
       ask: "off",
       agentMode: { a1: "off" },
     });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     await post("kill", session("administrator"), { agentId: "a1" });
 
     expect(
@@ -336,7 +356,11 @@ describe("round thirteen's three silent failures stay closed", () => {
   });
 
   it("refuses an unattributable call while any agent is locked", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
     await post("kill", session("administrator"), { agentId: "a1" });
 
     // Neither agentId nor a parseable session key. With a lockdown in force

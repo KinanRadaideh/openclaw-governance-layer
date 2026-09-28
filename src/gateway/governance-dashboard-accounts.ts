@@ -14,6 +14,11 @@
 // and not a rewrite.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { guardDeletion, guardRoleChange } from "../governance/account-guards.js";
+import {
+  HoldingsOutsideManagerError,
+  OwnedAgentsRemainError,
+  assertOwnershipSurvives,
+} from "../governance/account-ownership.js";
 import { isHostDeletionMode } from "../governance/agent-host-deletion.js";
 import { AgentNotAssignableError, assignAgentsToAccount } from "../governance/agent-registry.js";
 import { deleteOrganisation } from "../governance/organisation-deletion.js";
@@ -229,7 +234,8 @@ export async function handleGovernanceAccountRoutes(
     }
     // Lockout guard: demoting the last Root would leave nobody able to manage
     // accounts or trigger the kill switch, with no recovery path in the UI.
-    const roleGuard = guardRoleChange(await listUsers(session.groupId), userId, role);
+    const groupUsers = await listUsers(session.groupId);
+    const roleGuard = guardRoleChange(groupUsers, userId, role);
     if (!roleGuard.allowed) {
       sendJson(res, 409, { error: { message: roleGuard.reason, type: "would_lock_out" } });
       return true;
@@ -238,6 +244,14 @@ export async function handleGovernanceAccountRoutes(
     // the same invariant inside its write lock so two simultaneous demotions
     // cannot both pass. That second refusal surfaces as this error.
     try {
+      const target = groupUsers.find((user) => user.id === userId);
+      if (target) {
+        await assertOwnershipSurvives(
+          target,
+          { role, ...(typeof managedBy === "string" ? { managedBy } : {}) },
+          groupUsers,
+        );
+      }
       if (
         !(await setUserRole(
           userId,
@@ -275,7 +289,12 @@ export async function handleGovernanceAccountRoutes(
       // `ManagedAccountsRemainError` is the refusal finding 196 added. Both are
       // conflicts of state with a named way forward, which is what 409 is for.
       // ------------------------------------------------------------------
-      if (err instanceof MissingManagerError || err instanceof ManagedAccountsRemainError) {
+      if (
+        err instanceof MissingManagerError ||
+        err instanceof ManagedAccountsRemainError ||
+        err instanceof OwnedAgentsRemainError ||
+        err instanceof HoldingsOutsideManagerError
+      ) {
         sendJson(res, 409, { error: { message: err.message, type: "conflict" } });
         return true;
       }
@@ -284,6 +303,9 @@ export async function handleGovernanceAccountRoutes(
     // A role change must bind immediately, not at next login: an operator
     // demoted for cause keeps their elevated cookie otherwise.
     await updateSessionsRoleForUser(userId, role);
+    // A tier crossing releases the assignment list (finding 382); bind that too.
+    const after = (await listUsers(session.groupId)).find((user) => user.id === userId);
+    await updateSessionsAssignedAgents(userId, after?.assignedAgents ?? []);
     sendJson(res, 200, { ok: true });
     return true;
   }
@@ -410,12 +432,17 @@ export async function handleGovernanceAccountRoutes(
       sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
       return true;
     }
-    const deleteGuard = guardDeletion(await listUsers(session.groupId), userId, session.userId);
+    const deleteUsers = await listUsers(session.groupId);
+    const deleteGuard = guardDeletion(deleteUsers, userId, session.userId);
     if (!deleteGuard.allowed) {
       sendJson(res, 409, { error: { message: deleteGuard.reason, type: "would_lock_out" } });
       return true;
     }
     try {
+      const target = deleteUsers.find((user) => user.id === userId);
+      if (target) {
+        await assertOwnershipSurvives(target, { role: "deleted" }, deleteUsers);
+      }
       if (!(await deleteUser(userId, auditActor(session)))) {
         sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
         return true;
@@ -427,7 +454,7 @@ export async function handleGovernanceAccountRoutes(
       }
       // Deleting an Administrator who still has people answering to them
       // (finding 196). A conflict with a named way forward, not a 500.
-      if (err instanceof ManagedAccountsRemainError) {
+      if (err instanceof ManagedAccountsRemainError || err instanceof OwnedAgentsRemainError) {
         sendJson(res, 409, { error: { message: err.message, type: "conflict" } });
         return true;
       }

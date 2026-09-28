@@ -118,6 +118,7 @@ async function send(
 }
 
 const aRule = (extra: Record<string, unknown> = {}) => ({
+  description: "test rule",
   resourceKind: "command",
   pattern: "^echo hi$",
   ...extra,
@@ -304,8 +305,9 @@ describe("a User may author policy for their own assigned agents", () => {
     // matter how much of the installation this account happens to hold.
     expect(res.status).toBe(403);
     expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.pattern === "^echo hi$")).toBe(false);
-    // The refusal says what to do instead, rather than only that it was refused.
-    expect(String(res.body?.error?.message)).toContain("agentId");
+    // The refusal says what to do instead, rather than only that it was refused,
+    // in an operator's words rather than the API's field name.
+    expect(String(res.body?.error?.message)).toContain("Choose one of the agents you manage");
   });
 
   it("may NOT author for another team's agent", async () => {
@@ -744,6 +746,7 @@ describe("a withheld User is told what is actually withheld", () => {
 
   it("names the withheld authoring, not a management they have", async () => {
     const res = await send("POST", "policy/rules", withheld(), {
+      description: "test rule",
       agentId: "mine",
       resourceKind: "command",
       pattern: "^echo hi$",
@@ -761,6 +764,7 @@ describe("a withheld User is told what is actually withheld", () => {
     // repair half-applied, which is finding 326's shape and this file's own
     // "one-sided fixes need sibling proof" rule.
     const grant = await send("POST", "policy/folder-grant", withheld(), {
+      description: "test rule",
       agentId: "mine",
       folder: "/srv/app",
       exceptions: [],
@@ -769,6 +773,7 @@ describe("a withheld User is told what is actually withheld", () => {
     expect(grant.body?.error?.message).toContain("Rule editing has been withheld");
 
     const created = await send("POST", "policy/rules", session("administrator"), {
+      description: "test rule",
       agentId: "mine",
       resourceKind: "command",
       pattern: "^echo removable$",
@@ -786,6 +791,7 @@ describe("a withheld User is told what is actually withheld", () => {
     // The guard, and the half that must not change: this wording is vague on
     // purpose so it cannot answer "does that agent id exist elsewhere?".
     const res = await send("POST", "policy/rules", session("user", ["theirs"]), {
+      description: "test rule",
       agentId: "mine",
       resourceKind: "command",
       pattern: "^echo hi$",

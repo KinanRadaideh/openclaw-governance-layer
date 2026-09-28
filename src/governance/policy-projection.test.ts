@@ -210,7 +210,12 @@ describe("the view agrees with the gate", () => {
   it("an agent-scoped allowance appears for its agent and authorizes only that agent", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^whoami$", agentId: "agent-a" },
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^whoami$",
+        agentId: "agent-a",
+      },
       TEST_ACTOR,
     );
     const policy = await loadPolicy(TEST_GROUP);
@@ -240,7 +245,11 @@ describe("the view agrees with the gate", () => {
   });
 
   it("a global allowance appears for every agent and authorizes every agent", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^hostname$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^hostname$" },
+      TEST_ACTOR,
+    );
     const policy = await loadPolicy(TEST_GROUP);
 
     for (const agentId of ["agent-a", "agent-b"]) {
@@ -261,7 +270,12 @@ describe("the view agrees with the gate", () => {
   it("every rule the projection omits is one the gate does not consult", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^only-b$", agentId: "agent-b" },
+      {
+        description: "test rule",
+        resourceKind: "command",
+        pattern: "^only-b$",
+        agentId: "agent-b",
+      },
       TEST_ACTOR,
     );
     const policy = await loadPolicy(TEST_GROUP);

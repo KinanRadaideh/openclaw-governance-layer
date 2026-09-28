@@ -61,6 +61,7 @@ let groupId: string;
 function denial(overrides: Partial<PolicyRule> = {}): PolicyRule {
   return {
     id: "confine-to-workspace",
+    description: "test rule",
     resourceKind: "path",
     effect: "deny",
     tier: "admin",

@@ -334,7 +334,7 @@ describe("the agent id is resolved from the session when it is not passed explic
   it("keeps an agent-scoped rule from authorizing a different agent by session key", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
       "tester",
     );
     const allowed = await evaluateGovernancePolicy(

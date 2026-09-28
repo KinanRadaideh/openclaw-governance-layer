@@ -19,7 +19,8 @@ type ToolCallLike = {
 };
 
 /**
- * `cwd` is the workspace root path resources are made relative to. Extraction
+ * `cwd` is the workspace root path resources are made relative to, and `foreignRoots`
+ * the other agents' workspaces nested inside it (finding 385). Extraction
  * is async because path canonicalization follows symbolic links, which is a
  * filesystem read: see path-normalize.ts. Command and network extraction have
  * no such need and simply ignore both.
@@ -34,7 +35,11 @@ export type GovernedToolSpec = {
    * determines whether the file is being read or changed.
    */
   access?: "read" | "write";
-  extract: (event: ToolCallLike, cwd?: string) => Promise<string[]>;
+  extract: (
+    event: ToolCallLike,
+    cwd?: string,
+    foreignRoots?: readonly string[],
+  ) => Promise<string[]>;
 };
 
 /** Caps a resource string so one pathological payload cannot bloat the ledger. */
@@ -197,12 +202,18 @@ function extractNetworkResource(rawUrl: string): string {
  * `^src/.*$` could match a `read` and never match an `apply_patch` of the very
  * same file.
  */
-async function extractPaths(event: ToolCallLike, cwd?: string): Promise<string[]> {
+async function extractPaths(
+  event: ToolCallLike,
+  cwd?: string,
+  foreignRoots?: readonly string[],
+): Promise<string[]> {
   if (event.derivedPaths && event.derivedPaths.length > 0) {
-    return Promise.all(event.derivedPaths.map((path) => normalizeGovernedPath(path, cwd)));
+    return Promise.all(
+      event.derivedPaths.map((path) => normalizeGovernedPath(path, cwd, foreignRoots)),
+    );
   }
   const path = asString(event.params.path) ?? asString(event.params.file_path);
-  return path ? [await normalizeGovernedPath(path, cwd)] : [];
+  return path ? [await normalizeGovernedPath(path, cwd, foreignRoots)] : [];
 }
 
 /**
@@ -224,9 +235,13 @@ async function extractPaths(event: ToolCallLike, cwd?: string): Promise<string[]
  * closes is the direct case: pointing a search tool *at* a denied path, or out
  * of the workspace entirely.
  */
-async function extractSearchPaths(event: ToolCallLike, cwd?: string): Promise<string[]> {
-  const explicit = await extractPaths(event, cwd);
-  return explicit.length > 0 ? explicit : [await normalizeGovernedPath(".", cwd)];
+async function extractSearchPaths(
+  event: ToolCallLike,
+  cwd?: string,
+  foreignRoots?: readonly string[],
+): Promise<string[]> {
+  const explicit = await extractPaths(event, cwd, foreignRoots);
+  return explicit.length > 0 ? explicit : [await normalizeGovernedPath(".", cwd, foreignRoots)];
 }
 
 async function extractCommand(event: ToolCallLike): Promise<string[]> {

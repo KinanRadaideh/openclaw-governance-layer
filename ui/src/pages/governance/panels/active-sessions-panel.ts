@@ -158,8 +158,9 @@ export function renderActiveSessionsSection(
               ${canStop && !entry.lockedDown
                 ? html`<button
                     class="btn danger"
-                    ?disabled=${props.busy}
                     @click=${() =>
+                      // Never disabled by the page's `busy` (finding 384): the stop has to
+                      // be pressable while something slow, such as creating an agent, runs.
                       props.confirmThen(
                         {
                           message: t("governance.confirm.stopAgent"),

@@ -75,6 +75,7 @@ import {
   renderAgentRegistrySection,
 } from "./panels/agent-registry-panels.ts";
 import { renderWaitingApprovals } from "./panels/approval-panel.ts";
+import { EMPTY_FOLDER_GRANT } from "./panels/folder-grant-panel.ts";
 import { renderOrganisationSection } from "./panels/organisation-panel.ts";
 import {
   renderDeploymentSection,
@@ -82,6 +83,7 @@ import {
   renderLedgerSection,
   renderSystemSection,
 } from "./panels/oversight-panels.ts";
+import { EMPTY_RULE_DRAFT } from "./panels/policy-drafts.ts";
 import {
   renderConflictNotice,
   renderPolicySection,
@@ -190,6 +192,8 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private ruleTargets: Record<string, GovernanceRuleTargets> = {};
   @state() private verification: GovernanceLedgerVerification | null = null;
   @state() private busy = false;
+  /** How many `run` calls are in flight; `busy` is true while any is (finding 384). */
+  private runsInFlight = 0;
   /** Set when a request returned 401: the sign-in is gone, not merely stale. */
   @state() private sessionExpired = false;
   /** Set when some panels failed to reload, so the page can say which state it is in. */
@@ -221,6 +225,8 @@ class GovernancePage extends OpenClawLightDomElement {
   /** `""` means both directions. Only meaningful for a `path` rule. */
   @state() private newRuleAccess: "" | "read" | "write" = "";
   @state() private newRulePattern = "";
+  /** Why the rule being written exists (T70). Required before it can be created. */
+  @state() private newRuleDescription = "";
   // The folder-grant form (§3.5.66). Its own draft fields rather than reusing
   // the add-rule ones: an operator often has a half-written rule in one form
   // while using the other, and sharing state would clear their work.
@@ -229,7 +235,7 @@ class GovernancePage extends OpenClawLightDomElement {
   // splitting them let the page hold two that could disagree. `written` is
   // widened where it is consumed (`PolicyDrafts`), not here, because annotating
   // it inline costs five lines against the 700-line limit this file sits on.
-  @state() private folderGrant = { folder: "", exceptions: "", agentId: "", written: null };
+  @state() private folderGrant = { ...EMPTY_FOLDER_GRANT };
   @state() private newRuleTtl = "";
   @state() private killAgentId = "";
   /**
@@ -514,6 +520,7 @@ class GovernancePage extends OpenClawLightDomElement {
         newRuleEffect: this.newRuleEffect,
         newRuleAccess: this.newRuleAccess,
         newRulePattern: this.newRulePattern,
+        newRuleDescription: this.newRuleDescription,
         newRuleTtl: this.newRuleTtl,
         newRuleAgentId: this.newRuleAgentId,
         folderGrant: this.folderGrant,
@@ -864,13 +871,8 @@ class GovernancePage extends OpenClawLightDomElement {
     // last grant rather than a draft at all.
     this.ledgerFilter = "all";
     this.ruleFilter = { ...EMPTY_RULE_FILTER };
-    this.newRuleKind = "command";
-    this.newRuleEffect = "allow";
-    this.newRuleAccess = "";
-    this.newRulePattern = "";
-    this.newRuleAgentId = "";
-    this.newRuleTtl = "";
-    this.folderGrant = { folder: "", exceptions: "", agentId: "", written: null };
+    Object.assign(this, EMPTY_RULE_DRAFT);
+    this.folderGrant = { ...EMPTY_FOLDER_GRANT };
     this.hitlTimeoutDraft = "";
     this.userAskUsername = "";
     this.postureAgentId = "";
@@ -893,7 +895,10 @@ class GovernancePage extends OpenClawLightDomElement {
     // self-reset ends the session by design, so this path is the ordinary one
     // rather than an edge case: without it, the new Root password would sit in
     // component memory behind the sign-in screen it just caused.
-    this.accounts.clearSecrets();
+    this.accounts.reset();
+    // The registry panel's notices and forms live in its controller, which the rule
+    // above ("everything, less the exceptions") did not reach (finding 392).
+    this.agentRegistry.reset();
     this.loginPassword = "";
     this.loginConfirm = "";
     this.stopAutoRefresh();
@@ -964,6 +969,10 @@ class GovernancePage extends OpenClawLightDomElement {
   }
 
   private async run(action: () => Promise<unknown>): Promise<void> {
+    // Counted, not a flag (finding 384): the stop controls stay pressable while a slow
+    // action runs, and a lockdown finishing first must not re-enable every other control
+    // while the slow one is still in flight.
+    this.runsInFlight += 1;
     this.busy = true;
     this.error = null;
     try {
@@ -976,7 +985,7 @@ class GovernancePage extends OpenClawLightDomElement {
       }
       this.error = err instanceof Error ? err.message : String(err);
     } finally {
-      this.busy = false;
+      this.busy = --this.runsInFlight > 0;
     }
   }
 

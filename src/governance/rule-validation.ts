@@ -7,7 +7,8 @@
 // 1e9` produced a rule expiring in the year 3900, and `--ttl-minutes abc`
 // crashed with `RangeError: Invalid time value` from deep inside Date. Two
 // front doors with different locks is the same as one unlocked door, and it
-// also made the written specification untrue for half the callers.
+// also made the written specification untrue for half the callers. (The CLI
+// was removed on 2026-09-07; the dashboard route and the folder grant remain.)
 import { checkRegexSafety } from "./regex-safety.js";
 import { UNIVERSAL_PATTERNS } from "./rule-conflicts.js";
 
@@ -45,6 +46,47 @@ export function validateRulePattern(pattern: unknown): PatternValidation {
     return { ok: false, error: safety.reason };
   }
   return { ok: true, pattern };
+}
+
+/**
+ * The longest description a person may write for a rule (T70), and the longest
+ * reason a rule request may carry: one constant, because an approved request's
+ * reason becomes its rule's description and the two limits must not diverge.
+ *
+ * Refused rather than cut (finding 362): a sentence stored as its first 500
+ * characters is a record that stops mid-thought with no mark.
+ */
+export const MAX_RULE_DESCRIPTION_LENGTH = 500;
+
+export type DescriptionValidation =
+  | { ok: true; description: string }
+  | { ok: false; error: string };
+
+/**
+ * Validates a description a person typed (T70): present, not blank, within the
+ * limit, and trimmed before storage.
+ *
+ * `field` names the input in the refusal, so a folder grant's "purpose" and a
+ * rule's "description" say which box to fill.
+ */
+export function validateRuleDescription(
+  value: unknown,
+  field = "description",
+): DescriptionValidation {
+  const description = typeof value === "string" ? value.trim() : "";
+  if (!description) {
+    return {
+      ok: false,
+      error: `${field} is required: say why this rule exists, so another operator can tell later`,
+    };
+  }
+  if (description.length > MAX_RULE_DESCRIPTION_LENGTH) {
+    return {
+      ok: false,
+      error: `${field} must be at most ${MAX_RULE_DESCRIPTION_LENGTH} characters`,
+    };
+  }
+  return { ok: true, description };
 }
 
 /**

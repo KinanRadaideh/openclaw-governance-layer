@@ -626,7 +626,7 @@ describe("the Root-only policy settings (finding 140)", () => {
   // setting only the CLI can reach does not satisfy it.
 
   const policy = {
-    version: 1 as const,
+    version: 2 as const,
     mode: "enforce" as const,
     ask: "on-miss" as const,
     agentAsk: {},

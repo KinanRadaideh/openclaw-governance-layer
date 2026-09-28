@@ -72,7 +72,7 @@ function identity(
  */
 function policy(lockedAgents: string[] = []): GovernancePolicyDocument {
   return {
-    version: 1,
+    version: 2,
     mode: "enforce",
     ask: "on-miss",
     agentAsk: {},

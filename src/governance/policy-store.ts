@@ -16,6 +16,7 @@ import {
   MIN_HITL_TIMEOUT_SECONDS,
   defaultPolicyDocument,
   isAskMode,
+  POLICY_DOCUMENT_VERSION,
   type GovernanceMode,
   pruneExpiredRules,
   type AskMode,
@@ -73,8 +74,12 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
   // Defensive merge against a policy.json written by an older version of this
   // file that predates a given field, or corrupted since.
   const merged = { ...defaults, ...existing };
+  // Read before `version` is overwritten below: only a document written before
+  // T70 may hold a rule with no description, and only such a document is repaired.
+  const predatesDescriptions = merged.version !== POLICY_DOCUMENT_VERSION;
   const loaded: PolicyDocument = {
     ...merged,
+    version: POLICY_DOCUMENT_VERSION,
     mode: coerce(
       merged.mode,
       (v) => v === "enforce" || v === "monitor" || v === "off",
@@ -89,7 +94,17 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
       // and the best in the other: an **allow** scoped that way silently did
       // not grant, and a **deny** scoped that way silently did not forbid.
       // oxlint-disable-next-line no-map-spread
-      .map((rule) => (rule.agentId ? { ...rule, agentId: normalizeAgentId(rule.agentId) } : rule)),
+      .map((rule) => (rule.agentId ? { ...rule, agentId: normalizeAgentId(rule.agentId) } : rule))
+      // **Every stored rule carries a description (T70)**, and this is where a
+      // document written before that became true is repaired, once: the next
+      // policy write stores version 2. In a version-2 document no write path can
+      // produce a description-less rule, so one there is malformed, and a
+      // malformed rule fails towards restriction: an allowance is dropped and
+      // grants nothing, a denial keeps refusing under a description that says
+      // what is wrong with it. Dropping the denial instead would widen access in
+      // silence, the failure QA round 10 exists to rule out.
+      .map((rule) => repairMissingDescription(rule, predatesDescriptions))
+      .filter((rule): rule is PolicyRule => rule !== undefined),
     // ------------------------------------------------------------------
     // **Folded, because this list is compared against the id the gate
     // resolves** (finding 202), and that id is always canonical: the host mints
@@ -228,6 +243,47 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
 }
 
 /**
+ * Gives a stored rule the description it lacks, or drops it (T70).
+ *
+ * `predatesDescriptions` is a document written before T70. The direct add-rule
+ * form sent no description then, so these are real operator rules whose purpose
+ * was never recorded; inventing one would be a false record, so the repair says
+ * what is known (who added it, and when) and what to do about it.
+ *
+ * In a newer document the rule is malformed (see the caller): an allowance is
+ * dropped, and a denial is kept and labelled. The regular expression stays
+ * beneath the description in every view either way.
+ *
+ * Mutates the freshly read record in place, which nothing else holds yet.
+ */
+function repairMissingDescription(
+  rule: PolicyRule,
+  predatesDescriptions: boolean,
+): PolicyRule | undefined {
+  if (typeof rule.description === "string" && rule.description.trim()) {
+    return rule;
+  }
+  const added =
+    (typeof rule.createdAt === "string" && rule.createdAt.slice(0, 10)) || "an unknown date";
+  const by = rule.createdBy || "an unknown account";
+  if (predatesDescriptions) {
+    return Object.assign(rule, {
+      description:
+        `No purpose was recorded for this rule (added by ${by} on ${added}, before ` +
+        "descriptions were required). Replace it with a rule that says why it exists, or remove it.",
+    });
+  }
+  if (rule.effect !== "deny") {
+    return undefined;
+  }
+  return Object.assign(rule, {
+    description:
+      `This denial was stored without a description, which no dashboard or API write produces ` +
+      `(added by ${by} on ${added}). It is still enforced; replace it with a described rule.`,
+  });
+}
+
+/**
  * Puts the core rules back, exactly as `baseline-policy.ts` declares them.
  *
  * Called on every load, so "immutable" means immutable against every route out
@@ -362,7 +418,7 @@ export async function setCoreRuleEnabled(
     // Named in full, because "core rule disabled" without saying *which* is the
     // entry an investigation cannot use. The description is the sentence a
     // person recognises the rule by; the id is what a filter matches.
-    target: `${enabled ? "re-enabled" : "DISABLED"} core rule: ${declared.description ?? ruleId}`,
+    target: `${enabled ? "re-enabled" : "DISABLED"} core rule: ${declared.description}`,
     outcome: enabled ? "allow" : "deny",
   });
   return updated;
@@ -462,7 +518,10 @@ function describeRule(rule: PolicyRule): string {
   // a default: the engine ignores it for command and network rules, and an
   // entry naming a direction the gate never consults would be a false record.
   const access = rule.resourceKind === "path" && rule.access ? ` ${rule.access}` : "";
-  return `${effect} ${rule.resourceKind}${access} ${rule.pattern} (${scope}, ${expiry})`;
+  // The description rides in the entry as well as in the policy (T70): after a
+  // removal the ledger is the only place left that says why the rule existed.
+  // Redacted and length-capped by the ledger like the rest of the target.
+  return `${effect} ${rule.resourceKind}${access} ${rule.pattern} (${scope}, ${expiry}); description: ${rule.description}`;
 }
 
 /**
@@ -530,8 +589,17 @@ export async function addRuleChecked(
     // the denials this tier exists to guarantee.
     throw new ImmutableRuleError();
   }
+  // **The stored-rule invariant, enforced where every rule is written (T70).**
+  // The routes refuse a missing or over-long description with a 400 before
+  // reaching here; this is what stops an in-process caller the routes do not
+  // stand in front of from storing a rule nobody can explain.
+  const description = typeof rule.description === "string" ? rule.description.trim() : "";
+  if (!description) {
+    throw new MissingRuleDescriptionError();
+  }
   const full: PolicyRule = {
     ...rule,
+    description,
     // Always `admin`, whatever the caller asked for. `core` is refused above;
     // `baseline` is coerced rather than refused because it is not an attack so
     // much as a category error, but an operator rule presenting itself as one
@@ -594,6 +662,14 @@ export async function addRuleChecked(
     ...(full.agentId ? { agentId: full.agentId } : {}),
   });
   return { rule: full, conflicts: detected };
+}
+
+/** Raised when a rule reaches the store with no description (T70). */
+export class MissingRuleDescriptionError extends Error {
+  constructor() {
+    super("A rule must have a description saying why it exists.");
+    this.name = "MissingRuleDescriptionError";
+  }
 }
 
 /** Adds a rule, discarding the clash report. See `addRuleChecked`. */

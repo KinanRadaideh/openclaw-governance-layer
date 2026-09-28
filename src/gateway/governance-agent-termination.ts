@@ -2,9 +2,11 @@
 // kill switch (design requirement #7).
 //
 // The governance layer must not import Gateway internals. It sits below the
-// Gateway in the dependency order and is exercised by the CLI and by tests
-// with no Gateway present. So the Gateway supplies the capability instead, and
-// governance calls it through the seam in src/governance/agent-terminator.ts.
+// Gateway in the dependency order and is exercised by tests with no Gateway
+// present. So the Gateway supplies the capability instead, and governance calls
+// it through the seam in src/governance/agent-terminator.ts.
+//
+// Corrected 2026-09-21: this sentence also named the CLI, removed 2026-09-07.
 //
 // The abort itself is OpenClaw's own: `abortChatRunById` fires the run's
 // AbortController, which propagates to cooperative tool code and, for spawned

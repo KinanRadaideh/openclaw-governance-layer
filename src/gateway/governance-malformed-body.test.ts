@@ -140,7 +140,7 @@ describe("prototype-pollution shaped bodies do not mutate Object.prototype", () 
     await postRaw(
       "policy/rules",
       session("administrator"),
-      '{"resourceKind":"command","pattern":"^ls$","__proto__":{"polluted":"yes"}}',
+      '{"resourceKind":"command","pattern":"^ls$","description":"test","__proto__":{"polluted":"yes"}}',
     );
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });

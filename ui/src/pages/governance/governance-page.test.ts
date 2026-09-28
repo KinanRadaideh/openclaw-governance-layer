@@ -65,7 +65,7 @@ function rule(overrides: Partial<GovernancePolicyRule> = {}): GovernancePolicyRu
 
 function policy(rules: GovernancePolicyRule[]): GovernancePolicyDocument {
   return {
-    version: 1,
+    version: 2,
     mode: "enforce",
     ask: "off",
     agentMode: {},
@@ -833,6 +833,7 @@ describe("ending a session drops what it loaded", () => {
       // A rule half-authored against a named agent, and a request half-typed
       // about a named account. Both prefill their forms for whoever is next.
       newRulePattern: "^cat /etc/payroll$",
+      newRuleDescription: "Reads the payroll export",
       requestReason: "needed for the payroll job",
     } as never);
 
@@ -848,6 +849,42 @@ describe("ending a session drops what it loaded", () => {
     expect(values.join(" | "), "nor the previous account's half-authored rule").not.toContain(
       "payroll",
     );
+  });
+
+  // **Finding 392: the controllers split out after finding 280 were not covered.** The
+  // agent registry's row notices and provisioning form, and the accounts panel's
+  // half-typed new account (its password included), live in controllers the page owns
+  // rather than in its `@state()` fields, so "everything, less the exceptions" missed
+  // them. Found live: an Administrator signing in after Root was shown Root's
+  // "Deleted the way OpenClaw does …" and "Created delta …".
+  it("does not carry the registry's notices or the accounts form into the next sign-in", async () => {
+    const el = await mount({ identity: identity("root"), policy: policy([]) } as never);
+    const controllers = el as unknown as {
+      agentRegistry: { slice(): { onDraft(patch: Record<string, unknown>): void } };
+      accounts: { slice(): { onDraft(patch: Record<string, unknown>): void } };
+    };
+    controllers.agentRegistry.slice().onDraft({
+      provisionNotice: "Created delta-from-root, and OpenClaw has picked it up.",
+      provisionName: "half-typed-agent",
+    });
+    controllers.accounts.slice().onDraft({
+      newUserName: "half-typed-account",
+      newUserPassword: "a-half-typed-password",
+    });
+    await el.updateComplete;
+
+    await signOutThenBackIn(el, identity("root"));
+
+    const text = el.textContent ?? "";
+    const values = [...el.querySelectorAll("input, textarea")].map(
+      (field) => (field as HTMLInputElement).value,
+    );
+    expect(text, "Root's provisioning notice must not greet the next account").not.toContain(
+      "delta-from-root",
+    );
+    expect(values.join(" | ")).not.toContain("half-typed-agent");
+    expect(values.join(" | ")).not.toContain("half-typed-account");
+    expect(values.join(" | "), "nor a half-typed password").not.toContain("a-half-typed-password");
   });
 });
 

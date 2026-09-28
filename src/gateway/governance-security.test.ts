@@ -176,6 +176,7 @@ describe("catastrophic-backtracking (ReDoS) resistance", () => {
     // exponential time on a non-matching input, which would hang the gate --
     // a denial of service against the control itself, reachable by any User.
     const result = await call("POST", "policy/rules", session("administrator"), {
+      description: "test rule",
       resourceKind: "command",
       pattern: "^(a+)+$",
     });
@@ -201,6 +202,7 @@ describe("catastrophic-backtracking (ReDoS) resistance", () => {
       "^git (status|log)$",
     ]) {
       const result = await call("POST", "policy/rules", session("administrator"), {
+        description: "test rule",
         resourceKind: "command",
         pattern,
       });

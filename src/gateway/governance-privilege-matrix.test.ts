@@ -186,7 +186,7 @@ const ROUTES: RouteCase[] = [
     method: "POST",
     route: "policy/rules",
     floor: "user",
-    body: { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+    body: { resourceKind: "command", pattern: "^ls$", agentId: "agent-a", description: "test" },
   },
   { method: "POST", route: "policy/rules/remove", floor: "user", body: { id: "nope" } },
   { method: "POST", route: "kill", floor: "user", body: { agentId: "agent-a", locked: true } },

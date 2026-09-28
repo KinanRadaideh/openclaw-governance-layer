@@ -189,7 +189,11 @@ describe("core denials beat every allowance", () => {
   });
 
   it("cannot be overridden by an operator rule that allows everything", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^.*$" }, "over-eager-admin");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "path", pattern: "^.*$" },
+      "over-eager-admin",
+    );
     await writeFile(join(workspace, "id_rsa"), "key\n");
     expect(
       verdict(
@@ -253,7 +257,13 @@ describe("core rules are immutable in the ways that matter", () => {
     await expect(
       addRule(
         TEST_GROUP,
-        { resourceKind: "path", pattern: "^.*$", tier: "core", effect: "allow" },
+        {
+          description: "test rule",
+          resourceKind: "path",
+          pattern: "^.*$",
+          tier: "core",
+          effect: "allow",
+        },
         "attacker",
       ),
     ).rejects.toBeInstanceOf(ImmutableRuleError);
@@ -262,7 +272,7 @@ describe("core rules are immutable in the ways that matter", () => {
   it("marks an operator rule as admin even when it claims another tier", async () => {
     const rule = await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^mine$", tier: "baseline" },
+      { description: "test rule", resourceKind: "command", pattern: "^mine$", tier: "baseline" },
       "admin",
     );
     // `baseline` is a shipped tier; an operator rule claiming it would be
@@ -295,6 +305,7 @@ describe("core rules are immutable in the ways that matter", () => {
       ...doc,
       rules: [
         {
+          description: "test rule",
           id: "forged",
           resourceKind: "path",
           pattern: "^.*$",
@@ -429,6 +440,7 @@ describe("documents written before tiers existed keep working", () => {
       ...defaultPolicyDocument(),
       rules: [
         {
+          description: "test rule",
           id: "legacy",
           resourceKind: "command",
           pattern: "^legacy-command$",
@@ -483,7 +495,7 @@ describe("reads and writes are separable permissions (G8)", () => {
   it("lets an operator grant writes deliberately", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "path", pattern: "^src/.*$", access: "write" },
+      { description: "test rule", resourceKind: "path", pattern: "^src/.*$", access: "write" },
       "admin",
     );
     await writeFile(join(workspace, "src.txt"), "x\n");
@@ -497,7 +509,11 @@ describe("reads and writes are separable permissions (G8)", () => {
   it("keeps a rule with no access narrowing granting both directions", async () => {
     // Every path rule written before this distinction existed must keep its
     // meaning, or the change would silently revoke permissions.
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^legacy/.*$" }, "admin");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "path", pattern: "^legacy/.*$" },
+      "admin",
+    );
     for (const toolName of ["read", "write"]) {
       expect(
         verdict(

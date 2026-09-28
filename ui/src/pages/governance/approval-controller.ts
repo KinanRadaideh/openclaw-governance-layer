@@ -6,6 +6,7 @@
 // own, on `ConversationController`'s pattern, because the subject owns its state, its
 // poll and its effects, and the page is at its line limit.
 import type { ReactiveController, ReactiveControllerHost } from "lit";
+import { t } from "../../i18n/index.ts";
 import {
   GovernanceApiError,
   type GovernanceApi,
@@ -57,6 +58,13 @@ async function revealWaitingApprovals(host: ApprovalHost): Promise<void> {
 export class ApprovalController implements ReactiveController {
   private approvals: GovernanceApproval[] = [];
   private notices: GovernanceApprovalNotice[] = [];
+  /**
+   * Answers the server refused because the question was already gone (finding 386). Kept
+   * here, not on the card: the read that follows the refusal removes the card, and the
+   * refusal went with it, so an operator who pressed Allow after a colleague's Deny was
+   * never told which answer was used. The server's notices replace `notices` each read.
+   */
+  private lateAnswers: GovernanceApprovalNotice[] = [];
   private readonly dismissed = new Set<string>();
   private readonly errors = new Map<string, string>();
   private readonly answering = new Set<string>();
@@ -87,7 +95,7 @@ export class ApprovalController implements ReactiveController {
   slice(): ApprovalSlice {
     return {
       approvals: this.approvals,
-      notices: this.notices,
+      notices: [...this.lateAnswers, ...this.notices],
       errors: this.errors,
       answering: this.answering,
       nowMs: Date.now(),
@@ -95,17 +103,19 @@ export class ApprovalController implements ReactiveController {
       dismissNotice: (id) => {
         this.dismissed.add(id);
         this.notices = this.notices.filter((notice) => notice.id !== id);
+        this.lateAnswers = this.lateAnswers.filter((notice) => notice.id !== id);
         this.host.requestUpdate();
       },
     };
   }
 
   private clearCards(): void {
-    if (this.approvals.length === 0 && this.notices.length === 0) {
+    if (this.approvals.length === 0 && this.notices.length === 0 && this.lateAnswers.length === 0) {
       return;
     }
     this.approvals = [];
     this.notices = [];
+    this.lateAnswers = [];
     this.errors.clear();
     this.host.requestUpdate();
   }
@@ -115,6 +125,7 @@ export class ApprovalController implements ReactiveController {
     this.generation += 1;
     this.approvals = [];
     this.notices = [];
+    this.lateAnswers = [];
     this.dismissed.clear();
     this.errors.clear();
     this.answering.clear();
@@ -195,6 +206,19 @@ export class ApprovalController implements ReactiveController {
       }
       // Kept on the card it is about, until the next read shows the approval gone.
       this.errors.set(id, err instanceof Error ? err.message : String(err));
+      if (err instanceof GovernanceApiError && err.status === 404) {
+        const asked = this.approvals.find((approval) => approval.id === id);
+        this.lateAnswers = [
+          ...this.lateAnswers.filter((notice) => notice.id !== `late:${id}`),
+          {
+            id: `late:${id}`,
+            agentId: asked?.agentId ?? "",
+            message: t("governance.approvals.answerNotUsed", { title: asked?.title ?? id }),
+            severity: "warning",
+            at: Date.now(),
+          },
+        ];
+      }
     } finally {
       this.answering.delete(id);
       this.host.requestUpdate();

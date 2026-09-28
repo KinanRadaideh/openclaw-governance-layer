@@ -94,7 +94,11 @@ describe("governance policy engine", () => {
   });
 
   it("allows a command matching an active rule", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls( .*)?$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls( .*)?$" },
+      "tester",
+    );
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls -la" } },
       ctx,
@@ -106,6 +110,7 @@ describe("governance policy engine", () => {
     await addRule(
       TEST_GROUP,
       {
+        description: "test rule",
         resourceKind: "command",
         pattern: "^ls( .*)?$",
         expiresAt: new Date(Date.now() - 1000).toISOString(),
@@ -123,7 +128,11 @@ describe("governance policy engine", () => {
   });
 
   it("blocks every governed action from a locked-down agent, even an allowlisted one", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls( .*)?$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls( .*)?$" },
+      "tester",
+    );
     await lockAgent(TEST_GROUP, "demo");
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls -la" } },
@@ -180,7 +189,7 @@ describe("governance policy engine", () => {
   it("matches network rules on the hostname of a web_fetch URL", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "network", pattern: "^api[.]example[.]com$" },
+      { description: "test rule", resourceKind: "network", pattern: "^api[.]example[.]com$" },
       "tester",
     );
     await updatePolicy(TEST_GROUP, (doc) => {
@@ -207,7 +216,7 @@ describe("governance policy engine", () => {
   it("matches a network rule regardless of hostname letter case", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "network", pattern: "^api[.]example[.]com$" },
+      { description: "test rule", resourceKind: "network", pattern: "^api[.]example[.]com$" },
       "tester",
     );
     await updatePolicy(TEST_GROUP, (doc) => {
@@ -221,7 +230,11 @@ describe("governance policy engine", () => {
   });
 
   it("does not let a rule for one resource kind authorize another kind", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: ".*" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: ".*" },
+      "tester",
+    );
     await updatePolicy(TEST_GROUP, (doc) => {
       doc.ask = "off";
     });
@@ -233,7 +246,11 @@ describe("governance policy engine", () => {
   });
 
   it("blocks a multi-path edit when any single path is unlisted", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/allowed[.]ts$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "path", pattern: "^src/allowed[.]ts$" },
+      "tester",
+    );
     await updatePolicy(TEST_GROUP, (doc) => {
       doc.ask = "off";
     });
@@ -249,7 +266,11 @@ describe("governance policy engine", () => {
   });
 
   it("records every checked resource, not only the one that caused the block", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/allowed[.]ts$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "path", pattern: "^src/allowed[.]ts$" },
+      "tester",
+    );
     await updatePolicy(TEST_GROUP, (doc) => {
       doc.ask = "off";
     });
@@ -280,7 +301,7 @@ describe("governance policy engine", () => {
     // hand them authority over agent-b.
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
       "tester",
     );
     await updatePolicy(TEST_GROUP, (doc) => {
@@ -305,7 +326,11 @@ describe("governance policy engine", () => {
   });
 
   it("applies a global rule to every agent", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     await updatePolicy(TEST_GROUP, (doc) => {
       doc.ask = "off";
     });
@@ -325,7 +350,7 @@ describe("governance policy engine", () => {
   it("does not match an agent-scoped rule when the agent is unknown", async () => {
     await addRule(
       TEST_GROUP,
-      { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+      { description: "test rule", resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
       "tester",
     );
     await updatePolicy(TEST_GROUP, (doc) => {
@@ -345,6 +370,7 @@ describe("governance policy engine", () => {
       ask: "off",
       rules: [
         {
+          description: "test rule",
           id: "bad",
           resourceKind: "command",
           pattern: "[unclosed",
@@ -393,7 +419,11 @@ describe("governance policy engine", () => {
   });
 
   it("does not write the ledger for an allowed action twice", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx);
     expect(
       (await tailLedger(TEST_GROUP)).filter((entry) => entry.entryKind !== "admin"),
@@ -510,7 +540,11 @@ describe("per-agent HITL override (design doc §1.6)", () => {
 
   it("does not let an override bypass a matching allow rule", async () => {
     // The override changes what happens on a *miss*, never whether a rule matches.
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     await setAgentAskMode(TEST_GROUP, "agent-a", "off", TEST_ACTOR);
     expect(
       verdict(
@@ -523,7 +557,11 @@ describe("per-agent HITL override (design doc §1.6)", () => {
   });
 
   it("does not let an override bypass a lockdown", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      "tester",
+    );
     await setAgentAskMode(TEST_GROUP, "agent-a", "on-miss", TEST_ACTOR);
     await updatePolicy(TEST_GROUP, (doc) => {
       doc.lockedAgents = ["agent-a"];
@@ -619,7 +657,11 @@ describe("per-agent HITL override (design doc §1.6)", () => {
     });
 
     it("an allowance. Allowed", async () => {
-      await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^id$" }, "tester");
+      await addRule(
+        TEST_GROUP,
+        { description: "test rule", resourceKind: "command", pattern: "^id$" },
+        "tester",
+      );
       expect(
         verdict(
           await evaluateGovernancePolicy({ toolName: "exec", params: { command: "id" } }, ctx),

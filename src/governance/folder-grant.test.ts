@@ -65,7 +65,13 @@ describe("what the operator asked for actually holds", () => {
   it("grants the folder and refuses the exception, judged by the gate", async () => {
     await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: workspace },
+      {
+        description: "test rule",
+        folder: "work",
+        exceptions: ["work/secrets"],
+        agentId: AGENT,
+        cwd: workspace,
+      },
       ACTOR,
     );
 
@@ -81,7 +87,7 @@ describe("what the operator asked for actually holds", () => {
     // "this folder".
     const { grant } = await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", agentId: AGENT, cwd: workspace },
+      { description: "test rule", folder: "work", agentId: AGENT, cwd: workspace },
       ACTOR,
     );
 
@@ -95,7 +101,7 @@ describe("what the operator asked for actually holds", () => {
     // it becomes a pattern, or the operator has written a wildcard by accident.
     const { grant } = await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "a.b", agentId: AGENT, cwd: workspace },
+      { description: "test rule", folder: "a.b", agentId: AGENT, cwd: workspace },
       ACTOR,
     );
 
@@ -110,6 +116,7 @@ describe("what the operator asked for actually holds", () => {
     await grantFolderWithExceptions(
       TEST_GROUP,
       {
+        description: "test rule",
         folder: "work",
         exceptions: ["work/secrets"],
         access: "read",
@@ -134,7 +141,13 @@ describe("what it produces is ordinary policy", () => {
     // be a package the operator cannot take apart.
     const result = await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: workspace },
+      {
+        description: "test rule",
+        folder: "work",
+        exceptions: ["work/secrets"],
+        agentId: AGENT,
+        cwd: workspace,
+      },
       ACTOR,
     );
 
@@ -157,7 +170,13 @@ describe("what it produces is ordinary policy", () => {
   it("records each rule in the ledger, like any other rule addition", async () => {
     await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: workspace },
+      {
+        description: "test rule",
+        folder: "work",
+        exceptions: ["work/secrets"],
+        agentId: AGENT,
+        cwd: workspace,
+      },
       ACTOR,
     );
 
@@ -171,15 +190,48 @@ describe("what it produces is ordinary policy", () => {
   });
 
   it("describes each rule in words, so the list explains itself", async () => {
+    // The operator's purpose leads each description (T70); the generated half
+    // says which part of the grant the rule is.
     const result = await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: workspace },
+      {
+        description: " Let the agent work on the project ",
+        folder: "work",
+        exceptions: ["work/secrets"],
+        agentId: AGENT,
+        cwd: workspace,
+      },
       ACTOR,
     );
 
-    expect(result.grant.rule.description).toContain("Grant on work");
-    expect(result.grant.rule.description).toContain("except work/secrets");
-    expect(result.exceptions[0]?.rule.description).toContain("Exception to the grant");
+    expect(result.grant.rule.description).toBe(
+      "Let the agent work on the project (grant on work, except work/secrets)",
+    );
+    expect(result.exceptions[0]?.rule.description).toBe(
+      "Let the agent work on the project (exception to the grant on work: work/secrets)",
+    );
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["blank", "   "],
+    ["over the limit", "p".repeat(501)],
+  ])("refuses a %s purpose before writing anything (T70)", async (_label, description) => {
+    const before = (await loadPolicy(TEST_GROUP)).rules.length;
+    await expect(
+      grantFolderWithExceptions(
+        TEST_GROUP,
+        {
+          description: description as unknown as string,
+          folder: "work",
+          exceptions: ["work/secrets"],
+          agentId: AGENT,
+          cwd: workspace,
+        },
+        ACTOR,
+      ),
+    ).rejects.toBeInstanceOf(FolderGrantError);
+    expect((await loadPolicy(TEST_GROUP)).rules).toHaveLength(before);
   });
 });
 
@@ -189,7 +241,13 @@ describe("what it refuses to write", () => {
     await expect(
       grantFolderWithExceptions(
         TEST_GROUP,
-        { folder: "work", exceptions: ["etc/passwd"], agentId: AGENT, cwd: workspace },
+        {
+          description: "test rule",
+          folder: "work",
+          exceptions: ["etc/passwd"],
+          agentId: AGENT,
+          cwd: workspace,
+        },
         ACTOR,
       ),
     ).rejects.toBeInstanceOf(FolderGrantError);
@@ -199,7 +257,13 @@ describe("what it refuses to write", () => {
     await expect(
       grantFolderWithExceptions(
         TEST_GROUP,
-        { folder: "work", exceptions: ["elsewhere"], agentId: AGENT, cwd: workspace },
+        {
+          description: "test rule",
+          folder: "work",
+          exceptions: ["elsewhere"],
+          agentId: AGENT,
+          cwd: workspace,
+        },
         ACTOR,
       ),
     ).rejects.toThrow(/"elsewhere" is not inside "work".*its own deny rule/s);
@@ -209,7 +273,7 @@ describe("what it refuses to write", () => {
     await expect(
       grantFolderWithExceptions(
         TEST_GROUP,
-        { folder: "   ", agentId: AGENT, cwd: workspace },
+        { description: "test rule", folder: "   ", agentId: AGENT, cwd: workspace },
         ACTOR,
       ),
     ).rejects.toBeInstanceOf(FolderGrantError);
@@ -226,6 +290,7 @@ describe("what it refuses to write", () => {
       grantFolderWithExceptions(
         TEST_GROUP,
         {
+          description: "test rule",
           folder: "work",
           exceptions: ["work/secrets", "etc/passwd"],
           agentId: AGENT,
@@ -248,7 +313,13 @@ describe("bounds, found by QA on this module rather than designed in", () => {
     await expect(
       grantFolderWithExceptions(
         TEST_GROUP,
-        { folder: "work", exceptions: many, agentId: AGENT, cwd: workspace },
+        {
+          description: "test rule",
+          folder: "work",
+          exceptions: many,
+          agentId: AGENT,
+          cwd: workspace,
+        },
         ACTOR,
       ),
     ).rejects.toThrow(/at most 50 exceptions/);
@@ -264,7 +335,7 @@ describe("bounds, found by QA on this module rather than designed in", () => {
     await expect(
       grantFolderWithExceptions(
         TEST_GROUP,
-        { folder: long, agentId: AGENT, cwd: workspace },
+        { description: "test rule", folder: long, agentId: AGENT, cwd: workspace },
         ACTOR,
       ),
     ).rejects.toThrow(/cannot be expressed as a rule/);
@@ -274,7 +345,13 @@ describe("bounds, found by QA on this module rather than designed in", () => {
     const many = Array.from({ length: 50 }, (_, i) => `work/x${i}`);
     const result = await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", exceptions: many, agentId: AGENT, cwd: workspace },
+      {
+        description: "test rule",
+        folder: "work",
+        exceptions: many,
+        agentId: AGENT,
+        cwd: workspace,
+      },
       ACTOR,
     );
     expect(result.exceptions).toHaveLength(50);

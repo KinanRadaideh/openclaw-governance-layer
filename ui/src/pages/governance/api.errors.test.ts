@@ -5,8 +5,9 @@
 // 359). Found by stopping the Gateway under a signed-in page:
 // every action said "Failed to fetch", and that stayed after it came back.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GOVERNANCE_RECONNECTED_MESSAGE } from "./api.errors.ts";
+import { GOVERNANCE_NOT_CONNECTED_MESSAGE, GOVERNANCE_RECONNECTED_MESSAGE } from "./api.errors.ts";
 import { GOVERNANCE_UNREACHABLE_MESSAGE, GovernanceApi, GovernanceApiError } from "./api.ts";
+import { isSessionLost } from "./identity.ts";
 import { errorAfterRefresh } from "./refusal-focus.ts";
 
 afterEach(() => {
@@ -141,5 +142,30 @@ describe("the page's error after a refresh", () => {
   it("keeps a refusal, which a successful refresh does not disprove", () => {
     const refusal = 'You do not manage agent "scout"';
     expect(errorAfterRefresh(refusal, 0)).toBe(refusal);
+  });
+});
+
+// Finding 396. The page authenticates to the Gateway with the device token its connection
+// received, so while the Gateway restarts there is none. The first requests after the
+// Gateway's HTTP side came back went out bare, the Gateway's own credential gate answered
+// 401, and the page read that as the governance session ending: it cleared itself and told
+// the operator "Your session ended" about a session that was still valid.
+describe("a 401 to a request sent without the Gateway credential (finding 396)", () => {
+  const unauthorized = () =>
+    new Response(JSON.stringify({ error: { message: "Unauthorized", type: "unauthorized" } }), {
+      status: 401,
+    });
+
+  it("is not a lost session, and says the connection is being re-established", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(unauthorized());
+    const failure = await failureOf(new GovernanceApi("", null).whoami());
+    expect(isSessionLost(failure)).toBe(false);
+    expect(failure.message).toBe(GOVERNANCE_NOT_CONNECTED_MESSAGE);
+  });
+
+  it("still ends the session when the credential was sent", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(unauthorized());
+    const failure = await failureOf(new GovernanceApi("", "device-token").whoami());
+    expect(isSessionLost(failure)).toBe(true);
   });
 });
