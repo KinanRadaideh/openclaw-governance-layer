@@ -7,7 +7,7 @@
 // shipped baseline allows reading any workspace-relative path, so the default
 // agent could read every other agent's files without asking. Found live: a User
 // who was never assigned `gamma` read `gamma`'s notes by prompting `main`.
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -102,6 +102,38 @@ describe("finding 385: a nested agent workspace is outside the enclosing agent's
       agentId: "main",
       sessionKey: "agent:main:main",
       cwd: workspace,
+      result: {
+        content: [
+          {
+            type: "text",
+            text: ["reports/weekly.md:1:main's own report", "gamma/notes.txt:1:private"].join("\n"),
+          },
+        ],
+      },
+    });
+    const text = JSON.stringify(filtered);
+    expect(text).toContain("reports/weekly.md");
+    expect(text).not.toContain("gamma/notes.txt:1:private");
+  });
+
+  it("withholds them when the workspace is configured through a link", async () => {
+    // The configured spelling differs from the canonical one the result resolves to
+    // (a symlinked home, macOS `/var` → `/private/var`). A root compared as configured
+    // matched nothing, and the nested agent's lines stayed in the results.
+    const linked = join(dir, "workspace-link");
+    await symlink(workspace, linked, process.platform === "win32" ? "junction" : "dir");
+    setRuntimeConfigSnapshot({
+      agents: {
+        defaults: { workspace: linked },
+        entries: { main: { default: true }, gamma: { name: "gamma" } },
+      },
+    } as unknown as OpenClawConfig);
+    const filtered = await filterSearchResult({
+      toolName: "grep",
+      toolParams: { path: "." },
+      agentId: "main",
+      sessionKey: "agent:main:main",
+      cwd: linked,
       result: {
         content: [
           {

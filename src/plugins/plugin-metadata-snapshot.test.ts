@@ -1,5 +1,7 @@
 // Verifies lifecycle snapshot loading, ownership facts, and immutable boundaries.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveAgentWorkspaceDir } from "../agents/agent-scope-config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import {
   getCurrentPluginMetadataSnapshot,
   setCurrentPluginMetadataSnapshot,
@@ -431,7 +433,8 @@ describe("plugin metadata snapshot", () => {
   });
 
   it("scans a new agent workspace once per Gateway generation and shares it with its readers", () => {
-    const config = {};
+    const config = { agents: { entries: { beta: { workspace: "/ws/new" } } } } as OpenClawConfig;
+    const newWorkspace = resolveAgentWorkspaceDir(config, "beta");
     const index = makeIndex();
     index.policyHash = resolveInstalledPluginIndexPolicyHash(config);
     loadPluginRegistrySnapshotWithMetadata.mockReturnValue({
@@ -448,31 +451,58 @@ describe("plugin metadata snapshot", () => {
     setCurrentPluginMetadataSnapshot(gateway, { config, env: {}, workspaceDir: "/ws/main" });
     loadPluginRegistrySnapshotWithMetadata.mockClear();
 
-    const created = resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" });
+    const created = resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: newWorkspace });
     // Skills, auth lookups, and registry reads all resolve through the current-snapshot owner.
-    expect(resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" })).toBe(
+    expect(resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: newWorkspace })).toBe(
       created,
     );
-    expect(getCurrentPluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" })).toBe(
+    expect(getCurrentPluginMetadataSnapshot({ config, env: {}, workspaceDir: newWorkspace })).toBe(
       created,
     );
     expect(loadPluginRegistrySnapshotWithMetadata).toHaveBeenCalledTimes(1);
     expect(
       getCurrentPluginMetadataSnapshot({
-        config: { plugins: { allow: ["other"] } },
+        config: { ...config, plugins: { allow: ["other"] } },
         env: {},
-        workspaceDir: "/ws/new",
+        workspaceDir: newWorkspace,
       }),
     ).toBeUndefined();
 
     // A new Gateway generation drops workspace snapshots built from the previous one.
     setCurrentPluginMetadataSnapshot(gateway, { config, env: {}, workspaceDir: "/ws/main" });
     expect(
-      getCurrentPluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" }),
+      getCurrentPluginMetadataSnapshot({ config, env: {}, workspaceDir: newWorkspace }),
     ).toBeUndefined();
-    expect(resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: "/ws/new" })).not.toBe(
+    expect(resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: newWorkspace })).not.toBe(
       created,
     );
+    expect(loadPluginRegistrySnapshotWithMetadata).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps no snapshot for a directory no agent is configured with", () => {
+    // Bounded to the configured agents: a run's or a sandbox's directory would otherwise
+    // add a full snapshot per distinct path for as long as the generation lasts.
+    const config = { agents: { entries: { beta: { workspace: "/ws/new" } } } } as OpenClawConfig;
+    const index = makeIndex();
+    index.policyHash = resolveInstalledPluginIndexPolicyHash(config);
+    loadPluginRegistrySnapshotWithMetadata.mockReturnValue({
+      source: "provided",
+      snapshot: index,
+      diagnostics: [],
+    });
+    const gateway = loadPluginMetadataSnapshot({
+      config,
+      env: {},
+      index,
+      workspaceDir: "/ws/main",
+    });
+    setCurrentPluginMetadataSnapshot(gateway, { config, env: {}, workspaceDir: "/ws/main" });
+    loadPluginRegistrySnapshotWithMetadata.mockClear();
+
+    const first = resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: "/tmp/run-1" });
+    const second = resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir: "/tmp/run-1" });
+
+    expect(second).not.toBe(first);
     expect(loadPluginRegistrySnapshotWithMetadata).toHaveBeenCalledTimes(2);
   });
 

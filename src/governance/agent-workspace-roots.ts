@@ -13,6 +13,7 @@
 // Read from the runtime configuration snapshot, which hot reload replaces, so the
 // cache below is keyed on that object and never polls. No snapshot (tests, tooling)
 // means no roots, which is the behaviour before this finding.
+import { realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { listAgentEntries, resolveAgentWorkspaceDir } from "../agents/agent-scope-config.js";
 import { getRuntimeConfigSnapshot } from "../config/runtime-snapshot.js";
@@ -20,6 +21,10 @@ import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 
 const rootsBySnapshot = new WeakMap<OpenClawConfig, Map<string, readonly string[]>>();
+const canonicalRootsBySnapshot = new WeakMap<
+  OpenClawConfig,
+  Map<string, Promise<readonly string[]>>
+>();
 
 /** Every other configured agent's workspace that lies inside this agent's own. */
 export function nestedAgentWorkspaceRoots(agentId: string | undefined): readonly string[] {
@@ -49,4 +54,51 @@ export function nestedAgentWorkspaceRoots(agentId: string | undefined): readonly
     byAgent.set(self, roots);
   }
   return roots;
+}
+
+/**
+ * The same roots in canonical form with forward slashes, for comparing against the
+ * canonical paths a search result resolves to. The configured spelling can differ from
+ * the canonical one (a symlinked home, macOS `/var` → `/private/var`, a path typed in a
+ * different case), and a root compared in the wrong spelling withholds nothing.
+ * Resolved once per configuration snapshot; a root that does not exist yet keeps its
+ * configured spelling.
+ */
+export function canonicalNestedAgentWorkspaceRoots(
+  agentId: string | undefined,
+): Promise<readonly string[]> {
+  const cfg = getRuntimeConfigSnapshot();
+  if (!cfg || !agentId) {
+    return Promise.resolve([]);
+  }
+  const self = normalizeAgentId(agentId);
+  let byAgent = canonicalRootsBySnapshot.get(cfg);
+  if (!byAgent) {
+    byAgent = new Map();
+    canonicalRootsBySnapshot.set(cfg, byAgent);
+  }
+  let roots = byAgent.get(self);
+  if (!roots) {
+    roots = Promise.all(
+      nestedAgentWorkspaceRoots(self).map(async (root) =>
+        (await realpath(root).catch(() => root)).split(sep).join("/"),
+      ),
+    );
+    byAgent.set(self, roots);
+  }
+  return roots;
+}
+
+/**
+ * Whether a canonical, forward-slash path lies in one of `roots`. Folded where the
+ * filesystem is usually case-insensitive, as the gate's own comparison is.
+ */
+export function isInsideAnyRoot(path: string, roots: readonly string[]): boolean {
+  const fold = (value: string) =>
+    process.platform === "win32" || process.platform === "darwin" ? value.toLowerCase() : value;
+  const target = fold(path);
+  return roots.some((root) => {
+    const prefix = fold(root).replace(/\/+$/u, "");
+    return target === prefix || target.startsWith(`${prefix}/`);
+  });
 }

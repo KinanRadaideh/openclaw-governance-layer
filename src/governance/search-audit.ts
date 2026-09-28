@@ -49,7 +49,7 @@
 // any parsing.
 import { isAbsolute, resolve } from "node:path";
 import { resolveAgentGroup } from "./agent-group.js";
-import { nestedAgentWorkspaceRoots } from "./agent-workspace-roots.js";
+import { canonicalNestedAgentWorkspaceRoots, isInsideAnyRoot } from "./agent-workspace-roots.js";
 import { appendLedgerEntry } from "./audit-ledger.js";
 import { resolveGovernedPathForms } from "./path-normalize.js";
 import { matchesPattern } from "./pattern-match.js";
@@ -216,22 +216,34 @@ function applicableDenials(
   rules: readonly PolicyRule[],
   agentId: string | undefined,
   nowMs: number,
-): Pick<PolicyRule, "pattern">[] {
-  return [
-    ...rules.filter(
-      (rule) =>
-        rule.effect === "deny" &&
-        rule.resourceKind === "path" &&
-        (rule.access === undefined || rule.access === "read") &&
-        !isRuleExpired(rule, nowMs) &&
-        (rule.agentId === undefined || rule.agentId === agentId),
-    ),
-    // Another agent's workspace nested inside this one is withheld from a search the
-    // way a denial is: the gate will not let this agent read it unasked (finding 385).
-    ...nestedAgentWorkspaceRoots(agentId).map((root) => ({
-      pattern: `^${root.replaceAll("\\", "/").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(/|$)`,
-    })),
-  ];
+): PolicyRule[] {
+  return rules.filter(
+    (rule) =>
+      rule.effect === "deny" &&
+      rule.resourceKind === "path" &&
+      (rule.access === undefined || rule.access === "read") &&
+      !isRuleExpired(rule, nowMs) &&
+      (rule.agentId === undefined || rule.agentId === agentId),
+  );
+}
+
+/**
+ * Whether a result is withheld: a denial covers it, or it lies in another agent's
+ * workspace nested inside this one, which the gate will not let this agent read
+ * unasked (finding 385). The nested roots are compared in canonical form, as the
+ * result's absolute form is: a root spelled as configured matched nothing wherever
+ * the two spellings differ.
+ */
+function isWithheld(
+  forms: readonly string[],
+  denials: readonly PolicyRule[],
+  nestedRoots: readonly string[],
+): boolean {
+  return forms.some(
+    (form) =>
+      denials.some((rule) => matchesPattern(rule.pattern, form)) ||
+      isInsideAnyRoot(form, nestedRoots),
+  );
 }
 
 /**
@@ -293,7 +305,8 @@ export async function auditSearchReach(params: {
       return;
     }
     const denials = applicableDenials(doc.rules, params.agentId, Date.now());
-    if (denials.length === 0) {
+    const nestedRoots = await canonicalNestedAgentWorkspaceRoots(params.agentId);
+    if (denials.length === 0 && nestedRoots.length === 0) {
       return;
     }
     const candidates = candidatePaths(params.result, params.toolName);
@@ -311,10 +324,7 @@ export async function auditSearchReach(params: {
       if (recorded.has(resource)) {
         continue;
       }
-      const denied = denials.find((rule) =>
-        forms.some((form) => matchesPattern(rule.pattern, form)),
-      );
-      if (!denied) {
+      if (!isWithheld(forms, denials, nestedRoots)) {
         continue;
       }
       recorded.add(resource);
@@ -435,7 +445,8 @@ export async function filterSearchResult(params: {
       return undefined;
     }
     const denials = applicableDenials(doc.rules, params.agentId, Date.now());
-    if (denials.length === 0) {
+    const nestedRoots = await canonicalNestedAgentWorkspaceRoots(params.agentId);
+    if (denials.length === 0 && nestedRoots.length === 0) {
       return undefined;
     }
     const text = resultText(params.result);
@@ -469,7 +480,7 @@ export async function filterSearchResult(params: {
         // finding 253 was worst: an absolute denial matched nothing, so a
         // forbidden file stayed in the results the model reads.
         const { recorded: resource, forms } = await resolveGovernedPathForms(candidate, base);
-        denied = forms.some((form) => denials.some((rule) => matchesPattern(rule.pattern, form)));
+        denied = isWithheld(forms, denials, nestedRoots);
         verdictByCandidate.set(candidate, denied);
         if (denied) {
           withheldResources.add(resource);

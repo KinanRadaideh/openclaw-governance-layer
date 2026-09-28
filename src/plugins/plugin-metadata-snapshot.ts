@@ -1,4 +1,5 @@
 import { normalizeProviderId } from "@openclaw/model-catalog-core/provider-id";
+import { listAgentWorkspaceDirs } from "../agents/workspace-dirs.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import {
   getActiveDiagnosticsTimelineSpan,
@@ -337,9 +338,13 @@ export function resolvePluginMetadataSnapshot(
       const loaded = loadPluginMetadataSnapshot(params);
       if (
         params.workspaceDir !== undefined &&
+        params.config !== undefined &&
         params.index === undefined &&
         params.pluginIds === undefined &&
-        params.pluginIdScope === undefined
+        params.pluginIdScope === undefined &&
+        // Configured agent workspaces only, which bounds what one generation keeps; an
+        // ad-hoc directory (a run's or a sandbox's) is scanned per call, as before.
+        listAgentWorkspaceDirs(params.config).includes(params.workspaceDir)
       ) {
         // A new agent workspace misses the Gateway's snapshot; share this scan with its other
         // readers (model runtime, skills, auth lookups) for the rest of the generation.
