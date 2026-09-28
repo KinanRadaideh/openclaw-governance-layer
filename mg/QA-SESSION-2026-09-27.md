@@ -758,3 +758,36 @@ not counted.
 - **Suite.** The full governance suite (output kept whole in a file): 3,315 passed, 21 skipped,
   2 failed, both one assertion in `governance-rule-authoring-scope.test.ts` that pinned the old
   word "agentId"; it now pins "Choose one of the agents you manage", and the file passes 53/53.
+
+## 22. Review of the committed code, and what it changed (2026-09-28)
+
+After commit and push (`15bebeb58b0`, `0f706ce8fde`, `2d0b9d7f1fe`), Kinan asked for the three
+gaps the report named to be filled: a fresh review, the full lint gate, and the worktree clean-up.
+
+- **Review** (`/code-review high` over the two code commits): nine candidates. Two were real
+  and are fixed, each proved red first:
+  - **Finding 385's search withholding missed canonical paths.** The nested-workspace roots were
+    turned into patterns from the configured spelling, while search results are compared in
+    canonical form; where the two differ (a workspace reached through a link, macOS `/var` →
+    `/private/var`, a path configured in a different case) another agent's files stayed in the
+    results. Now `canonicalNestedAgentWorkspaceRoots` resolves the roots once per configuration
+    snapshot and `isWithheld` compares them case-folded (`agent-workspace-roots.ts`,
+    `search-audit.ts`); `nested-workspace.test.ts` +1, which failed on the committed code.
+  - **Finding 395's per-workspace snapshots had no bound.** Any directory passed as a workspace
+    kept a full plugin snapshot until the next publication. Now only configured agent workspaces
+    are kept (`listAgentWorkspaceDirs`); `plugin-metadata-snapshot.test.ts` +1, red first.
+  - Not changed, with reasons: Root owning agents (Root is single and permanent, so it cannot be
+    demoted or deleted); a narrower manifest registry in memory-slot selection (the derived
+    registry is not filtered by enablement); a policy file with no `version` dropping undescribed
+    allowances (the fail-closed rule the T70 repair states); the 401-while-reconnecting tradeoff
+    and workspace-snapshot freshness (both the documented lifecycle); an approved request's
+    description passing 500 characters (nothing re-validates a stored description).
+- **Lint gate** (`node scripts/run-lint.mjs`): the first run stopped at a tooling step, the
+  plugin SDK's declaration build, "timed out after 300000ms", before any rule ran. Run on its own
+  and uncapped it compiled cleanly in 224 s, so the cap was hit under load. Re-run on the final
+  code (`46fe1ae6f60`) with the machine otherwise idle: **exit 0** after 51 minutes.
+- **Governance suite** on the final code: **3,318 passed, 21 skipped, 0 failed** (206 files),
+  output kept whole in a file. Core and core-test typechecks, `oxfmt` and `oxlint` clean.
+- **Known Windows failure, unchanged:** `current-plugin-metadata-snapshot.test.ts` "clears the
+  current snapshot when the persisted installed index changes" fails with `EBUSY … unlink
+openclaw.sqlite` identically on the code before the 395 fix; the Windows SQLite clean-up class.
