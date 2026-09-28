@@ -1,166 +1,114 @@
-% =====================================================================
-% CHAPTER 3 — SYSTEM DESIGN
-% Graduation project: a policy-based secure governance layer for
-% autonomous OS-level agents, built as a hard fork of OpenClaw.
-% Kinan Radaideh, Mohammad Al-Masri, Malek Tluli. PSUT, Spring 2025-2026.
-%
-% STATUS: OUTLINE (2026-09-20). Every heading carries a one-line
-%   placeholder saying what the finished section will argue. Replace
-%   each placeholder with the real prose; the \sectionstub macro is
-%   defined below so every unwritten section is easy to find, and
-%   removing the last \sectionstub means the chapter is done.
+% FIGURES. The design drawings are sourced from docs-notes/FIGURES.md,
+% and code figures are sourced from docs-notes/CODE-SNIPPETS.md. Prose
+% cites them with the labels below. Every label is prefixed "fig:gov-"
+% because Chapter 1 already uses \label{fig:architecture}.
 %
 % ---------------------------------------------------------------------
-% WHY EVERY HEADING HAS TEXT UNDER IT
+% THE NUMBERS BELOW WERE RENUMBERED ON 2026-09-21, AND THIS IS WHY
 % ---------------------------------------------------------------------
-% LaTeX will not break a page immediately after a sectioning heading —
-% it sets a penalty so a heading is never left orphaned at the foot of a
-% page. When headings follow one another with nothing but comments
-% between them, there is no legal breakpoint anywhere in the run, the
-% whole block becomes unbreakable, and it overflows the bottom of the
-% page with an "Overfull \vbox" warning instead of continuing overleaf.
-% Measured on 2026-09-20: forty bare headings compile to 2 pages with an
-% overfull vbox; the same forty with one line of text each compile to 4
-% pages with none. Comments set no type, so they do not count.
-% Keep at least one line of real text under every heading.
+% LaTeX numbers a figure by where its `figure` environment sits in the
+% source, not by the order the drawings were drafted in. The previous
+% version of this table, and the summary table in FIGURES.md, both
+% numbered the figures in FIGURES.md's own order (F1, F2, F3, F5, ...),
+% while the "Goes in" column below shows they appear in the chapter in a
+% different order. Pasting each figure where it belongs would therefore
+% have printed Figure 3.2 after Figure 3.3, and every sentence anyone
+% wrote about "Figure 3.2" would have named a different drawing.
 %
-% ---------------------------------------------------------------------
-% HOW TO USE THIS FILE
-% ---------------------------------------------------------------------
-% Paste the body below into main.tex after Chapter 2, or keep it here
-% and pull it in with \input{chapter3}. The \sectionstub definition has
-% to go in the preamble; it is repeated at the top of the body so the
-% file compiles on its own, and can be deleted once the chapter is done.
-%
-% The chapter is titled "System Design" because that is what §1.8
-% (Document Organization) promises the reader.
+% Nothing in the prose breaks either way, because every citation is a
+% \ref and LaTeX resolves it. The table is an editorial aid, so it is
+% the table that had to be corrected. The numbers below are the ones
+% LaTeX will actually print, given the placements recorded in this file.
 %
 % ---------------------------------------------------------------------
-% HOUSE STYLE FOR THIS CHAPTER
+% WHERE EACH FIGURE GOES
 % ---------------------------------------------------------------------
-% 1. HEADINGS ARE NOUN PHRASES, two to four words, title case. Not
-%    sentences and not questions, following the two model reports in
-%    Documentation/GradProj/, whose Chapter 3 headings read "Packet
-%    Handling", "Voting Process", "System Architecture", "Smart
-%    Contract", "Donor Setup", "System Security". The argument goes in
-%    the prose, not the heading.
-% 2. AMERICAN SPELLING, because Chapters 1 and 2 already use it:
-%    "prioritize", "utilizes", "Data Sanitization", "organizations",
-%    "behavior". So: canonicalization, sanitization, organization,
-%    authorization, behavior. The repository's own notes are British
-%    English; do not carry that into the report.
-% 3. The section spine (requirements, analysis of requirements, analysis
-%    of constraints, different design approaches, then Developed Design
-%    last before the summary) is the spine both model reports use, and
-%    the one CHAPTER3-MATERIAL.md is keyed to.
+% "Goes in" is the section carrying the matching "% FIGURE Fxx ->"
+% comment in the body below; put the figure
+% environment at the first mention in that section's prose. Section
+% numbers assume the chapter's current order, in which Analysis of
+% Design Constraints remains 3.3, the standards section has been
+% removed, and Developed Design is 3.5. No figure is introduced in the
+% written parts of 3.4. Fourth-level numbers (3.5.2.2) print only if the
+% PSUT style numbers subsubsections, so the section NAME is the reliable
+% half.
 %
-% ---------------------------------------------------------------------
-% WHERE THE BUILT DESIGN DIFFERS FROM CHAPTERS 1 AND 2
-% ---------------------------------------------------------------------
-% It is normal and expected that the final implementation differs from
-% the preliminary design. What matters is that Chapter 3 states each
-% difference openly AND explains why the change was made. The register
-% of them, with the justification for each, is
-% docs-notes/report/DIVERGENCES.md. Sections that owe an explanation
-% carry a % DIVERGENCE comment pointing at it. Add to that file when a
-% new one is found, and add the reasoning, not just the fact.
+%   Prints as | Source     | Goes in                                | Cite with                                | Preview page
+%   ----------+------------+----------------------------------------+------------------------------------------+-------------
+%   Fig 3.1   | F8         | 3.4.2   Host Interception (placed)     | \ref{fig:gov-twopaths}                   |  6
+%   Fig 3.2   | F1         | 3.5.1   System Architecture            | \ref{fig:gov-architecture}               |  1
+%   Fig 3.3   | Code C1    | 3.5.1   System Architecture            | \ref{fig:gov-code-central-interception}  | n/a
+%   Fig 3.4   | Code C2    | 3.5.2.1 Rule Model                     | \ref{fig:gov-code-rule-model}            | n/a
+%   Fig 3.5   | Code C3    | 3.5.2.1 Rule Model                     | \ref{fig:gov-code-rule-examples}         | n/a
+%   Fig 3.6   | F3         | 3.5.2.2 Evaluation Order               | \ref{fig:gov-decision}                   |  3
+%   Fig 3.7   | Code C4    | 3.5.2.2 Evaluation Order               | \ref{fig:gov-code-evaluation-order}      | n/a
+%   Fig 3.8   | F5         | 3.5.2.3 Path Canonicalization          | \ref{fig:gov-pathnorm}                   |  4
+%   Fig 3.9   | F22        | 3.5.2.5 Folder Grants                  | \ref{fig:gov-foldergrant}                | 10
+%   Fig 3.10  | F25        | 3.5.3.1 Entry Structure                | \ref{fig:gov-ledger-append}              | 15
+%   Fig 3.11  | F26        | 3.5.3.2 Hash Chaining and Verification | \ref{fig:gov-ledger-verify}              | 16
+%   Fig 3.12  | F2         | 3.5.4   Access Control Model           | \ref{fig:gov-rbac}                       |  2
+%   Fig 3.13  | F6         | 3.5.5   Prompt Execution Path          | \ref{fig:gov-promptpath}                 |  5
+%   Fig 3.14  | F23        | 3.5.7.2 Persistent Approvals           | \ref{fig:gov-alwaysallow}                | 11
+%   Fig 3.15  | F24        | 3.5.8.1 Task and Slot Model            | \ref{fig:gov-taskslot}                   | 12
+%   Fig 3.16  | F21        | 3.5.8.2 Secondary Runtime Governance   | \ref{fig:gov-codexgates}                 |  9
+%   Fig 3.17  | F19        | 3.5.9   Tenancy and Agent Registry     | \ref{fig:gov-tenant}                     |  8
+%   Fig 3.18  | F11        | 3.5.12  System Security                | \ref{fig:gov-toctou}                     |  7
+%   Fig 4.1   | F14        | Chapter 4, tool coverage              | \ref{fig:gov-coverage}      | 13
+%   Fig 4.2   | F17        | Chapter 4, defects over time          | \ref{fig:gov-defectage}     | 14
 %
-% ---------------------------------------------------------------------
-% FIGURES: how they are referenced, and where to find them
-% ---------------------------------------------------------------------
-% The drawings are NOT in this file. They live in docs-notes/FIGURES.md,
-% which holds each figure three ways (prose, Mermaid, TikZ) with the
-% reasoning behind it. That file is the source of truth.
+% RENUMBERED AGAIN ON 2026-09-27, when Kinan's Rule Model, Evaluation Order and
+% Path Canonicalization were synchronised. Two things changed the order: code
+% figures C2, C3 and C4 arrived in 3.5.2.1 and 3.5.2.2, and the source already places
+% F8 (twopaths) in 3.4.2, ahead of F1, so it prints as 3.1. F8 is therefore already
+% placed: 3.5.8.2 should cite it with \ref
+% rather than place it again, or its label is defined twice. The 3.4.3 copy of F5
+% was removed on 2026-09-27 at Kinan's word; F5 is placed once, in 3.5.2.3.
 %
-% Prose cites a figure by the label FIGURES.md already gives it, so the
-% two files cannot drift:
+% "Preview page" is the page in docs-notes/figures/report-figures.pdf,
+% which keeps FIGURES.md's order and is unaffected by the renumbering.
+% Chapter 4's two figures will be placed once Chapter 4 has sections
+% available for them.
 %
-%     ...as shown in Figure~\ref{fig:gov-architecture}.
-%
-% Every Chapter 3 and 4 figure label is prefixed "fig:gov-". The prefix
-% is deliberate: Chapter 1 already uses \label{fig:architecture} for the
-% preliminary design figure, and without the prefix our F1 would have
-% silently collided with it. Keep the prefix for anything new. Tables
-% take "tab:gov-" for the same reason.
-%
-% TO SEE a figure:  open docs-notes/figures/report-figures.pdf at the
-%                   page in the table below.
-% TO GET its TikZ:  copy it from docs-notes/FIGURES.md under
-%                   "## F1: ..." -> "### TikZ form", or lift the whole
-%                   figure environment out of the generated file
-%                   docs-notes/figures/report-figures.tex.
-% TO REBUILD both:  node docs-notes/figures/build-figures.mjs
-%                   then run pdflatex on report-figures.tex.
-%
-% All fourteen compile clean and have been checked by eye (2026-09-20).
-%
-%   Prints as | FIGURES.md | Cite with                    | PDF page
-%   ----------+------------+------------------------------+---------
-%   Fig 3.1   | F1         | \ref{fig:gov-architecture}   |  1
-%   Fig 3.2   | F2         | \ref{fig:gov-rbac}           |  2
-%   Fig 3.3   | F3         | \ref{fig:gov-decision}       |  3
-%   Fig 3.4   | F5         | \ref{fig:gov-pathnorm}       |  4
-%   Fig 3.5   | F6         | \ref{fig:gov-promptpath}     |  5
-%   Fig 3.6   | F8         | \ref{fig:gov-twopaths}       |  6
-%   Fig 3.7   | F11        | \ref{fig:gov-toctou}         |  7
-%   Fig 3.8   | F19        | \ref{fig:gov-tenant}         |  8
-%   Fig 3.9   | F21        | \ref{fig:gov-codexgates}     |  9
-%   Fig 3.10  | F22        | \ref{fig:gov-foldergrant}    | 10
-%   Fig 3.11  | F23        | \ref{fig:gov-alwaysallow}    | 11
-%   Fig 3.12  | F24        | \ref{fig:gov-taskslot}       | 12
-%   Fig 4.1   | F14        | \ref{fig:gov-coverage}       | 13  (Chapter 4)
-%   Fig 4.2   | F17        | \ref{fig:gov-defectage}      | 14  (Chapter 4)
-%
-% main.tex already has tikz, the \usetikzlibrary line, pgfplots with
-% compat=1.18, and graphicx (via style-PSUT-BSc-Eng). It still needs the
-% shared \tikzset style block from FIGURES.md -> "One shared style
-% block", pasted after \pgfplotsset{compat=1.18}. Without it the figures
-% compile but lose every box, arrow and label style.
-% =====================================================================
+% F8 and F21 both belong to 3.5.8.2 and are the only design-drawing pair
+% in one subsection; F8 is already placed in 3.4.2 and F21 prints as Figure 3.16 because that is the order
+% in which their prose introduces them.
 
-% Marks an unwritten section. Put this in the main.tex preamble; delete
-% it, and every use of it, once the chapter is written.
+
+% Marks an unwritten section. Delete this definition, and every use of
+% \sectionstub, once the chapter has been written.
 \providecommand{\sectionstub}[1]{\emph{[Outline: #1]}\par}
 
 \chapter{System Design}
 \label{ch:design}
 
-The preceding chapter established that OS-level Agents introduce a kind of
-vulnerability that is cognitive rather than deterministic, and that what an
-attacker often manipulates is the reasoning of the agent itself. Any control
-that lives inside the model, or that relies on the model's own judgment to
-enforce it, therefore inherits the weakness it is meant to correct. The design
-in this chapter, briefly described in previous sections, starts with the
-assumption that the agent is untrusted, and a deterministic policy check is
-placed on the path that every tool call by an agent takes. This required that
-the governance layer is built as a hard fork compiled into the OpenClaw core
-rather than as a plugin installed alongside it. This commits the project to an
-entire upstream codebase, including native client applications that this work
-does not modify.
+
+The preceding chapter established that OS-level Agents introduce a
+kind of vulnerability that is cognitive, and not deterministic, and that what
+an attacker often manipulates is the reasoning of the agent itself. Any control that is
+built inside the model, or that relies on the model's own judgment to enforce
+it, therefore inherits the weakness it is meant to correct. The design in this chapter, briefly described in previous sections, begins from the
+assumption that the agent is untrusted, and places a deterministic policy check
+on the path that every tool call by an agent takes. This required that the
+governance layer be built as a hard fork compiled into the OpenClaw core rather
+than as a plugin installed alongside it. This commits the project to an entire upstream codebase, including native client
+applications that this work does not modify.
 
 On that foundation the layer adds five capabilities to the host: a default-deny
-policy gate on the tool-call path, a tamper-evident audit ledger, an emergency
-kill-switch that measures the time to a confirmed stop, four tiers of named
-human accounts with individual sessions and levels of authority, and a
-management interface through which each of these is operated. The chapter moves
-from requirement to finished system. Section~\ref{sec:gov-requirements} briefly
-restates the nine design requirements of Section~1.3.
-Section~\ref{sec:gov-reqanalysis} then analyzes them, describing the status the
-system has reached in relation to each one.
+policy gate on the tool-call path, a tamper-evident audit ledger, an emergency kill-switch that measures the time to a confirmed stop, four tiers of named human accounts with individual sessions and levels of authority, and a management interface through which each of these is operated.
+The chapter discusses requirements and the finished system.
+Section~\ref{sec:gov-requirements} briefly restates the nine design requirements of
+Section~1.3.
+Section~\ref{sec:gov-reqanalysis} then analyzes them, describing the status the system has reached in relation to each one.
 Section~\ref{sec:gov-constraints} does the same for the design constraints of
-Section~1.4, and Section~\ref{sec:gov-standards} describes how the engineering
-standards of Section~1.5 are applied. Section~\ref{sec:gov-approaches} presents
+Section~1.4. Section~\ref{sec:gov-approaches} presents
 the alternatives that were seriously considered and the reason each was
 rejected, and Section~\ref{sec:gov-developed} describes the system as built, one
-design area at a time, ending with what the system does not defend against; in
-other words, accepted limitations. Where the developed design departs from the
-preliminary design of Chapter~1, the departure is stated where it arises and the
-reason is given with it.
+design area at a time, ending with what the system does not defend against; in other words, accepted limitations.
+Where the developed design departs from the preliminary design of Chapter~1, the
+departure is stated where it arises and the reason is given with it.
 
-% =====================================================================
 \section{Design Requirements}
 \label{sec:gov-requirements}
-
 As stated in Chapter 1, the design shall achieve the following requirements:
 
 \begin{enumerate}
@@ -175,347 +123,1651 @@ As stated in Chapter 1, the design shall achieve the following requirements:
     \item The system shall be deployable on a Linux-based operating system using open-source software components only.
 \end{enumerate}
 
-
-% =====================================================================
 \section{Analysis of Design Requirements}
 \label{sec:gov-reqanalysis}
 
-Section~\ref{sec:gov-requirements} states the requirements as specified. This
-section examines what each one demands of the design when it is read strictly,
-and records the status the implementation has reached against it. The
-distinction is material, because each requirement is a single sentence of
-specification and several of them constrain the design considerably more
-tightly than their length suggests. Two turn on the interpretation of a single
-phrase, and a third was satisfied only after its initial interpretation was
-discarded and the implementation replaced. Table~\ref{tab:gov-reqstatus}
-summarizes the outcome and indicates where each requirement is discussed. All
-nine requirements are met. The ninth, deployment on a Linux host, was the last
-to close, and the evidence that closed it is given in
-Section~\ref{sec:gov-remaining-reqs}.
+This section explains how the design requirements shaped and influenced the developed system.
+Each requirement is addressed by a component of the governance layer, including the
+implementation technology, policy enforcement, auditability,
+administrative control, credential protection, and deployment.
+
+Requirement 1 specifies Node.js, TypeScript and static type checking. The system
+was developed as a hard fork of OpenClaw using Node.js and TypeScript, with
+strict type checking enabled across the core, user interface, and test code. This retains compatibility with the host framework and provides the type
+checks required for security-sensitive policy and audit operations.
+
+Requirement 2 requires a secure web-based dashboard with role-based access
+control. The resulting Governance page allows authorized operators to configure
+policies, manage agents and review active work through four account tiers: Root,
+Administrator, User and Viewer. The dashboard communicates with the governance
+HTTP control plane, while its permissions are checked against the authenticated
+governance account before an administrative operation is completed.
+
+Requirements 3 and 4 require a default-deny policy model and detailed,
+customized privileges. Before an agent tool call reaches an operating-system
+resource, which can exhaustively be a network address, a file path, or a terminal command, the governance layer evaluates the relevant resource. Rules can specify the resource, access
+direction, effect and optional expiry time. This structure supports path-level
+file permissions, command and network allowlists, and permissions that expire
+when a temporary task no longer requires them. Building a robust RBAC system implied a multi-tenancy system alongside it, to allow different accounts on different devices on a single installation on a Linux VPS (as specified by Requirement 9). A version of this system was built.
 
 \begin{table}[h]
 \centering
-\caption{Design requirement status}
-\label{tab:gov-reqstatus}
-\renewcommand{\arraystretch}{1.3}
+\renewcommand{\arraystretch}{1.35}
 \small
-\begin{tabular}{@{}c p{5.7cm} l l@{}}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.5cm} >{\raggedright\arraybackslash}p{8.3cm}@{}}
 \toprule
-\textbf{\#} & \textbf{Requirement} & \textbf{Status} & \textbf{Discussed in} \\
+\textbf{Reason} & \textbf{Tools} \\
 \midrule
-1 & Node.js and TypeScript, with static type checking & Met & \S\ref{sec:gov-remaining-reqs} \\
-2 & Secure web dashboard with role-based access control & Met & \S\ref{sec:gov-dashboard} \\
-3 & Default-deny model over paths, execution and network & Met & \S\ref{sec:gov-enforcement} \\
-4 & Fine-grained, time-limited privileges & Met & \S\ref{sec:gov-gate} \\
-5 & Record 100\% of actions, decisions and approvals & Met & \S\ref{sec:gov-coverage} \\
-6 & Tamper-evident audit logging & Met & \S\ref{sec:gov-ledger} \\
-7 & Suspend or terminate a session within one second & Met & \S\ref{sec:gov-latency} \\
-8 & No plaintext secrets in log files & Met & \S\ref{sec:gov-credentials} \\
-9 & Deployable on Linux, open-source components only & Met & \S\ref{sec:gov-remaining-reqs} \\
+Outbound messaging &
+\texttt{message}, \texttt{conversations\_send}, \texttt{conversations\_turn},
+\texttt{sessions\_send}, \texttt{heartbeat\_respond} \\
+Reads of state already governed at its creation &
+\texttt{sessions}, \texttt{sessions\_list}, \texttt{sessions\_history},
+\texttt{sessions\_search}, \texttt{conversations\_list}, \texttt{session\_status},
+\texttt{agents\_list}, \texttt{agents\_wait}, \texttt{sessions\_yield} \\
+Model-facing bookkeeping &
+\texttt{get\_goal}, \texttt{create\_goal}, \texttt{update\_goal},
+\texttt{update\_plan}, \texttt{spawn\_task}, \texttt{dismiss\_task},
+\texttt{ask\_user}, \texttt{memory\_search}, \texttt{memory\_get} \\
+Display surfaces &
+\texttt{dashboard}, \texttt{canvas}, \texttt{show\_widget} \\
+Content generation &
+\texttt{image}, \texttt{image\_generate}, \texttt{music\_generate},
+\texttt{video\_generate}, \texttt{tts}, \texttt{skill\_workshop} \\
+No hostname to match &
+\texttt{web\_search}, \texttt{x\_search} \\
 \bottomrule
 \end{tabular}
+\caption[Tools excluded from resource-rule evaluation]
+{\footnotesize Tools excluded from resource-rule evaluation and the reason in
+each case. Outbound messaging uses channel integrations that the operator has
+already authorized, and reads of governed state inspect transcript, session,
+and agent records. Model-facing bookkeeping manages internal coordination
+rather than operating-system resources, and display surfaces present
+information in the operator interface. Content-generation tools produce text,
+images, audio, or video rather than accessing a governed machine resource;
+\texttt{skill\_workshop} additionally requires host approval. Search requests
+provide queries rather than destination hostnames, so the network-resource
+model has no hostname against which to apply a rule. In \texttt{enforce} and
+\texttt{monitor}, calls from a registered agent that pass the preliminary
+controls are recorded with the decision \texttt{ungoverned} and permitted to
+proceed. In \texttt{off}, the policy engine records no tool-call decision.}
+\label{tab:gov-ungoverned}
 \end{table}
 
-Four requirements are treated individually below, because in each case a strict
-reading either altered the design or altered what could honestly be claimed of
-it. Requirement 3 turned on the position of the check rather than on the
-decision it reaches. Requirement 5 turned on the scope of \emph{every action},
-and its first implementation was replaced. Requirement 7 turned on the quantity
-being measured, the dispatch of a stop signal or the stop itself. Requirement 8
-was satisfied by reusing an existing component rather than implementing a second
-one, which is a design decision and is presented as such. The remaining five
-requirements are addressed together in Section~\ref{sec:gov-remaining-reqs}.
 
-\subsection{Enforcement Point}
-\label{sec:gov-enforcement}
-\sectionstub{Requirement 3. Why a default-deny gate has to sit on the
-host's own tool-call path rather than beside it, and what that costs in
-coverage.}
+Requirements 5 and 6 concern the audit ledger. Every agent tool invocation,
+policy decision, and administrative approval is recorded in the tamper-evident governance ledger.
+Where a call cannot be evaluated against a resource rule, its record identifies
+that condition as \texttt{ungoverned}; it is not represented as an allowed
+operation. There is a number of reasons why a call may not be governed. Table \ref{tab:gov-ungoverned} shows these tools and the reasons each is ungoverned. For example, the tools under 'Model-facing bookkeeping', 'Display surfaces', 'Content generation', and 'No hostname to match' in Table \ref{tab:gov-ungoverned} do not have a resource in their argument to govern. Each entry is bound to its predecessor using a keyed HMAC-SHA256 hash,
+and an independent verifier can identify the first point at which a ledger has
+been altered. The ledger therefore provides a complete account of activity and a
+means of detecting modification.
 
-\subsection{Audit Coverage}
-\label{sec:gov-coverage}
-\sectionstub{Requirement 5. What recording one hundred percent of agent
-actions was first read as meaning, why that reading was abandoned, and
-the distinct decision that lets an unevaluated call be recorded as such
-rather than folded in with the allowed ones.}
+Requirement 7 requires real-time administrative control over an agent session.
+An authorized operator can place an agent in lockdown, after which new governed actions
+are refused, and can request termination of work already in progress through the
+Gateway's run-control mechanism. The policy change and abort request are applied
+within the one-second requirement. Confirmation that work already in progress has
+ended is reported separately, because its duration depends on the work being
+terminated and the hardware capabilities of the host machine.
 
-\subsection{Termination Latency}
-\label{sec:gov-latency}
-\sectionstub{Requirement 7. The difference between the stop signal being
-sent and the stop being confirmed, and which of the two the requirement
-is read as claiming.}
+Requirement 8 prevents secrets and credentials from being recorded in plaintext.
+The ledger uses the host framework's existing redaction component at the single
+entry-writing boundary. Resource strings and recorded tool content are redacted
+before they are hashed and appended, so the tamper-evident record contains the
+sanitized representation. Reusing this component avoids introducing a second
+redaction implementation while retaining coverage for the credential formats
+already supported by the host framework.
 
-\subsection{Credential Protection}
-\label{sec:gov-credentials}
-\sectionstub{Requirement 8. Met by redacting at the ledger boundary with
-the host's own redaction rather than by reimplementing it.}
+Requirement 9 requires Linux deployment using open-source software components.
+The governance layer adds no proprietary service or dependency and is built from
+Node.js facilities and packages already used by OpenClaw. Deployment was validated
+on an Ubuntu virtual private server purchased through Contabo, where the governance suite completed with
+3,211 passing tests, 16 skipped tests and no failures across 197 files. The same
+suite on Windows produced 3,206 passing tests and 21 skipped tests, giving the
+same total of 3,227 tests across both platforms.
 
-\subsection{Remaining Requirements}
-\label{sec:gov-remaining-reqs}
-\sectionstub{Requirements 1, 2, 4, 6 and 9 in brief: what each asked,
-and what satisfying it implied for the design.}
-
-% =====================================================================
 \section{Analysis of Design Constraints}
 \label{sec:gov-constraints}
 
-\sectionstub{The three categories of Section 1.4, and what each one
-ruled out of the design.}
+This section examines the economic, manufacturability, sustainability, ethical
+and professional constraints that influenced the developed system, as described in Chapter \ref{ch:dsn-cs_1}. These
+constraints determined the acceptable operating cost, deployment environment,
+resource usage and scope of the governance layer.
 
-% MATERIAL: CHAPTER3-MATERIAL.md "→ 3.3 Analysis of Design Constraints".
+The economic constraint limits the combined cost of model access and one year of
+virtual private server rental to 350~JOD. Two VPS environments were purchased for the completion of this project: one for testing OpenClaw itself, and another for installing, developing, and running our fork of OpenClaw. Together, from March to September 2026, the cost was \$38.70, or 27.44~JOD. The projected cumulative price from October 2026 to January 2027, given the current monthly costs of both VPS installations, is \$55.80, or 39.56~JOD. The total VPS costs from March 2026 to January 2027 is therefore projected to be exactly 67~JOD. 
+The LLM provider chosen was Kimi. The total costs associated with the Kimi subscription required to install and test the governance layer, calculated from monthly subscriptions from March 2026 to January 2027, is \$171, or 121.24~JOD. The total cost, combining both VPS and model costs, is 188.24~JOD, which is less than the 350~JOD maximum.
 
-\subsection{Economic Constraints}
-\sectionstub{The 350 JOD ceiling and the open-source-only stack, met in
-part by adding no new dependencies at all, which is a claim any reader
-can check.}
+The manufacturability and sustainability constraint requires deployment on a
+virtual private server with at least 8\,GB of RAM while maintaining stable and
+manageable operation. The selected Contabo Cloud VPS 6 runs Linux and provides
+12\,GB of RAM, six CPU cores, and 200\,GB of disk space. Its memory capacity
+therefore exceeds the minimum requirement. The governance layer runs
+inside OpenClaw's existing Gateway process, so it does not require a separate
+server process or database service. Its in-memory login-throttle structure is
+limited to 1,000 entries, and the audit ledger rotates into numbered archives at
+8\,MiB to prevent unlimited growth of the active file. Deployment on this server
+was validated by completing the governance test suite without failure.
 
-\subsection{Manufacturability and Sustainability}
-\sectionstub{What the layer adds to resident memory and to startup time
-on an 8\,GB server, and the startup budget that was set and defended
-because of this constraint.}
+The ethical and professional responsibility constraint limits the project to
+defensive, governance and monitoring purposes. Policy enforcement can refuse an
+agent action, require human approval or leave the decision to the security checks
+already provided by the host framework. It does not widen the permissions
+available to an agent. Administrative actions and agent activity are recorded in
+the same tamper-evident ledger, sensitive values are redacted before storage, and
+account roles restrict operators to the agents and functions assigned to them.
+These controls support accountability, thereby supporting non-repudiation, privacy, thereby supporting confidentiality, and responsible administrative
+oversight, thereby supporting authenticity.
 
-\subsection{Ethical and Professional Responsibility}
-\sectionstub{The design can subtract capability from an agent and never
-add it, and why that asymmetry was made structural rather than left to
-care.}
-
-\subsection{Accepted Limitations}
-\sectionstub{Constraints the design accepted rather than solved:
-English-only operator text, and development on Windows against a Linux
-deployment target.}
-
-% =====================================================================
-\section{Discussion of Engineering Standards}
-\label{sec:gov-standards}
-
-\sectionstub{How the design applies the two standards named in Section
-1.5, rather than restating what those standards are.}
-
-% NOTE: the one section with no material behind it in the repository.
-%   Write it from §1.5's wording plus the design as built.
-
-\subsection{ISO/IEC 27001:2022}
-\sectionstub{Policy-driven access control mapped onto the default-deny
-gate and its rule language; systematic governance of rights onto the
-four tiers and ownership; audit logging onto the hash-chained ledger;
-and risk treatment onto the baseline policy and the core denials that
-cannot be switched off at runtime.}
-
-\subsection{OWASP Secure Coding Practices}
-\sectionstub{Session management and authentication mapped onto the two
-gates on every governance request; error handling onto refusals that
-explain themselves without leaking; data in transit onto keeping the
-dashboard off the public internet behind an SSH tunnel; and input
-handling onto rule validation and path canonicalization.}
-
-% =====================================================================
+One practical scope condition was also considered. Development was performed
+primarily on Windows, while the intended deployment environment is Linux, so the
+system was tested separately on the Ubuntu deployment host to account for
+platform-specific behavior.
 \section{Different Design Approaches}
 \label{sec:gov-approaches}
 
-\sectionstub{The alternatives that were genuinely weighed, each stated
-as the options and then the choice, with the reason the others lost.}
-
-% MATERIAL: CHAPTER3-MATERIAL.md "→ 3.4" holds two of these in full; the
-%   rest are recoverable from the §3.5 sections named under each heading.
-
-\subsection{Integration Strategy}
-\sectionstub{A fork compiled into the host's core, or a plugin beside
-it. Why a plugin cannot make a gate unavoidable.}
-% MATERIAL: §3.5.2b.
+Several
+design decisions related to the requirements had more than one feasible approach, and the choices between
+them affected the enforcement boundary and the reliability of the controls. This section compares the alternatives
+that were considered. Each comparison identifies the available
+approaches, the selected approach, and the reason for the selection. The
+detailed operation of the selected mechanisms is presented in
+Section~\ref{sec:gov-developed}.
 
 \subsection{Gate Placement}
-\sectionstub{Where in the tool-call path the check belongs, and what
-each candidate position would and would not have seen.}
-% MATERIAL: §3.5.1, §3.5.25.
+\label{sec:gov-gate-placement}
+
+After it was decided that the system would be developed as a hard fork of OpenClaw and not as a plugin, the next decision concerned the
+location of the policy gate. Adding checks separately to individual tools was
+rejected because each tool would become responsible for applying the same
+security rule, and a newly added or overlooked tool could bypass enforcement.
+The host's central pre-execution policy function, \texttt{runBeforeToolCallHook}, was selected instead because
+in-process tool calls enter it before their requested actions are performed.
+
+Two positions were possible inside \texttt{runBeforeToolCallHook}. OpenClaw
+already contained a short-circuit, an early return that ends the
+function when none of the remaining policy stages need to run. An active plugin
+hook is a \texttt{before\_tool\_call} callback registered by an enabled plugin
+to inspect a tool call before execution. Other later policy sources include
+trusted tool policies and tool-specific approval logic. If none of these
+components are active, the short-circuit immediately permits the call to
+continue instead of processing policy stages that have nothing to evaluate.
+The governance gate could be placed below or above this early return. Placing it
+below required a smaller change to the inherited control flow, but a default
+installation with no active pre-tool-call plugin hook, trusted tool policy, or
+tool-specific approval rule would reach the short-circuit first. The function
+would then return before the governance policy was evaluated, allowing the tool
+call to proceed without governance policy enforcement. The dashboard and policy files
+could consequently exist even though their rules had no effect on agent
+actions.
+
+The gate was therefore placed above the short-circuit as the outer governance
+boundary. It evaluates the attempted tool call before the optional policy
+stages. A refusal prevents execution, an unresolved approval request pauses or
+refuses the action, and a permitted call continues through the host's remaining built-in security
+checks and any registered plugin hooks. The governance gate therefore adds an
+enforcement boundary without bypassing or replacing the host's existing
+controls. The separate runtime that did
+not originally enter this function requires an additional interception method,
+which is compared in the following subsection.
 
 \subsection{Host Interception}
-\sectionstub{How the host is told that the gate must be consulted: four
-options, one chosen.}
+\label{sec:gov-host-interception}
 % MATERIAL: "→ 3.4" §3.4.y, §3.5.15.
 
+The central governance gate is reached directly when an agent runs inside the
+OpenClaw Gateway, the long-running Node.js process started by
+\texttt{openclaw gateway}. In this arrangement, the Gateway executes the
+agent's tools and passes each tool call through
+\texttt{runBeforeToolCallHook}, which contains the governance gate, a function called \texttt{evaluateGovernancePolicy}. OpenClaw also supports Codex, OpenAI's locally running coding agent, as a
+secondary execution backend. In this arrangement, the agent and its tools run
+in a separate Codex app-server process started through OpenClaw's native
+harness.
+
+OpenClaw already provides a native hook relay for communication between the
+Codex app-server process and the Gateway. At session startup, OpenClaw can add a
+\texttt{PreToolUse} hook command to the Codex session configuration. Before
+Codex executes a matching tool call, this command sends the tool name and
+arguments to the Gateway-side relay and waits for an allow or block response.
+Since the governance project did not introduce the relay mechanism, its design had to
+ensure that the existing relay was enabled for governance and applied to every
+Codex tool call.
+
+A pre-tool-call policy is a rule or callback evaluated before a requested tool
+is executed. It can permit the call, block it, request human approval, or
+replace its arguments. OpenClaw uses
+\texttt{nativeHookRelayEventHasLocalWork} to determine whether a Codex
+\texttt{PreToolUse} event must be relayed to the Gateway. The inherited
+implementation enabled the relay when \texttt{hasBeforeToolCallPolicy} found a
+registered plugin hook or trusted tool policy, or when the host's tool-loop
+detector required the event. The built-in governance gate was not included in
+those conditions. An installation with no applicable plugin policy and a
+disabled loop detector could therefore start Codex without the
+\texttt{PreToolUse} relay. Its tool calls would execute without reaching
+\texttt{runBeforeToolCallHook}, so governance rules, audit logging, and session
+control would not apply.
+Three approaches were considered. The first was to widen
+\texttt{hasBeforeToolCallPolicy} so that it also reported the governance gate.
+This required a small change, but it would alter a shared Boolean check whose
+specific purpose is to report whether plugin hooks or trusted tool policies
+exist, causing other parts of OpenClaw to incorrectly treat the built-in
+governance gate as evidence that plugin-based policy processing is active. It
+could thus enable the relay in host configurations that deliberately
+disable plugin-based pre-tool-call processing.
+
+The second approach, which was the one selected, was to add the independent \texttt{governanceRequiresNativeToolRelay} signal.
+The existing Boolean check continues to report plugin hooks and trusted tool
+policies, and the additional signal reports whether the built-in governance
+gate requires the Codex app-server process to consult the Gateway. The relay is
+configured when governance, an existing pre-tool-call policy, or the loop
+detector requires it. When governance activates the relay, the function
+\texttt{nativeHookRelayEventToolMatcher} also configures it to cover every
+Codex tool instead of inheriting the narrower tool list of an unrelated plugin
+policy.
+
+The third approach was to configure the relay only when governance was active
+at the start of the Codex session. This could avoid unnecessary relay processing
+when governance was off, but the relay configuration is created only once at session startup. If an operator enabled governance after the session had
+started, the running Codex app-server process would not automatically gain the
+missing relay. Its tool calls would continue bypassing the governance gate until
+the session ended and a new one began. The selected design therefore uses
+\texttt{governanceRequiresNativeToolRelay} to configure the relay at the start
+of every governed installation's Codex session. A later change to the
+governance posture can take effect immediately, because the communication
+path to the governance gate already exists.
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[node distance=7mm and 11mm]
+  % In-process execution path
+  \node[gbox] (a1) {Agent tool call};
+  \node[gbox, right=of a1] (h1)
+    {\texttt{runBeforeToolCallHook}};
+
+  % Codex native-harness execution path
+  \node[gbox, below=18mm of a1] (a2)
+    {Codex app-server\\tool call};
+  \node[gbox, right=of a2] (pre)
+    {Configured\\\texttt{PreToolUse} hook};
+  \node[gbox, right=of pre] (relay)
+    {Gateway-side relay\\calls \texttt{runBeforeToolCallHook}};
+
+  % Shared governance decision
+  \node[gbox, right=26mm of h1, yshift=-12mm] (gate)
+    {Governance gate\\\texttt{evaluateGovernancePolicy}};
+  \node[gbox, right=of gate, yshift=7mm] (ok)
+    {Requested tool\\executes};
+  \node[gbox, right=of gate, yshift=-7mm] (no)
+    {Tool call\\refused};
+
+  % In-process path
+  \draw[gflow] (a1) -- (h1);
+  \draw[gflow] (h1.east) -- ++(5mm,0) |- (gate.west);
+
+  % Codex app-server path
+  \draw[gflow] (a2) -- (pre);
+  \draw[gflow] (pre) -- (relay);
+  \draw[gflow] (relay.north) |- (gate.west);
+
+  % Governance outcomes
+  \draw[gflow] (gate) -- node[glab, above] {allow} (ok);
+  \draw[gflow] (gate) -- node[glab, below] {deny} (no);
+
+  % Execution-boundary groupings
+  \begin{scope}[on background layer]
+    \node[ggroup, fit=(a1)(h1)] (g1) {};
+    \node[ggroup, fit=(a2)(pre)(relay)] (g2) {};
+  \end{scope}
+
+  \node[gnote, above=0.5mm of g1]
+    {OpenClaw Gateway process};
+  \node[gnote, below=0.5mm of g2]
+    {Codex native harness in a separate process};
+\end{tikzpicture}%
+}
+\caption[Two execution arrangements reaching the governance gate]
+{\footnotesize Two execution arrangements reaching the governance gate.
+For an agent running inside the OpenClaw Gateway, the Gateway passes the tool
+call through \texttt{runBeforeToolCallHook}. A Codex-backed agent runs
+inside a separate Codex app-server process. Before that process executes a
+tool, its configured \texttt{PreToolUse} hook sends the call to the
+Gateway-side relay, which invokes the same pre-execution function. Both paths therefore reach \texttt{evaluateGovernancePolicy}. An allowed call proceeds to
+execution, and a denied call is returned to its originating runtime without
+being executed.}
+\label{fig:gov-twopaths}
+\end{figure}
 \subsection{Path Representation}
-\sectionstub{Which form a file path takes when a rule is matched against
-it: three options, one chosen.}
-% MATERIAL: "→ 3.4" §3.4.x, §3.5.8.
+\label{sec:gov-path-representation}
+
+To allow operators to define portable file-access rules, the system requires a
+consistent path representation that does not depend unnecessarily on one
+machine's directory layout. Paths are therefore normalized into canonical
+strings, and path rules are expressed as regular expressions evaluated against
+those strings. The chosen representation affects both portability and
+security. Three
+representations were considered. The first was to convert every path to an
+absolute form. This is unambiguous after traversal components and symbolic
+links are resolved, but it makes each rule dependent on one machine's directory
+layout. A rule written on the Windows development machine would not apply to
+the corresponding project directory on the Linux deployment server.
+
+The second alternative was to use a workspace-relative form for every path.
+This keeps project rules portable. However, it cannot safely represent a resource outside the workspace. Such a path would either have to be rejected even when access was
+legitimate or represented with parent-directory components, reintroducing the
+same traversal notation that canonicalization is intended to remove.
+
+The selected representation is hybrid. A path inside the workspace is recorded
+in workspace-relative form, and a path outside it is recorded as a canonical
+absolute path. The path is resolved before this choice, including the removal of parent-directory components and the resolution of symbolic links. Leaving the workspace therefore changes the representation to an absolute path. A rule
+anchored to a relative project directory cannot match an attempted escape.
+
+Testing later exposed a second representation problem within the selected
+approach. A file inside the workspace has both a legitimate relative name and a
+legitimate absolute name, but an operator does not control the working
+directory of the session that evaluates the rule. The final design thus
+records the portable hybrid form but tests an in-workspace path against both
+its canonical relative and canonical absolute forms. A path outside the
+workspace receives only its absolute form, never a form containing
+parent-directory components. This preserves the traversal defense and allows
+rules written in either legitimate form to operate as intended.
 
 \subsection{Log Integrity}
-\sectionstub{A hash chain weighed against the alternatives, and what
-each would have cost in complexity and in trust.}
-% MATERIAL: §3.5.3, §3.5.9.
+\label{sec:gov-log-integrity}
 
+The first log-integrity decision was whether to extend OpenClaw's existing
+\texttt{audit\_events} SQLite store or create a separate governance ledger. The
+existing store already provides structured audit records, bounded retention,
+and pseudonymized identities. It does not link one entry cryptographically to
+the next as required by Requirement 6.
+
+A separate append-only governance ledger was therefore selected instead of
+extending the existing schema and writer. This allowed the record format,
+cryptographic chain, and verification procedure to be designed around policy
+decisions, agent actions, and administrative actions without coupling their
+integrity guarantees to OpenClaw's general audit store. Keeping these events in
+one sequence for each organization also preserves the relationship between an
+administrative change and the agent action that followed it.
+
+Three cryptographic structures were considered for the separate ledger. A bare
+SHA-256 hash chain would detect accidental corruption and edits that were not
+followed by recomputation, but an attacker who could rewrite the file could
+recompute every later hash. A Merkle tree would support efficient proofs that
+individual entries belong to a large or distributed log. The governance ledger is stored and verified on one machine, and verification
+checks every entry from the beginning of the ledger to its end. Efficient proofs
+for individual entries are therefore unnecessary, so a Merkle tree would add
+the complexity of constructing the tree and managing its root hash without
+providing a capability required by this system.
+
+The selected structure is a sequential HMAC-SHA256 chain protected by a
+per-installation key. Each entry's HMAC covers its own canonical fields and the preceding
+entry's hash, so modification, insertion, deletion within the sequence, or
+reordering causes verification to fail. However, the chain alone cannot detect
+the removal of entries from its end. For example, if a ledger originally
+contains 100 entries and the final ten are removed, the first 90 still form an
+internally valid chain because entry 90 contains no record of entry 91, which once existed. A separate checkpoint therefore records the sequence number and hash
+of the latest entry, collectively referred to as the chain head. Comparing the remaining chain head with the latest successfully written
+checkpoint exposes truncation that removes entries covered by that checkpoint. This design provides stronger tamper evidence than
+an unkeyed hash chain with less structural complexity than a Merkle tree.
+
+In the evaluated deployment, the ledger, checkpoint, and ledger key are stored
+on the same host. An attacker capable of destroying or replacing all three
+could therefore conceal a rewritten or deleted history. Stronger protection
+would require storing the key outside the host, regularly exporting the
+checkpoint to a trusted off-host store, or applying both measures. This
+deployment extension is outside the scope of the project and is retained as
+future work.
+% FIGURE NOTE: F25, Figure 3.10 (\ref{fig:gov-ledger-append}), belongs in
+% Section 3.5.3.1, Entry Structure. F26, Figure 3.6
+% (\ref{fig:gov-ledger-verify}), belongs in Section 3.5.3.2, Hash Chaining
+% and Verification. Do not place either figure in this alternatives subsection.
 \subsection{Operator Identity}
-\sectionstub{One shared Gateway credential, or a second and independent
-set of named accounts with their own sessions.}
+\label{sec:gov-operator-identity}
 % MATERIAL: §3.5.6, §3.5.19.
 
+Two operator-identity designs were considered. The first reused the existing
+Gateway authentication credential as the sole identity for governance. This
+approach required no additional account store or login session, and it retained
+the host's established protection for access to the Control UI. Successful
+Gateway authentication proves that a client may reach that interface. It does
+not identify the particular person issuing a governance request. An
+administrative action therefore cannot be attributed to a named operator, and
+one of the four governance tiers cannot be assigned to that operator.
+
+The second design added named governance accounts with independent login
+sessions. This design was selected because the Root, Administrator, User, and
+Viewer roles require identities whose permissions and agent scopes can differ.
+Named accounts also provide the operator identity stored with each audit-ledger
+entry. Management actions are therefore not recorded under one shared
+identity.
+
+The selected design does not replace Gateway authentication. Every governance
+request must first pass the Gateway's existing access gate and then authenticate as the appropriate governance account. The first gate protects access to the host's management interface. The second
+handles authentication into a human operator's designated governance role.
+
+This approach adds an account store, password hashing, login throttling,
+session expiry, and session revocation, all described in Section \ref{sec:two-gt-auth}. This cost was accepted because a single
+shared credential could not satisfy both role-based access control and
+individual accountability. Separating the two identities also preserves the
+Gateway's original security boundary.
+% FINAL DESIGN NOTE: Explain the operator-authentication state and lifecycle in
+% Section 3.5.4.2, Two-Gate Authentication: the persistent account store,
+% password hashing, failed-login throttling, automatic session expiry, and
+% explicit session revocation. Describe role permissions separately in Section
+% 3.5.4.1, Role Hierarchy.
+
+% FIGURE NOTE: The two authentication gates are included in F1,
+% Figure 3.1 (\ref{fig:gov-architecture}). Keep that figure in Section
+% 3.5.1, System Architecture; no separate figure is assigned here.
+
 \subsection{Management Surfaces}
-\sectionstub{Three surfaces were built and one was removed, and why
-subtraction counts as a design decision rather than a retreat.}
+\label{sec:gov-management-surfaces}
 % MATERIAL: §3.5.77.
 
+The governance layer was initially to provide three management components: an HTTP
+control plane, a dashboard built on that control plane, and a command-line
+interface. Two alternatives were considered after the command-line surface had
+been designed. The project could retain all three, or it could concentrate
+operator management in the dashboard and its HTTP control plane.
+
+Retaining the command line offered two benefits. It could provide a recovery
+surface if the Gateway were unavailable, and it could serve as an independent
+cross-check of dashboard behavior. These benefits came with a separate set of
+commands, authentication behavior, documentation, and tests that duplicated
+operations supported by the control plane. Parts of the command-line
+implementation also depended on process-local state, so they could not observe
+runs owned by the Gateway process. The project requirements did not call for a
+command-line management interface.
+
+However, the selected design retains two management components. The HTTP
+control plane defines the governed operations and authorization checks, and the
+dashboard provides the human-facing interface to them. The general-purpose
+governance command line was removed before it was fully implemented because it was outside the scope of the project as set out by the requirements, and it was decided that time would be better spent developing and testing the surfaces that would be used most often by human operators. This removal does not weaken enforcement because agent
+actions are checked at the central pre-execution gate, independently of the
+surface used to configure policy.
+
+One command-line utility was retained for a specific purpose. The CLI provides a tool to verify the audit ledger, independently of the same feature on the dashboard. This is to allow redundancy in ledger verification, that the ledger has not been tampered with. However the CLI has no tools to
+create accounts, change policy, control agents, or open a management session.
+It preserves the useful independent check without implementing a second set of tools for
+administrative changes. 
+
+% FIGURE NOTE: No numbered design figure is assigned to Management Surfaces.
+% The implemented dashboard is described in Section 3.5.11, Management
+% Interface; any interface screenshots belong with implementation evidence.
+
 \subsection{Tenancy Model}
-\sectionstub{How many organizations one installation holds. One, decided
-deliberately, with the structure for several deliberately kept.}
+\label{sec:gov-tenancy-model}
 % MATERIAL: §3.5.89.
 
-% =====================================================================
+A tenancy model defines how organizations share, or do not share, one deployed
+system. Two models were considered. Under the first model, one OpenClaw
+installation could host several organizations, each with its own Root account,
+users, agents, policies, and audit records. Under the second model, each
+installation would allow only one organization. Supporting another organization
+would, thus require another installation. Although the first model would
+reduce the number of deployed Gateway instances, it would require strict
+separation of every resource and control shared by those organizations.
+
+This becomes difficult when it is considered that some controls are installation-wide, such that a particular setting may affect the
+entire OpenClaw installation. For example, the secondary runtime backend, which
+runs agents through a separate Codex app-server process as described in
+Section~\ref{sec:gov-host-interception}, is controlled for the whole host. If
+several organizations shared the installation, an operator from one
+organization could affect a service used by the others without having authority
+over their accounts or agents. Preventing this interference would require a
+different deployment boundary or an arbitration model. A deployment boundary
+defines which components are administered together, and an arbitration model
+defines how conflicting decisions made by different organizations are
+resolved.
+
+The selected design therefore permits one organization per installation. The
+first Root account establishes the organization, and the system refuses attempts
+to create another organization within the same installation. A second
+organization requires a separate installation. This design places all
+installation-wide controls under one accountable Root and does not claim to
+provide simultaneous isolation between multiple organizations.
+
+The internal records remain organization-scoped, meaning that each record is
+associated with a specific organization identifier. Accounts, agents, policies,
+audit ledgers, rule requests, and attachments either store or derive this
+identifier. This structure remains useful under the single-organization model
+because the restriction applies to simultaneous organizations, not necessarily
+to the entire lifetime of an installation. If an organization on an installation is deleted, its
+retained audit records remain distinct from the records of any successor.
+Organization identifiers also allow the system to perform explicit ownership
+and registration checks. Removing them would require replacing those checks
+without providing a visible benefit to the operator.
+
+% FIGURE NOTE: F19, Figure 3.17 (\ref{fig:gov-tenant}), shows the
+% organization, account, agent, and storage relationships. Keep it in
+% Section 3.5.9, Tenancy and Agent Registry.
 \section{Developed Design}
 \label{sec:gov-developed}
 
-\sectionstub{The system as built, taken one design area at a time. Each
-part is introduced by what it is for, then how it works, then the one
-decision inside it that a reader would otherwise stop and question.}
+The developed system places governance inside the OpenClaw Gateway and applies
+it through two related paths:
+\begin{enumerate}
+\item The operator path handles authenticated management requests from the Governance dashboard. 
+\item The agent path intercepts tool calls
+before their requested actions are performed. 
+\end{enumerate}
+Both paths use the same account,
+agent, policy, and audit state, which keeps them aligned in functionality, preventing the dashboard from
+presenting controls that are not enforced during agent execution.
+
+The design is divided into components with distinct responsibilities:
+\begin{itemize}
+    \item The policy engine decides whether an attempted action may proceed.
+    \item The audit ledger records agent and administrative activity.
+    \item The access-control model determines which human operator may perform each management operation.
+\end{itemize}
+Session controls,
+human-in-the-loop approvals, and runtime management allow operators to intervene
+during execution. The tenancy model, agent registry, management interface, and
+security controls establish the ownership and deployment boundaries around
+these components. 
+
+The following sections describe each component as implemented,
+including its purpose, operation, and relevant internal design decisions.
+
 
 \subsection{System Architecture}
 \label{sec:gov-arch}
-\sectionstub{The layer inside the Gateway process; the two doors into
-it, one for the operator and one for agent activity; and the files it
-owns on disk. Figure~\ref{fig:gov-architecture}.}
-% FIGURE F1 -> \ref{fig:gov-architecture} (prints as Figure 3.1)
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  node distance=7mm and 16mm,
+  archOperator/.style={gbox, draw=blue!65!black, fill=blue!8,
+    text=blue!30!black, minimum width=39mm},
+  archAgent/.style={gbox, draw=teal!65!black, fill=teal!9,
+    text=teal!30!black, minimum width=39mm},
+  archSecurity/.style={gbox, draw=orange!70!black, fill=orange!11,
+    text=orange!35!black, minimum width=43mm},
+  archCore/.style={gbox, draw=violet!65!black, fill=violet!9,
+    text=violet!35!black, minimum width=43mm},
+  archAudit/.style={gbox, draw=magenta!55!black, fill=magenta!8,
+    text=magenta!30!black, minimum width=46mm},
+  archStore/.style={gstore, draw=black!50, fill=black!4,
+    minimum width=62mm, minimum height=19mm},
+  archAllow/.style={gbox, draw=green!55!black, fill=green!10,
+    text=green!28!black, minimum width=31mm},
+  archDeny/.style={gbox, draw=red!60!black, fill=red!8,
+    text=red!35!black, minimum width=31mm},
+  archAsk/.style={gbox, draw=orange!70!black, fill=orange!12,
+    text=orange!35!black, minimum width=31mm},
+  archAuditFlow/.style={-{Stealth[length=2mm]}, draw=magenta!55!black}
+]
+  % Two visually distinct entrances into one Gateway-hosted governance layer.
+  \node[archOperator] (ui) {Operator browser\\
+    \scriptsize Settings $\rightarrow$ Governance through SSH tunnel};
+  \node[archAgent, right=54mm of ui] (agent) {Agent tool call\\
+    \scriptsize direct or relayed from a secondary runtime};
+
+  \node[archSecurity, below=10mm of ui] (auth) {Gate 1: Gateway authentication\\
+    \scriptsize shared secret or trusted device};
+  \node[archSecurity, below=of auth] (account) {Gate 2: governance identity\\
+    \scriptsize login or session, then role and scope};
+  \node[archCore, below=of account] (api) {Governance HTTP API\\
+    \scriptsize authenticated administrative reads and writes\\
+    \scriptsize \texttt{/control-ui/governance}};
+
+  \node[archCore, below=10mm of agent] (hook) {\texttt{runBeforeToolCallHook}\\
+    \scriptsize central pre-execution interception};
+  \node[archCore, below=of hook] (engine) {\texttt{evaluateGovernancePolicy}\\
+    \scriptsize reads the agent registry and organization policy\\
+    \scriptsize resolves identity, resource, and decision};
+
+  \node[archAllow, right=19mm of engine, yshift=13mm] (allow) {\textbf{ALLOW}\\
+    \scriptsize tool executes};
+  \node[archDeny, right=19mm of engine] (deny) {\textbf{DENY}\\
+    \scriptsize call refused};
+  \node[archAsk, right=19mm of engine, yshift=-13mm] (ask) {\textbf{ASK}\\
+    \scriptsize human approval};
+
+  \coordinate (coremid) at ($(api)!0.5!(engine)$);
+  \node[archAudit, below=20mm of coremid] (ledger) {HMAC-chained audit writer\\
+    \scriptsize tool decisions and administrative changes};
+
+  \node[archStore, below=15mm of ledger, xshift=-39mm] (installation)
+    {\textbf{Installation-wide state}\\[2pt]
+     \scriptsize \texttt{users.json} $\cdot$ \texttt{sessions.json} $\cdot$ \texttt{agents.json}\\
+     \scriptsize ledger key $\cdot$ \texttt{ledger-checkpoint.json}};
+  \node[archStore, below=15mm of ledger, xshift=39mm] (group)
+    {\textbf{Organization-scoped state}\\[2pt]
+     \scriptsize \texttt{groups/<groupId>/policy.json} $\cdot$ \texttt{audit-ledger.jsonl}\\
+     \scriptsize rule requests $\cdot$ attachments $\cdot$ conversations $\cdot$ pending decisions};
+  \coordinate (statemid) at ($(installation.south)!0.5!(group.south)$);
+  \node[gnote, below=1mm of statemid]
+    {Stored below \textasciitilde/.openclaw/governance/};
+
+  \draw[gflow, draw=blue!55!black] (ui) -- (auth);
+  \draw[gflow, draw=orange!65!black] (auth) -- (account);
+  \draw[gflow, draw=violet!55!black] (account) -- (api);
+  \draw[gflow, draw=teal!55!black] (agent) -- (hook);
+  \draw[gflow, draw=violet!55!black] (hook) -- (engine);
+
+  \draw[gflow, draw=green!50!black] (engine.north east) --
+    node[glab, above] {allow} (allow.west);
+  \draw[gflow, draw=red!55!black] (engine.east) --
+    node[glab, above] {deny} (deny.west);
+  \draw[gflow, draw=orange!65!black] (engine.south east) --
+    node[glab, below] {ask} (ask.west);
+
+  % Both entry paths record security-relevant changes through one writer.
+  \draw[archAuditFlow] (api.south) -- node[glab, left] {administrative writes} (ledger.north west);
+  \draw[archAuditFlow] (engine.south) -- node[glab, right] {tool decisions} (ledger.north east);
+
+  % The API and policy-engine boxes name their state access directly. This
+  % avoids long crossing arrows that can be mistaken for execution order.
+  \draw[archAuditFlow] (ledger.south west) --
+    node[glab, left, pos=0.55] {key + checkpoint} (installation.north east);
+  \draw[archAuditFlow] (ledger.south east) --
+    node[glab, right, pos=0.55] {append ledger} (group.north west);
+
+  \begin{scope}[on background layer]
+    \node[draw=violet!35, fill=violet!2, dashed, rounded corners=4pt,
+      inner sep=8pt, fit=(auth)(account)(api)(hook)(engine)(ledger)] (gw) {};
+    \node[draw=black!25, fill=black!1, rounded corners=4pt,
+      inner sep=7pt, fit=(installation)(group)] (state) {};
+  \end{scope}
+  \node[gnote, fill=white, text=violet!35!black, anchor=south west,
+    xshift=1mm] at (gw.north west) {OpenClaw Gateway process};
+  \node[gnote, fill=white, anchor=south west,
+    xshift=1mm] at (state.north west) {Governance state};
+\end{tikzpicture}}
+\caption[Governance layer within the OpenClaw Gateway]
+{\footnotesize Governance layer within the OpenClaw Gateway. Operator requests
+first pass Gateway shared-secret or device authentication. Governance login
+then creates a named account session, and protected routes enforce its role and
+scope. Direct and relayed agent tool calls pass through
+\texttt{runBeforeToolCallHook} and \texttt{evaluateGovernancePolicy} before
+execution. Administrative writes and tool decisions share the HMAC-chained
+audit writer and the same installation-wide and organization-scoped state.}
+\label{fig:gov-architecture}
+\end{figure}
 % MATERIAL: §3.5.1, §3.5.2, §3.5.2b.
+% FIGURE NOTE: Insert F1, Figure 3.1
+% (\ref{fig:gov-architecture}), after the first paragraph. Its TikZ,
+% Mermaid, and prose forms are stored under F1 in docs-notes/FIGURES.md.
+
+The governance layer operates inside the OpenClaw Gateway, the long-running
+Node.js process started by \texttt{openclaw gateway}. It has two entry paths:
+an operator control path for management requests and an agent enforcement path
+for tool calls. Figure~\ref{fig:gov-architecture} presents these paths, the
+components they pass through, and the state they share.
+
+An operator reaches the Governance page through the Control UI, which is
+accessed through an SSH tunnel and not directly through the public
+internet. Every governance HTTP request passes through two independent
+authentication gates. The first is OpenClaw's existing Gateway authentication,
+which establishes that the client may access the Gateway. The second is the
+governance account session, which identifies the individual operator and
+provides the role, organization, and agent scope used for authorization.
+Passing the Gateway check therefore does not grant governance authority by
+itself. The request must also be permitted for the signed-in governance
+account before a route under \texttt{/control-ui/governance} performs an
+operation.
+
+Agent activity enters through the pre-execution tool-call path. Before an
+in-process tool call executes, the Gateway passes it through
+\texttt{runBeforeToolCallHook}. This function invokes
+\texttt{evaluateGovernancePolicy}, the central governance decision function.
+The decision function resolves the registered agent and its organization,
+identifies and normalizes the requested resource, reads the applicable policy,
+and produces an \texttt{allow}, \texttt{deny}, or \texttt{ask} decision. An
+allowed call continues to the requested tool. A denied call returns a refusal
+without executing the tool. An \texttt{ask} decision holds the call until an
+authorized operator answers or the request expires. Calls that have no
+governable resource are recorded separately as \texttt{ungoverned} instead of
+being presented as policy-approved actions. Figure~\ref{fig:gov-code-central-interception} shows the code of this interception in the
+tool adapter, the Gateway wrapper that prepares each tool
+call and passes it through the shared pre-execution checks. The adapter awaits \texttt{runBeforeToolCallHook} and converts a
+veto into a refusal before the requested tool implementation is
+invoked.
+
+Both paths use governance state stored under
+\texttt{\textasciitilde/.openclaw/governance/}. Installation-wide records
+include the account store, session store, agent registry, ledger key, and ledger
+checkpoint. Organization-scoped records are stored below
+\texttt{groups/<groupId>/} and include the policy document, audit ledger, rule
+requests, attachments, conversations, and pending decisions. The system allows only one organization per installation, but retaining explicit
+organization identifiers prevents retained records from being confused with
+those of a later organization.
+
+The architecture does not introduce a separate policy server or database
+service. Policy evaluation, authorization, administrative operations, and audit
+writing execute through the Gateway and its governance modules. This keeps the
+enforcement point on the same execution path as the actions it controls. It
+also ensures that the dashboard and the tool-call gate read the same policy and
+ownership state rather than maintaining separate interpretations of the
+governance configuration.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{0.96\textwidth}
+\begin{reportcodebox}
+\begin{lstlisting}[style=reportcode]
+// Every in-process tool call reaches this hook before execution.
+const hookOutcome = await runBeforeToolCallHook({
+  toolName: name,
+  params: hookParams,
+  ...hookMetadata,
+  toolCallId,
+  ctx: hookContext,
+  signal,
+});
+
+// A veto yields a refusal. The tool is not invoked.
+if (hookOutcome.blocked) {
+  if (hookOutcome.kind === "veto") {
+    return buildBlockedToolResult({
+      reason: hookOutcome.reason,
+      deniedReason: hookOutcome.deniedReason,
+      toolCallId,
+      runId: hookContext?.runId,
+    });
+  }
+  throw new Error(hookOutcome.reason);
+}
+\end{lstlisting}
+\end{reportcodebox}
+\end{minipage}
+\caption{Central interception of a tool call before execution.}
+\label{fig:gov-code-central-interception}
+\vspace{0.6em}
+\begin{minipage}{0.96\textwidth}
+{\small The tool adapter sends the requested tool and its execution context to \texttt{runBeforeToolCallHook} before the tool executes. A governance refusal yields a blocked result, so the requested action is not performed and the calling agent receives a reason. The complete implementation is in \texttt{src/agents/agent-tool-definition-adapter.ts}.\par}
+\end{minipage}
+\end{figure}
+
+\FloatBarrier
 
 \subsection{Policy Engine}
 \label{sec:gov-gate}
-\sectionstub{The component that turns a rule set and an attempted action
-into a decision.}
+% MATERIAL: §3.5.4, §3.5.12, §3.5.20; PERMISSION-SPEC.md.
+The policy engine is the component that derives an enforcement
+decision from an attempted agent action and the relevant policy. Its central
+function, \texttt{evaluateGovernancePolicy}, is called before the requested
+tool executes. The function does not ask the language model whether its own
+action is safe. Instead, it evaluates stored rules and system invariants
+outside the model's reasoning process, preventing generated text from
+overriding the decision.
+
+To make a policy decision, the engine first
+establishes the canonical identity of the agent and the organization that owns
+its policy. It then uses the tool definition to identify the governed resource,
+such as a command, network destination, or file path. File paths are
+canonicalized before matching, and other resource values are normalized into
+the form required by the rule language. The engine also enforces controls that
+are not ordinary operator-authored rules, including agent registration,
+lockdown, and permission to use the secondary runtime backend.
+
+The applicable policy contains immutable core denials, baseline rules supplied
+with the installation, and rules created by authorized operators. The engine
+evaluates these layers with denial precedence: a matching denial cannot be
+overridden by a matching allowance only because the allowance appears later.
+If no rule supplies a final allowance or denial, the configured
+human-approval behavior determines whether the call is refused immediately or
+held for an operator. The following subsections describe the rule vocabulary,
+evaluation sequence, path handling, baseline policy, and directory-grant
+mechanism.
+
+Every completed evaluation produces an auditable outcome. An allowed call
+continues, and a path-based call may receive canonicalized parameters so that
+the tool acts on the same path that the engine evaluated. A denied call is
+stopped before execution and returns a reason for the refusal without
+revealing protected information. An \texttt{ask} decision remains associated
+with the pending action until an authorized answer or a timeout resolves it.
+The policy engine therefore supplies both the decision and the enforcement
+result used by the surrounding Gateway.
 
 \subsubsection{Rule Model}
-\sectionstub{Tiers, effects, access directions, resource kinds and
-expiry: the vocabulary a rule is written in.}
-% MATERIAL: §3.5.4, §3.5.12, §3.5.20; docs-notes/PERMISSION-SPEC.md.
+% T70 (2026-09-27): the code figure now shows `description: string` (required). A paragraph on the field (required, at most 500 characters, trimmed, shown as each rule's title, recorded in the ledger) is drafted in docs-notes/report/T70-FOR-THE-REPORT.md for Kinan to adapt.
 
+A human operator writes a rule through the governance dashboard, which is then stored as TypeScript types in the backend in a particular form, or rule model. This rule model is defined by the TypeScript types in
+\texttt{src/governance/policy-types.ts}. Its central structure is
+\texttt{PolicyRule}, shown in
+Figure~\ref{fig:gov-code-rule-model}. Each rule identifies the resource being
+governed, states whether access is allowed or denied, and defines the scope and
+lifetime of that decision. Keeping this structure in one type definition gives
+the policy engine, policy store, and management interface the same
+interpretation of a rule.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{0.96\textwidth}
+\begin{reportcodebox}
+\begin{lstlisting}[style=reportcode]
+export type ResourceKind = "command" | "path" | "network";
+export type RuleTier = "core" | "baseline" | "admin";
+export type RuleEffect = "allow" | "deny";
+export type RuleAccess = "read" | "write";
+
+export type PolicyRule = {
+  id: string;
+  resourceKind: ResourceKind;
+
+  // Omission means "allow".
+  effect?: RuleEffect;
+
+  // Omission means "admin".
+  tier?: RuleTier;
+
+  // Path rules only. Omission covers read and write.
+  access?: RuleAccess;
+
+  // Regular expression matched against the resource.
+  pattern: string;
+
+  // Required since T70: why the rule exists, shown as its title.
+  description: string;
+
+  createdAt: string;
+
+  // Omission makes the rule indefinite.
+  expiresAt?: string;
+
+  createdBy?: string;
+
+  // Omission makes the rule global.
+  agentId?: string;
+
+  // Prevents a protective core rule from being disabled.
+  selfProtecting?: boolean;
+};
+\end{lstlisting}
+\end{reportcodebox}
+\end{minipage}
+\caption{The policy-rule vocabulary used by the governance layer.}
+\label{fig:gov-code-rule-model}
+\vspace{0.6em}
+\begin{minipage}{0.96\textwidth}
+{\small
+The four union types restrict rule fields to values understood by the policy
+engine. \texttt{PolicyRule} combines those values with a regular-expression
+pattern, optional agent scope, and optional expiry. The complete definition is
+in \texttt{src/governance/policy-types.ts}.\par}
+\end{minipage}
+\end{figure}
+
+The \texttt{resourceKind} field separates the language into
+\texttt{command}, \texttt{path}, and \texttt{network} rules. A command rule is
+matched against an extracted command, a path rule against a canonicalized file
+location, and a network rule against a normalized destination. The union type
+in Figure~\ref{fig:gov-code-rule-model} prevents a rule from naming an
+unsupported resource family. The policy engine also compares a rule only with
+a resource of the same kind, so a command allowance cannot authorize a file or
+network operation.
+
+The \texttt{pattern} field contains a regular expression tested against the
+extracted resource. This representation supports narrow rules for one exact
+resource and broader rules covering a directory or destination family.
+Patterns are validated before storage to ensure that they compile, remain
+within the configured length limit, and do not contain known unsafe
+regular-expression structures. The engine therefore evaluates a bounded,
+previously validated pattern rather than accepting unchecked expressions during
+each tool call.
+
+The \texttt{effect} field assigns either an \texttt{allow} or
+\texttt{deny} effect. An omitted effect means \texttt{allow}, as indicated in
+Figure~\ref{fig:gov-code-rule-model}. A denial is stricter
+than the absence of an allowance because it can refuse a specific resource
+even when a broader allowance also matches. The engine therefore evaluates
+denials before allowances.
+
+The optional \texttt{access} field narrows a path rule to \texttt{read} or
+\texttt{write}. When it is absent, the rule applies to both directions. This
+distinction allows a policy to grant inspection of project files without also
+granting permission to modify them. Access direction applies only to path
+rules because commands and network destinations do not have an equivalent
+read-and-write distinction in this policy model.
+
+The \texttt{tier} field assigns a rule to \texttt{core},
+\texttt{baseline}, or \texttt{admin}. An omitted tier means
+\texttt{admin}.
+Core and baseline rules are both supplied with the installation, but they serve different purposes. Core rules are security restrictions that establish the minimum protection the system must retain. The policy store reconstructs them from source whenever the policy is loaded, preventing a stored document from deleting a core restriction or introducing a false core-tier allowance. Baseline rules are explicit starting permissions that allow a newly installed agent to perform limited, ordinary work under the default-deny posture. Operators may alter these starting permissions as operational requirements become known. Admin-tier rules record those later operator decisions. In summary, core rules define the security floor, baseline rules provide a usable initial allowlist, and admin rules adapt that allowlist to the deployment.
+
+Some core rules carry the \texttt{selfProtecting} marker shown in
+Figure~\ref{fig:gov-code-rule-model}. These rules protect the governance
+directory, account records, audit ledger, and the controls that could disable
+the governance layer. They cannot be disabled at runtime, including by the
+Root account, because removing them would allow a governed agent to interfere
+with the mechanism that governs it. Other core denials, including credential
+protections, may be disabled by Root through a deliberate and recorded policy
+decision.
+
+The optional \texttt{agentId} field determines a rule's scope. Its absence
+makes the rule global, so it applies to every registered agent in the
+organization. When the field is present, the policy engine considers the rule
+only for the named agent.
+Global restrictions and applicable agent-scoped restrictions are both
+consulted during an evaluation.
+
+The \texttt{createdAt} and optional \texttt{expiresAt} fields describe the
+rule's lifetime. An absent expiry denotes an indefinite rule. Before matching,
+\texttt{isRuleExpired} parses the expiry and excludes a rule whose time has
+passed. An invalid timestamp is also treated as expired, so malformed data
+cannot transform a temporary permission into a permanent one. The
+optional \texttt{createdBy} field records the governance account responsible
+for an operator-authored rule.
+
+Figure~\ref{fig:gov-code-rule-examples} shows how these fields combine in two
+representative rules. The first is a temporary, agent-scoped allowance. It
+permits one agent to read the \texttt{src} directory but does not permit
+writing to it. The second is a global, self-protecting core denial that prevents
+agents from reaching governance state.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{0.96\textwidth}
+\begin{reportcodebox}
+\begin{lstlisting}[style=reportcode]
+// Temporary allowance for one agent.
+const sourceReadRule: PolicyRule = {
+  id: "rule-project-source-read",
+  resourceKind: "path",
+  effect: "allow",
+  tier: "admin",
+  access: "read",
+  pattern: "^src(/|$)",
+  description: "Permit reading files under src",
+  createdAt: "2026-09-26T12:00:00.000Z",
+  expiresAt: "2026-10-03T12:00:00.000Z",
+  createdBy: "andrew",
+  agentId: "development-agent",
+};
+
+// Global denial protecting the governance layer itself.
+const governanceStateRule: PolicyRule = {
+  id: "core-path-governance-state",
+  resourceKind: "path",
+  effect: "deny",
+  tier: "core",
+  pattern: "(^|/)\\.openclaw/governance(/|$)",
+  description: "Protect governance policy and audit state",
+  createdAt: "1970-01-01T00:00:00.000Z",
+  createdBy: "system",
+  selfProtecting: true,
+};
+\end{lstlisting}
+\end{reportcodebox}
+\end{minipage}
+\caption{Representative policy rules for an agent-scoped allowance and a
+self-protecting core denial.}
+\label{fig:gov-code-rule-examples}
+\vspace{0.6em}
+\begin{minipage}{0.96\textwidth}
+{\small
+The first rule combines agent scope, read-only access, and an expiry to grant a
+temporary permission without widening access for other agents. The second rule
+has no \texttt{agentId} or \texttt{expiresAt}, so it applies globally and
+indefinitely. Its \texttt{selfProtecting} marker prevents it from being disabled
+through a runtime policy change.\par}
+\end{minipage}
+\end{figure}
+
+The rule-creation process detects conflicts against active rules and reports
+the earlier relevant rule to the operator. This implements the preliminary
+design's use of creation order for explaining an authoring conflict. However, the creation order does not determine the enforcement outcome. During evaluation,
+a matching denial overrides a matching allowance regardless of when either rule
+was created, as explained in the following subsection.
+
+\FloatBarrier
 \subsubsection{Evaluation Order}
-\sectionstub{Why denials are read before allowances, and what that
-guarantees. Figure~\ref{fig:gov-decision}.}
-% FIGURE F3 -> \ref{fig:gov-decision} (prints as Figure 3.3)
-% MATERIAL: §3.5.5, §3.5.25.
-% DIVERGENCE from Chapter 1 (report/DIVERGENCES.md §1.3): §1.6 says
-%   conflicts are resolved by preferring the earlier rule. That is true
-%   of the conflict DETECTOR but not of evaluation, where a denial beats
-%   an allowance whatever the order. Complete the picture here.
+\label{sec:gov-evaluation-order}
 
+The policy engine evaluates each tool call through a fixed sequence implemented
+by \texttt{evaluateGovernancePolicy} in
+\texttt{src/governance/policy-engine.ts}. The order is part of the security
+model. Registration and containment checks occur before resource permissions,
+denials are before allowances, and policy outcomes are recorded before the engine
+returns its decision. Figure~\ref{fig:gov-decision} shows this sequence in the
+shipped \texttt{enforce} posture.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  seqAgent/.style={gbox, draw=teal!65!black, fill=teal!9,
+    text=teal!30!black, minimum width=20mm},
+  seqPipeline/.style={gbox, draw=blue!65!black, fill=blue!8,
+    text=blue!30!black, minimum width=22mm},
+  seqEngine/.style={gbox, draw=violet!65!black, fill=violet!9,
+    text=violet!35!black, minimum width=22mm},
+  seqRegistry/.style={gbox, draw=cyan!55!black, fill=cyan!8,
+    text=cyan!25!black, minimum width=22mm},
+  seqLedger/.style={gbox, draw=magenta!55!black, fill=magenta!8,
+    text=magenta!30!black, minimum width=22mm},
+  seqHuman/.style={gbox, draw=orange!70!black, fill=orange!11,
+    text=orange!35!black, minimum width=20mm},
+  seqAgentLife/.style={draw=teal!45!black, dashed},
+  seqPipelineLife/.style={draw=blue!45!black, dashed},
+  seqEngineLife/.style={draw=violet!45!black, dashed},
+  seqRegistryLife/.style={draw=cyan!45!black, dashed},
+  seqLedgerLife/.style={draw=magenta!45!black, dashed},
+  seqHumanLife/.style={draw=orange!55!black, dashed}
+]
+  \node[seqAgent]    at (0,0)    (agent)    {LLM agent};
+  \node[seqPipeline] at (2.9,0)  (pipeline) {Tool pipeline};
+  \node[seqEngine]   at (5.8,0)  (engine)   {Policy engine};
+  \node[seqRegistry] at (8.7,0)  (registry) {Agent registry};
+  \node[seqLedger]   at (11.5,0) (ledger)   {Audit ledger};
+  \node[seqHuman]    at (14.2,0) (human)    {Human};
+
+  \draw[seqAgentLife]    (0,-0.45)    -- (0,-9.25);
+  \draw[seqPipelineLife] (2.9,-0.45)  -- (2.9,-9.25);
+  \draw[seqEngineLife]   (5.8,-0.45)  -- (5.8,-9.25);
+  \draw[seqRegistryLife] (8.7,-0.45)  -- (8.7,-9.25);
+  \draw[seqLedgerLife]   (11.5,-0.45) -- (11.5,-9.25);
+  \draw[seqHumanLife]    (14.2,-0.45) -- (14.2,-9.25);
+
+  \draw[gflow, draw=teal!55!black]
+    (0,-1.0) -- node[glab, above, text=teal!30!black]
+    {tool call} (2.9,-1.0);
+  \draw[gflow, draw=blue!55!black]
+    (2.9,-1.7) -- node[glab, above, text=blue!30!black]
+    {evaluate(tool, params)} (5.8,-1.7);
+
+  \draw[gflow, draw=violet!55!black]
+    (5.8,-2.4) -- node[glab, above, text=violet!35!black]
+    {resolve group} (8.7,-2.4);
+  \draw[gdash, draw=cyan!55!black]
+    (8.7,-3.0) -- node[glab, above, text=cyan!25!black]
+    {groupId, or no record} (5.8,-3.0);
+  \draw[gdash, draw=red!55!black]
+    (5.8,-3.7) -- node[glab, above, text=red!35!black]
+    {block: register the agent first} (0,-3.7);
+
+  \draw[gflow, draw=violet!55!black]
+    (5.8,-4.4) -- ++(0.8,0) -- ++(0,-0.55) -- (5.8,-4.95);
+  \coordinate (evaluation) at (5.8,-4.68);
+  \node[glab, right=12mm of evaluation, align=left,
+    text=violet!35!black]
+    {locked down? \quad extract resource\\deny rules, then allow rules};
+
+  \draw[gflow, draw=magenta!55!black]
+    (5.8,-5.7) -- node[glab, above, text=magenta!30!black]
+    {append decision + intent} (11.5,-5.7);
+
+  \draw[gdash, draw=green!50!black]
+    (5.8,-6.45) -- node[glab, above, text=green!28!black]
+    {allow} (2.9,-6.45);
+  \draw[gflow, draw=green!50!black]
+    (2.9,-7.1) -- node[glab, above, text=green!28!black]
+    {tool executes} (0,-7.1);
+  \draw[gdash, draw=red!55!black]
+    (5.8,-7.8) -- node[glab, above, text=red!35!black]
+    {block, with reason} (0,-7.8);
+
+  \draw[gflow, draw=orange!65!black]
+    (5.8,-8.5) -- node[glab, above, text=orange!35!black]
+    {approval request} (14.2,-8.5);
+  \draw[gdash, draw=orange!65!black]
+    (14.2,-9.15) -- node[glab, above, text=orange!35!black]
+    {allow once / always / deny} (5.8,-9.15);
+\end{tikzpicture}}
+
+\caption[Policy decision sequence]{\footnotesize Policy decision sequence in the
+shipped \texttt{enforce} posture. The engine resolves the registered agent,
+extracts the governed resource, and checks denials before allowances. Each
+policy outcome is recorded before the call is allowed, refused, or sent for
+human approval. An ``allow always'' answer permits the current call and files
+a rule request; it does not write a permanent rule directly. Solid arrows
+represent requests or forward actions, dashed horizontal arrows represent
+returned results, and dashed vertical lines are participant lifelines.
+
+\smallskip
+\begin{tabular}{@{}p{0.96\linewidth}@{}}
+\textbullet\ \textbf{Tool pipeline}: intercepts a requested tool call, submits
+it for evaluation, and executes it only when permitted.\\[1pt]
+\textbullet\ \textbf{Policy engine}: extracts the governed resources, evaluates
+applicable denials and allowances, and returns the policy decision.\\[1pt]
+\textbullet\ \textbf{Agent registry}: stores agent registrations and resolves
+the organization that owns the requesting agent.\\[1pt]
+\textbullet\ \textbf{Audit ledger}: records policy decisions and their
+associated model intent in the hash-chained audit trail.
+\end{tabular}}
+
+\label{fig:gov-decision}
+\end{figure}
+
+The engine first obtains the effective agent identifier and calls
+\texttt{resolveAgentGroup}. An unregistered agent has no organization policy,
+so the call is refused before rule evaluation. Because no organization ledger
+exists for that agent, the engine writes an
+\texttt{agent-not-registered} entry to the ledger. The
+returned reason directs the operator to register the agent.
+
+For a registered agent, the policy engine loads the organization policy and checks
+its posture. The \texttt{off} posture returns at this point, before lockdown
+or resource evaluation, and creates no policy-decision record. It therefore
+means that the governance gate is inactive, not that the policy explicitly
+allowed the call. Registration is still checked first because the engine must
+identify the organization policy before it can read its posture.
+
+An active policy next applies containment and execution-environment controls.
+The engine refuses an agent under direct or inherited lockdown. It also
+refuses a native per-agent backend request when the agent lacks permission for
+that backend. These checks remain effective in \texttt{monitor} posture. In this posture, the engine records what enforcement would have decided but allows ordinary policy misses to proceed. The checks are administrative prerequisites, so a resource allowance cannot override
+them.
+
+The policy engine then looks up the governed-tool specification for the requested
+tool. The specification defines its resource kind, access direction, and
+resource extractor. Path tools also resolve their parameters before matching,
+and the resolved binding can be passed onward to the tool. This ensures that
+the tool operates on the same path that the policy was evaluated. The complete
+path-normalization process is described in the following subsection, Section \ref{sec: path-canonz}.
+
+Default-deny applies after a governed tool has been recognized and at least
+one resource has been extracted. If the tool has no governed-tool
+specification, the engine records an \texttt{ungoverned} result with the
+reason \texttt{no-extractor}. If a specification exists but extraction
+produces no resource, it records
+\texttt{no-resource-extracted}. The engine does not classify either result as
+\texttt{default-deny}, and the host pipeline may continue the call. These
+records expose gaps in governance coverage so that an operator can distinguish
+an unsupported tool integration from an action approved by policy.
+
+Table~\ref{tab:gov-unmatched-outcomes} compares what happens when no rule allows a governed resource with what happens when a tool call has no resource that the policy can evaluate.
+
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{@{}
+  >{\raggedright\arraybackslash}p{3.2cm}
+  >{\raggedright\arraybackslash}p{4.1cm}
+  >{\raggedright\arraybackslash}p{3.5cm}
+  >{\raggedright\arraybackslash}p{2.8cm}
+@{}}
+\toprule
+\textbf{Situation} &
+\textbf{\texttt{enforce}} &
+\textbf{\texttt{monitor}} &
+\textbf{\texttt{off}} \\
+\midrule
+
+The tool is governed and a resource is extracted, but no active allowance
+covers it. &
+The action is denied when approval is disabled. When approval is enabled, the
+action is held for human approval. The ledger records
+\texttt{default-deny}. &
+The predicted \texttt{deny} or \texttt{ask} decision is recorded, but the
+action proceeds. &
+The action is not evaluated or recorded as a policy decision. \\
+
+The tool has no governed-tool specification, or its extractor produces no
+resource. &
+The action is recorded as \texttt{ungoverned} and proceeds. &
+The action is recorded as \texttt{ungoverned} and proceeds. &
+The action is not evaluated or recorded as a policy decision. \\
+
+\bottomrule
+\end{tabular}
+\caption[Outcomes for unmatched and ungoverned calls]
+{\footnotesize Outcomes for unmatched governed resources and ungoverned tool
+calls under each posture. The table assumes that the agent is registered,
+passes the lockdown and backend checks, and matches no denial. A
+matching denial blocks the action in both \texttt{enforce} and
+\texttt{monitor}.}
+\label{tab:gov-unmatched-outcomes}
+\end{table}
+
+Successfully extracted resources enter two rule passes. The first pass selects
+all rules whose effect is \texttt{deny}. A candidate denial must have the same
+resource kind as the tool, cover its access direction, remain unexpired, and
+be either global or scoped to the evaluated agent. The engine then tests its
+pattern against the normalized forms of each resource. This pass includes
+\texttt{core}, \texttt{baseline}, and \texttt{admin} denials. Tiers determine
+rule ownership and mutability; every active denial has the same runtime force.
+
+If a denial matches, the engine records every resource rejected by a denial
+and blocks the complete call. The returned explanation names the first
+refusal, keeping the model-facing message concise, and the ledger retains the
+other matching refusals. No allowance can reopen the call because the denial
+branch returns before the allowance pass begins.
+
+Only calls with no matching denial reach the second pass. As shown in
+Figure~\ref{fig:gov-code-evaluation-order}, the allowance filter uses
+\texttt{effect !== "deny"}. It therefore accepts an explicit
+\texttt{allow} effect and the \texttt{undefined} value, which results from omitted policy field values. The omission does not change the result for a resource that
+matches no rule.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{0.96\textwidth}
+\begin{reportcodebox}
+\begin{lstlisting}[
+  language=TypeScript,
+  style=reportcode
+]
+const now = Date.now();
+
+// First pass: collect applicable denials.
+const denials = doc.rules.filter(
+  (rule) =>
+    rule.effect === "deny" &&
+    rule.resourceKind === spec.resourceKind &&
+    accessMatches(rule, spec) &&
+    !isRuleExpired(rule, now) &&
+    (rule.agentId === undefined || rule.agentId === agentId),
+);
+
+// Matching denials are recorded and returned before this point.
+
+// Second pass: collect applicable allowances.
+const activeRules = doc.rules.filter(
+  (rule) =>
+    rule.resourceKind === spec.resourceKind &&
+    rule.effect !== "deny" &&
+    accessMatches(rule, spec) &&
+    !isRuleExpired(rule, now) &&
+    (rule.agentId === undefined || rule.agentId === agentId),
+);
+\end{lstlisting}
+\end{reportcodebox}
+
+\smallskip
+\footnotesize
+Both passes apply the same resource-kind, access, expiry, and agent-scope
+conditions. Their effects and execution order differ. A matching denial
+returns before the allowance set can authorize the call. A rule with an
+omitted effect enters the allowance pass, but an
+unmatched resource still reaches default-deny.
+\end{minipage}
+\caption[Denial and allowance selection]{\footnotesize Denial and allowance
+selection in \texttt{evaluateGovernancePolicy}. Separate passes ensure that a
+matching allowance cannot override a denial.}
+\label{fig:gov-code-evaluation-order}
+\end{figure}
+
+The allowance pass applies the same resource-kind, access, expiry, and
+agent-scope restrictions. Each extracted resource must match an active
+allowance for the complete call to proceed in \texttt{enforce}. For example,
+if a file-editing operation names three paths and only two match allowances,
+the third path causes the whole invocation to miss policy. The operation is
+not divided into permitted and unpermitted parts.
+
+Every resource evaluated in the allowance pass receives a ledger entry. A
+matched resource records \texttt{allow} and the identifier of its rule. An
+unmatched resource records the reserved rule identifier
+\texttt{default-deny}. Its decision is \texttt{deny} when asking is disabled
+and \texttt{ask} when approval is enabled. The ledger entry also contains the
+agent, session, tool, resource kind, normalized resource, and model intent.
+This resource-level recording exposes the full scope of a multi-resource
+request.
+
+The policy engine resolves approval behavior through
+\texttt{resolveAskingAccounts} and \texttt{resolveAskMode}. In
+\texttt{enforce}, an uncovered resource is refused immediately when asking is
+off. When asking is enabled, the engine returns an approval request using the
+timeout selected by \texttt{resolveHitlTimeoutMs}. An
+\texttt{allow once} answer authorizes the pending call, and a
+\texttt{deny} answer refuses it. An \texttt{allow always} answer authorizes
+the pending call and files a rule request for later Administrator or Root
+review. It does not insert a rule directly into the active policy. An
+unanswered request fails closed when its timeout expires.
+
+The \texttt{monitor} posture preserves the evaluation and ledger steps but
+changes the treatment of an ordinary policy miss. The engine records the
+decision that \texttt{enforce} would produce and then permits the call.
+Matching denials still block because they return before posture handling.
+Registration, lockdown, and backend authorization also remain mandatory.
+Under \texttt{off}, in contrast, the engine returns after loading the policy, so tool calls are neither evaluated nor recorded as policy decisions. Other aspects are still recorded in the audit ledger however.
+
+Creation order does not affect runtime precedence. Rule creation may identify
+an earlier conflicting rule to explain an authoring conflict, but this message
+does not create a first-rule-wins evaluator. During enforcement, any matching
+denial takes precedence over every allowance, regardless of when the rules
+were created. If no denial matches, the call proceeds only when all governed
+resources match active allowances or the configured posture permits an
+ordinary miss.
+
+The resulting order separates organizational identity, administrative
+containment, resource identification, policy matching, and enforcement.
+Registration selects the policy owner; lockdown and backend checks determine
+whether the agent may act; extraction identifies the affected resources; the
+two rule passes determine the policy result; and the posture determines how an
+unmatched resource is handled. This separation prevents a resource allowance
+from overriding a stronger administrative or denial decision.
+
+\FloatBarrier
 \subsubsection{Path Canonicalization}
-\sectionstub{Turning what an agent wrote into the path it resolves to on
-disk, before any rule is matched against it.
-Figure~\ref{fig:gov-pathnorm}.}
-% FIGURE F5 -> \ref{fig:gov-pathnorm} (prints as Figure 3.4)
-% MATERIAL: §3.5.8, §3.5.29.
+\label{sec: path-canonz}
 
+A path rule is evaluated against a string, but several different strings can
+refer to the same file. For example, a relative path, an absolute path, and a
+path containing a symbolic link may all reach one location. A symbolic link is
+a filesystem entry that redirects one path to another. If the policy engine
+matched only the text supplied by the agent, the rule could approve a name that
+leads to a different location. The engine therefore canonicalizes each path
+before rule evaluation, reducing its different spellings to a stable
+representation of the location it reaches.
+
+Path handling is implemented by \texttt{resolveGovernedPath} in
+\texttt{src/governance/path-normalize.ts}. The function returns three related
+values: the resource string used by policy rules, the canonical absolute path,
+and a Boolean value named \texttt{redirected} that states whether resolution
+changed the file addressed by the original path. The shorter
+\texttt{normalizeGovernedPath} function returns only the resource string for
+callers that do not need the other values.
+
+The path extractors in
+\texttt{src/governance/resource-extraction.ts} apply this process to file
+tools. The \texttt{read}, \texttt{write}, and \texttt{edit} tools obtain their
+path from the \texttt{path} or \texttt{file\_path} parameter.
+\texttt{apply\_patch} provides host-derived paths through
+\texttt{derivedPaths}. The search tools \texttt{grep}, \texttt{find}, and
+\texttt{ls} are also treated as path reads. When one of these search tools
+omits its optional path, the extractor uses \texttt{.}, meaning the session's
+current workspace, because that is where the tool searches by default.
+
+Figure~\ref{fig:gov-pathnorm} shows the canonicalization pipeline for a path
+that attempts to leave the workspace.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[node distance=8mm]
+  \node[gbox] (raw)
+    {Path as the agent wrote it\\
+     \texttt{src/../../etc/passwd}};
+
+  \node[gbox, right=of raw] (s1)
+    {1. Resolve\\
+     expand \textasciitilde{} and \texttt{file://},\\
+     make absolute, collapse \texttt{..}};
+
+  \node[gbox, right=of s1] (s2)
+    {2. Follow links\\
+     resolve the reached location\\
+     with \texttt{realpath}};
+
+  \node[gbox, right=of s2] (s3)
+    {3. Select matching forms\\
+     inside workspace: relative and absolute\\
+     outside workspace: absolute only};
+
+  \node[gbox, right=of s3] (out)
+    {Canonical resource\\
+     \texttt{/etc/passwd}};
+
+  \node[gdec, right=of out] (rule)
+    {Rule\\
+     \texttt{\^{}src/.*\$}};
+
+  \node[gbox, right=20mm of rule] (miss)
+    {\textbf{NO MATCH}\\
+     default-deny or ask};
+
+  \draw[gflow] (raw) -- (s1);
+  \draw[gflow] (s1)  -- (s2);
+  \draw[gflow] (s2)  -- (s3);
+  \draw[gflow] (s3)  -- (out);
+  \draw[gflow] (out) -- (rule);
+  \draw[gflow] (rule) -- node[glab, above] {no match} (miss);
+\end{tikzpicture}}
+\caption[Path canonicalization and rule matching]
+{\footnotesize Path canonicalization and rule matching. The path is resolved
+against the session workspace, parent-directory components are collapsed, and
+symbolic links are followed before the rule is tested. A path inside the
+workspace is tested in both relative and absolute form; a path outside it is
+tested only in absolute form. In this example,
+\texttt{src/../../etc/passwd} resolves to \texttt{/etc/passwd} and therefore
+does not match \texttt{\^{}src/.*\$}. If no other rule applies, the call reaches
+default-deny or human approval according to the configured approval setting.}
+\label{fig:gov-pathnorm}
+\end{figure}
+
+The first stage calls \texttt{resolveToCwd} using the working directory supplied
+in the tool-call context. This directory is the session workspace against which
+relative paths are interpreted. The helper expands the home-directory shortcut
+\texttt{\textasciitilde}, interprets a valid \texttt{file://} value as a local
+path, and joins a relative path to the workspace. Node.js path resolution then
+collapses \texttt{.} and \texttt{..} components. The result is an absolute path
+that describes where the agent's input leads before symbolic links are
+considered.
+
+Collapsing parent-directory components prevents an apparently permitted prefix
+from controlling the result. With \texttt{/workspace} as the working
+directory, the input \texttt{src/../../etc/passwd} begins with
+\texttt{src/}, but resolving it produces \texttt{/etc/passwd}. The pattern
+\texttt{\^{}src/.*\$} is therefore tested against the external location rather
+than the misleading input text. The system does not search for particular
+dangerous spellings. It resolves the path and applies the ordinary rule to the
+result.
+
+The second stage calls the asynchronous filesystem function
+\texttt{realpath}. A real path is the location obtained after the filesystem
+has followed every symbolic link in the supplied path. The asynchronous form is
+used because canonicalization occurs in the Gateway's pre-execution path. The
+Gateway can continue handling other work while the operating system resolves
+the requested location.
+
+A static symbolic-link escape is handled by this stage. Suppose
+\texttt{/workspace/notes} is a link to \texttt{/etc}. Resolving
+\texttt{notes/passwd} produces \texttt{/etc/passwd}. The resulting resource is
+outside the workspace, so an allowance covering
+\texttt{\^{}notes/.*\$} does not apply. The rule is evaluated against the
+destination of the link rather than the link name.
+
+A requested path does not always exist. Creating a new file is a normal write
+operation, so failure to resolve the complete path cannot automatically end
+canonicalization. The internal \texttt{canonicalize} function walks upward
+until it finds the deepest existing ancestor, resolves that ancestor, and then
+reattaches the missing path segments. For example, if
+\texttt{/workspace/data} is a symbolic link and the requested path is
+\texttt{data/new/reports/output.txt}, neither \texttt{new} nor its descendants
+may exist. The function resolves \texttt{data} first and appends the remaining
+segments to its destination. A link in an existing parent directory therefore
+continues to affect the path that the policy evaluates.
+
+The workspace root is canonicalized as well. This matters when the workspace
+directory is itself reached through a symbolic link, as may occur on a managed
+Linux host. Comparing a canonical file path with an unresolved workspace path
+could incorrectly classify an ordinary project file as external. Resolving both
+sides gives the containment check one consistent filesystem view.
+
+After resolution, \texttt{formatPathRelativeToCwdOrAbsolute} selects the
+resource stored in the ledger. A location inside the workspace is represented
+relative to that workspace and uses forward slashes, such as
+\texttt{src/app.ts}. This form keeps project rules independent of the
+installation directory. A location outside the workspace is represented by
+its canonical absolute path, such as \texttt{/etc/passwd}. The change to an
+absolute representation makes a workspace escape visible to the rule engine.
+
+Path processing respects the host operating system's filename rules. On
+Windows, a backslash is a directory separator and path comparison ignores case
+when deciding whether two spellings address the same file. On Linux, a
+backslash is a valid character within a filename, and case remains significant.
+Treating the platforms identically would cause the policy engine to evaluate a
+different filename from the one used by the operating system.
+
+The recorded resource is not the only form used for matching. The function
+\texttt{resolveGovernedPathForms} returns every valid rule-facing form of the
+resolved location. An in-workspace path has two forms: its workspace-relative
+name and its canonical absolute name. Rules are tested against both because an
+operator may write either representation. The ledger and refusal messages
+retain the workspace-relative form so that records remain readable and
+portable.
+
+An external path receives only its absolute form. The engine never constructs
+a relative form containing \texttt{..} for a location outside the workspace.
+Consequently, testing both forms for an internal path does not weaken traversal
+protection. A path receives a relative form only after the containment check
+has established that it is inside the canonical workspace.
+
+Canonical matching alone is insufficient if the tool later resolves the
+agent's original path again. The period between checking a path and using it is
+called a time-of-check-to-time-of-use, or TOCTOU, window. During that interval,
+a symbolic link could be redirected from the approved file to another target.
+Both resolutions would be valid when they occurred, but the tool would open a
+file that the policy engine had not evaluated.
+
+The policy engine closes this link-redirection window through
+\texttt{resolveGovernedParamBinding} in
+\texttt{src/governance/policy-engine.ts}. Here, binding means replacing the
+tool's path parameter with the canonical absolute path that was evaluated. The
+function operates on path tools carrying \texttt{path} or
+\texttt{file\_path}. It creates a replacement only when
+\texttt{resolveGovernedPath} reports that symbolic-link resolution redirected
+the call. An ordinary path that already addresses its canonical location keeps
+its original parameters.
+
+Binding occurs before resource extraction. The policy engine first produces
+the replacement parameters and then gives those parameters to the extractor.
+The extracted resource, the rule-matching forms, and the path returned to the
+tool therefore originate from the same resolution. This ordering prevents two
+independent resolutions inside the policy engine from disagreeing if a link is
+changed between them.
+
+When the call is permitted,
+\texttt{runBeforeToolCallHook} applies the returned parameters before later
+approval checks, trusted policies, plugin hooks, and the tool implementation
+run. These stages consequently receive the same file selected by governance.
+The binding also applies in \texttt{monitor} posture. Monitor may allow a
+policy miss to proceed, but the file opened by the tool must still be the file
+named in the ledger.
+
+The replacement is deliberately limited to calls that contain a path parameter.
+An \texttt{apply\_patch} call supplies host-derived paths rather than
+\texttt{path} or \texttt{file\_path}, so the policy engine has no tool
+parameter to replace. A refused call is not rebound because it will not
+execute. These limits keep unrelated tool parameters unchanged.
+
+Canonicalization and binding close parent-directory traversal, static
+symbolic-link escapes, and link redirection after an allowed decision. They do
+not prevent every filesystem race. A process with sufficient access could
+replace the file at the canonical path after evaluation. For a file that does
+not yet exist, a link could also be created at the final path segment before
+the tool opens it. Preventing these cases would require the tool to operate on
+an already opened filesystem handle rather than resolving a path during
+execution.
+
+Recursive search tools introduce a separate boundary. Governance evaluates and
+binds the directory from which \texttt{grep}, \texttt{find}, or \texttt{ls}
+starts, but the pre-execution parameters do not identify every descendant the
+tool may later inspect. Controlling each visited file would require the tool to
+report those files during or after execution. These remaining filesystem
+boundaries are discussed further in Section~\ref{sec:gov-security}.
+
+\FloatBarrier
 \subsubsection{Baseline Policy}
-\sectionstub{What an installation ships with: core denials that cannot
-be edited at runtime, and the allowances that make an agent useful
-before anyone has written a rule.}
-% MATERIAL: docs-notes/BASELINE-RULES.md.
+% T70 (2026-09-27): every rule now has a required description; see CHAPTER3-MATERIAL.md 3.5.95 and REMAINING-WORK.md "T70" for what this section must say.
+% MATERIAL: BASELINE-RULES.md.
+\sectionstub{The three policy layers: immutable core denials reasserted
+on every load, baseline allowances that keep a fresh installation
+usable, and operator-authored rules.}
 
 \subsubsection{Folder Grants}
-\sectionstub{Granting a directory with exceptions carved out of it, and
-why the denial is written first. Figure~\ref{fig:gov-foldergrant}.}
-% FIGURE F22 -> \ref{fig:gov-foldergrant} (prints as Figure 3.10)
+% T70 (2026-09-27): every rule now has a required description; see CHAPTER3-MATERIAL.md 3.5.95 and REMAINING-WORK.md "T70" for what this section must say.
 % MATERIAL: §3.5.66.
+% FIGURE F22 -> \ref{fig:gov-foldergrant} (prints as Figure 3.9), PDF page 10
+\sectionstub{How a directory grant is combined with denial exceptions,
+and why deny precedence makes each exception effective independently of
+rule order. Figure~\ref{fig:gov-foldergrant}.}
 
 \subsection{Audit Ledger}
 \label{sec:gov-ledger}
-\sectionstub{The append-only record of what was attempted, what was
-decided and who decided it.}
+\sectionstub{The append-only record of agent and administrative
+activity, the decision recorded for each event, and the accountable
+identity where one is available.}
 
 \subsubsection{Entry Structure}
-\sectionstub{What a single entry holds, including the raw model intent
-that produced the action.}
 % MATERIAL: §3.5.3, §3.5.59.
+% FIGURE F25 -> \ref{fig:gov-ledger-append} (prints as Figure 3.10), PDF page 15
+\sectionstub{The fields in one entry, including the actor, session,
+resource, decision, preceding hash, and raw model intent when available.
+Figure~\ref{fig:gov-ledger-append}.}
 
 \subsubsection{Hash Chaining and Verification}
-\sectionstub{How each entry is bound to the one before it, and the
-independent verifier that detects any later edit.}
 % MATERIAL: §3.5.3; scripts/verify-ledger.mjs.
-% DIVERGENCE from Chapter 2 (report/DIVERGENCES.md §1.1): Chapter 2
-%   describes a Merkle tree; a keyed HMAC-SHA256 chain was built. State
-%   the difference AND why: the tree's advantage is proving one entry
-%   without reading the log, which no party here needs, and the keying
-%   is a strengthening over Chapter 2's plain SHA-256.
+% FIGURE F26 -> \ref{fig:gov-ledger-verify} (prints as Figure 3.11), PDF page 16
+\sectionstub{How HMAC-SHA256 binds each entry to its predecessor, how
+the checkpoint exposes tail truncation when that checkpoint remains
+available, and how the independent verifier locates broken history.
+Figure~\ref{fig:gov-ledger-verify}.}
 
 \subsubsection{Administrative Logging}
+% T70 (2026-09-27): every rule now has a required description; see CHAPTER3-MATERIAL.md 3.5.95 and REMAINING-WORK.md "T70" for what this section must say.
+% MATERIAL: §3.5.9, §3.5.63.
 \sectionstub{Why administrative actions are recorded in the same chain
 as agent actions, and what each such entry must name.}
-% MATERIAL: §3.5.9, §3.5.63.
 
 \subsubsection{Data Sanitization}
-\sectionstub{What an audit trail is allowed not to see, and where
-redaction is applied so that it cannot be bypassed.}
 % MATERIAL: §3.5.28, §3.5.60.
-% DIVERGENCE from Chapter 2 (report/DIVERGENCES.md §1.2): Chapter 2
-%   promises regex and entropy-based masking; what was built reuses the
-%   host's own redactor at the ledger boundary. State the difference AND
-%   why: one tested redactor rather than two to maintain, and placement
-%   at the single write boundary beats cleverness applied per caller.
+\sectionstub{Which secrets and oversized values the audit trail must not
+retain, and how redaction and length limits are enforced at the ledger
+boundary so that callers cannot bypass them.}
 
 \subsection{Access Control Model}
 \label{sec:gov-rbac}
+% MATERIAL: §3.5.4, §3.5.24; ROLE-MODEL.md.
+% FIGURE F2 -> \ref{fig:gov-rbac} (prints as Figure 3.12), PDF page 2
 \sectionstub{Who the operators are, what each of them may do, and how
 the system decides. Figure~\ref{fig:gov-rbac}.}
-% FIGURE F2 -> \ref{fig:gov-rbac} (prints as Figure 3.2)
 
 \subsubsection{Role Hierarchy}
-\sectionstub{The four tiers, what each inherits from the one below, and
-the capability that deliberately does not sit at the top.}
-% MATERIAL: §3.5.4, §3.5.24; docs-notes/ROLE-MODEL.md.
+\sectionstub{The four tiers, the capabilities introduced at each tier,
+and the monotonic inheritance that preserves each capability at higher
+tiers.}
 
 \subsubsection{Two-Gate Authentication}
-\sectionstub{The Gateway credential, and then the governance account
-session and its role, on every request.}
+\label{sec:two-gt-auth}
 % MATERIAL: §3.5.6, §3.5.19.
+\sectionstub{How the Gateway credential and governance account session
+form two gates, and how the account store, password hashing, login
+throttling, session expiry, and session revocation protect the second.}
 
 \subsubsection{Ownership and Assignment}
-\sectionstub{What managing an agent resolves to in code: the two scope
-questions each tier answers independently.}
-% MATERIAL: docs-notes/ROLE-MODEL.md, §3.5.22, §3.5.30.
+% MATERIAL: §3.5.22, §3.5.30.
+\sectionstub{How authorization combines an operator's role with the
+organization and agents that the operator is permitted to manage.}
 
 \subsection{Prompt Execution Path}
 \label{sec:gov-promptpath}
+% MATERIAL: §3.5.11, §3.5.17.
+% FIGURE F6 -> \ref{fig:gov-promptpath} (prints as Figure 3.13), PDF page 5
 \sectionstub{A User prompting an agent they hold: the checks made, and
 the record written before the run rather than after it.
 Figure~\ref{fig:gov-promptpath}.}
-% FIGURE F6 -> \ref{fig:gov-promptpath} (prints as Figure 3.5)
-% MATERIAL: §3.5.11, §3.5.17.
 
 \subsection{Session Control}
 \label{sec:gov-killswitch}
+% MATERIAL: §3.5.10, §3.5.16, §3.5.21, §3.5.38.
 \sectionstub{The two ways an operator intervenes in a running agent, and
 what each one is able to reach.}
 
 \subsubsection{Agent Lockdown}
-\sectionstub{What a lockdown covers, including work the locked agent had
-already started, and why it outranks any allowing rule.}
-% MATERIAL: §3.5.38, §3.5.16.
+\sectionstub{How lockdown refuses future governed actions, prevents
+later approvals from releasing held work, and overrides allowing rules.}
 
 \subsubsection{Kill Switch}
-\sectionstub{Stopping a run, and why the design reports a confirmed stop
-rather than a signal that was sent.}
-% MATERIAL: §3.5.10, §3.5.21.
-% DIVERGENCE from Chapter 1 (report/DIVERGENCES.md §1.4): §1.6 promises
-%   a sub-second kill switch. The signal is milliseconds; the CONFIRMED
-%   stop measured 2.2 s and 2.8 s on the laptop. Give both numbers and
-%   say the design measures something stricter than Chapter 1 did.
+\sectionstub{How the system applies lockdown first, requests
+cancellation of work already running, and reports dispatch separately
+from confirmed termination.}
 
 \subsection{Human-in-the-Loop Approvals}
 \label{sec:gov-approvals}
-\sectionstub{What happens when the policy neither allows nor denies an
-action and a person has to decide.}
+\sectionstub{What happens when the policy returns \texttt{ask}: how the
+action is held, routed to an authorized operator, and either released
+or refused.}
 
 \subsubsection{Escalation Routing}
+% MATERIAL: §3.5.83.
 \sectionstub{Who is entitled to answer a request, where it appears, and
 what happens when nobody answers in time.}
-% MATERIAL: §3.5.83.
-% DIVERGENCE from Chapter 1 (report/DIVERGENCES.md §1.5): §1.6 puts the
-%   timeout with Root and adds a per-user toggle. What was built sets
-%   escalation, posture and timeout per AGENT, by an Administrator, and
-%   has no per-user toggle.
 
 \subsubsection{Persistent Approvals}
-\sectionstub{What the ``always allow'' answer promises, what it does in
-practice, and the rule request it files for an administrator.
-Figure~\ref{fig:gov-alwaysallow}.}
-% FIGURE F23 -> \ref{fig:gov-alwaysallow} (prints as Figure 3.11)
+% T70 (2026-09-27): every rule now has a required description; see CHAPTER3-MATERIAL.md 3.5.95 and REMAINING-WORK.md "T70" for what this section must say.
 % MATERIAL: §3.5.81, §3.5.94.
+% FIGURE F23 -> \ref{fig:gov-alwaysallow} (prints as Figure 3.14), PDF page 11
+\sectionstub{How ``always allow'' permits the current action, then files
+a persistent rule request under the correct requester and owner.
+Figure~\ref{fig:gov-alwaysallow}.}
 
 \subsection{Runtime Management}
 \label{sec:gov-runs}
@@ -523,58 +1775,58 @@ Figure~\ref{fig:gov-alwaysallow}.}
 including when the agent executes outside this process.}
 
 \subsubsection{Task and Slot Model}
+% MATERIAL: §3.5.82.
+% FIGURE F24 -> \ref{fig:gov-taskslot} (prints as Figure 3.15), PDF page 12
 \sectionstub{The row an operator sees and the concurrency slot behind
 it, and why the two are released at different moments.
 Figure~\ref{fig:gov-taskslot}.}
-% FIGURE F24 -> \ref{fig:gov-taskslot} (prints as Figure 3.12)
-% MATERIAL: §3.5.82.
 
 \subsubsection{Secondary Runtime Governance}
+% MATERIAL: §3.5.15, §3.5.62.
+% FIGURE F8  -> \ref{fig:gov-twopaths}   (prints as Figure 3.1), PDF page 6
+% FIGURE F21 -> \ref{fig:gov-codexgates} (prints as Figure 3.16), PDF page 9
 \sectionstub{The in-process path and the native harness, and the
 two-layer permission that governs the second.
 Figures~\ref{fig:gov-twopaths} and~\ref{fig:gov-codexgates}.}
-% FIGURE F8  -> \ref{fig:gov-twopaths}   (prints as Figure 3.6)
-% FIGURE F21 -> \ref{fig:gov-codexgates} (prints as Figure 3.9)
-% MATERIAL: §3.5.15, §3.5.62.
 
 \subsection{Tenancy and Agent Registry}
 \label{sec:gov-tenant}
-\sectionstub{One organization per installation, the storage that belongs
-to it, and the registry that gives the layer a noun for an agent.
-Figure~\ref{fig:gov-tenant}.}
-% FIGURE F19 -> \ref{fig:gov-tenant} (prints as Figure 3.8)
 % MATERIAL: §3.5.31, §3.5.33, §3.5.47, §3.5.89.
+% FIGURE F19 -> \ref{fig:gov-tenant} (prints as Figure 3.17), PDF page 8
+\sectionstub{How one organization owns its scoped storage, and how
+registered canonical agent identities provide the boundary for policy,
+ownership, and audit records.
+Figure~\ref{fig:gov-tenant}.}
 
 \subsection{Agent Lifecycle}
 \label{sec:gov-lifecycle}
-\sectionstub{Registration as the precondition for being allowed
-anything; ownership and re-owning; and the two deletions, with what each
-one leaves behind on the host.}
 % MATERIAL: §3.5.33, §3.5.90, §3.5.91, §3.5.94.
+\sectionstub{Registration as a precondition for governed use;
+ownership and reassignment; removal from governance; and full deletion
+through OpenClaw, including what each operation retains or removes.}
 
 \subsection{Management Interface}
 \label{sec:gov-dashboard}
-\sectionstub{The HTTP control plane and the dashboard behind it, what
-its sections are for, and the rule that a control must never promise
-what the gate cannot keep.}
+% T70 (2026-09-27): every rule now has a required description; see CHAPTER3-MATERIAL.md 3.5.95 and REMAINING-WORK.md "T70" for what this section must say.
 % MATERIAL: §3.5.13, §3.5.37, §3.5.46, §3.5.80.
+\sectionstub{The HTTP control plane and its dashboard, the purpose of
+each management area, and the requirement that every visible control
+match an enforceable backend capability.}
 
 \subsection{System Security}
 \label{sec:gov-security}
-\sectionstub{The threats this design answers, and the three it does not:
-the check-then-open window, a denied file still reachable on the native
-harness, and the fact that the layer governs what an agent does rather
-than why it does it. Figure~\ref{fig:gov-toctou}.}
-% FIGURE F11 -> \ref{fig:gov-toctou} (prints as Figure 3.7)
-% MATERIAL: §3.5.7, §3.5.61; mg/HANDOFF.md §7.
-% CAUTION: do not write that the layer prevents prompt injection. It
-%   contains the damage when persuasion succeeds. Chapter 2 sets this
-%   up, so this section should answer Chapter 2 directly.
+% MATERIAL: §3.5.7, §3.5.61; HANDOFF.md §7.
+% FIGURE F11 -> \ref{fig:gov-toctou} (prints as Figure 3.18), PDF page 7
+\sectionstub{The security boundaries and residual limitations of the
+design: rebinding an existing path to the value evaluated by the gate
+closes the symbolic-link repointing window, but does not prevent later
+replacement of the target or creation of a final-segment link; the native
+harness cannot remove denied files from completed search results; and the
+layer constrains an agent's actions rather than preventing prompt injection.
+Figure~\ref{fig:gov-toctou}.}
 
-% =====================================================================
 \section{Summary}
 \label{sec:gov-designsummary}
-
-\sectionstub{What the chapter established, the one requirement left
-partially met, and the handover to Chapter 4, which tests the design
-against Section 1.3 as its benchmark.}
+\sectionstub{What the chapter established and the handover to Chapter 4,
+which tests the completed design against the requirements in
+Section~1.3.}

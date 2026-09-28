@@ -2,7 +2,7 @@
 
 The long-form backlog of the governance layer: every task, what it was, why it
 mattered, and how it closed. **§"Where this file stands" is the current state,
-re-derived from the rows and the code on 2026-09-14.** Everything carrying an earlier
+re-derived from the rows and the code on 2026-09-27.** Everything carrying an earlier
 date further down is history, kept because it is Chapter 4's raw material.
 
 Items come from the QA rounds and sweeps (`GOVERNANCE.md`,
@@ -11,7 +11,7 @@ specification (`Kimi_QA_1.md`, removed 2026-09-13 once every item was checked; s
 §"The independent review, checked item by item"), and from Kinan's requests. Nothing
 here is speculative.
 
-### Where this file stands (re-derived 2026-09-14)
+### Where this file stands (re-derived 2026-09-27)
 
 **Companion documents.** `mg/HANDOFF.md` first, if you are picking this up cold;
 `mg/PROJECT-SUMMARY.md` for what the project is; and
@@ -19,11 +19,15 @@ here is speculative.
 is it", sorted by who has to move first. **Where these disagree about a count, count the
 rows of `mg/HANDOFF.md` §6**, which is the authority, and correct the stale one.
 
-**Open, counted from the rows of §"The numbered backlog" on 2026-09-15: nine unstruck, one
-of which is T1 (not being done), so eight.** T3 (the Linux host), T13 (a read), T17 (the
-figures), T18 (the report), T46 (the setup wizard's wording), T47 (the by-hand plan), and
-T58 and T59 (whether `edit` is ours, and per-agent models). The same nine as
-`mg/HANDOFF.md` §6. **T48 and T49 closed on 2026-09-15**: Kinan answered T48 yes, so
+**Open, counted from the rows of §"The numbered backlog" on 2026-09-27: eight unstruck, one
+of which is T1 (not being done), so seven actionable.** T13 (a read), T17 (final figure
+approval and compilation inside the report), T18 (the report), T47 (the by-hand plan),
+T58 and T59 (whether `edit` is ours, and per-agent models), and T70 (mandatory rule
+descriptions; **built by Claude on 2026-09-27 and open only for Kinan's live acceptance
+QA**, §"T70" below). **T71 was added on 2026-09-28** (nine unstruck, eight actionable):
+Kinan copies the dark code style into his Overleaf project (row T71 in the backlog). T3 closed with the Linux verification on 2026-09-21, and T46 closed with
+the setup-wizard work on 2026-09-20. `mg/HANDOFF.md` §6 carries T70 since 2026-09-27.
+**T48 and T49 closed on 2026-09-15**: Kinan answered T48 yes, so
 Chapter 3 is written now, and chose option (b) for T49, one organisation per installation
 is the boundary (`docs-notes/CHAPTER3-MATERIAL.md` §3.5.89). **T50 was a twelfth until this re-derivation**: it
 was decided on 2026-09-09 (sweep register C5) and its row here had not been struck.
@@ -53,6 +57,134 @@ count the main table only.
 
 **A second backlog, §"The M-series" (M1–M6)**, holds the multi-tenancy feature,
 complete since 2026-08-27. §"What is actually left" is kept unedited as of 2026-08-19.
+
+### T70: require a description for every created policy rule (added 2026-09-27)
+
+> **Built and verified by Claude on 2026-09-27. Open only for Kinan's live acceptance QA**
+> (`docs-notes/T47-TEST-PLAN.md` rows 6f.1–6f.6). The design, every source of a description,
+> the version-gated repair and the evidence are in `docs-notes/CHAPTER3-MATERIAL.md` §3.5.95;
+> plain language §5.122; finding **380**, found while testing it, in `GOVERNANCE.md`.
+>
+> - **Where it lives.** `PolicyRule.description` is required (`policy-types.ts`);
+>   `addRuleChecked` trims it and refuses a blank one (`MissingRuleDescriptionError`);
+>   `validateRuleDescription` and `MAX_RULE_DESCRIPTION_LENGTH` (500, shared with a request's
+>   reason) guard `POST policy/rules` and the folder grant's purpose (`folder-grant.ts`); the
+>   ledger's add and remove entries end `; description: …`; `PolicyDocument.version` is 2,
+>   and `loadPolicy` repairs a version-1 document's description-less rules once, while a
+>   version-2 one without a description fails towards restriction (allow dropped, deny kept
+>   and labelled). Dashboard: required field and counter in the add-rule form and the folder
+>   grant, button gating, reset, description-first titles with the exact regex beneath in the
+>   rule list, the agent lookup and the switched-off core rows; search already covered it.
+> - **How it was checked.** New tests in `src/governance/rule-description.test.ts`,
+>   `src/gateway/governance-rule-description.test.ts` and
+>   `ui/src/pages/governance/rule-description-form.test.ts`; about 180 fixtures updated to
+>   carry descriptions. Governance suite **3,274 passed, 21 skipped, 0 failed (203 files)**
+>   on Windows; three typechecks, plain and type-aware lint, `oxfmt --check`, i18n verify and
+>   `build-all` clean. **22 mutations, 22 killed.** Driven live on a QA Gateway as a User,
+>   an Administrator and a Viewer, including direct HTTP refusals, the ledger, chain
+>   verification (standalone verifier: 24 entries intact) and the repair of a hand-planted
+>   version-1 rule.
+> - **The report.** The sections listed below are still stubs in `chapter3.tex`; the material
+>   they will be written from is updated (`CHAPTER3-MATERIAL.md` §3.5.3 and §3.5.95,
+>   `PERMISSION-SPEC.md` §2, §9a and §11, `CODE-SNIPPETS.md`), and each stub's `% MATERIAL`
+>   line now names §3.5.95. When 3.5.2.1 Rule Model is synchronized, its `PolicyRule` code
+>   figure must show `description: string`.
+> - **Two structural edits the 700-line gate required.** The policy panels' draft state
+>   moved to `ui/src/pages/governance/panels/policy-drafts.ts`, and the page resets the
+>   add-rule form from one `EMPTY_RULE_DRAFT` and the folder grant from one
+>   `EMPTY_FOLDER_GRANT`, so a new field cannot be added to a form and missed on sign-out.
+
+**Owner: Claude, followed by Kinan's live acceptance QA.** A policy rule already has an
+optional `description` field, the HTTP rule-authoring route accepts it, and the Policy
+list uses it as the rule's readable title. The direct **Add a rule** form does not offer a
+description input or send the field. Its rules therefore fall back to displaying the
+regular expression as their title. This falls short of the intended Git-message-like
+function: the operator should state why the rule exists in language another operator can
+understand later.
+
+**Required design.** Make `description` required for stored `PolicyRule` values and at
+every rule-creation boundary. A direct rule and a folder grant must require a
+human-written description in the dashboard. The server must reject a missing,
+whitespace-only, or over-limit description even when a caller bypasses the page; use the
+existing 500-character rule-request reason limit unless implementation evidence requires
+a lower bound. Trim the accepted value before storage. Rule requests already require a
+human-written reason; when approved, that reason remains the created rule's description.
+Core and baseline rules keep their source-defined descriptions. Rules produced by a
+structured workflow may use a system-generated description where the operator is not
+authoring a standalone rule, but every stored rule must end with a meaningful non-empty
+description.
+
+The dashboard must send the description, show a clear required label and character
+limit, keep the create button unavailable until the field contains non-whitespace text,
+and clear the field after a successful write. Folder-grant descriptions must retain the
+operator's stated purpose on the grant and its generated exception rules. In every policy
+view, core, baseline, and admin rules must show their human-readable description as the
+primary title and keep the complete regular expression visible beneath it. The same
+description field serves as the title; do not introduce a second field that can drift from
+it. Rule filtering continues to search the description. Descriptions explain rules and
+must not affect matching or enforcement.
+
+Administrative ledger entries for rule creation and removal must include the stored
+description after the normal ledger-boundary redaction and length controls. This makes
+the reason available in the historical change record rather than only in the current
+policy document. The implementation must also define a one-time repair path for stored
+rules that lack the now-required field before the runtime type and loader assume it is
+present. Do not add a steady-state fallback that continues accepting description-less
+rules.
+
+**Implementation surfaces to inspect and update.** At minimum:
+
+- `src/governance/policy-types.ts`, rule validation, `src/governance/policy-store.ts`,
+  and every `addRule` / `addRuleChecked` caller;
+- `src/gateway/governance-dashboard-api.ts` and the rule-request approval path;
+- `ui/src/pages/governance/api.policy-writes.ts`, the Policy-page draft state, direct
+  rule form, folder-grant form, rendered rule list, and English governance strings;
+- the policy migration or repair owner selected for existing stored rules; and
+- administrative audit formatting so the description is present in the redacted ledger
+  target.
+
+**QA is part of T70, not a later optional pass.** Add focused backend tests proving that
+missing, blank, and over-limit descriptions are refused and that a trimmed valid
+description is stored. Cover direct rules, folder grants, approved rule requests, shipped
+core rules, and baseline rules. Add rendered-dashboard tests for the required control,
+button state, submission, reset, reload, display, search, and each relevant role boundary.
+The display tests must check core and baseline rules as well as admin rules: the readable
+description leads, the complete regex remains visible, and neither value is replaced by
+the other. Mutation-check the new tests by removing each protection and observing the
+named test fail. Then drive the built dashboard live as an authorized User and
+Administrator: create agent-scoped and global rules, reload the page, find them by
+description, inspect their exact regex, and verify that the audit ledger records the
+description. Inspect shipped core and baseline rows in the same run. Confirm that a
+Viewer cannot reach the authoring control. Record the automated and live evidence in the
+QA registers and add the corresponding rows to `docs-notes/T47-TEST-PLAN.md`.
+
+**Report changes after T70 is implemented and verified.** Update these specific parts:
+
+- **Section 3.5.2.1, Rule Model:** change `description?: string` in the
+  `PolicyRule` code figure to a required field; explain its purpose, required validation,
+  human-written and system-generated sources, and that it does not affect matching.
+  Update the two example rules and the figure caption if their explanation changes.
+- **Section 3.5.2.4, Baseline Policy:** retain every baseline rule's exact regex and
+  description, state that these installation-supplied descriptions satisfy the same
+  stored-rule invariant, and explain that they appear as the rules' titles in policy
+  views.
+- **Section 3.5.2.5, Folder Grants:** explain the required purpose entered by the
+  operator and how it is carried into the generated grant and exception descriptions.
+- **Section 3.5.3.3, Administrative Logging:** state that rule-addition and
+  rule-removal records retain the redacted description as the reason visible in policy
+  history.
+- **Section 3.5.7.2, Persistent Approvals:** explain that a rule request's mandatory
+  reason becomes the description of the approved rule.
+- **Section 3.5.11, Management Interface:** describe the required dashboard field,
+  validation feedback, description-first titles for core, baseline, and admin rules, the
+  exact regex line, and description search.
+- **Chapter 4's policy-authoring and dashboard evaluation:** add the automated and live
+  QA results. Do not claim completion until both forms of evidence above exist.
+
+Also update the source material and test registers that feed those sections:
+`docs-notes/CHAPTER3-MATERIAL.md`, `docs-notes/QA-IN-PLAIN-TERMS.md`,
+`docs-notes/PERMISSION-SPEC.md`, `docs-notes/T47-TEST-PLAN.md`, and the synchronized
+report sources under `docs-notes/report/`.
 
 ### A12: let an Administrator set one agent's escalation (added and built 2026-09-14)
 
@@ -699,7 +831,7 @@ Viewer's Identity sentence promised "the rule requests queue in full"; reworded.
 setting request could be filed for an agent governance never registered, and never approved;
 refused at filing, the list narrowed to registered agents, and the approval refusal's "deleted
 since" corrected. The registers carry each: `GOVERNANCE.md`, design §3.5.93, plain language
-§5.120. **Counts: 379 found, 377 fixed, 1 open (169).**
+§5.120. **Counts: 379 found, 377 fixed, 1 open (as it stood then) (169).**
 
 **Decision C15, Kinan's.** A request filed by _Always allow_ or _Would allow_ says _requested by
 hitl-approval_, the label for a proposal no account authored, although since T68 the answer
@@ -782,7 +914,7 @@ specification (`Kimi_QA_1.md`, removed 2026-09-13 once every item was checked; s
 §"The independent review, checked item by item"), and from Kinan's requests. Nothing
 here is speculative.
 
-### Where this file stands (re-derived 2026-09-14)
+### Where this file stands (re-derived 2026-09-27)
 
 **Companion documents.** `mg/HANDOFF.md` first, if you are picking this up cold;
 `mg/PROJECT-SUMMARY.md` for what the project is; and
@@ -790,11 +922,15 @@ here is speculative.
 is it", sorted by who has to move first. **Where these disagree about a count, count the
 rows of `mg/HANDOFF.md` §6**, which is the authority, and correct the stale one.
 
-**Open, counted from the rows of §"The numbered backlog" on 2026-09-15: nine unstruck, one
-of which is T1 (not being done), so eight.** T3 (the Linux host), T13 (a read), T17 (the
-figures), T18 (the report), T46 (the setup wizard's wording), T47 (the by-hand plan), and
-T58 and T59 (whether `edit` is ours, and per-agent models). The same nine as
-`mg/HANDOFF.md` §6. **T48 and T49 closed on 2026-09-15**: Kinan answered T48 yes, so
+**Open, counted from the rows of §"The numbered backlog" on 2026-09-27: eight unstruck, one
+of which is T1 (not being done), so seven actionable.** T13 (a read), T17 (final figure
+approval and compilation inside the report), T18 (the report), T47 (the by-hand plan),
+T58 and T59 (whether `edit` is ours, and per-agent models), and T70 (mandatory rule
+descriptions; **built by Claude on 2026-09-27 and open only for Kinan's live acceptance
+QA**, §"T70" below). **T71 was added on 2026-09-28** (nine unstruck, eight actionable):
+Kinan copies the dark code style into his Overleaf project (row T71 in the backlog). T3 closed with the Linux verification on 2026-09-21, and T46 closed with
+the setup-wizard work on 2026-09-20. `mg/HANDOFF.md` §6 carries T70 since 2026-09-27.
+**T48 and T49 closed on 2026-09-15**: Kinan answered T48 yes, so
 Chapter 3 is written now, and chose option (b) for T49, one organisation per installation
 is the boundary (`docs-notes/CHAPTER3-MATERIAL.md` §3.5.89). **T50 was a twelfth until this re-derivation**: it
 was decided on 2026-09-09 (sweep register C5) and its row here had not been struck.
@@ -1470,7 +1606,7 @@ Viewer's Identity sentence promised "the rule requests queue in full"; reworded.
 setting request could be filed for an agent governance never registered, and never approved;
 refused at filing, the list narrowed to registered agents, and the approval refusal's "deleted
 since" corrected. The registers carry each: `GOVERNANCE.md`, design §3.5.93, plain language
-§5.120. **Counts: 379 found, 377 fixed, 1 open (169).**
+§5.120. **Counts: 379 found, 377 fixed, 1 open (as it stood then) (169).**
 
 **Decision C15, Kinan's.** A request filed by _Always allow_ or _Would allow_ says _requested by
 hitl-approval_, the label for a proposal no account authored, although since T68 the answer
@@ -1605,7 +1741,7 @@ left" further down, which was accurate on 2026-08-19 and is kept unedited
 because the report's Chapter 4 argument is partly about how a confident summary
 survives twelve reviews and does not survive the thirteenth.
 
-**Tasks T1–T69** (T65–T67 are kept in the sweep register; what is open is in
+**Tasks T1–T71** (T65–T67 are kept in the sweep register; what is open is in
 §"Where this file stands" at the top, and the paragraphs below are history),
 grouped by what blocks them rather than
 by severity.
@@ -1813,6 +1949,8 @@ four (T29–T32) after two investigations and a request. What is open:
 | ~~**T35**~~ | ~~Claude, narrow `AuditActorInput`.~~ **DONE 2026-08-31.** A brand on the labelled arm was built, measured and **rejected**, 8 shipped rewrites finding zero defects, plus 311 test errors, to catch one historical defect, enforced by a command nobody runs. What shipped is a guard at the choke point: a named actor may not claim a labelled origin's name, which catches finding 161. §3.5.63                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ~~**T36**~~ | ~~Claude. Re-derive the requirements validation table.~~ **DONE 2026-08-31** at Kinan's direction, earlier than recommended. Eight rows re-derived clean, one caveat false (finding 163), and each row now records the evidence it rests on so the next pass re-derives rather than re-reads. §3.5.64                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ~~**T37**~~ | ~~Claude. Typecheck the tests.~~ **DONE 2026-08-31.** 189 errors to zero, then added to the verification set in that order. Roughly 140 edits and **no test result changed** (2,338 before and after), which is the evidence it corrected types rather than assertions. Three of the five error classes were tests that were weaker than they looked. §3.5.65                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **T70**     | **BUILT 2026-09-27 by Claude (automated, 22-of-22 mutation and live QA done; finding 380 found and fixed); open only for Kinan's live acceptance QA, `docs-notes/T47-TEST-PLAN.md` §6f.** **Claude, followed by Kinan's live acceptance QA: require a meaningful description on every created policy rule.** Add mandatory human-written descriptions to direct rule and folder-grant authoring, enforce the invariant at the server and stored-rule boundary, show descriptions as the titles of core, baseline, and admin rules with the exact regex beneath, carry descriptions into administrative audit records, repair stored rules that lack the field, and QA the complete dashboard-to-ledger flow. Full acceptance criteria and the report sections that must change are in §"T70: require a description for every created policy rule" above.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **T71**     | **Kinan: put the dark code style into the Overleaf project** (added 2026-09-28). On 2026-09-28 Kinan chose dark code panels over the light style from his 2026-09-27 paste, and the repo's `docs-notes/report/main-reference.tex` and `chapter3.tex` now have them; his Overleaf project still has the light ones. **Two changes, copied together:** (1) in `main-reference.tex`, replace the block from `% Source-code listings used in Chapter 3.` through `\renewcommand{\lstlistlistingname}{List of Listings}` with the repo's block, which adds `\usepackage[most]{tcolorbox}` and a `reportcodebox` environment and stops the listing style drawing its own background; (2) in `chapter3.tex`, put `\begin{reportcodebox}` on the line before each of the four `\begin{lstlisting}` and `\end{reportcodebox}` on the line after each `\end{lstlisting}` (central interception, Rule Model, the two example rules, evaluation order). **Never one without the other:** the new style's code text is near-white, so a listing outside the box prints white on white. Then recompile in Overleaf and look at the four code figures. **Why a box:** `listings` paints its background one strip per line, and PDF viewers showed hairline gaps between the strips on a dark colour; one box has none (checked at 300 dpi). The same wrapper is in every example in `docs-notes/CODE-SNIPPETS.md`, and the rule is in `docs-notes/WRITING-GUIDE.md`. Record: `mg/WORK-LOG-2026-09-28.md` §"Dark code style".                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 **"Blocked on the host" was recorded three times and was true zero times, and
 then a fourth was recorded on 2026-08-30 that is true.** The fourth is T7's

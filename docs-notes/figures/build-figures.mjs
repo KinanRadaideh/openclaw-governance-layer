@@ -20,7 +20,24 @@ const SOURCE = join(here, "..", "FIGURES.md");
 const TARGET = join(here, "report-figures.tex");
 
 // The summary table's decision, and the figure numbers it assigns.
-const CHAPTER3 = ["F1", "F2", "F3", "F5", "F6", "F8", "F11", "F19", "F21", "F22", "F23", "F24"];
+// Chapter order, not figure-catalog order. F25 and F26 belong to the Audit
+// Ledger subsection, between Folder Grants and Access Control Model.
+const CHAPTER3 = [
+  "F1",
+  "F3",
+  "F5",
+  "F22",
+  "F25",
+  "F26",
+  "F2",
+  "F6",
+  "F23",
+  "F24",
+  "F8",
+  "F21",
+  "F19",
+  "F11",
+];
 const CHAPTER4 = ["F14", "F17"];
 
 const FENCE = "`".repeat(3);

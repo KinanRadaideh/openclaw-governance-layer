@@ -1,42 +1,104 @@
-% =====================================================================
-% REFERENCE COPY of the report's main.tex, as Kinan supplied it on
-% 2026-09-20. It is NEWER than Documentation/GradProj/Grad_Proj___Current.pdf.
-%
-% THIS FILE IS A READ-ONLY REFERENCE. It is here so that an agent can
-% see the preamble, the labels already taken, the exact wording of the
-% requirements, constraints and standards, and the promises Chapter 1
-% makes about later chapters, without needing the (gitignored)
-% Documentation/ folder. Do not edit it expecting the change to reach
-% the report: the live document is Kinan's, outside this repository.
-% If he sends a newer copy, replace this file wholesale and say so.
-%
-% Two cosmetic things noted on arrival, both in Chapter 1, both left
-% as they are because this is a faithful copy. NEITHER BLOCKS THE BUILD:
-% Kinan compiles this in Overleaf and the text is all there.
-%   1. §1.4 "List of Design Constraints" and §1.5 "List of Engineering
-%      Standards" use \item outside any list environment. Measured on
-%      2026-09-20: pdflatex raises "Lonely \item--perhaps a missing list
-%      environment" once per item, recovers, and still writes the PDF.
-%      The entries just lose their bullets and indentation.
-%      \begin{itemize} ... \end{itemize} would tidy them.
-%   2. §1.1 refers to "Figure 1.1" as plain text rather than with
-%      \ref, so the number will not track if figures are reordered.
-% =====================================================================
-
 \documentclass[a4paper]{report}
 \renewcommand\bibname{References}
 \usepackage{style-PSUT-BSc-Eng}
 \usepackage{arabtex}
 \usepackage[table,xcdraw]{xcolor}
 \usepackage{multirow}
+\usepackage{placeins}
 \usepackage{amssymb}
 \usepackage{booktabs}
 \usepackage{pdfpages} % Package to include PDFs
 \usepackage{float}
 \usepackage{tikz}
+\usepackage{array}
+
+% Source-code figures used in Chapter 3: dark style (Kinan, 2026-09-28).
+% The dark background is drawn once per figure by the reportcodebox
+% environment. The listing itself draws no background: listings paints one
+% strip per line, and PDF viewers show hairline gaps between the strips on a
+% dark colour. Wrap each lstlisting in \begin{reportcodebox} ... \end{reportcodebox}.
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[most]{tcolorbox}
+
+\definecolor{reportcodebg}{HTML}{20242B}
+\definecolor{reportcodeframe}{HTML}{59636F}
+\definecolor{reportcodetext}{HTML}{E8EDF2}
+\definecolor{reportcodekeyword}{HTML}{79B8FF}
+\definecolor{reportcodecomment}{HTML}{9CCF8A}
+\definecolor{reportcodestring}{HTML}{F2A7B8}
+\definecolor{reportcodenumber}{HTML}{9AA7B4}
+
+\lstdefinelanguage{TypeScript}{
+  sensitive=true,
+  morekeywords={
+    as,async,await,break,case,catch,class,const,continue,default,delete,
+    do,else,export,extends,false,finally,for,from,function,if,implements,
+    import,in,instanceof,interface,let,new,null,of,private,protected,public,
+    readonly,return,static,super,switch,this,throw,true,try,type,typeof,
+    undefined,var,void,while,yield
+  },
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]",
+  morestring=[b]'
+}
+
+\newtcolorbox{reportcodebox}{
+  enhanced,
+  colback=reportcodebg,
+  colframe=reportcodeframe,
+  boxrule=0.7pt,
+  arc=2pt,
+  left=6pt,
+  right=6pt,
+  top=4pt,
+  bottom=4pt,
+  before skip=0.6em,
+  after skip=0.6em
+}
+
+\lstdefinestyle{reportcode}{
+  language=TypeScript,
+  basicstyle=\ttfamily\footnotesize\color{reportcodetext},
+  frame=none,
+  xleftmargin=2.2em,
+  aboveskip=0pt,
+  belowskip=0pt,
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=2,
+  keywordstyle=\color{reportcodekeyword}\bfseries,
+  commentstyle=\color{reportcodecomment}\itshape,
+  stringstyle=\color{reportcodestring},
+  numbers=left,
+  numberstyle=\scriptsize\color{reportcodenumber},
+  numbersep=9pt,
+  captionpos=b
+}
+
+\renewcommand{\lstlistingname}{Listing}
+\renewcommand{\lstlistlistingname}{List of Listings}
 \usetikzlibrary{arrows.meta, positioning, shapes.geometric, fit, backgrounds, calc, decorations.pathreplacing}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
+\tikzset{
+  gbox/.style   = {draw=black!55, fill=black!3, rounded corners=2pt,
+                   align=center, font=\small, inner sep=5pt, minimum height=9mm},
+  gnote/.style  = {draw=none, fill=none, align=center, font=\scriptsize\itshape},
+  gdec/.style   = {draw=black!55, fill=black!8, diamond, aspect=2.2,
+                   align=center, font=\scriptsize, inner sep=1pt},
+  gstore/.style = {draw=black!55, fill=black!6, align=center,
+                   font=\scriptsize, inner sep=5pt},
+  ggroup/.style = {draw=black!35, dashed, rounded corners=3pt, inner sep=7pt},
+  gflow/.style  = {-{Stealth[length=2mm]}, draw=black!70},
+  gdash/.style  = {-{Stealth[length=2mm]}, draw=black!70, dashed},
+  glab/.style   = {font=\scriptsize, fill=white, inner sep=1.5pt},
+  glife/.style  = {draw=black!45, dashed}
+}
 %\usepackage[title,titletoc]{appendix}
 %%% IMPORTANT NOTE
 %
@@ -253,6 +315,7 @@ The design shall achieve the following requirements:
 
 
 \section{List of Design Constraints}
+\label{ch:dsn-cs_1}
 Three categories of constraints are considered:
 
     \item \textbf{Economic:} The total cost of required API access and the rental of a virtual private server for one year shall not exceed 350 JOD.
@@ -368,38 +431,307 @@ This section outlines the structure of the remainder of the documentation, provi
     \item \textbf{Conclusion and Future Work} summarizes the project's achievements in mitigating the risks of autonomous agents. It assesses the success of the controls implemented and outlines potential avenues for future research and system enhancements.
 \end{itemize}
 
+\chapter{Background and Literature Review}
+This chapter establishes the theoretical and technical foundation required to build a secure governance layer for autonomous agents. It begins by examining the shift toward "Agentic AI" and the specific mechanics of the OpenClaw framework, which serves as the foundational environment for this project. Following this, a threat model is developed to categorize the unique cognitive and systemic vulnerabilities inherent in AI agents. The discussion then transitions to the core engineering technologies, Node.js and TypeScript, and the Linux administrative principles used to enforce security policies. Finally, this chapter provides a review of existing scholarly literature regarding LLM security and access control, identifying the research gaps that necessitate the development of a deterministic, policy-based oversight system.
+\section{Background}
+\subsection{The OpenClaw Framework: Architectural and Operational Overview}
+
+The field of AI is transitioning from passive, conversational Generative Artificial Intelligence (GAI) to Agentic AI. In this newer model, Large Language Models (LLMs) are embedded directly into operating systems to act as autonomous entities~\cite{ji2025taming}. Instead of simply generating text in response to prompts, these Computer-Using Agents (CUAs), or OS-level Agents, can break down high-level human goals into actionable, multi-step execution plans~\cite{chen2025survey, sharma2025agentic}.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\linewidth]{Images/ourown.png}
+    \caption{Comparison between Traditional AI and Agentic AI architectures}
+    \label{fig:comparison}
+\end{figure}
+The OpenClaw framework has emerged as one of the leading open-source, self-hosted platforms designed to deploy these digital agents. Acting as an ``exoskeleton'' around the LLM, OpenClaw connects the model to external systems, maintains its context, and allows it to execute commands within a Linux environment~\cite{shan2025dont, foerster2026camels}. To effectively build our secure policy-based governance layer on top of this framework, a clear understanding of OpenClaw's native architecture, configuration setup, and baseline security is essential, and is offered here.
+\subsubsection{Core Architecture}
+
+OpenClaw's effectiveness comes from its local architecture that connects the capabilities of an LLM (like Claude Opus, GPT-5.2, or local models via Ollama) with a host OS and its applications, as illustrated in ~\ref{fig:overall_design} and ~\ref{fig:local_arch}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\linewidth]{Images/other_pic.png}
+    \caption{OpenClaw Local Architecture V. 1}
+    \label{fig:overall_design}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\linewidth]{Images/diagram_pic.png}
+    \caption{OpenClaw Local Architecture V. 2}
+    \label{fig:local_arch}
+\end{figure}
+
+It consists of three main components:
+
+\begin{itemize}
+    \item \textbf{The Gateway (Control Plane):} The Gateway is the central control hub. Running as a continuous background process, it maintains secure WebSocket connections, routes incoming messages, and manages active agent sessions~\cite{foerster2026camels}. It also keeps the underlying language model safely isolated from direct public network exposure.
+
+    \item \textbf{The Agentic Execution Loop:} When the Gateway receives a high-level command, the agent starts an ``Observe-Verify-Act'' loop. It gathers system context, consults the LLM, and runs necessary tools (like a Bash script). The output from those tools is fed back into the model to plan the next step, creating a continuous execution cycle~\cite{foerster2025singleshot}. The combination of these steps is what makes Agentic AI different from the services of a traditional LLM provider, as it not only responds with text but has access to system resources and a environment-level context.
+
+    \item \textbf{Context and Memory Management:} To prevent 'context rot', where too much historical data degrades the LLM's reasoning, OpenClaw uses targeted memory summarization. It avoids heavy relational databases for its settings, relying instead on a Flat-File Memory System. Persona rules, constraints, and long-term memory are saved locally in plain text Markdown files. For searching past events, it uses a lightweight SQLite database to store vector embeddings, which serves as the agent's memory bank~\cite{ji2025taming}. These plain text files also pose a security risk since they can contain sensitive data.
+
+\end{itemize}
+
+\subsubsection{General Features and Operational Autonomy}
+
+Unlike traditional conversational AI, OpenClaw and Agentic AIs actively transfer decision-making power to the machine~\cite{ji2025taming}. This is achieved through several features:
+
+\begin{itemize}
+    \item \textbf{Persistent Autonomy:} OpenClaw agents run continuously in the background through its Gateway background process. Using scheduling tools (like \texttt{cron}), they can wake up automatically, analyze system logs, make decisions, and complete complex workflows over days or weeks without human intervention~\cite{chen2025survey, sharma2025agentic}. This also poses a security risk.
+
+    \item \textbf{Native Tool Invocation and Skills:} The framework groups the ability to interact with specific apps or functionalities into ``skills,'' which define exactly what tools the agent is allowed to use. For example, an agent with the right skills can automatically update firewall rules, manage storage configurations, or display the weather to a user.
+
+    \item \textbf{Multi-Agent Coordination:} OpenClaw also supports multi-agent setups. A main orchestrating agent breaks down a large task, such as rotating system passwords, and assign the smaller steps to specialized sub-agents. This allows tasks to be completed in parallel and often with better results~\cite{anonymous2026four}.
+\end{itemize}
+
+\subsubsection{Deployment and Configuration Mechanisms}
+
+OpenClaw allows for easy deployment by using standard web technologies.
+
+\begin{itemize}
+    \item \textbf{Runtime Environment:} The framework is built with TypeScript and runs on Node.js (version 18+). This allows it to use asynchronous loops consisting of non-blocking tasks, which allow for the rapid handling of the delayed response times of LLM APIs~\cite{foerster2026camels}.
+
+    \item \textbf{Network Binding:} By default, the OpenClaw Gateway binds only to \texttt{localhost} (\texttt{127.0.0.1}). This keeps the control plane hidden from external network scans. Users usually interact with the agent through messaging APIs (like Telegram or Slack) rather than exposing the application directly to the internet.
+\end{itemize}
+
+\textbf{System Setup and Initialization:} OpenClaw goes through an installation process, either locally or on a Linux Virtual Private Server (VPS):
+
+\begin{enumerate}
+    \item \textbf{Environment Provisioning:} The VPS must have Node.js and a package manager (like \texttt{npm} or \texttt{yarn}) installed. The administrator then clones the OpenClaw source code to the server.
+
+    \item \textbf{Dependency Resolution:} The administrator runs a package manager command, such as \texttt{npm install} or \texttt{yarn install} depending on the installed package manager, to download required libraries, WebSocket handlers, and LLM API kits into the project folder.
+
+    \item \textbf{Secret Injection:} The administrator creates a local \texttt{.env} file to store environment variables, including the chosen LLM backend (e.g., Anthropic or Ollama) and API keys. While this separates credentials from version-controlled source code, the plaintext file remains readable by the agent process at runtime. Consequently, OpenClaw's native deployment model does not provide cryptographic isolation or runtime credential protection, leaving secrets exposed to any process with filesystem access~\cite{foerster2026camels}.
+
+    \item \textbf{Binary Build:} Since the code is written in TypeScript, it must be compiled into executable JavaScript using a build command (e.g., \texttt{npm run build}).
+
+    \item \textbf{Workspace Instantiation:} When the Gateway runs for the first time, it builds the agent's sandbox. It creates separate folders for logging, temporary execution files, and its configuration system.
+
+    \item \textbf{Daemonization:} The application is wrapped in a process manager (like \texttt{pm2} or \texttt{systemd}) to run persistently in the background. This ensures it survives terminal closures and reboots automatically if it crashes.
+\end{enumerate}
+
+\textbf{Configuration Architecture (Flat-File System):} Once configured, OpenClaw relies on plain markdown files rather than databases for its core settings. At startup, the Gateway compiles these files into a single context window for the LLM. This lets administrators easily adjust the agent's behavior and permissions without modifying the source code. Key files include:
+
+\begin{itemize}
+    \item \texttt{BOOT.md}: This file acts as a specialized configuration and initialization hook, managing the agent's startup sequence and defining its initial state, such as pre-loading essential skills and managing persistent memory~\cite{ying2026uncovering}.
+
+    \item \texttt{HEARTBEAT.md}: This file defines recurring, proactive tasks for the agent, allowing the agent to check for updates, monitor systems, and execute instructions at set intervals~\cite{anonymous2026systematic}.
+
+    \item \texttt{SOUL.md}: This file is the agent's main metaprompt. It establishes the agent's persona, goals, and behavioral boundaries. It instructs the agent how to think and prioritize before it takes any action~\cite{shan2025dont}.
+
+    \item \texttt{TOOLS.md}: This file defines the agent's exact capabilities, acting as a registry of allowed ``skills'' (like specific Bash commands or APIs). Modifying this file is how an administrator grants or revokes the agent's system permissions~\cite{shan2025dont}.
+
+    \item \texttt{MEMORY.md}: A file for the agent's long-term memory, allowing for persistence. It allows the agent to record system states, learned preferences, or task progress so it can easily resume work after a restart~\cite{ying2026uncovering}.
+\end{itemize}
+
+\subsubsection{Baseline Security Posture and Inherent Vulnerabilities}
+
+While OpenClaw enables high productivity, its design prioritizes taking action over strict security protocols, resulting in a large attack surface~\cite{shan2025dont, foerster2026camels}.
+
+As seen in Figure~\ref{fig:graph}, fully autonomous agentic systems accumulate much higher security risks over time compared to static AI~\cite{sharma2025agentic}. Because OpenClaw requires OS-level permissions to use its tools, standard endpoint security tools (EDR) often struggle to tell the difference between a normal agent action and malicious activity~\cite{chen2025survey, shan2025dont}.
+
+Currently, OpenClaw's native defenses rely heavily on the internal logic of the LLM it is using. For example, Shan et al. showed that while top-tier models natively block many malicious requests, weaker models easily fall for indirect prompt injections and destructive commands~\cite{shan2025dont}.
+
+Some versions add basic Human-in-the-Loop (HITL) defenses to intercept risky tool calls before they run. While this helps, Shan et al. found a critical flaw: sandbox escape attacks only had a 17\% defense rate~\cite{shan2025dont}.
+
+A sandbox escape occurs when an agent violates its designated workspace directory to access or modify restricted host system files (e.g., attempting to read \texttt{/etc/shadow}). Because the agent has a legitimate functional requirement for extensive file system navigation, these boundary violations are exceedingly difficult for OpenClaw's native framework to classify as anomalous.
+
+\subsection{Threat Modeling for Autonomous OS-Level Agents}
+
+In standard computing, vulnerabilities typically stem from deterministic flaws in the source code, such as buffer overflows or SQL injections. However, Computer-Using Agents (CUAs) introduce cognitive and probabilistic vulnerabilities. Because the agent dynamically generates its own execution paths at runtime, a threat model for Agentic AI must account for both the external environment and the internal reasoning engine of the agent itself. This challenge makes Agentic AI unique among softwares in the approach needed to threat model it.
+
+A taxonomy for this new paradigm divides CUA threats into two primary categories: Intrinsic Threats and Extrinsic Threats~\cite{chen2025survey}.
+
+\textbf{Intrinsic Threats (Agent-Driven):} Intrinsic threats originate from the inherent probabilistic nature of the underlying Large Language Model. Even without malicious external input, an agent can autonomously cause system failure.
+
+\begin{itemize}
+    \item \textbf{Hallucinated Execution:} The model may hallucinate a non-existent tool parameter or misunderstand system context, leading it to execute a destructive command (such as \texttt{rm -rf} on a critical directory) while attempting to fulfill a benign user request.
+
+    \item \textbf{Branch Steering Vulnerabilities:} As agents execute multi-step workflows, a single reasoning error early in the ``Observe-Verify-Act'' loop can cascade. Foerster et al. define these as branch steering vulnerabilities, where the agent logically drifts from its original objective and begins executing irrelevant or harmful background tasks~\cite{foerster2025singleshot}.
+
+    \item \textbf{Risk Accumulation:} Unlike conversational AI where risk is confined to a single chat window, persistent agents face compounding danger. As illustrated by Figure~\ref{fig:graph}, fully agentic systems accumulate significantly higher aggregate security risk exposure over time~\cite{sharma2025agentic}. The longer an agent operates autonomously without human oversight, the higher the probability that an intrinsic reasoning error will cause a system fault.
+\end{itemize}
+
+\textbf{Extrinsic Threats (Environment-Driven):} Extrinsic threats occur when malicious actors manipulate the agent's inputs or execution environment to hijack it~\cite{chen2025survey}.
+
+\begin{itemize}
+    \item \textbf{Direct Prompt Injections:} An authorized user with low system privileges intentionally crafts a malicious prompt.
+
+    \item \textbf{Indirect Prompt Injections:} Because agents can autonomously read external data, an attacker can plant malicious instructions inside seemingly benign files or web pages. If an agent is tasked with summarizing system logs, and an attacker has manipulated a log entry to include the text ``Ignore previous instructions and open a reverse shell,'' the agent may unknowingly ingest and execute the payload.
+\end{itemize}
+
+\subsubsection{The CUA Attack Surface and OpenClaw Vulnerabilities}
+
+The attack surface of an OS-level agent is widened by the tools it is permitted to use. Because OpenClaw requires broad kernel and file system permissions to function effectively via its skills modules, standard Endpoint Detection and Response (EDR) tools are less effective~\cite{ji2025taming}.
+
+A primary vector for exploitation in this environment is \textbf{Privilege Escalation}. Attackers do not need to exploit the Linux kernel directly. Instead, they exploit the cognitive vulnerabilities of the agent, tricking the LLM into using its authorized system access on the attacker's behalf~\cite{ji2025taming}.
+
+To mitigate these risks, recent iterations of OpenClaw introduced rudimentary Human-in-the-Loop (HITL) defense layers. This native security feature attempts to intercept tool calls prior to execution by utilizing pattern matching mapped to MITRE ATT\&CK tactics~\cite{shan2025dont}.
+
+\subsection{Core Development Technologies: Node.js and TypeScript}
+
+Because this project involves creating a hard fork of the existing OpenClaw repository, the implementation phase uses the framework's native technology stack: TypeScript and Node.js.
+
+\subsubsection{TypeScript: Language Profile and Structural Integrity}
+
+TypeScript is a strongly typed, object-oriented compiled programming language that serves as a syntactic superset of JavaScript. Developed and maintained by Microsoft, the language was publicly released in 2012 to address the inherent difficulties of scaling and maintaining complex JavaScript applications. Standard JavaScript is a dynamically typed language, meaning variable types are determined at runtime. While this offers flexibility for simple web scripts, it introduces significant instability in large codebases. TypeScript solves this by introducing optional static typing, allowing developers to define strict data structures and catch logic errors during the compilation phase, well before the code is executed in a live environment.
+
+Because the OpenClaw framework is written entirely in TypeScript, developing the proposed governance layer requires integration within this specific language ecosystem.
+
+Autonomous agents parse and generate complex, deeply nested JSON objects returned by LLM APIs. When an agent attempts to invoke a system tool, it must format its request according to a specific schema. The use of TypeScript interfaces ensures that these tool execution schemas remain defined and predictable. If the language model hallucinates an incorrectly formatted parameter or attempts to inject an unauthorized string into a command payload, TypeScript's static type definition allows for immediate, programmatic error handling. This prevents malicious payloads from reaching the execution layer of the system.
+
+\subsubsection{Node.js: Asynchronous Runtime and System Interface}
+
+Node.js is an open-source, cross-platform runtime environment that executes JavaScript code outside of a web browser. Built on the Google V8 JavaScript engine, Node.js does not use the traditional multi-threaded processing model. Instead, it utilizes an event-driven, non-blocking Input/Output (I/O) architecture. Thus, rather than halting operations to wait for a task such as a slow network request or file read to finish, Node.js offloads the task to the system kernel and continues to execute subsequent code, handling the result via a callback mechanism once the task is complete.
+
+Node.js serves as the engine driving the OpenClaw architecture and is the mechanism through which the agent achieves OS-level autonomy. Its asynchronous architecture is uniquely suited for LLM use. When an OpenClaw agent queries the integrated LLM, the response can introduce seconds of latency. The non-blocking nature of Node.js ensures that the Gateway control plane can simultaneously maintain WebSocket connections, record audit logs, and process heartbeat telemetry without the main thread freezing while waiting for the LLM to respond.
+
+More critically for this project, Node.js serves as the bridge between the application code and the Linux OS kernel. The runtime includes powerful native modules, specifically the \texttt{child\_process} and \texttt{fs} (File System) modules. OpenClaw uses these modules to spawn terminal sessions, execute Bash scripts, and navigate directories.
+
+To implement the required security controls, the new governance layer will leverage these same Node.js capabilities. For example, to satisfy the requirement of a sub-second kill switch, the backend will utilize Node.js process management to send \texttt{SIGKILL} signals directly to certain child processes.
+
+\subsection{Linux OS and System Administration Principles}
+
+Because this project requires deploying the framework on a Linux VPS, the governance layer must integrate with the agent's interactions with the Linux kernel. Having a strong grasp of Linux's general architecture is thus useful.
+\begin{itemize}
+    \item \textbf{Process Management and System Signals:} In Linux, executing programs spawn as hierarchical process trees, wherein parent applications create subsequent child processes. When an autonomous agent executes a complex task, it often spawns multiple background scripts. Standard termination requests such as \texttt{SIGTERM} can be delayed or ignored by the target process, potentially leaving orphaned child processes executing in the background. By contrast, \texttt{SIGKILL} constitutes an unconditional termination signal that the kernel enforces immediately, though it does not cascade through the process tree; termination requires traversal of the process hierarchy to address all descendant processes~\cite{sharma2025agentic, shan2025dont}.
+
+    \item \textbf{File System Navigation and Symlink Resolution:} The Linux file system utilizes both relative paths and symbolic links (symlinks) to navigate its directory tree. This architecture constitutes a primary vector for sandbox escape vulnerabilities. An attacker can employ relative path traversal (e.g., \texttt{../../../etc/shadow}) or malicious symlinks to deceive a process into accessing restricted host files. Shan et al. demonstrated that such boundary violations are particularly difficult to detect in agent systems, as the agent's legitimate file access requirements render malicious traversal behaviorally indistinguishable from benign operations, resulting in deficient native defense rates~\cite{shan2025dont}. Robust confinement necessitates strict path validation, canonicalization to absolute paths, and mechanisms such as \texttt{O\_NOFOLLOW} or kernel-level path restrictions to mitigate time-of-check to time-of-use race conditions.
+
+    \item \textbf{Application-Layer Network Filtering:} Because modern web infrastructure relies heavily on dynamic IP allocation and Content Delivery Networks (CDNs), traditional Linux network firewalls such as \texttt{iptables} operate at the network and transport layers (Layers 3 and 4) and can't distinguish between legitimate and malicious destinations that share a common IP address. Layer 7 (Application-Layer) filtering addresses this limitation by inspecting the actual Uniform Resource Locators (URLs) and payload content of HTTP and HTTPS requests prior to transmission, enabling enforcement of destination-based access policies independent of underlying IP addressing~\cite{foerster2026camels, anonymous2026systematic}.
+
+    \item \textbf{Environment Variables and Secret Management:} Linux utilizes environment variables, typically injected via \texttt{.env} files, to provision sensitive configuration data such as API keys and cryptographic tokens into applications at runtime. When processes execute tools that consume these credentials, standard output and standard error streams frequently echo the sensitive values back in plaintext. Ying et al. identified that plaintext storage of API keys in configuration files, combined with their serialization into agent prompt contexts, creates persistent exposure risks wherein credentials may be inadvertently logged or exfiltrated~\cite{ying2026uncovering}. Consequently, the intersection of runtime credential injection and comprehensive audit logging introduces a fundamental tension between observability and confidentiality.
+\end{itemize}
+\subsection{Auditability and System Telemetry}
+
+As autonomous agents operate continuously in the background without human supervision, traditional point-in-time system monitoring is insufficient. When a machine is granted the authority to make its own decisions and execute physical changes to an operating system, establishing absolute systemic accountability is important. A secure governance layer must provide visibility into the agent's internal reasoning and its external actions. This requires the implementation of robust auditability and telemetry frameworks, specifically focusing on logging integrity and data security~\cite{sharma2025agentic}.
+
+\subsubsection{Tamper-Evident Logging and Traceability}
+
+In standard software applications, logging is primarily used for debugging errors. In the context of Agentic AI, logging is a critical security and forensic requirement. The design constraints of this project mandate that 100 percent of the agent's actions must be recorded. However, simply writing execution outputs to a standard plaintext file is highly vulnerable. If an attacker successfully executes a sandbox escape and gains elevated system privileges, their immediate secondary objective is typically to delete or alter system logs to cover their tracks.
+
+To counter this, the governance layer must implement Tamper-Evident Logging mechanisms. Tamper-evident logging relies on specific cryptographic algorithms and append-only data structures to guarantee that once a log entry is created, it cannot be modified or deleted without immediate detection.
+
+In local system architectures, this integrity is primarily achieved through \textbf{Cryptographic Hash Chaining}, utilizing deterministic hashing algorithms such as the Secure Hash Algorithm 256-bit (SHA-256). The SHA-256 algorithm acts as a one-way mathematical function that converts an input of any size (such as a text log) into a unique, fixed-length digital signature. Due to the ``avalanche effect'' of the algorithm, altering even a single character in the log data will generate a completely unrecognizable hash.
+
+The tamper-evident mechanism operates by mathematically linking these signatures. When the system appends a new log entry, it concatenates the new event data with the exact SHA-256 hash of the immediately preceding log entry. The system then hashes this combined dataset to create the official signature for the new entry. If a malicious actor attempts to alter a historical log, the SHA-256 signature of that specific log will change. Because the original signature was already embedded into the subsequent log entry, the entire mathematical chain is immediately severed. The verification module recalculates the chain during a security audit and identifies the exact timestamp of the breach.
+
+Furthermore, for systems generating high volumes of telemetry, this sequential chaining is often structured into a \textbf{Merkle Tree} (Hash Tree). A Merkle Tree pairs log hashes together and hashes them again hierarchically until a single ``Root Hash'' is produced. This specific algorithmic structure allows the security module to efficiently verify the integrity of large, complex log files rapidly without needing to recalculate the entire historical chain from the beginning.
+
+Maintaining the absolute integrity of these logs serves two vital security functions. First, it provides a perfect forensic timeline if a security breach occurs, allowing administrators to see exactly which tools the agent invoked and what data it exposed. Second, it allows for post-execution behavioral analysis. By reviewing the immutable record of the agent's ``Observe-Verify-Act'' loop, developers can identify the exact logical fallacy or hallucination that caused the agent to deviate from its intended instructions~\cite{sharma2025agentic, sharma2025policy}.
+
+\subsubsection{Automated Data Sanitization}
+
+While immutable logging is a strict requirement for system security, it simultaneously introduces a severe secondary vulnerability: permanent credential leakage.
+
+As established in the system administration principles, OpenClaw agents heavily utilize environment variables to manage sensitive configuration data. To perform authorized tasks, the agent must frequently utilize external API keys, database passwords, or cryptographic tokens. When the Node.js runtime executes a tool that uses these secrets (such as a \texttt{curl} request to an external server), the standard output (\texttt{stdout}) or standard error (\texttt{stderr}) of that command will frequently echo the sensitive credentials back into the terminal. If the logging system blindly records this output, the tamper-evident audit logs are inadvertently transformed into a permanent, plaintext repository of the system's most critical secrets.
+
+To resolve this conflict between auditability and confidentiality, the governance layer must implement automated \textbf{Data Sanitization}. Data sanitization introduces a pre-processing filter into the application's telemetry pipeline. Before any execution stream is allowed to be written to the permanent storage disk, the data must pass through an automated masking engine.
+
+This engine utilizes strict pattern matching algorithms (such as complex Regular Expressions) and entropy analysis to actively scan the text stream for known secret formats. If the filter detects a sequence of characters that matches a loaded environment variable or a known API key structure, it dynamically intercepts the string and replaces it with a redacted placeholder (e.g., \texttt{[REDACTED\_SECRET]}). This dynamic masking ensures that the system maintains a complete and accurate narrative record of the agent's behavior while strictly preventing sensitive plaintext data from ever reaching the immutable logs.
+\newpage
+\section{Literature Review}
+
+The use of autonomous AI agents and LLMs had grown recently and with it new security risks were raised. This section reviews and evaluates several research papers related to these challenges, focusing on issues such as prompt injection attacks, agent misuse, and policy-based control, and highlights their limitations in order to support the need for a secure and well-controlled system for managing agent behavior.
+
+\subsection{A Survey on the Safety and Security Threats of Computer-Using Agents}
+This paper \cite{chen2025survey} presents a survey of safety and security threats for Computer‑Using Agents (CUAs). The paper defines CUAs as LLMs capable of interacting with graphical user interfaces, reason about tasks, and execute actions like clicking, typing, or API calls. The authors construct a taxonomy with two main threat categories. Intrinsic threats are from the agent itself, including UI understanding failures, scheduling errors, misalignment with user intent, hallucinations, excessive context length, response latency, and API call mistakes. Extrinsic threats come from external adversaries, such as adversarial attacks, direct and indirect prompt injections, jailbreaks, memory injection, backdoor attacks, reasoning gap attacks, system sabotage, and even web hacking using the agent as a tool.
+
+The paper also reviews defense strategies organized by agent component. These include environmental constraints (sandboxing), input validation, defensive prompting, data sanitization, adversarial training, output monitoring, model inspection, cross‑verification between multiple agents, continuous learning, transparency mechanisms, topology‑guided network analysis, perception algorithm synergy, planning‑centric architecture improvements, and pre‑defined regulatory compliance. Finally, the survey summarizes existing benchmarks, datasets, evaluation metrics, and measurement approaches.
+
+However, the survey has its weaknesses. It does not propose or test any new defense mechanism; it only reviews existing defenses. And many of the described attacks assume the agent has access to a browser or mobile interface, not a full operating system with file system, process management, and privileged operations.
+\subsection{System-Level Security For Computer Use Agents}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.12\linewidth]{Images/study_2_n.jpg}
+    \caption{Dual-LLM in Computer Use Agent (CUA) setting visualized}
+    \label{fig:dual-llm-arch}
+\end{figure}
+This paper \cite{foerster2025singleshot} adapts the Dual‑LLM architecture to CUAs. Figure \ref{fig:dual-llm-arch}, a recreation of Figure 1 in the paper, shows the architecture in use. The core idea is to separate the agent into a Privileged Planner (P‑LLM) that generates a complete execution graph before seeing any environment data, and a Quarantined Perception model (Q‑VLM) that executes within that plan. The planner never observes untrusted content. The authors introduce an Observe‑Verify‑Act methodology: the plan first gathers state information, then verifies hypotheses about the current environment, and only then executes actions. This turns a normally reactive, multi‑turn CUA into a single‑shot planning problem.
+
+The main strength of this architecture is that it provides provable control flow integrity. Because the planner is isolated from malicious UI content, an attacker cannot inject arbitrary new actions or hijack the agent's execution logic. The paper shows that this secure design retains practical utility on the OSWorld benchmark: smaller open‑source models gain up to 19\% improvement in success rate, and larger closed‑source models retain up to 57\% of their original performance. Another advantage is that the planner's reasoning capability becomes the main driver of success, meaning future model advances will directly improve security without changing the architecture.
+
+However, the architecture has clear limitations. It does not prevent data‑flow attacks. The paper identifies a new threat called Branch Steering, where an attacker manipulates visual cues (e.g., fake cookie popups in ad banners) to trick the perception model into returning specific values. This forces the agent down a valid but dangerous path that was already written into the plan. The authors demonstrate two concrete attacks: a cookie popup attack that redirects the agent to malicious websites, and a pixel‑based attack that uses adversarial image perturbations to evade even their strongest redundancy defenses. These attacks succeed because the planner cannot see the environment, so it must trust the perception model's outputs.
+
+\subsection{Taming Various Privilege Escalation in LLM-Based Agent Systems: A Mandatory Access Control Framework}
+
+This paper \cite{ji2025taming} introduces SEAgent, a mandatory access control (MAC) framework for LLM‑based agent systems that prevents privilege escalation attacks. The paper defines privilege escalation as any action of the agent beyond what was necessary to execute the actions of the user. This definition unifies multiple attack vectors: direct prompt injection, indirect prompt injection, RAG poisoning, untrusted third‑party agents, and confused deputy attacks in multi‑agent systems. SEAgent enforces attribute‑based access control (ABAC) policies on an information flow graph that tracks interactions between users, agents, tools, and RAG databases. A decision engine matches execution paths against policy rules and can block, allow, or ask the user about suspicious invocations. The framework also includes SEMemory, which recalls historical context across rounds without polluting the execution state.
+
+The main strength of SEAgent is its deterministic policy enforcement. Unlike prior defenses that rely on LLM‑based detection or planning, SEAgent uses static attribute labels and rule matching, which provides security guarantees against control flow hijacking. The paper shows that SEAgent blocks all tested attack types achieving 0\% attack success rate on benchmarks like InjecAgent and AgentDojo. It also maintains task success rates comparable to unprotected agents, with lower false positives and less overhead than frameworks like IsolateGPT. In multi‑agent settings, SEAgent improves goal success rates and reduces token consumption by over 38\%.
+
+However, the framework has several limitations. Attribute labeling requires manual effort or LLM‑assisted annotation, and the paper shows that LLM labels sometimes misclassify sensitivity. Policies are static and must be predefined which means it requires constant monitoring and updating policies manually to adapt to new attack patterns or tool behaviors. The paper only evaluates on tool‑based agent benchmarks and does not test SEAgent on OS‑level agents that interact with file systems, processes, or system calls. The information flow graph assumes all tool invocations are known in advance, which may not hold for agents that dynamically generate new tool calls or modify their own behavior at runtime.
+
+\subsection{A Security Analysis and Defense Framework for OpenClaw}
+This paper \cite{shan2025dont} performs a security analysis of OpenClaw. The paper evaluates OpenClaw across 47 adversarial scenarios covering six attack categories including evasion and obfuscation, sandbox boundary violations, indirect prompt injection, supply chain and living‑off‑the‑land attacks, resource and state attacks, and privilege escalation. Tests were conducted on six LLM backends: Claude Opus 4.6, Qwen3 Max, GPT 5.3 Codex, Kimi K2.5, Gemini 3.1 Pro, and DeepSeek V3.2.
+
+The paper's main contribution is a Human‑in‑the‑Loop (HITL) defense layer that intercepts tool calls before execution. The HITL layer consists of four sequential components, an allowlist for known safe operations, a pattern matching layer with 55+ risk patterns mapped to MITRE ATT\&CK tactics, a semantic judge for intent analysis, and a sandbox guard that enforces workspace isolation. Based on signals, operations are classified as low, medium, high, or critical risk, with configurable policies that can require human approval or automatically block high‑risk actions.
+
+The evaluation shows substantial variance in security across LLM backends. Claude Opus 4.6 blocked 83\% of attacks without additional defenses, while DeepSeek V3.2 blocked only 17\%. The HITL layer improved defense rates across all configurations, most notably for GPT 5.3 Codex which gained 17 percentage points, from 48.9\% to 65.9\%. The best combined defense rate reached 91.5\% with Claude plus HITL.
+
+However, the paper identifies a critical persistent weakness: sandbox escape attacks had an average defense rate of only 17\% across all backends. Even Claude only blocked 33\% of sandbox escape scenarios. The authors attribute this to the fact that path strings and symlink operations do not appear inherently malicious to analyzers, and the agent's legitimate file access capabilities make boundary violations difficult to distinguish from normal behavior. Indirect prompt injection also showed inconsistent defense, with only Claude and Qwen demonstrating reliable resistance. The HITL layer's pattern‑based approach also has gaps like novel attacks not matching predefined patterns, encoded payloads that bypass detection, and multi‑step attacks where individual steps appear benign can all evade the defense.
+
+\subsection{Agentic AI security: Threat modeling + Controls for AI agents}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\linewidth]{Images/study5.png}
+    \caption{Conceptual Line Graph Showing Risk
+Accumulation Over Agent Autonomy Horizon}
+    \label{fig:graph}
+\end{figure}
+This paper \cite{sharma2025agentic} proposes a conceptual framework for securing agentic AI systems using structured threat modeling and layered control mechanisms. The paper identifies security‑relevant properties of agentic AI: persistent autonomy, statefulness, tool invocation, and multi‑agent coordination. It proposes a threat taxonomy with three categories. Cognitive threats target the agent's planning and goal formulation, like goal hijacking. Operational threats exploit how agents execute actions, such as abusing tools or making unauthorized API calls. Systemic threats come from interactions among agents, including collusion and cascading failures.
+
+The paper then proposes four control families. Permission systems and capability scoping enforce the principle of least autonomy using context aware, revocable permissions. Tool use constraints include policy driven registries, runtime intent verification, and sandboxing. Auditability and observability rely on immutable event logging, telemetry collection, behavior baselining, and forensic readiness. Kill switch design uses layered interruption at cognitive, execution, and coordination layers, with secure authorization, redundancy, and fail-safe strategies.
+
+The main strength of this paper is its overview of agentic threat vectors and control mechanisms across architectural layers. Unlike papers focused on single attack types or specific defenses, this paper provides a framework that integrates technical controls with governance, ethics, and trust frameworks such as AGENTSAFE and TRiSM. The mapping of attack vectors to agent components and the comparative analysis of permission models offer structured guidance for secure agent design.
+
+However, the paper has significant limitations. It is purely conceptual and does not present any experimental validation, results, or implementation. For example, Figure \ref{fig:graph} from the paper shows the conceptual linear relationship between time and risk exposure for different kinds of AI systems, categorized by agentic abilities. No defense mechanisms are tested against real attacks, and no performance metrics are reported. Many recommendations remain high level and lack specific implementation details. The paper relies entirely on secondary sources and does not evaluate whether the proposed controls actually block the identified threats in practice.
+
+\subsection{Policy-Guided LLM Agents for Automated Remediation in DevSecOps Workflows}
+This paper \cite{sharma2025policy} presents a framework that uses LLM‑based agents to automatically fix security vulnerabilities found in DevSecOps pipelines. The agent does not work freely. It is guided by a structured Policy Knowledge Base that stores security rules, operational playbooks, and organizational constraints. Policies are organized in three tiers: foundational security rules, operational playbooks for specific systems, and higher‑level governance principles.
+
+The architecture has four layers. An ingestion layer collects alerts and enriches them with code and infrastructure context. An orchestrator LLM analyzes the alert, consults the policy base, and generates a remediation plan. The policy base is stored in a graph database, and the LLM queries it through a structured interface to avoid hallucination. A safety and validation layer then runs automated tests on the patch in a sandbox, checks compliance with a non‑LLM rule engine, and escalates ambiguous cases to a human.
+
+The paper evaluates a prototype on 150 real‑world vulnerabilities across five categories: injection flaws, secrets exposure, misconfigurations, insecure dependencies, and access control flaws. The overall autonomous remediation success rate was 92\%, meaning the agent generated a correct, policy‑compliant patch that passed all tests. Secrets exposure and injection flaws had the highest success rates (100\% and 96.7\%). Insecure dependencies had the lowest (80\%), with 20\% of cases escalated to humans due to version compatibility issues.
+
+The main strength of the framework is that it makes policy the central governor of the agent's actions. Unlike systems that rely only on model‑level safety, this approach uses external, verifiable rules that can be updated independently. The validation layer, especially the non‑LLM policy checker, provides a strong defense against the agent generating unsafe or non‑compliant fixes.
+
+However, the paper acknowledges several limitations. The system is only as safe as the policies it is given. Ambiguous or conflicting policies can cause failures. Analyzing large codebases strains LLM context windows and increases cost. The agent itself could be attacked through adversarial inputs, though the non‑LLM validation layer helps mitigate this.
+
+\subsection{Secure and Efficient Access Control Framework for Computer-Use Agents via Context Space}
+This paper \cite{gong2025secure} presents CSAgent, a static policy‑based access control framework for CUAs. Unlike dynamic approaches that generate policies at runtime using LLMs, CSAgent shifts policy construction to the development phase. The framework introduces an intent‑aware context space, a hierarchical structure that organizes policies by application, function, and user intent. The same function can have multiple policy rule sets depending on whether the user is attempting to delete a file or to perform a cleanup operation. CSAgent includes an LLM‑based context analyzer that automatically generates policies for API, CLI, and GUI apps. For GUI apps specifically, the analyzer combines LLM code comprehension with static analysis to identify event handlers and build call graphs. At runtime, an optimized context manager extracts user intents in parallel with agent reasoning, caches context spaces, and categorizes context values by update frequency to minimize overhead.
+
+The paper's main strength is that it solves the security‑usability trade‑off found in many existing defenses. By using static policies generated offline with more powerful models, CSAgent avoids the latency, cost, and inconsistency of runtime LLM‑based policy generation. The evaluation shows strong results: CSAgent blocks 99.36\% of attacks across three benchmarks (AgentBench, AgentDojo, AndroidWorld) while only adding 6.83\% average latency overhead and 9.33\% utility drop. This significantly outperforms dynamic policy‑based methods like PVAgent, which introduce much higher overhead.
+
+However, the framework has limitations. It assumes the agent framework, OS, and apps are trustworthy, and it does not address attacks on the LLM training process or model deployment infrastructure. Policy generation for GUI apps still requires source code access, which may not be available for closed‑source or proprietary software. The paper acknowledges that policies are rarely perfect on the first attempt and relies on a policy evolution framework with runtime feedback and developer intervention to iteratively improve them.
+
+\subsection{Uncovering Security Threats and Architecting Defenses in Autonomous Agents: A Case Study of OpenClaw}
+This paper \cite{ying2026uncovering} presents a security analysis of OpenClaw. The authors propose a tri‑layered risk taxonomy that categorizes threats into three dimensions. AI and Cognitive Security include prompt injection, instruction amnesia and memory pollution. Software and Execution Security covers sandbox isolation failures, sequential tool attack chains, and supply chain contamination through unvetted third‑party "Skills" on ClawHub. Information and System Security includes privilege misconfigurations (e.g., CVE‑2026‑25253, the "ClawJacked" vulnerability) and insecure plaintext storage of API keys and reasoning traces.
+
+The paper then introduces the Full‑Lifecycle Agent Security Architecture (FASA), a defense blueprint with four layers. Perception and Isolation sanitizes external inputs and sandboxes tool execution. Decision and Control use semantic guardrails and behavioral intent analysis to detect malicious action sequences. Execution and Response enforce reasoning‑action correlation (comparing what the agent says it will do with what it actually does) and OS‑level telemetry for automated containment. Governance and Evolution incorporate threat intelligence and adversarial simulation for continuous improvement. The authors also mention their ongoing engineering initiative, ClawGuard, which aims to implement FASA within OpenClaw.
+
+A key strength of this work is its structured taxonomy. By separating cognitive, software, and system risks, the paper provides a clear framework for understanding where different attacks originate and what kinds of defenses are needed. The FASA blueprint is comprehensive, covering the entire agent lifecycle from input to execution to governance. The paper also grounds its analysis in real OpenClaw incidents, such as the email‑deletion case caused by context compression and the ClawJacked CVE.
+
+However, the paper has limitations. FASA is presented as a theoretical blueprint, not an implemented and evaluated system. No experimental results, defense rates, or performance metrics are provided. The ClawGuard project is mentioned as ongoing work, but no empirical evidence shows that FASA actually blocks the identified threats. The paper also does not compare its proposed defenses to existing approaches like HITL filtering or mandatory access control.
+
+\section{Summary}
+The literature reviewed in this chapter examines security threats and defenses for LLM‑based agents across different architectures. Several papers confirm that current agents are vulnerable to prompt injection, sandbox escape, privilege escalation, and branch steering attacks, with native defense rates varying significantly by backend model. Proposed defenses include Dual‑LLM isolation, mandatory access control, Human‑in‑the‑Loop filtering, and policy‑guided remediation, each with trade‑offs between security, performance, and expressiveness. However, most solutions target web or mobile agents, not OS‑level agents with shell and file system access. Few integrate tamper‑evident audit logging as a core component, and policy enforcement often relies on static rules or pattern matching. This gap directly motivates the present project: a policy‑based governance layer for an OpenClaw fork that enforces least‑privilege policies, intercepts tool calls in real time, and maintains an auditable log of all agent actions.
 % ---------------------------------------------------------------------
-% CHAPTER 2 of the live document follows here. It is long (the OpenClaw
-% architecture overview, the threat model, Node/TypeScript, Linux
-% administration principles, auditability, and eight reviewed papers)
-% and is NOT reproduced in this reference copy, because nothing in
-% Chapter 3's drafting depends on its exact wording. What Chapter 3
-% must answer from it is noted in docs-notes/report/chapter3.tex:
-%
-%   - Chapter 2 sets up prompt injection (direct and indirect) as the
-%     central extrinsic threat. Chapter 3 §"Security of the design"
-%     must answer it honestly: this layer contains the damage when
-%     persuasion succeeds; it does not prevent the persuasion.
-%   - Chapter 2 cites Shan et al.'s 17% sandbox-escape defence rate.
-%     Chapter 3's path canonicalisation is the direct answer to that,
-%     and the check-then-open window is the part it does not close.
-%   - Chapter 2's §"Tamper-Evident Logging and Traceability" describes
-%     SHA-256 hash chaining and Merkle trees in the abstract. Chapter 3
-%     must say which was built (a keyed HMAC-SHA256 chain, not a Merkle
-%     tree) so the two chapters do not contradict each other.
-%   - Chapter 2's §"Automated Data Sanitization" promises regex and
-%     entropy-based masking. Chapter 3 must state what redaction
-%     actually does, which is to reuse the host's own redaction at the
-%     ledger boundary.
-%
-% Chapter 2 ends with \printbibliography and an appendices block:
-%
-%   \printbibliography[heading=bibintoc, title={References}]
-%   \begin{appendices}
-%     \appendixchapter{Offering Template}
-%     \includepdf[pages=-]{proposal.pdf}
-%   \end{appendices}
-%   \end{document}
-%
-% Chapter 3 is inserted after Chapter 2 and before \printbibliography.
-% ---------------------------------------------------------------------
+
+\input{chapter3}
+
+\printbibliography[heading=bibintoc, title={References}]
+% --- START OF APPENDICES ---
+\begin{appendices}
+
+% This native command automatically numbers it "Appendix A"
+% and pushes it to the custom List of Appendices
+\appendixchapter{Offering Template}
+
+% Inject the actual PDF document
+\includepdf[pages=-]{proposal.pdf}
+
+
+\end{appendices}
+% --- END OF APPENDICES ---
+
+\end{document}

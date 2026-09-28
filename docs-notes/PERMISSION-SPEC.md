@@ -79,7 +79,7 @@ type PolicyRule = {
   tier?: "core" | "baseline" | "admin"; // absent ⇒ "admin"
   access?: "read" | "write"; // absent ⇒ both; `path` only
   pattern: string; // ECMAScript RegExp source
-  description?: string;
+  description: string; // required (T70): why the rule exists; the rule's title
   createdAt: string; // ISO 8601
   createdBy?: string; // authoring account
   expiresAt?: string; // ISO 8601; absent ⇒ indefinite
@@ -91,6 +91,25 @@ type PolicyRule = {
 Every field added after the original allow-only language is **optional and
 defaults to the previous meaning**, so a rule written before any of them keeps
 granting exactly what it granted.
+
+**`description` is the exception, and it is required on every stored rule (T70,
+2026-09-27).** It says why the rule exists in words another operator can act on;
+it is the rule's title in every policy view, it travels into the ledger entries
+that record the rule being added and removed, and it is **never consulted by
+evaluation**. Core and baseline rules carry descriptions declared in
+`baseline-policy.ts`; an operator writes one for a direct rule and a purpose for a
+folder grant; an approved rule request's mandatory reason becomes its rule's
+description (`Requested by <account>: <reason>`). `addRuleChecked` refuses a rule
+whose description is missing or blank after trimming, and stores it trimmed.
+
+**The one-time repair.** A document stored before T70 is `version: 1` and may hold
+description-less operator rules, because the direct add-rule form never sent one.
+Such a document is repaired as it is read: each such rule is given a description
+saying no purpose was recorded, who added it and when, and that it should be
+replaced; the next policy write stores `version: 2`. A version-2 document is
+trusted to carry a description on every rule, so one without is malformed and
+**fails towards restriction**: an allowance is dropped, a denial is kept, still
+enforced, and labelled as stored without a description.
 
 **`agentId` is canonical, on the way in and on the way out (finding 202,
 2026-09-01).** It is compared against the id the gate resolves from the session
@@ -743,6 +762,12 @@ The create path (`POST policy/rules`, which the dashboard's _Policy_ form calls)
 accepts `resourceKind`, `pattern`, `effect`, `access`, `description`, an agent
 scope, and a TTL in minutes. Normatively:
 
+0. `description` is REQUIRED (T70). A missing, non-string, empty or
+   whitespace-only value, or one over `MAX_RULE_DESCRIPTION_LENGTH` (500, the same
+   limit as a rule request's reason) MUST be **rejected** with a 400 naming the
+   field; it is never cut. The accepted value is trimmed before storage.
+   `POST policy/folder-grant` requires the same field as the grant's purpose and
+   carries it into the grant's description and every exception's.
 1. `effect` MUST be `allow` or `deny` when present; absent means `allow`. An
    unrecognised value MUST be **rejected**, never coerced. Coercing a typo to
    `allow` turns a mistake into a permission.
@@ -874,7 +899,7 @@ Below Administrator, a prompt's text is visible only to the account that sent it
   "resourceKind": "network",
   "pattern": "^api[.]example[.]com$",
   "effect": "allow", // optional; "allow" or "deny", absent ⇒ "allow"
-  "description": "weather API", // optional
+  "description": "Fetch forecasts from the weather API", // required, ≤ 500 characters
   "ttlMinutes": 120, // optional; omit for indefinite
   "agentId": "agent-a", // optional; omit for global
 }

@@ -30,7 +30,10 @@ Cross-references: `GOVERNANCE.md` (operator-facing overview + QA defect table),
 > connected, which found 377–379, opened decision C15, and measured the kill switch's
 > confirmed stop above one second on the laptop (quote it with §3.5.93's qualification); and §3.5.94,
 > C15 and A13 built: a request names the account that answered, and agents are renamed and re-owned
-> from the registry.
+> from the registry; and §3.5.95 (2026-09-27), T70 built: every rule says why it exists (finding
+> 380); and §3.5.96 (2026-09-27), the dashboard QA after T70 (findings 381–396): agent workspaces
+> nested in the default agent's fenced from it, the ownership invariants held across both stores,
+> the deployment report made to state the posture, and a refusal that outlives its card.
 > §3.1's status column was brought up to date
 > against the code on 2026-09-14.
 >
@@ -141,7 +144,24 @@ was read as demanding and what was measured against it.
 is only meaningful if nothing can route around it. OpenClaw funnels every tool
 call through one function, `runBeforeToolCallHook`
 (`src/agents/agent-tools.before-tool-call.policy.ts`), so that is where the gate
-was inserted. Critically it had to go _before_ an existing early-return that
+was inserted.
+
+**Whose funnel it is, checked against upstream on 2026-09-21, because the report
+should not claim someone else's structure as its own.** The function, its
+position in the chain and the early return below it are all **upstream
+OpenClaw's**: they exist unchanged on `main`, where the function is at line 90 of
+the same file and the early return at line 176. Six call sites across five
+modules reach it, and four of those five files are byte-identical to upstream in
+this fork; only `harness/native-hook-relay-events.ts` changed, and it changed to
+make the relay unconditional rather than to alter the call. **What is this
+project's** is the gate inside that function (+151 / -9 on the file), its
+position above the early return, and making the second runtime reach it.
+
+````bash
+git grep -n "runBeforeToolCallHook" main -- src | grep -v "\.test\.ts"
+git diff main..HEAD --stat -- src/agents/agent-tool-definition-adapter.ts   src/agents/agent-tools.before-tool-call.wrapper.ts   src/gateway/mcp-http.handlers.ts src/gateway/tools-invoke-shared.ts
+# The second command prints nothing: the call sites are untouched.
+``` Critically it had to go _before_ an existing early-return that
 skips policy work when no plugins are registered. Placing it after would have
 silently disabled governance on a default installation. This is a good concrete
 example for the report of a control that is correct in isolation but useless in
@@ -178,16 +198,29 @@ governance invokes it through `agent-terminator.ts`. The kill switch now
 (1) locks the agent, then (2) aborts its in-flight runs, in that order,
 locking second would leave a window in which the agent could legally start a
 fresh action. Elapsed time is measured with `process.hrtime.bigint()` and
-returned to both the CLI and the dashboard, so the one-second figure is
+returned to the dashboard and the HTTP control plane, so the one-second figure is
 observable rather than asserted. See §4.x.8 for measurements.
 
-Honest caveat to keep: when invoked from the **CLI**, no in-flight termination
-occurs, because the run registry lives in the Gateway process. The CLI says so
-explicitly rather than implying the agent was stopped.
+Honest caveat to keep, **reworded 2026-09-21 and the old wording is why**: this
+read "when invoked from the **CLI**, no in-flight termination occurs", and the
+command line was removed on 2026-09-07, so the report was one paste away from
+carrying a caveat about a surface the product does not have. The true statement:
+terminating work already running depends on the Gateway having registered its
+abort implementation, and where it has not, the lockdown is still applied and the
+result states that no in-flight run was reachable instead of reporting a stop
+nobody observed. Both operator surfaces are served by the Gateway process that
+registers the terminator, so in the delivered system this is a startup or test
+condition rather than one an operator meets. Verified 2026-09-21: the only
+production caller of `lockDownAgent` is
+`src/gateway/governance-dashboard-agent-control.ts`.
 
 **Requirement 8 (no plaintext secrets). Met by reuse, not reimplementation.**
-OpenClaw already has a mature redaction engine (`src/logging/redact.ts`, ~1100
-lines, ~40 vendor token patterns, structured-field and URL/PEM handling). The
+OpenClaw already has a mature redaction engine (`src/logging/redact.ts`, 1,116
+lines, and **122** default patterns, not the "~40" this line claimed until it was
+counted on 2026-09-21: `node --import ./scripts/register-ts-resolver.mjs -e "const m=await import('./src/logging/redact-patterns.ts'); console.log(m.DEFAULT_REDACT_PATTERNS.length)"`.
+They cover environment assignments, structured fields, authorization and cookie
+headers, URL and database connection credentials, query-string parameters, PEM
+private-key blocks and vendor token prefixes). The
 governance ledger calls `redactToolPayloadText` on every resource string before
 writing. Writing a new redactor would have been strictly worse. Worth stating
 as a deliberate engineering decision, not an omission.
@@ -211,13 +244,16 @@ in-memory structure is the login throttle map, capped at 1000 entries.
 **Ethical / defensive-only scope.** The layer can only _restrict_ what the agent
 does; it exposes no capability to extend agent reach. Worth stating explicitly.
 
-**Language: English only, by decision.** The host ships twenty-two locales and
-the governance page is written in one. This is a _scope decision_, not an
+**Language: English only, by decision.** The host ships **twenty-one** locales
+and the governance page is written in one. _(Corrected 2026-09-21: this said
+twenty-two, and the sentence below said "the other twenty-one". Counted rather
+than repeated: `SUPPORTED_LOCALES` in `ui/src/i18n/lib/registry.ts` is English
+plus twenty lazily loaded locales, and `registry.test.ts` pins the length at 21.)_ This is a _scope decision_, not an
 unfinished feature, and it is worth a sentence in the report because the
 alternative is worse than it looks. Translation fallback in this codebase is per
 key, so nothing breaks. An Arabic-locale operator gets an Arabic application
 shell around an English governance page, with no right-to-left handling. Filling
-the other twenty-one would mean shipping strings nobody on the team can verify
+the other twenty would mean shipping strings nobody on the team can verify
 into a **security console**, where a mistranslated `deny` is a control an
 operator misreads at the moment it matters most. A governance surface whose
 wording cannot be checked by the people responsible for it is a liability
@@ -234,9 +270,14 @@ WSL2 and `scripts/governance-linux-check.mjs` exists as a platform harness
 was never updated. The same drift §3.1 row 9 carried in the other direction.)_
 **Deployment closed most of that gap on 2026-09-03**: the fork installs and runs
 on a Linux VPS, and on 2026-09-06 a model drove a tool call through the gate
-there and was refused (T2). What is left of it is a **measurement** — the suite
-has not been re-run on that host, and the last Linux figure, 2,548 across 133
-files, predates T44 and five sweeps. _(This paragraph read "nothing has run on a
+there and was refused (T2). **That last gap closed on 2026-09-21**, corrected here the same day because this
+paragraph asserted the opposite: the suite was re-run on the VPS at commit
+`0a7d51f1c12` and gives **3,211 passed / 16 skipped / 0 failed across 197 files**,
+with the demonstration rehearsal at 20/20 and the platform probe at 14/14 on
+`platform=linux node=v22.23.2`. Windows and Linux reconcile exactly at 3,227
+tests. _The sentence that stood here until then:_ what is left of it is a
+**measurement**, the suite has not been re-run on that host, and the last Linux
+figure, 2,548 across 133 files, predates T44 and five sweeps. _(This paragraph read "nothing has run on a
 VPS" for four days after one had; finding 282, and the same drift this section's
 own parenthesis below records for the sentence before it.)_ The paper specifies
 a Linux VPS. This matters more than it might appear,
@@ -432,7 +473,7 @@ flowchart TB
   ENGINE -->|allow| EXEC["Tool executes"]
   ENGINE -->|deny| BLOCK["Blocked"]
   ENGINE -->|ask| HITL["Human approval (existing OpenClaw flow)"]
-```
+````
 
 **Point worth making in prose:** the two authorization gates are independent and
 both mandatory. Reaching any governance route already requires passing
@@ -473,14 +514,15 @@ grouping is itself part of the design argument.
 > a stale inventory in a submitted report is a defect a reader can check.
 >
 > ```bash
-> for f in src/governance/*.ts; do case "$f" in *.test.ts) continue;; esac; printf "%s %s
-> ```
-
-" "$(wc -l < "$f")" "$(basename "$f")"; done | sort -rn
-
+> for f in src/governance/*.ts; do case "$f" in *.test.ts) continue;; esac; printf '%s %s\n' "$(wc -l < "$f")" "$(basename "$f")"; done | sort -rn
 > ```
 >
-> ```
+> _(Repaired 2026-09-28: the `\n` in the `printf` had been expanded into a real line break,
+> which split this command out of its code block.)_ **Checked 2026-09-28: the LOC figures
+> below are stale.** For example, `deployment-status.ts` is 985 lines, not 742;
+> `cli-identity.ts` no longer exists (the command line was removed on 2026-09-07); and
+> `agent-workspace-roots.ts` and `account-ownership.ts` (findings 385 and 381–383) are not
+> listed. Re-run the command before any of this table reaches the report.
 
 **Policy: deciding what an agent may do**
 
@@ -769,14 +811,14 @@ type PolicyRule = {
   id: string;
   resourceKind: "command" | "path" | "network";
   pattern: string; // regular expression
-  description?: string;
+  description: string; // required since T70: why the rule exists; its title, never matched
   createdAt: string;
   expiresAt?: string; // absent = never expires  → requirement #4 time limits
   createdBy?: string; // accountability: who granted this
 };
 
 type PolicyDocument = {
-  version: 1;
+  version: 2; // 2 since T70; a version-1 document is repaired once on read (§3.5.95)
   mode: "enforce" | "monitor" | "off";
   ask: "off" | "on-miss";
   rules: PolicyRule[];
@@ -998,6 +1040,12 @@ them. Points worth making in prose:
   gap that appears only when the mechanism is written out and examined.
 
 Validation of all three symptoms: §4.x.13.
+
+**Stage 3 has one exception since 2026-09-27 (finding 385, §3.5.96).** A location
+inside the workspace that is also inside another configured agent's workspace
+(OpenClaw nests later agents' workspaces in the default agent's) is rendered
+absolute, with no relative form, so the baseline's "inside the workspace" read
+allowance does not reach it.
 
 ### 3.5.11 The User tier's own capability: prompting a governed agent
 
@@ -2444,6 +2492,8 @@ For each tool call the engine extracts the **resource** being acted on
   resolved, then rendered workspace-relative inside the project and absolute
   outside it (§3.5.8). A path that escapes the workspace _becomes visibly
   absolute_, so a rule like `^src/` stops matching it however it was spelled.
+  Since finding 385 (2026-09-27, §3.5.96) a path inside another agent's
+  workspace nested in this one's is rendered absolute too.
 - **Hostnames** are canonicalised on the same principle, four IPv4 spellings
   and the IPv6 family, after QA rounds 11 and 13.
 
@@ -5188,8 +5238,9 @@ Three points worth making in prose:
   true and answer different questions. Collapsing them was the defect, so the
   fix keeps them distinct all the way to the dashboard.
 - **"Not confirmed" is reported honestly, and its two causes are
-  distinguished.** Either nothing was available to observe the outcome (a CLI
-  invocation, a test) or the runs were still present when the wait expired.
+  distinguished.** Either nothing was available to observe the outcome (a test,
+  or a Gateway that has not finished starting) or the runs were still present
+  when the wait expired.
   Reporting a single ambiguous failure would recreate the original problem in a
   smaller form.
 
@@ -5198,12 +5249,12 @@ Three points worth making in prose:
 **Termination timing.** With a probe attached, the kill switch reports the
 interval to _confirmed_ stop. The measurement now distinguishes:
 
-| Scenario                        | `stoppedConfirmed` | What the trail says                               |
-| ------------------------------- | ------------------ | ------------------------------------------------- |
-| Runs clear after the abort      | ✔                  | signalled in X ms, confirmed stopped in Y ms      |
-| Runs still present at the bound | ✘                  | stop NOT confirmed, N still running               |
-| No probe (CLI, test)            | ✘                  | stop NOT confirmed, no probe available to observe |
-| Nothing was in flight           | ✔                  | nothing to abort                                  |
+| Scenario                          | `stoppedConfirmed` | What the trail says                               |
+| --------------------------------- | ------------------ | ------------------------------------------------- |
+| Runs clear after the abort        | ✔                  | signalled in X ms, confirmed stopped in Y ms      |
+| Runs still present at the bound   | ✘                  | stop NOT confirmed, N still running               |
+| No probe (test, Gateway starting) | ✘                  | stop NOT confirmed, no probe available to observe |
+| Nothing was in flight             | ✔                  | nothing to abort                                  |
 
 Good discussion material: the honest version of the headline number is weaker
 than the original claim, and the project is better for it. A security control
@@ -6877,18 +6928,28 @@ audit trail. Capped at the ledger boundary. See defect 21 in `GOVERNANCE.md`.
 
 ### 4.x.8 Requirement #7: termination latency (measured)
 
-Method: engage the kill switch with a registered terminator and measure the
-whole operation, policy write under a cross-process lock, abort signal, and
-the audit-ledger append, using `process.hrtime.bigint()`.
+Method: engage the kill switch with a registered terminator and measure with
+`process.hrtime.bigint()` the policy write (under a cross-process lock) and the
+abort, up to and including the wait for confirmation when a probe is registered.
+
+**Corrected 2026-09-21, and this is the sentence the report would have quoted.**
+This line used to end "and the audit-ledger append". It does not: `elapsedMs` is
+taken in `kill-switch.ts` **before** `recordAdminAction` runs, so the recording of
+the stop sits outside the number. Measured rather than argued: holding the
+ledger's own file lock for 600 ms made the call take 585 ms of observable wall
+clock while the reported figure stayed at **9.9 ms**, with the entry still
+written. The same wrong claim was in the comment in `kill-switch.test.ts`, now
+fixed there too. The bound still holds; what was wrong was the description of
+what it covers, which is the A3 class one turn further out.
 
 _Table candidate, Table 4.5: Kill-switch latency._
 
-| Scenario                                     | Requirement               | Observed                                               |
-| -------------------------------------------- | ------------------------- | ------------------------------------------------------ |
-| Lockdown + abort, one in-flight run          | < 1000 ms                 | comfortably inside the bound                           |
-| Lockdown + abort, 250 in-flight runs         | < 1000 ms                 | comfortably inside the bound                           |
-| Lockdown with no terminator registered (CLI) | -                         | reports `supported: false` rather than implying a stop |
-| Terminator throws                            | lockdown must still apply | lockdown applied, error recorded                       |
+| Scenario                               | Requirement               | Observed                                               |
+| -------------------------------------- | ------------------------- | ------------------------------------------------------ |
+| Lockdown + abort, one in-flight run    | < 1000 ms                 | comfortably inside the bound                           |
+| Lockdown + abort, 250 in-flight runs   | < 1000 ms                 | comfortably inside the bound                           |
+| Lockdown with no terminator registered | -                         | reports `supported: false` rather than implying a stop |
+| Terminator throws                      | lockdown must still apply | lockdown applied, error recorded                       |
 
 The tests assert the bound directly (`kill-switch.test.ts`), so a regression
 that made termination slow would fail the suite rather than quietly invalidate
@@ -10869,3 +10930,222 @@ QA Gateway: an _Always allow_ pressed on the page produced a request naming the 
 pressed it, which is the proof that the note crosses from the route to the agent's callback in
 the running process; and Root's re-own revoked the previous owner's User in the same act, as its
 confirmation said it would.
+
+### 3.5.95 Every rule says why it exists: T70 built (2026-09-27; finding 380)
+
+**The gap.** A policy rule had an optional `description`. The HTTP route accepted one and the
+Policy list used it as the rule's title, but the dashboard's **Add a rule** form had no field
+for it and sent none. So the shipped core and baseline rules were listed under sentences
+(_"Credential files (.env, private keys, .npmrc, .netrc)"_) while every rule an operator wrote
+was listed under its regular expression, and the ledger entry recording it held a pattern and
+no reason. The field's intended function is a commit message's: the author says, in words a
+later operator can act on, why the rule exists.
+
+**What was built.**
+
+- **The stored-rule invariant.** `PolicyRule.description` is a required `string`.
+  `addRuleChecked`, through which every rule is written, trims it and refuses a missing or
+  blank one (`MissingRuleDescriptionError`), so the invariant holds for an in-process caller
+  as well as for the routes. The description is **never consulted by evaluation**; a test
+  pins that words in it cannot widen the pattern.
+- **Human-input boundaries.** `validateRuleDescription` (`rule-validation.ts`) refuses a
+  missing, non-string, blank, or over-limit value with a 400 naming the field, and trims the
+  rest. The limit, `MAX_RULE_DESCRIPTION_LENGTH`, is 500, one constant shared with a rule
+  request's reason, because an approved reason becomes the rule's description. Over-limit is
+  refused, never cut (finding 362's rule).
+- **Sources of the sentence.** Core and baseline rules keep their descriptions declared in
+  `baseline-policy.ts`. A direct rule's is typed by its author. A folder grant takes the
+  operator's **purpose**, which leads the description of the grant and of every exception it
+  writes: _"Deploy the web app (grant on C:/srv/webapp, except C:/srv/webapp/secrets)"_ and
+  _"Deploy the web app (exception to the grant on C:/srv/webapp: C:/srv/webapp/secrets)"_,
+  so each generated rule still says what it is for when read alone. An approved rule
+  request's mandatory reason becomes _"Requested by lina: …"_. The escalation's _Always
+  allow_ files a request whose reason is system-generated, which is the one place a
+  description is not typed by a person; it is still a meaningful sentence.
+- **The ledger.** The `governance.policy.rule.add` and `…rule.remove` entries end
+  `; description: <description>`, after the ledger's ordinary redaction and length cap. After
+  a removal the ledger is the only record left of why the permission existed.
+- **The dashboard.** A required **Rule description** field (`maxlength` 500, with a visible
+  _"Description required: N of 500 characters"_ line); **Add rule** stays disabled until it
+  holds non-whitespace text; the value is sent trimmed and cleared after a write. The folder
+  grant has the same for its purpose. In every policy view (the rule list, the agent lookup,
+  and the switched-off core rules) the description is the title for core, baseline and
+  operator rules alike, and the complete regular expression is on the line beneath. There is
+  no fallback to the pattern as a title any more. The rule filter searches the description.
+  The removal confirmation names the rule by its description as well as its pattern.
+
+**The one-time repair, and why it is version-gated.** Existing installations hold
+description-less operator rules, because the form never sent one. `PolicyDocument.version`
+went from 1 to 2. A version-1 document is repaired as it is read: each such rule is given the
+description _"No purpose was recorded for this rule (added by lina on 2026-09-10, before
+descriptions were required). Replace it with a rule that says why it exists, or remove it."_
+It is an honest record of what is known rather than an invented purpose. The next policy
+write stores version 2. Gating on the version is what makes this a repair and not a standing
+allowance: in a version-2 document no write path can produce a description-less rule, so one
+there can only come from a hand edit and is malformed. Malformed rules **fail towards
+restriction**: an allowance is dropped (it grants nothing), a denial is kept, still enforced,
+and labelled as stored without a description. Dropping the denial would widen access in
+silence, which QA round 10 established this loader must never do; the first version of the
+repair did exactly that, and round 10's own tests caught it.
+
+**Descriptions changed again after T70 was built** by the QA of the same day (§3.5.96):
+finding 388 reworded a core rule's description (its id unchanged), 389 made the add-rule form
+keep its agent like the folder grant, 391 put allow or forbid into words in the per-agent
+lookup, and 393 changed the description an approved _Always allow_ request produces.
+
+**Finding 380, found while testing T70.** After a folder grant the dashboard cleared the form
+and then immediately put everything back: two writes each spread the draft as it stood when
+the button was drawn, and the second, recording the list of rules written, restored the folder
+and exceptions the first had cleared. T70's purpose field made it visible in a test. Repaired
+by making it one write; proved red first, then live.
+
+**How it was checked.**
+
+- **Automated.** New `src/governance/rule-description.test.ts` (store: refusal, trimming,
+  shipped rules, the repair in both versions, the ledger text and its redaction, matching
+  unaffected, and the UI limit mirroring the server's),
+  `src/gateway/governance-rule-description.test.ts` (routes: missing, non-string, blank,
+  over-limit, at-limit and trimmed; User agent-scoped and Administrator global; Viewer 403;
+  folder-grant purpose; approved request), and
+  `ui/src/pages/governance/rule-description-form.test.ts` (rendered page: the required field,
+  button state, what is sent, the reset, the titles and exact patterns of core, baseline and
+  operator rules in all three views, search, reload, and which tiers see the controls).
+  Governance suite on Windows: **3,274 passed, 21 skipped, 0 failed, 203 files**; all three
+  typechecks, plain and type-aware lint, format, and i18n verification clean.
+- **Mutation.** 22 mutations, one per protection (route, validator, store, loader, version
+  gate, malformed-denial handling, version upgrade, ledger text, folder-grant validation and
+  composition, and eleven in the dashboard), each killed by the test named for it.
+- **Live.** Built and driven on a QA Gateway: a User wrote an agent-scoped rule (the button
+  stayed disabled for a whitespace description); an Administrator wrote a global rule and a
+  folder grant; after a reload all 20 rules, 10 core, 6 baseline and 4 operator, were titled by
+  their descriptions with the complete regex beneath and none titled by a pattern; search by
+  description found operator, core and baseline rules; the ledger's add and remove entries
+  carried the descriptions and the chain verified (24 entries intact by the standalone
+  verifier); a Viewer saw every description and no authoring control; direct HTTP calls
+  without a description, blank, or over the limit were refused with 400 and nothing written;
+  and a hand-planted version-1 rule was served repaired and stored as version 2 by the next
+  write.
+
+### 3.5.96 The dashboard QA after T70 (2026-09-27; findings 381–396)
+
+Every dashboard section was driven live at all four tiers against a QA Gateway with a mock
+model, with two operators at once and a Gateway restart under a signed-in page. Sixteen
+findings: fifteen fixed the same day (each proved red by a test first, then re-checked live on
+a rebuilt Gateway), and 395 (upstream) fixed on 2026-09-28. The engineering record is
+`mg/QA-SESSION-2026-09-27.md`; the rows are in `GOVERNANCE.md`; the plain account is
+`QA-IN-PLAIN-TERMS.md` §5.123; what each changes in Chapter 3 is
+`docs-notes/report/QA-2026-09-27-FOR-THE-REPORT.md`. The design material follows.
+
+**Agent workspaces nested in the default agent's (385; §3.5.8, Tenancy).**
+
+- **The cause is upstream layout, not a governance rule.** Onboarding writes
+  `agents.defaults.workspace`, and `resolveAgentWorkspaceDir`
+  (`src/agents/agent-scope-config.ts`) places every non-default agent at
+  `<defaults.workspace>/<id>`. So on a normal install the default agent's workspace contains
+  every other agent's, and the baseline's read allowance, which matches any path the canonical
+  form renders workspace-relative, reached all of them. The boundary crossed is between Users:
+  every Administrator has group-wide agent scope by design, but a User not assigned `gamma`
+  read `gamma`'s files through `main`, and as one of `main`'s approvers could have approved a
+  write there.
+- **Why the fix lives in the canonicalizer.** The canonical form decides which rules can match
+  at all. Rendering a path inside a nested workspace absolute, with no relative form, means
+  every workspace-relative allowance, shipped or written by an operator, stops reaching into
+  it, with no rule rewritten and no new rule kind. It is the same structural move as §3.5.8's
+  escape handling: the location is described truthfully and the ordinary rules are applied to
+  that. The ledger then shows the absolute path, so a reader sees the crossing. The read falls
+  to the ordinary no-rule outcome (default-deny, or a person asked, per the escalation
+  setting); an operator who wants it allowed writes a rule on the absolute path.
+- **The roots.** `nestedAgentWorkspaceRoots` (`src/governance/agent-workspace-roots.ts`)
+  lists the other configured agents' workspaces that lie inside this agent's own. It is built
+  from the runtime configuration snapshot and cached per snapshot (a `WeakMap` keyed by the
+  snapshot object), so a new agent is seen as soon as OpenClaw's configuration changes and
+  nothing is recomputed per call. The comparison is made in the relative form rather than by
+  `realpath` of each root, because the roots come from the same configuration as the working
+  directory, and a filesystem read per agent per call is the cost the gate avoids.
+- **Search.** A recursive search (`grep`, `find`, `ls`) from the default agent's workspace
+  would still return nested agents' files. `search-audit.ts` withholds results under the
+  nested roots the way it withholds a denied path. A search result has no approval path, so
+  withholding is the only safe outcome there; a direct read of a named file can still be put
+  to a person (a decision left to Kinan in `DOC-CHANGES-AFTER-T70.md` §6).
+
+**Ownership invariants held across two stores (381, 382, 383; Ownership and Assignment).**
+
+- **The two rules.** An agent is owned by an Administrator or by the group's Root
+  (`AgentOwnerError` in `agent-registry.ts`); a User or Viewer holds only agents owned by the
+  Administrator answerable for it (`assertAssignable`, M4). Each was enforced where it is first
+  set (registration, re-ownership, `users/agents`) but not by the account operations that can
+  break it later: a demotion or deletion (381), a promotion then demotion under another
+  Administrator, or a same-role move (382).
+- **Where the check lives.** The rules join the account file and the agent registry. The
+  registry knows about accounts; the account store knows nothing about agents. So
+  `assertOwnershipSurvives` (`src/governance/account-ownership.ts`) sits above both, as
+  `assertAssignable` does, and the routes call it before the store writes, the way
+  `guardRoleChange` is called. A concurrent re-own between the check and the write is the
+  accepted tradeoff; the dashboard shows the result on its next refresh.
+- **Release on a tier crossing.** `setUserRole` clears the assignment list when an account
+  crosses between User or Viewer and Administrator or Root: above User the list is inert, and
+  below it, it would name the previous Administrator's agents. The ledger records the release.
+  An agent Root owns crosses no Administrator's boundary, so it may be held under any
+  Administrator.
+- **A refusal must name a remedy the operator has (383).** The refusal told Root to re-home
+  the accounts, and no dashboard control could; the picker on each User and Viewer row makes
+  the sentence true.
+
+**The deployment report states the posture (390; Management Interface).**
+
+- The report calls itself evidence and is what Chapter 4 cites, so every pass sentence must be
+  derived from the state it describes. Before 390 no check read the posture, and the "gate is
+  armed" check's pass sentence asserted enforcement while testing only for the test posture.
+- **Why Off fails.** Off means nothing is checked, blocked or recorded, the core denials and the
+  kill switch included: none of the architecture's guarantees holds.
+- **Why Monitor warns.** In Monitor, forbid rules and the kill switch still apply and every
+  action no rule covers is allowed and recorded. It is the documented way to discover which
+  rules an agent needs, so it is a legitimate temporary state that the report should flag
+  rather than fail. Kinan confirmed the warning on 2026-09-28.
+
+**A refusal must outlive the card it is about (386; Escalation Routing).** When several
+accounts may answer one escalation, the first answer decides and a later one is refused. The
+dashboard kept the refusal on the question's card, and the card's life is governed by the
+server's list, which no longer held the question, so the message died with the card within one
+round trip. The operator who answered second saw the opposite of what they pressed and no
+sentence saying why. The refusal is now a separate, dismissible notice that survives later
+reads.
+
+**The two gates are refused separately (396; Two-Gate Authentication).** The dashboard answers
+the Gateway's credential gate with its connection's device token, and there is none between the
+Gateway answering HTTP again after a restart and the socket reconnecting. The page read every
+401 as the governance session ending. It now tells the two gates' refusals apart by whether the
+request carried the credential: without it, the page is reconnecting and the session stands;
+with it, the session has ended. The accepted tradeoff, named in the code: on a Gateway with no
+credential at all, a lost session shows as reconnecting.
+
+**An emergency control must not wait on ordinary work (384, 395; Kill Switch).** On the page,
+the stop controls read the same `busy` flag as every other action, so creating an agent (35–77
+s) disabled them; they no longer read it. 395 is the same principle broken one layer down,
+in upstream code: while an agent is created, the Gateway's event loop is blocked for 35–60 s by
+a synchronous plugin rediscovery under `buildSnapshotBatch`
+(`src/agents/prepared-model-runtime.build.ts`), so no request is answered, the stop included,
+and running agents are frozen too. **Fixed 2026-09-28, at the snapshot owner.** The cause was
+not one rediscovery but five: the Gateway publishes one plugin metadata snapshot, built for the
+default agent's workspace, and every reader requires the workspace to match, so a new agent's
+workspace sent each reader (model runtime, memory-slot selection, ambient credentials, the
+hot-reload auth warm-up once per agent, skill commands) to rescan the disk on its own. The owner
+(`current-plugin-metadata-snapshot.ts`) now keeps one snapshot per agent workspace, belonging to
+the current publication and dropped with it, each read still passing the same compatibility
+check; one scan per new workspace remains. Provisioning 28.8–44.0 s → 5.9–7.0 s, worst health
+check 28.2–34.5 s → 5.4–6.4 s. The residue (one scan, loading the workspace's plugins, a
+skill-file scan) is a limitation worth one sentence; upstream's later redesign, one snapshot
+covering every agent workspace, is the future-work item.
+
+**A rule's description is a permanent statement, not a message to the decider (393; Persistent
+Approvals).** An approved _Always allow_ request produced the title "Requested by
+hitl-approval: … Approving makes that permanent; rejecting leaves it needing approval each
+time". Since T70 the description is the rule's title everywhere, so it now credits the account
+that answered (C15's `answeredBy`) and states only what the agent asked to do
+(`escalationRequestReason` in `policy-engine.ts`).
+
+**How it was checked.** Governance suite before the last fix (396): 3,313 passed, 21 skipped, 0
+failed, 206 files; all three typechecks, `oxlint`, `oxfmt`, i18n verification and the full
+build clean. After 396 (dashboard only): the governance UI tests, the UI typecheck, lint and
+format clean. Every fix was re-checked live on the rebuilt QA Gateway (`mg/QA-SESSION-2026-09-27.md`
+§§17–18).

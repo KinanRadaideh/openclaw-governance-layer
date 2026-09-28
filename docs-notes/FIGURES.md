@@ -15,7 +15,7 @@ brief was to give you all three for every candidate so the choice is yours while
 writing.
 
 **The current recommendations are the summary table, "# Summary table" below:
-fourteen figures, twelve in Chapter 3 and two in Chapter 4 (2026-09-19).** The rest of
+sixteen figures, fourteen in Chapter 3 and two in Chapter 4 (2026-09-23).** The rest of
 this paragraph is as first written. **Summary of the recommendations: keep 10, cut 7, merge 3.** _(Written for F1–F20. F22 was added 2026-09-01 as a keep, and **F23 and F24 were added 2026-09-11 for T60 and T63, both keeps** — so the drawable total is now 23, F18 being a cross-reference.)_ Twenty figures is a
 lot for two chapters, and several candidates were notes-to-self rather than
 arguments. The ten recommended keeps are the ones where a reader genuinely
@@ -381,7 +381,7 @@ the text block, and nothing else overflowed.
 
 ## F1: Governance layer within the OpenClaw Gateway
 
-**Source:** §3.5.1 · **Proposed number:** Figure 3.1
+**Source:** §3.5.1 · **Final placement:** Figure 3.2
 
 **Recommendation: KEEP.** This is the one figure the chapter cannot do without.
 It is the only place a reader sees the whole system at once, and it establishes
@@ -391,57 +391,94 @@ If you keep only one figure, keep this one.
 **Merge into it:** F4 (two-gate authentication). This diagram already shows both
 gates, and a second figure that only expands them repeats the point.
 
+**QA correction, 2026-09-25.** The original straight-line operator path labelled
+Gate 2 only as an existing account session. That was incomplete: bootstrap and
+sign-in necessarily reach the governance authentication surface before such a
+session exists. The corrected forms below describe Gate 2 as account
+authentication followed by the role- and scope-bearing session required by
+protected management routes. They also show that administrative writes and
+agent decisions use the same ledger writer, identify the exact interception
+functions, distinguish installation-wide from organization-scoped storage, and
+avoid claiming that the governance files have no other readers, because the
+independent verifier reads the ledger directly.
+
+**Layout correction, 2026-09-26.** Four long dashed state-access arrows made
+the lower half of the TikZ figure difficult to follow and could be mistaken for
+execution order. The API and policy-engine boxes now state their data access
+directly. Only the audit writer retains arrows into persistent storage, where
+the direction and labels describe actual writes. The allow, deny, and ask
+outcomes also use separate branches instead of a shared vertical trunk.
+
 ### Prose form
 
-The governance layer sits inside the OpenClaw Gateway process rather than beside
-it. An operator reaches it from a browser over an SSH tunnel, and their request
-passes two independent checks before it reaches any governance route: first
-OpenClaw's own credential check, and then the governance account session, which
-resolves the signed-in account's role. Agent activity enters by a different door
-entirely. A tool call travels through the host's tool-call pipeline into the
-policy engine, which resolves the agent's organisation, reads that organisation's
-policy document, writes its decision to the hash-chained audit ledger, and
-returns one of three verdicts: allow, deny, or escalate to a human. Both doors
-lead to the same state on disk under `~/.openclaw/governance/`, and neither can
-reach it any other way. That state is split at one boundary: accounts, sessions,
-the agent registry, the ledger's signing key and its checkpoint are
-installation-wide, while each organisation's policy document, ledger, rule
-requests, attachments, conversations and held decisions live under
-`groups/<groupId>/`. _(Until 2026-09-19 this sentence left out the signing key
-(`ledger.key`) and the last two per-organisation files, `conversations.json` and
-`pending-decisions.json`, all of which `paths.ts` defines.)_
+The governance layer operates inside the OpenClaw Gateway process. An operator
+reaches the Governance page from a browser over an SSH tunnel. Every governance
+HTTP request first passes OpenClaw's shared-secret or device-authentication
+check. The governance authentication surface then bootstraps the first Root or
+verifies a named account and issues an account session. Protected management
+routes require that session and enforce its role, organization, and agent
+scope. Agent activity enters through a separate path. A direct or relayed tool
+call reaches `runBeforeToolCallHook`, which invokes
+`evaluateGovernancePolicy` before execution. The policy engine reads the agent
+registry and organization policy, records its decision through the HMAC-chained
+ledger writer, and returns allow, deny, or ask for human approval.
+Administrative writes use the same ledger writer. Both paths use state under
+`~/.openclaw/governance/`: accounts, sessions, the agent registry, the ledger
+key, and the checkpoint are installation-wide; policy, ledger, rule-request,
+attachment, conversation, and pending-decision records are organization-scoped
+under `groups/<groupId>/`. The ledger key may instead be supplied through the
+protected environment-secret mechanism supported by the deployment.
 
 ### Mermaid form
 
 ```mermaid
 flowchart TB
-  subgraph Browser["Operator browser (via SSH tunnel)"]
-    UI["Control UI, Settings → Governance"]
-  end
-  subgraph GW["OpenClaw Gateway process"]
-    AUTH["Gate 1: Gateway credential"]
-    RBAC["Gate 2: Governance account + role"]
-    API["Governance HTTP API"]
-    PIPE["Tool-call pipeline"]
-    ENGINE["Policy engine"]
-    LEDGER["Hash-chained audit ledger"]
-  end
-  subgraph Disk["~/.openclaw/governance/"]
-    U["users.json · sessions.json · agents.json<br/>ledger.key · ledger-checkpoint.json<br/><i>installation-wide</i>"]
-    P["groups/&lt;groupId&gt;/<br/>policy.json · audit-ledger.jsonl · rule-requests.json<br/>attachments/ · conversations.json · pending-decisions.json<br/><i>per organisation</i>"]
-  end
-  AGENT["LLM agent tool call"]
+  UI["Operator browser<br/>Settings → Governance<br/><i>through SSH tunnel</i>"]
+  AGENT["Agent tool call<br/><i>direct or relayed</i>"]
 
-  UI --> AUTH --> RBAC --> API
-  API --> U
-  API --> P
-  AGENT --> PIPE --> ENGINE
-  ENGINE --> U
-  ENGINE --> P
-  ENGINE --> LEDGER --> P
+  subgraph GW["OpenClaw Gateway process"]
+    AUTH["Gate 1<br/>Gateway shared-secret<br/>or device authentication"]
+    ACCOUNT["Gate 2<br/>account login or session<br/>plus role and scope"]
+    API["Governance HTTP API<br/>authenticated administrative reads and writes<br/>/control-ui/governance"]
+    HOOK["runBeforeToolCallHook"]
+    ENGINE["evaluateGovernancePolicy<br/>reads agent registry and organization policy<br/>resolves identity, resource, and decision"]
+    LEDGER["HMAC-chained ledger writer"]
+  end
+
+  subgraph STATE["Governance state"]
+    INSTALL["Installation-wide<br/>users.json · sessions.json · agents.json<br/>ledger key · ledger-checkpoint.json"]
+    GROUP["Organization-scoped: groups/&lt;groupId&gt;/<br/>policy.json · audit-ledger.jsonl · rule-requests.json<br/>attachments/ · conversations.json · pending-decisions.json"]
+  end
+
+  UI --> AUTH --> ACCOUNT --> API
+  AGENT --> HOOK --> ENGINE
+  API -->|administrative writes| LEDGER
+  ENGINE -->|tool decision| LEDGER
+  LEDGER -->|key and checkpoint| INSTALL
+  LEDGER -->|append ledger entry| GROUP
   ENGINE -->|allow| EXEC["Tool executes"]
-  ENGINE -->|deny| BLOCK["Blocked"]
+  ENGINE -->|deny| BLOCK["Tool call refused"]
   ENGINE -->|ask| HITL["Human approval"]
+
+  classDef operator fill:#eaf2ff,stroke:#2f65ad,color:#17365d;
+  classDef agent fill:#e7f8f5,stroke:#23877b,color:#124d46;
+  classDef security fill:#fff3dc,stroke:#c47a16,color:#6b410b;
+  classDef core fill:#f1eaff,stroke:#7452aa,color:#3d2865;
+  classDef audit fill:#fbeafa,stroke:#a24c98,color:#612b5b;
+  classDef store fill:#f4f5f7,stroke:#69727d,color:#30363d;
+  classDef allow fill:#e8f6eb,stroke:#338a48,color:#1d562c;
+  classDef deny fill:#fdebec,stroke:#ba4a52,color:#702a30;
+  classDef ask fill:#fff4df,stroke:#c17b16,color:#6d4308;
+
+  class UI operator;
+  class AGENT agent;
+  class AUTH,ACCOUNT security;
+  class API,HOOK,ENGINE core;
+  class LEDGER audit;
+  class INSTALL,GROUP store;
+  class EXEC allow;
+  class BLOCK deny;
+  class HITL ask;
 ```
 
 ### TikZ form
@@ -449,64 +486,115 @@ flowchart TB
 ```latex
 \begin{figure}[htbp]
 \centering
-  % Measured too wide for the text block when compiled (2026-09-20), so it is
-  % scaled to the text width rather than having its font sizes changed.
 \resizebox{\textwidth}{!}{%
-\begin{tikzpicture}[node distance=6mm and 10mm]
-  \node[gbox] (ui) {Control UI\\Settings $\rightarrow$ Governance};
-  \node[gnote, above=1mm of ui] {Operator browser, via SSH tunnel};
+\begin{tikzpicture}[
+  node distance=7mm and 16mm,
+  archOperator/.style={gbox, draw=blue!65!black, fill=blue!8,
+    text=blue!30!black, minimum width=39mm},
+  archAgent/.style={gbox, draw=teal!65!black, fill=teal!9,
+    text=teal!30!black, minimum width=39mm},
+  archSecurity/.style={gbox, draw=orange!70!black, fill=orange!11,
+    text=orange!35!black, minimum width=43mm},
+  archCore/.style={gbox, draw=violet!65!black, fill=violet!9,
+    text=violet!35!black, minimum width=43mm},
+  archAudit/.style={gbox, draw=magenta!55!black, fill=magenta!8,
+    text=magenta!30!black, minimum width=46mm},
+  archStore/.style={gstore, draw=black!50, fill=black!4,
+    minimum width=62mm, minimum height=19mm},
+  archAllow/.style={gbox, draw=green!55!black, fill=green!10,
+    text=green!28!black, minimum width=31mm},
+  archDeny/.style={gbox, draw=red!60!black, fill=red!8,
+    text=red!35!black, minimum width=31mm},
+  archAsk/.style={gbox, draw=orange!70!black, fill=orange!12,
+    text=orange!35!black, minimum width=31mm},
+  archAuditFlow/.style={-{Stealth[length=2mm]}, draw=magenta!55!black}
+]
+  % Two visually distinct entrances into one Gateway-hosted governance layer.
+  \node[archOperator] (ui) {Operator browser\\
+    \scriptsize Settings $\rightarrow$ Governance through SSH tunnel};
+  \node[archAgent, right=54mm of ui] (agent) {Agent tool call\\
+    \scriptsize direct or relayed from a secondary runtime};
 
-  \node[gbox, below=9mm of ui] (auth) {Gate 1\\Gateway credential};
-  \node[gbox, below=of auth]   (rbac) {Gate 2\\Account session + role};
-  \node[gbox, below=of rbac]   (api)  {Governance HTTP API};
+  \node[archSecurity, below=10mm of ui] (auth) {Gate 1: Gateway authentication\\
+    \scriptsize shared secret or trusted device};
+  \node[archSecurity, below=of auth] (account) {Gate 2: governance identity\\
+    \scriptsize login or session, then role and scope};
+  \node[archCore, below=of account] (api) {Governance HTTP API\\
+    \scriptsize authenticated administrative reads and writes\\
+    \scriptsize \texttt{/control-ui/governance}};
 
-  \node[gbox, right=28mm of ui]   (agent)  {LLM agent\\tool call};
-  \node[gbox, below=9mm of agent] (pipe)   {Tool-call pipeline};
-  \node[gbox, below=of pipe]      (engine) {Policy engine};
-  \node[gbox, below=of engine]    (ledger) {Hash-chained\\audit ledger};
+  \node[archCore, below=10mm of agent] (hook) {\texttt{runBeforeToolCallHook}\\
+    \scriptsize central pre-execution interception};
+  \node[archCore, below=of hook] (engine) {\texttt{evaluateGovernancePolicy}\\
+    \scriptsize reads the agent registry and organization policy\\
+    \scriptsize resolves identity, resource, and decision};
 
-  \node[gstore, below=16mm of api, xshift=16mm] (disk)
-    {\texttt{users.json} \quad \texttt{sessions.json} \quad \texttt{agents.json}
-     \quad \texttt{ledger.key} \quad \texttt{ledger-checkpoint.json}\\[2pt]
-     \texttt{groups/<groupId>/}\;\{\texttt{policy.json},
-     \texttt{audit-ledger.jsonl}, \texttt{rule-requests.json}, \texttt{attachments/},
-     \texttt{conversations.json}, \texttt{pending-decisions.json}\}};
-  \node[gnote, below=0.5mm of disk]
-    {\textasciitilde/.openclaw/governance/ --- top row installation-wide, bottom row per organisation};
+  \node[archAllow, right=19mm of engine, yshift=13mm] (allow) {\textbf{ALLOW}\\
+    \scriptsize tool executes};
+  \node[archDeny, right=19mm of engine] (deny) {\textbf{DENY}\\
+    \scriptsize call refused};
+  \node[archAsk, right=19mm of engine, yshift=-13mm] (ask) {\textbf{ASK}\\
+    \scriptsize human approval};
 
-  % 13mm apart, not 9: a gbox is 9mm tall, so 9mm of shift stacks them edge to edge.
-  % One minimum width so the three outcomes read as one set.
-  \node[gbox, minimum width=34mm, right=20mm of ledger, yshift=13mm]  (allow) {Tool executes};
-  \node[gbox, minimum width=34mm, right=20mm of ledger]               (deny)  {Blocked};
-  \node[gbox, minimum width=34mm, right=20mm of ledger, yshift=-13mm] (ask)   {Human approval};
+  \coordinate (coremid) at ($(api)!0.5!(engine)$);
+  \node[archAudit, below=20mm of coremid] (ledger) {HMAC-chained audit writer\\
+    \scriptsize tool decisions and administrative changes};
 
-  \draw[gflow] (ui)     -- (auth);
-  \draw[gflow] (auth)   -- (rbac);
-  \draw[gflow] (rbac)   -- (api);
-  \draw[gflow] (agent)  -- (pipe);
-  \draw[gflow] (pipe)   -- (engine);
-  \draw[gflow] (engine) -- (ledger);
-  \draw[gflow] (api)    -- (disk);
-  \draw[gflow] (ledger) -- (disk);
-  % Straight down onto the store's top edge. "|- (disk.west)" ran the line through
-  % the store and out of its left side, across the text (found by looking, 2026-09-20).
-  \coordinate (enginedrop) at ([xshift=-6mm]engine.west);
-  \draw[gflow] (engine.west) -- (enginedrop) -- (enginedrop |- disk.north);
+  \node[archStore, below=15mm of ledger, xshift=-39mm] (installation)
+    {\textbf{Installation-wide state}\\[2pt]
+     \scriptsize \texttt{users.json} $\cdot$ \texttt{sessions.json} $\cdot$ \texttt{agents.json}\\
+     \scriptsize ledger key $\cdot$ \texttt{ledger-checkpoint.json}};
+  \node[archStore, below=15mm of ledger, xshift=39mm] (group)
+    {\textbf{Organization-scoped state}\\[2pt]
+     \scriptsize \texttt{groups/<groupId>/policy.json} $\cdot$ \texttt{audit-ledger.jsonl}\\
+     \scriptsize rule requests $\cdot$ attachments $\cdot$ conversations $\cdot$ pending decisions};
+  \coordinate (statemid) at ($(installation.south)!0.5!(group.south)$);
+  \node[gnote, below=1mm of statemid]
+    {Stored below \textasciitilde/.openclaw/governance/};
 
-  % Labels sit above the horizontal run: a glab is filled white, and on the run
-  % itself it painted over the arrow head it was meant to name.
-  \draw[gflow] (engine.east) -- ++(4mm,0) |- node[glab, above, pos=0.78] {allow} (allow.west);
-  \draw[gflow] (engine.east) -- ++(4mm,0) |- node[glab, above, pos=0.78] {deny}  (deny.west);
-  \draw[gflow] (engine.east) -- ++(4mm,0) |- node[glab, above, pos=0.78] {ask}   (ask.west);
+  \draw[gflow, draw=blue!55!black] (ui) -- (auth);
+  \draw[gflow, draw=orange!65!black] (auth) -- (account);
+  \draw[gflow, draw=violet!55!black] (account) -- (api);
+  \draw[gflow, draw=teal!55!black] (agent) -- (hook);
+  \draw[gflow, draw=violet!55!black] (hook) -- (engine);
+
+  \draw[gflow, draw=green!50!black] (engine.north east) --
+    node[glab, above] {allow} (allow.west);
+  \draw[gflow, draw=red!55!black] (engine.east) --
+    node[glab, above] {deny} (deny.west);
+  \draw[gflow, draw=orange!65!black] (engine.south east) --
+    node[glab, below] {ask} (ask.west);
+
+  % Both entry paths record security-relevant changes through one writer.
+  \draw[archAuditFlow] (api.south) -- node[glab, left] {administrative writes} (ledger.north west);
+  \draw[archAuditFlow] (engine.south) -- node[glab, right] {tool decisions} (ledger.north east);
+
+  % The API and policy-engine boxes name their state access directly. This
+  % avoids long crossing arrows that can be mistaken for execution order.
+  \draw[archAuditFlow] (ledger.south west) --
+    node[glab, left, pos=0.55] {key + checkpoint} (installation.north east);
+  \draw[archAuditFlow] (ledger.south east) --
+    node[glab, right, pos=0.55] {append ledger} (group.north west);
 
   \begin{scope}[on background layer]
-    \node[ggroup, fit=(auth)(rbac)(api)(pipe)(engine)(ledger)] (gw) {};
+    \node[draw=violet!35, fill=violet!2, dashed, rounded corners=4pt,
+      inner sep=8pt, fit=(auth)(account)(api)(hook)(engine)(ledger)] (gw) {};
+    \node[draw=black!25, fill=black!1, rounded corners=4pt,
+      inner sep=7pt, fit=(installation)(group)] (state) {};
   \end{scope}
-  % Above the dashed border, not inside it: anchored north west the label sat on
-  % top of the Gate 1 box (found by looking, 2026-09-20).
-  \node[gnote, fill=white, anchor=south west, xshift=1mm] at (gw.north west) {OpenClaw Gateway process};
+  \node[gnote, fill=white, text=violet!35!black, anchor=south west,
+    xshift=1mm] at (gw.north west) {OpenClaw Gateway process};
+  \node[gnote, fill=white, anchor=south west,
+    xshift=1mm] at (state.north west) {Governance state};
 \end{tikzpicture}}
-\caption{Governance layer within the OpenClaw Gateway.}
+\caption[Governance layer within the OpenClaw Gateway]
+{\footnotesize Governance layer within the OpenClaw Gateway. Operator requests
+first pass Gateway shared-secret or device authentication. Governance login
+then creates a named account session, and protected routes enforce its role and
+scope. Direct and relayed agent tool calls pass through
+\texttt{runBeforeToolCallHook} and \texttt{evaluateGovernancePolicy} before
+execution. Administrative writes and tool decisions share the HMAC-chained
+audit writer and the same installation-wide and organization-scoped state.}
 \label{fig:gov-architecture}
 \end{figure}
 ```
@@ -515,7 +603,7 @@ flowchart TB
 
 ## F2: RBAC hierarchy with inherited permissions
 
-**Source:** §3.5.4 · **Proposed number:** Figure 3.2
+**Source:** §3.5.4 · **Final placement:** Figure 3.12
 
 **Recommendation: CUT the figure, keep the table.** The hierarchy is four boxes
 in a straight line, and the permission matrix immediately below it in your
@@ -624,7 +712,7 @@ flowchart BT
 
 ## F3: Policy decision sequence
 
-**Source:** §3.5.5 · **Proposed number:** Figure 3.3
+**Source:** §3.5.2.2 · **Final placement:** Figure 3.6
 
 **Recommendation: KEEP.** This is the central mechanism of the whole project and
 it is a sequence, which is precisely what prose handles worst. A reader following
@@ -632,9 +720,10 @@ five participants across a branch will lose the thread in a paragraph and hold i
 easily in a diagram. Second most important figure after F1.
 
 **One change from the draft:** the Mermaid version shows what an `allow-always`
-answer produces, which is a nice detail but crowds the picture. The TikZ version
-below drops it into the caption instead. **What it produces is a rule
-_request_, not a rule** — see the prose below.
+answer produces, which is useful but crowds the picture. The TikZ version keeps
+the decision flow as the visual focus and leaves that detail to the surrounding
+section prose. **What it produces is a rule _request_, not a rule** — see the
+prose below.
 
 ### Prose form
 
@@ -739,52 +828,90 @@ sequenceDiagram
 ```latex
 \begin{figure}[htbp]
 \centering
-  % Measured too wide for the text block when compiled (2026-09-20), so it is
-  % scaled to the text width rather than having its font sizes changed.
 \resizebox{\textwidth}{!}{%
-\begin{tikzpicture}[yscale=0.86]
-  \foreach \x/\n in {0/{LLM agent}, 2.9/{Tool pipeline}, 5.8/{Policy engine},
-                     8.7/{Agent registry}, 11.3/{Audit ledger}, 13.9/{Human}} {
-    \node[gbox, minimum width=19mm] at (\x,0) {\n};
-    \draw[glife] (\x,-0.45) -- (\x,-8.9);
-  }
-  \draw[gflow] (0,-1.0)   -- node[glab,above] {tool call} (2.9,-1.0);
-  \draw[gflow] (2.9,-1.7) -- node[glab,above] {evaluate(tool, params)} (5.8,-1.7);
+\begin{tikzpicture}[
+  seqAgent/.style={gbox, draw=teal!65!black, fill=teal!9,
+    text=teal!30!black, minimum width=20mm},
+  seqPipeline/.style={gbox, draw=blue!65!black, fill=blue!8,
+    text=blue!30!black, minimum width=22mm},
+  seqEngine/.style={gbox, draw=violet!65!black, fill=violet!9,
+    text=violet!35!black, minimum width=22mm},
+  seqRegistry/.style={gbox, draw=cyan!55!black, fill=cyan!8,
+    text=cyan!25!black, minimum width=22mm},
+  seqLedger/.style={gbox, draw=magenta!55!black, fill=magenta!8,
+    text=magenta!30!black, minimum width=22mm},
+  seqHuman/.style={gbox, draw=orange!70!black, fill=orange!11,
+    text=orange!35!black, minimum width=20mm},
+  seqAgentLife/.style={draw=teal!45!black, dashed},
+  seqPipelineLife/.style={draw=blue!45!black, dashed},
+  seqEngineLife/.style={draw=violet!45!black, dashed},
+  seqRegistryLife/.style={draw=cyan!45!black, dashed},
+  seqLedgerLife/.style={draw=magenta!45!black, dashed},
+  seqHumanLife/.style={draw=orange!55!black, dashed}
+]
+  \node[seqAgent]    at (0,0)    (agent)    {LLM agent};
+  \node[seqPipeline] at (2.9,0)  (pipeline) {Tool pipeline};
+  \node[seqEngine]   at (5.8,0)  (engine)   {Policy engine};
+  \node[seqRegistry] at (8.7,0)  (registry) {Agent registry};
+  \node[seqLedger]   at (11.5,0) (ledger)   {Audit ledger};
+  \node[seqHuman]    at (14.2,0) (human)    {Human};
 
-  \draw[gflow] (5.8,-2.4) -- node[glab,above] {resolve group} (8.7,-2.4);
-  \draw[gdash] (8.7,-3.0) -- node[glab,above] {groupId, or no record} (5.8,-3.0);
-  \draw[gdash] (5.8,-3.6) -- node[glab,above] {block: register the agent first} (0,-3.6);
+  \draw[seqAgentLife]    (0,-0.45)    -- (0,-9.25);
+  \draw[seqPipelineLife] (2.9,-0.45)  -- (2.9,-9.25);
+  \draw[seqEngineLife]   (5.8,-0.45)  -- (5.8,-9.25);
+  \draw[seqRegistryLife] (8.7,-0.45)  -- (8.7,-9.25);
+  \draw[seqLedgerLife]   (11.5,-0.45) -- (11.5,-9.25);
+  \draw[seqHumanLife]    (14.2,-0.45) -- (14.2,-9.25);
 
-  \draw[gflow] (5.8,-4.3) -- ++(0.8,0) -- ++(0,-0.5) -- (5.8,-4.8);
-  % Off a declared coordinate: "of {(x,y)}" drops its own closing bracket
-  % into nullfont (found by compiling, 2026-09-20).
-  \coordinate (selfloop) at (5.8,-4.55);
-  % Close to the loop and on two lines. At 32mm out and on one line it ran past the
-  % last lifeline and off the figure (found by looking, 2026-09-20); glab is filled,
-  % so the lifelines it does cross stay out of the words.
-  \node[glab, right=12mm of selfloop, align=left]
+  \draw[gflow, draw=teal!55!black]
+    (0,-1.0) -- node[glab, above, text=teal!30!black] {tool call} (2.9,-1.0);
+  \draw[gflow, draw=blue!55!black]
+    (2.9,-1.7) -- node[glab, above, text=blue!30!black]
+    {evaluate(tool, params)} (5.8,-1.7);
+
+  \draw[gflow, draw=violet!55!black]
+    (5.8,-2.4) -- node[glab, above, text=violet!35!black]
+    {resolve group} (8.7,-2.4);
+  \draw[gdash, draw=cyan!55!black]
+    (8.7,-3.0) -- node[glab, above, text=cyan!25!black]
+    {groupId, or no record} (5.8,-3.0);
+  \draw[gdash, draw=red!55!black]
+    (5.8,-3.7) -- node[glab, above, text=red!35!black]
+    {block: register the agent first} (0,-3.7);
+
+  \draw[gflow, draw=violet!55!black]
+    (5.8,-4.4) -- ++(0.8,0) -- ++(0,-0.55) -- (5.8,-4.95);
+  \coordinate (evaluation) at (5.8,-4.68);
+  \node[glab, right=12mm of evaluation, align=left, text=violet!35!black]
     {locked down? \quad extract resource\\deny rules, then allow rules};
 
-  \draw[gflow] (5.8,-5.5) -- node[glab,above] {append decision + intent} (11.3,-5.5);
+  \draw[gflow, draw=magenta!55!black]
+    (5.8,-5.7) -- node[glab, above, text=magenta!30!black]
+    {append decision + intent} (11.5,-5.7);
 
-  \draw[gdash] (5.8,-6.2) -- node[glab,above] {allow} (2.9,-6.2);
-  \draw[gflow] (2.9,-6.8) -- node[glab,above] {tool executes} (0,-6.8);
-  \draw[gdash] (5.8,-7.5) -- node[glab,above] {block, with reason} (0,-7.5);
+  \draw[gdash, draw=green!50!black]
+    (5.8,-6.45) -- node[glab, above, text=green!28!black]
+    {allow} (2.9,-6.45);
+  \draw[gflow, draw=green!50!black]
+    (2.9,-7.1) -- node[glab, above, text=green!28!black]
+    {tool executes} (0,-7.1);
+  \draw[gdash, draw=red!55!black]
+    (5.8,-7.8) -- node[glab, above, text=red!35!black]
+    {block, with reason} (0,-7.8);
 
-  \draw[gflow] (5.8,-8.2) -- node[glab,above] {approval request} (13.9,-8.2);
-  \draw[gdash] (13.9,-8.8) -- node[glab,above] {allow once / always / deny} (5.8,-8.8);
+  \draw[gflow, draw=orange!65!black]
+    (5.8,-8.5) -- node[glab, above, text=orange!35!black]
+    {approval request} (14.2,-8.5);
+  \draw[gdash, draw=orange!65!black]
+    (14.2,-9.15) -- node[glab, above, text=orange!35!black]
+    {allow once / always / deny} (5.8,-9.15);
 \end{tikzpicture}}
-\caption{Policy decision sequence, in the shipped \texttt{enforce} posture (under
-\texttt{monitor} a call no allow rule covers is recorded and then allowed; under
-\texttt{off} the gate records nothing). An unregistered agent is refused before any
-policy is read. Deny rules are checked before allow rules, so a matching denial
-refuses the call whatever any allowance says, even in monitor posture. Of the
-remaining paths, the first is taken when an allow rule matches and the other two
-when none does, depending on whether escalation is enabled. The human who answers
-is, for a dashboard prompt, an account that manages the agent, and for a chat run,
-whoever holds the Gateway credential. An ``allow always'' answer permits that one
-call and files a rule request for an administrator to approve; it does not write a
-rule by itself.}
+\caption[Policy decision sequence]{\footnotesize Policy decision sequence in the
+shipped \texttt{enforce} posture. The engine resolves the registered agent, extracts
+the governed resource, and checks denials before allowances. Each policy outcome is
+recorded before the call is allowed, refused, or sent for human approval. An
+``allow always'' answer permits the current call and files a rule request; it does
+not write a permanent rule directly.}
 \label{fig:gov-decision}
 \end{figure}
 ```
@@ -793,9 +920,9 @@ rule by itself.}
 
 ## F4: Two-gate authentication
 
-**Source:** §3.5.6 · **Proposed number:** would have been Figure 3.4
+**Source:** §3.5.6 · **Final placement:** merged into Figure 3.2
 
-**Recommendation: MERGE into F1.** Figure 3.1 already draws both gates in
+**Recommendation: MERGE into F1.** Figure 3.2 already draws both gates in
 sequence. What this candidate adds is the detail of the login exchange, which is
 a linear list of steps and reads perfectly well as a sentence. Drawing it twice
 invites the reader to hunt for a difference between the two pictures.
@@ -877,7 +1004,7 @@ exists only until the installation is claimed.}
 
 ## F5: Path normalisation pipeline
 
-**Source:** §3.5.8 · **Proposed number:** Figure 3.4 (renumbered)
+**Source:** §3.5.2.3 · **Final placement:** Figure 3.8
 
 **Recommendation: KEEP.** A short linear pipeline with a concrete example
 travelling through it, ending in a rule that no longer matches. It supports one
@@ -963,7 +1090,7 @@ both its short and its absolute form.}
 
 ## F6: The governed prompt path
 
-**Source:** §3.5.11 · **Proposed number:** Figure 3.5
+**Source:** §3.5.5 · **Final placement:** Figure 3.13
 
 **Recommendation: KEEP, simplified.** This carries a real design argument, that
 prompting reuses the host's ordinary ingress rather than opening a second way in
@@ -1145,7 +1272,7 @@ and everything else the verdict reads is passed in, so a test can replace it.}
 
 ## F8: Two paths through the host to the gate
 
-**Source:** §3.5.15 · **Proposed number:** Figure 3.6
+**Source:** §3.5.8.2 · **Final placement:** Figure 3.1, placed in 3.4.2 Host Interception (3.5.8.2 cites it)
 
 **Recommendation: KEEP, and it has become more important twice over.** When this
 was marked it illustrated finding B1. As of 2026-08-30 it also explains the T7
@@ -1417,7 +1544,7 @@ the emergency kill switch (finding 364); closing the browser tab does not end it
 
 ## F11: The check-then-open window
 
-**Source:** §3.5.29 (T23) · **Proposed number:** Figure 3.7
+**Source:** §3.5.12 (T23) · **Final placement:** Figure 3.18
 
 **Recommendation: KEEP, and it is the best candidate on the list after F1 and
 F3.** A time-of-check-to-time-of-use race is genuinely hard to explain in prose,
@@ -1502,7 +1629,7 @@ loads.)_
 
 ## F12: Two groups on one installation
 
-**Source:** §3.5.30 (M3) · **Proposed number:** Figure 3.8
+**Source:** §3.5.30 (M3) · **Final placement:** cut
 
 > **Recommendation changed to CUT on 2026-09-15 (T49, option b).** The report presents
 > one organisation per installation as the boundary and makes no claim about separation
@@ -2090,7 +2217,7 @@ here to draw that F19 does not draw.
 
 ## F19: The tenant model
 
-**Source:** §3.5.56 · **Proposed number:** Figure 3.9
+**Source:** §3.5.9 · **Final placement:** Figure 3.17
 
 > **Still KEEP after T49 (2026-09-15), with its framing changed.** The figure draws one
 > organisation's chain of records, not two organisations, so it stays true under option
@@ -2233,37 +2360,59 @@ flowchart LR
 
 # Summary table
 
-| #   | Figure                         | Recommendation                             | Where                 |
-| --- | ------------------------------ | ------------------------------------------ | --------------------- |
-| F1  | Governance layer in Gateway    | **Keep** (absorb F4)                       | Fig 3.1               |
-| F2  | RBAC hierarchy                 | **Keep**, small, beside the table          | Fig 3.2               |
-| F3  | Policy decision sequence       | **Keep**                                   | Fig 3.3               |
-| F4  | Two-gate authentication        | Merge into F1                              | -                     |
-| F5  | Path normalisation             | **Keep**                                   | Fig 3.4               |
-| F6  | Governed prompt path           | **Keep** (absorb F10)                      | Fig 3.5               |
-| F7  | Deployment-status seam         | Cut                                        | -                     |
-| F8  | Two paths to the gate          | **Keep** (absorb F13, both funnels)        | Fig 3.6               |
-| F9  | Four modules, one definition   | Cut                                        | -                     |
-| F10 | Prompt lifecycle               | Merge into F6                              | -                     |
-| F11 | Check-then-open window         | **Keep**                                   | Fig 3.7               |
-| F12 | Two groups on one installation | Cut (T49, 2026-09-15)                      | -                     |
-| F13 | Two entry points, one gate     | Merge into F8                              | -                     |
-| F14 | Tool coverage before/after     | **Keep** (absorb F15)                      | Fig 4.1               |
-| F15 | Tool catalogue highlighted     | Merge into F14                             | -                     |
-| F16 | Rule row before/after          | Cut, use screenshots                       | Fig 4.x (photo)       |
-| F17 | Defects by age of code         | Cut; draw findings over time, compile last | Fig 4.2 (replacement) |
-| F18 | M-series cross-reference       | Cut, not a figure                          | -                     |
-| F19 | The tenant model               | **Keep**                                   | Fig 3.8               |
-| F20 | Same secret, several spellings | Cut, keep the table                        | -                     |
-| F21 | Two-layer Codex permission     | **Keep**                                   | Fig 3.9               |
-| F22 | Grant a folder, except…        | **Keep**                                   | Fig 3.10              |
-| F23 | "Always allow" after the card  | **Keep**                                   | Fig 3.11              |
-| F24 | A task's row and its slot      | **Keep**, small                            | Fig 3.12              |
+| #   | Figure                         | Recommendation                             | Prints as, and the section it goes in                            |
+| --- | ------------------------------ | ------------------------------------------ | ---------------------------------------------------------------- |
+| F1  | Governance layer in Gateway    | **Keep** (absorb F4)                       | **Fig 3.2**, 3.5.1 System Architecture                           |
+| F2  | RBAC hierarchy                 | **Keep**, small, beside the table          | **Fig 3.12**, 3.5.4 Access Control Model                         |
+| F3  | Policy decision sequence       | **Keep**                                   | **Fig 3.6**, 3.5.2.2 Evaluation Order                            |
+| F4  | Two-gate authentication        | Merge into F1                              | -                                                                |
+| F5  | Path normalisation             | **Keep**                                   | **Fig 3.8**, 3.5.2.3 Path Canonicalization                       |
+| F6  | Governed prompt path           | **Keep** (absorb F10)                      | **Fig 3.13**, 3.5.5 Prompt Execution Path                        |
+| F7  | Deployment-status seam         | Cut                                        | -                                                                |
+| F8  | Two paths to the gate          | **Keep** (absorb F13, both funnels)        | **Fig 3.1**, placed in 3.4.2 Host Interception; 3.5.8.2 cites it |
+| F9  | Four modules, one definition   | Cut                                        | -                                                                |
+| F10 | Prompt lifecycle               | Merge into F6                              | -                                                                |
+| F11 | Check-then-open window         | **Keep**                                   | **Fig 3.18**, 3.5.12 System Security                             |
+| F12 | Two groups on one installation | Cut (T49, 2026-09-15)                      | -                                                                |
+| F13 | Two entry points, one gate     | Merge into F8                              | -                                                                |
+| F14 | Tool coverage before/after     | **Keep** (absorb F15)                      | Fig 4.1                                                          |
+| F15 | Tool catalogue highlighted     | Merge into F14                             | -                                                                |
+| F16 | Rule row before/after          | Cut, use screenshots                       | Fig 4.x (photo)                                                  |
+| F17 | Defects by age of code         | Cut; draw findings over time, compile last | Fig 4.2 (replacement)                                            |
+| F18 | M-series cross-reference       | Cut, not a figure                          | -                                                                |
+| F19 | The tenant model               | **Keep**                                   | **Fig 3.17**, 3.5.9 Tenancy and Agent Registry                   |
+| F20 | Same secret, several spellings | Cut, keep the table                        | -                                                                |
+| F21 | Two-layer Codex permission     | **Keep**                                   | **Fig 3.16**, 3.5.8.2 Secondary Runtime Governance               |
+| F22 | Grant a folder, except…        | **Keep**                                   | **Fig 3.9**, 3.5.2.5 Folder Grants                               |
+| F23 | "Always allow" after the card  | **Keep**                                   | **Fig 3.14**, 3.5.7.2 Persistent Approvals                       |
+| F24 | A task's row and its slot      | **Keep**, small                            | **Fig 3.15**, 3.5.8.1 Task and Slot Model                        |
+| F25 | Appending to the HMAC chain    | **Keep**                                   | **Fig 3.10**, 3.5.3.1 Entry Structure                            |
+| F26 | Ledger verification            | **Keep**                                   | **Fig 3.11**, 3.5.3.2 Hash Chaining and Verification             |
 
-**Fourteen figures: twelve in Chapter 3 and two in Chapter 4**, all fourteen compiled
-clean on 2026-09-20 (F17's replacement still carries placeholder counts), plus one
-screenshot pair for F16 if you want it. The numbers in the last column are the ones to use; the "Proposed number" line
-under each heading is the number it was given when drafted.
+**Sixteen design figures: fourteen in Chapter 3 and two in Chapter 4.** The
+report also contains four source-code figures from `docs-notes/CODE-SNIPPETS.md`
+(C1 in 3.5.1, C2 and C3 in 3.5.2.1, C4 in 3.5.2.2), giving Chapter 3 eighteen numbered
+figures in its current form (corrected 2026-09-28 from the map in `chapter3.tex`, renumbered
+2026-09-27; the report compiled that day prints the eight placed ones as 3.1 to 3.8). The original design figures compiled clean on 2026-09-20, and F25
+and F26 were added and compiled on 2026-09-23. F17's replacement still carries
+placeholder counts. The numbers in the last column include the code figures' positions, and
+each retained design figure repeats its placement under its heading.
+
+**Renumbered 2026-09-21, and the reason is worth keeping.** This column read
+Fig 3.1 to Fig 3.12 in _this file's_ order (F1, F2, F3, F5, ...), and so did the
+mapping table in `docs-notes/report/chapter3.tex`. But LaTeX numbers a figure by
+where its `figure` environment sits in the source, and the placements recorded in
+`chapter3.tex` put them in the chapter in a different order, so Figure 3.2 would
+have printed after Figure 3.3 and anyone discussing "Figure 3.2" would have meant
+a different drawing from the one LaTeX printed under that number. The column now
+carries the number LaTeX will actually print **and** the section the figure
+belongs in, derived from the `% FIGURE` comments in `chapter3.tex` on 2026-09-21.
+No prose changed, because every citation uses a LaTeX cross-reference.
+The printed figure numbers were updated again on 2026-09-26 after C1 was placed
+after F1 in System Architecture. Every later Chapter 3 design figure therefore
+moved forward by one. The section numbers were updated on 2026-09-22 after the planned standards
+discussion was removed: Analysis of Design Constraints remains 3.3, Different
+Design Approaches is 3.4, and Developed Design is 3.5.
 
 _(Corrected 2026-09-19. This table said "Cut, keep the table" for F2 and "Keep,
 re-derive" for F17, while each figure's own section had reversed that: F2 to keep
@@ -2271,7 +2420,9 @@ on 2026-09-01, F17 to cut and replace the same day. Counting F2 makes fourteen,
 not thirteen, and F17's replacement keeps Chapter 4's slot. The Chapter 3 numbers
 are closed up. Earlier: it read "Thirteen figures: eleven in Chapter 3" from
 2026-09-15, when T49 cut F12, and "Eleven figures: nine in Chapter 3" until
-2026-09-14, when F22–F24 were added.)_ If fourteen is more than the chapters can
+2026-09-14, when F22–F24 were added.)_ F25 and F26 were added on 2026-09-23
+because the audit ledger previously had no figure explaining its integrity
+mechanism. If sixteen is more than the chapters can
 carry, F24 and F10's merge into F6 are the first places to save a page; every other
 keep earns its page by explaining something a paragraph explains worse.
 
@@ -2279,7 +2430,7 @@ keep earns its page by explaining something a paragraph explains worse.
 
 ## F21: The two-layer Codex permission
 
-**Source:** §3.5.62 · **Proposed number:** Figure 3.10
+**Source:** §3.5.8.2 · **Final placement:** Figure 3.16
 
 **Recommendation: KEEP.** Added 2026-08-30. Two gates in series is a shape prose
 handles badly and a picture handles in one glance, and the claim it carries,
@@ -2351,7 +2502,7 @@ agent, or by Root.}
 
 ## F22: Grant a folder, except… (added 2026-09-01)
 
-**Source:** §3.5.66 · **Proposed number:** Figure 3.11
+**Source:** §3.5.2.5 · **Final placement:** Figure 3.9
 
 **New figure, not a revision.** T32 shipped on 2026-08-31 and this document was
 last touched the same day without gaining a candidate for it, so the newest
@@ -2454,7 +2605,7 @@ independently of order.}
 
 ## F23: "Always allow", an approval that finishes after its card has closed (added 2026-09-11)
 
-**Source:** §3.5.81 · **Proposed number:** Figure 3.12
+**Source:** §3.5.7.2 · **Final placement:** Figure 3.14
 
 **Recommendation: KEEP.** The order of events is the thing a reader gets wrong,
 and it is the whole design. The operator presses the button **before** the rule
@@ -2546,7 +2697,7 @@ in local styles.)_
 
 ## F24: A task's row and its slot (added 2026-09-11)
 
-**Source:** §3.5.82 · **Proposed number:** Figure 3.13
+**Source:** §3.5.8.1 · **Final placement:** Figure 3.15
 
 **Recommendation: KEEP, and keep it small.** It draws the invariant a defect came
 from. T63 keeps a task **listed** until its reply is saved, so that "it vanished"
@@ -2608,3 +2759,245 @@ line break followed by the literal word "footnotesize", which would have printed
 that word in every box, the defect F21 had on 2026-09-05. It also labelled the
 edge to Stopping "Cancel / timeout" without the kill switch the prose and Mermaid
 name (finding 364), and had no caption or label.)_
+
+---
+
+## F25: Appending an entry to the HMAC chain
+
+**Source:** §3.5.3.1 · **Final placement:** Figure 3.10
+
+**Recommendation: KEEP.** The ledger's integrity mechanism is a sequence, and
+the security claim depends on the order of that sequence. This figure shows the
+complete append path: serialization occurs under the per-organization ledger
+lock, the new entry incorporates the preceding hash, HMAC-SHA256 binds the
+canonical payload to the installation key, the JSON line reaches the ledger
+before the checkpoint advances, and rotation preserves the same chain instead
+of beginning a new one. Those relationships are difficult to recover from an
+entry-field table alone.
+
+### Prose form
+
+An agent action, policy decision, approval, or administrative action first
+becomes a bounded ledger record. Resource text and model intent are redacted and
+length-limited before they enter the record. The writer then obtains the
+organization's ledger lock, reads the current head, and assigns the next sequence
+number. A new chain begins with a 64-zero genesis value; every later entry places
+the preceding entry's hash in `prevHash`. The entry's ordered canonical payload
+contains its sequence number, timestamp, agent and session identity, tool,
+resource kind and value, applicable rule, decision, `prevHash`, and any present
+intent or administrative actor fields. The writer computes the new `hash` as
+HMAC-SHA256 over that payload using the installation's 256-bit ledger key, then
+appends the complete entry as one JSON line to the organization's
+`audit-ledger.jsonl`. Only after that append succeeds does it update the
+installation-wide checkpoint with the organization's new sequence number and
+head hash. This ordering prevents the checkpoint from claiming that an entry was
+stored before it actually reached the ledger. When the active file reaches
+8 MiB, it is renamed to the next numbered archive. The following active entry
+still uses the archived tail's hash as `prevHash`, so rotation divides storage
+without dividing the cryptographic chain.
+
+### Mermaid form
+
+```mermaid
+flowchart LR
+  EVENT["Agent or administrative event<br/>action, decision, approval, or change"]
+  CLEAN["Redact and bound fields<br/>resource and model intent"]
+  LOCK["Acquire organization ledger lock<br/>read head: sequence n, hash Hn<br/>or genesis: 0 and 64 zeros"]
+  PAYLOAD["Build canonical payload P(n+1)<br/>event fields + optional actor/intent<br/>prevHash = Hn; keyed = true"]
+  KEY[("Installation key K<br/>ledger.key or protected environment secret")]
+  MAC["H(n+1) = HMAC-SHA256(K, P(n+1))"]
+  APPEND[("groups/groupId/audit-ledger.jsonl<br/>append one JSON line")]
+  CHECKPOINT[("ledger-checkpoint.json<br/>groupId: sequence n+1, hash H(n+1)")]
+  SIZE{"Active file<br/>at least 8 MiB?"}
+  ARCHIVE[("Rename to next numbered archive<br/>audit-ledger.jsonl.1, .2, ...")]
+  CONTINUE["Next entry continues from H(n+1)<br/>including after rotation"]
+
+  EVENT --> CLEAN --> LOCK --> PAYLOAD --> MAC --> APPEND --> CHECKPOINT --> SIZE
+  KEY --> MAC
+  SIZE -->|no| CONTINUE
+  SIZE -->|yes| ARCHIVE --> CONTINUE
+```
+
+### TikZ form
+
+```latex
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[node distance=9mm and 10mm]
+  \node[gbox] (event) {Agent or administrative event\\
+    \scriptsize action, decision, approval, or change};
+  \node[gbox, right=of event] (prepare) {Prepare under ledger lock\\
+    \scriptsize redact and bound text\\
+    \scriptsize read $(n,H_n)$, or genesis\\
+    \scriptsize build $P_{n+1}$ with \texttt{prevHash} $=H_n$};
+  \node[gbox, right=of prepare] (mac) {$H_{n+1}=$\\
+    \scriptsize $\mathrm{HMAC\!\mbox{-}\!SHA256}(K,P_{n+1})$};
+  \node[gstore, right=of mac] (ledger) {Append one JSON line\\
+    \scriptsize \texttt{groups/<groupId>/audit-ledger.jsonl}};
+
+  \node[gstore, above=10mm of mac] (key) {Installation key $K$\\
+    \scriptsize 256-bit \texttt{ledger.key}, or protected environment secret};
+  \node[gstore, below=14mm of ledger] (checkpoint) {Then update checkpoint\\
+    \scriptsize \texttt{groupId}: $(n+1,H_{n+1})$};
+  \node[gdec, left=12mm of checkpoint] (size) {Active file\\at least 8 MiB?};
+  \node[gstore, left=12mm of size] (archive) {If yes, next archive\\
+    \scriptsize \texttt{audit-ledger.jsonl.1}, \texttt{.2}, \ldots};
+  \node[gbox, left=12mm of archive] (continue) {Next append uses $H_{n+1}$\\
+    \scriptsize the chain continues across rotation};
+
+  \draw[gflow] (event) -- (prepare);
+  \draw[gflow] (prepare) -- node[glab, above] {$P_{n+1}$} (mac);
+  \draw[gflow] (key) -- node[glab, right] {secret key} (mac);
+  \draw[gflow] (mac) -- node[glab, above] {$H_{n+1}$} (ledger);
+  \draw[gflow] (ledger) -- (checkpoint);
+  \draw[gflow] (checkpoint) -- (size);
+  \draw[gflow] (size) -- node[glab, above] {yes} (archive);
+  \draw[gflow] (archive) -- (continue);
+  \draw[gflow] (size.south) -- ++(0,-5mm) -| node[glab, below, pos=0.25] {no} (continue.south);
+\end{tikzpicture}%
+}
+\caption[Appending an entry to the HMAC-protected audit chain]
+{\footnotesize Appending an entry to the HMAC-protected audit chain. The writer
+serializes each organization's appends with a file lock, redacts and bounds
+agent-controlled text, and places the preceding head $H_n$ in the new entry's
+\texttt{prevHash} field. It then computes $H_{n+1}$ from the entry's canonical
+payload and the installation key $K$, appends the complete entry as one JSON
+line, and only then records $(n+1,H_{n+1})$ in the separate checkpoint file.
+If the active ledger has reached 8\,MiB, it is renamed to the next numbered
+archive; the next entry still points to the archived head, so the chain remains
+continuous across every segment.}
+\label{fig:gov-ledger-append}
+\end{figure}
+```
+
+---
+
+## F26: Verifying the ledger and locating tampering
+
+**Source:** §3.5.3.2 · **Final placement:** Figure 3.11
+
+**Recommendation: KEEP.** F25 explains how the evidence is created; this figure
+explains what verification proves. Keeping the two concerns separate prevents
+the creation path from becoming a wall of branches, and lets this figure name
+the distinct failure detected at each stage. It also makes the checkpoint's
+purpose visible: internal chain checks cannot detect removal from the end of an
+otherwise valid chain.
+
+### Prose form
+
+Verification reads every numbered archive in ascending order and then the active
+ledger, treating the files as one continuous sequence. Each nonblank line must
+be valid JSON with the required sequence and hash fields. Starting from sequence
+1 and the 64-zero genesis hash, the verifier checks that sequence numbers are
+consecutive and that every `prevHash` equals the hash of the preceding entry. It
+then reconstructs each entry's canonical payload and recomputes its stored hash.
+Keyed entries require the installation key and HMAC-SHA256; older unkeyed entries
+use their original SHA-256 form for migration compatibility, but the chain may
+move from unkeyed to keyed only once and may never move back. If the installation
+has a ledger key, the newest entry must be keyed, which detects a complete rewrite
+into the forgeable legacy format. After all entries pass, the verifier compares
+the resulting chain head with the organization's record in the independent
+checkpoint file. A checkpoint ahead of the ledger proves that entries were
+removed from the end, and a checkpoint at the same sequence with a different
+hash proves that the final entry was replaced. On keyed installations, a missing
+checkpoint is itself a failure because truncation could no longer be tested. A
+lagging checkpoint is accepted because a crash can occur after an entry is
+appended and before the checkpoint is updated. Success reports the number of
+entries checked, the final sequence and hash, the checkpoint sequence, and
+whether the newest entry was keyed; failure reports the first broken entry and a
+specific reason.
+
+### Mermaid form
+
+```mermaid
+flowchart LR
+  SEGMENTS[("Archives oldest first<br/>.1, .2, ...<br/>then active ledger")]
+  PARSE{"Every line valid JSON<br/>with sequence and hash?"}
+  SEQ{"Sequence starts at 1<br/>and increases by one?"}
+  LINK{"prevHash equals<br/>preceding stored hash?"}
+  KEY[("Installation key K<br/>read without creating one")]
+  HMAC{"Stored hash equals recomputed<br/>SHA-256 or HMAC-SHA256?"}
+  MODE{"No unkeyed entry after keyed,<br/>and keyed installation ends keyed?"}
+  CP[("Independent checkpoint<br/>for this organization")]
+  HEAD{"Checkpoint present when required,<br/>not ahead, and same hash at same sequence?"}
+  OK["INTACT<br/>entries checked + head evidence"]
+  BAD["BROKEN<br/>first failing sequence + reason"]
+
+  SEGMENTS --> PARSE
+  PARSE -->|yes| SEQ
+  SEQ -->|yes| LINK
+  LINK -->|yes| HMAC
+  KEY --> HMAC
+  HMAC -->|yes| MODE
+  MODE -->|yes| HEAD
+  CP --> HEAD
+  HEAD -->|yes| OK
+  PARSE -->|no| BAD
+  SEQ -->|no| BAD
+  LINK -->|no| BAD
+  HMAC -->|no| BAD
+  MODE -->|no| BAD
+  HEAD -->|no| BAD
+```
+
+### TikZ form
+
+```latex
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[node distance=9mm and 10mm]
+  \node[gstore] (segments) {Read one continuous chain\\
+    \scriptsize archives oldest first, then active ledger};
+  \node[gdec, right=of segments] (parse) {Valid JSON\\and required fields?};
+  \node[gdec, right=of parse] (seq) {Sequence\\consecutive?};
+  \node[gdec, right=of seq] (link) {\texttt{prevHash}\\matches?};
+
+  \node[gdec, below=17mm of link] (hash) {Recomputed\\hash matches?};
+  \node[gdec, left=of hash] (mode) {Keyed mode\\valid?};
+  \node[gdec, left=of mode] (cpcheck) {Checkpoint\\consistent?};
+  \node[gbox, left=of cpcheck] (ok) {\textbf{INTACT}\\
+    \scriptsize count, head, checkpoint, keyed status};
+
+  \node[gstore, right=11mm of hash] (key) {Ledger key $K$\\
+    \scriptsize read without creating one};
+  \node[gstore, below=12mm of cpcheck] (checkpoint) {Independent checkpoint\\
+    \scriptsize organization head $(n,H_n)$};
+  \node[gbox, below=25mm of mode, minimum width=50mm] (bad)
+    {\textbf{BROKEN}\\
+     \scriptsize first failing sequence and a specific reason};
+
+  \draw[gflow] (segments) -- (parse);
+  \draw[gflow] (parse) -- node[glab, above] {yes} (seq);
+  \draw[gflow] (seq) -- node[glab, above] {yes} (link);
+  \draw[gflow] (link) -- node[glab, right] {yes} (hash);
+  \draw[gflow] (hash) -- node[glab, above] {yes} (mode);
+  \draw[gflow] (mode) -- node[glab, above] {yes} (cpcheck);
+  \draw[gflow] (cpcheck) -- node[glab, above] {yes} (ok);
+  \draw[gflow] (key) -- (hash);
+  \draw[gflow] (checkpoint) -- (cpcheck);
+
+  \node[gnote, above=3mm of bad] (failed) {any failed check};
+  \draw[gdash] (failed) -- node[glab, right] {no} (bad);
+
+  \node[gnote, below=2mm of bad, align=center]
+    {Malformed entry; sequence gap; broken link; edited payload or wrong HMAC;\\
+     downgrade to unkeyed history; missing, advanced, or mismatched checkpoint};
+\end{tikzpicture}%
+}
+\caption[Verification of the complete audit chain]
+{\footnotesize Verification of the complete audit chain. Numbered archives and
+the active JSONL file are read as one sequence from the 64-zero genesis value.
+For each entry, the verifier checks its structure, sequence number,
+\texttt{prevHash}, recomputed SHA-256 or HMAC-SHA256 value, and keyed-state
+transition. It then compares the final head with the organization's independent
+checkpoint. The internal checks expose malformed records, insertion, deletion,
+reordering, edited fields, broken links, and downgrade to the unkeyed format;
+the checkpoint adds detection of tail truncation, which a chain alone cannot
+detect. A lagging checkpoint is accepted because the ledger entry is written
+first, but a missing checkpoint on a keyed installation, a checkpoint ahead of
+the ledger, or a different hash at the same sequence is reported as broken.}
+\label{fig:gov-ledger-verify}
+\end{figure}
+```

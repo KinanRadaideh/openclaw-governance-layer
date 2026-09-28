@@ -5838,3 +5838,59 @@ prose with it.
 
 **The next task is the four subsections of §3.2**, and it is written up in
 `mg/HANDOFF.md` §2b under "THE NEXT TASK" with the material for each one named.
+
+## 2026-09-27: T70, every rule says why it exists
+
+T70 was added during report review and built the same day. A policy rule's
+`description` became required: the rule's title in every policy view, its reason in
+the ledger's add and remove entries, and never consulted by matching. The direct form
+and the folder grant gained a required field; the server refuses a missing, blank or
+over-500-character one; an approved request's reason already became the description.
+`PolicyDocument.version` went to 2, and a version-1 document's description-less rules
+are repaired once, as they are read, with an honest "no purpose was recorded" sentence.
+The design is `docs-notes/CHAPTER3-MATERIAL.md` §3.5.95.
+
+**One design turn worth remembering.** The first version dropped any description-less
+rule in a version-2 document as malformed. QA round 10's tests went red at once:
+dropping a hand-written _denial_ widens access in silence, which round 10 exists to
+forbid. Malformed rules now fail towards restriction, an allowance dropped and a
+denial kept and labelled.
+
+**Finding 380** turned up in the new dashboard test: after a folder grant the form
+cleared and then refilled itself, two writes each spreading a stale copy of the draft.
+One write now.
+
+**Evidence.** Governance suite on Windows 3,274 passed / 21 skipped / 0 failed in 203
+files; three typechecks, lint (plain and type-aware), format, i18n verify and
+`build-all` clean; 22 mutations, 22 killed; and the whole flow driven live on a QA
+Gateway as a User, an Administrator and a Viewer, down to the ledger (standalone
+verifier: 24 entries intact) and a hand-planted version-1 rule. **Open: Kinan's live
+acceptance QA**, `docs-notes/T47-TEST-PLAN.md` §6f. Nothing committed.
+
+## 2026-09-27 (later) and 2026-09-28: the dashboard QA after T70, and the report's notes brought level
+
+**The QA.** Every dashboard section at every tier, live against a QA Gateway with a mock model,
+two operators at once, and a Gateway restart under a signed-in page, found **381–396**. The
+serious one, **385**: OpenClaw nests later agents' workspaces inside the default agent's, and the
+baseline let the default agent read all of them; a nested workspace now counts as outside, for
+reads and for in-process searches. Also: ownership rules that a demotion, deletion or re-home
+could break (381–383), the emergency stop greyed out during agent creation (384), a deployment
+report that said "enforcing" with governance off (390), a late escalation answer thrown away
+without a word (386), and a Gateway restart that signed everyone out (396). Fifteen fixed the same
+day, each red first and re-checked live. **395**, the Gateway freezing for 35–60 s while it
+created an agent (upstream code), was fixed on 2026-09-28 in a separate worktree, fork-only at
+Kinan's choice, down to about 6 s, and applied to this checkout the same day (uncommitted). Kinan
+closed **169** as not reproducible, so the register reads 396 found, 396 closed, none open; the
+two low observations of the QA were fixed too. Full record: `mg/QA-SESSION-2026-09-27.md`.
+
+**2026-09-28.** Kinan answered the QA's questions (registers yes, keep the new F5, Monitor stays a
+warning, fix 395) and chose **dark** code panels over the light style of his paste; they are now
+drawn by a `reportcodebox` so the per-line hairlines are gone (T71 carries them to his Overleaf).
+Findings 381–396 went into `GOVERNANCE.md`, `QA-IN-PLAIN-TERMS.md` §5.123 and
+`CHAPTER3-MATERIAL.md` §3.5.96. The governance suite: 3,315 passed / 21 skipped / 0 failed in 206
+files. The report-writing notes were QA'd against the chapter, the compiled report and the code:
+every figure number in `FIGURES.md` was stale, four guides still described the chapter as it
+stood two days earlier, a catalogue excerpt no longer matched its function, and the writing guide
+contradicted itself about requirement 9. Comments marking what each Chapter 3 heading must now
+say are in `docs-notes/report/CH3-EDIT-COMMENTS-2026-09-28.md`, not in `chapter3.tex`. Record:
+`mg/WORK-LOG-2026-09-28.md`; summary: `mg/HANDOFF-2026-09-28.md`. Nothing committed.

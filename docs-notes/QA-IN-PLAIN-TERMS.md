@@ -6,7 +6,8 @@ ordinary language. What broke, why it mattered, and what was done about it.
 
 It began with **round six**, the multi-agent audit, because that round found the
 most and taught the most, and every pass since has been added to it, up to
-finding 379 and the live check of 2026-09-19. Rounds one to five
+finding 396, from the check of the whole dashboard on 2026-09-27 (after T70, built the same
+day). Rounds one to five
 are summarised in §6.
 
 > **How to navigate this file. Added 2026-08-27, brought up to date 2026-09-14.** Sections are in the order
@@ -27,8 +28,8 @@ are summarised in §6.
 > `REMAINING-WORK.md`, so they have deliberately not been renumbered. Use the
 > numbers, not the position.
 >
-> **The newest material is §5.109–§5.121, at the end of the file** (2026-09-12
-> to 19; §5.120 is the check with a model connected, findings 377–379, and §5.121 the two decisions built after it): the dashboard driven through a real browser while things went wrong,
+> **The newest material is §5.109–§5.123, at the end of the file** (2026-09-12
+> to 27; §5.120 is the check with a model connected, findings 377–379, §5.121 the two decisions built after it, §5.122 every rule now having to say why it exists, T70, with finding 380, and §5.123 the whole dashboard checked again under all four kinds of account, findings 381–396): the dashboard driven through a real browser while things went wrong,
 > including the emergency stop that missed a task started from the dashboard
 > (§5.109–§5.110); a User's way to ask for a change, and a record that said
 > "done" when nothing had changed (§5.111); the week checked a second time
@@ -8354,3 +8355,146 @@ Root can also give the agent to another Administrator, which is how the agents o
 leaves are looked after. Before it happens, the page warns that the people who answer to the
 previous owner lose access to the agent, since an agent can only be assigned to people under its
 own Administrator.
+
+## 5.122 Every rule has to say why it exists (T70, and finding 380)
+
+**What was wrong.** A rule tells the system what an agent may or may not do, and it is written
+as a pattern, something like `^make( .*)?$`. That is exact for the computer and close to
+unreadable for a person. The rules the system ships with each come with a plain sentence, such
+as "Credential files (.env, private keys, .npmrc, .netrc)", and the Policy page shows that
+sentence as the rule's name. But the form an operator uses to add a rule had nowhere to write
+one. So every rule a person added showed up under its pattern alone, and the permanent record
+of the change held the pattern with no reason next to it. Months later nobody could tell why a
+rule was there without asking whoever wrote it.
+
+**What changed.** A rule can no longer be created without a short explanation, up to 500
+characters, much like a message saved with a code change. The **Add rule** button stays grey
+until the explanation box has real text in it, and a line under the form counts the
+characters. The folder form ("Allow a folder, except…") asks for its purpose too, and that
+purpose becomes the start of the name of every rule it writes. When an Administrator approves
+a request for a rule, the reason the person gave becomes the rule's explanation. The shipped
+rules already had theirs. On every screen that lists rules, the explanation is the rule's
+name and the exact pattern is shown on the line below, so nothing is hidden. The search box
+finds rules by their explanation. The permanent record (the audit ledger) now stores the
+explanation when a rule is added and when it is removed, so the reason survives even after the
+rule is gone. The explanation is only for people: it never changes what a rule allows or
+blocks.
+
+The server checks this too, not only the page. Someone who skips the page and sends a request
+directly with no explanation, a blank one, or one that is too long is turned away and nothing
+is saved.
+
+**Rules that already existed.** An installation that already had rules without an explanation
+is fixed once, the first time it is read. Each such rule gets an honest explanation saying
+that no purpose was recorded, who added it and when, and that it should be replaced. Nothing is
+made up. After that, a rule found without an explanation can only have come from someone
+editing the file by hand. If it allowed something, it is ignored; if it blocked something, it
+keeps blocking, and is labelled so someone notices. That way a mistake in the file can only
+make the system stricter, never looser.
+
+**A small fault found on the way (finding 380).** After using the folder form, the page
+emptied the form and then immediately filled it back in with what had just been typed. The
+page was saving "empty the form" and "here is what was written" as two separate steps, and the
+second step was working from an old copy of the form. It now does both in one step.
+
+**How it was checked.** New automatic tests for the server, the stored rules and the page;
+then each protection was deliberately removed, one at a time, 22 times in all, and each time a
+test failed, which shows the tests are really checking it. Then the whole thing was used on a
+real running copy: an ordinary user, an administrator and a read-only viewer each signed in,
+rules and a folder were added, the page was reloaded and searched, the record was read and its
+seal checked, direct requests without an explanation were refused, and an old-style rule
+planted in the file came back with its honest explanation.
+
+## 5.123 The whole dashboard checked again, under every kind of account (findings 381 to 396)
+
+On 27 September, after T70, every part of the governance page was used again on a throwaway
+installation with the stand-in AI model connected: as Root, as two Administrators, as three
+Users (one with no agents), and as a Viewer, sometimes two of them at once in separate
+windows, and once with the server restarted underneath a signed-in page. Sixteen things were
+found. Fifteen were fixed the same day; each fix was first shown to be needed by a test that
+failed, then checked again on the running copy. One (395) was in OpenClaw's own code and was
+fixed separately on 28 September.
+
+**One agent could read another agent's files (finding 385, the serious one).** On a normal
+installation, OpenClaw puts every agent created after the first inside the first agent's folder.
+The rules the system ships with let an agent read anything in its own folder, so the first agent
+could read every other agent's files. In the check, a User who was not allowed to use an agent
+called `gamma` asked the first agent, `main`, to read a file in `gamma`'s folder, and got its
+contents. That User was also one of the people who answer `main`'s questions, so they could have
+approved `main` writing there too. Now a folder that belongs to another agent counts as outside,
+even when it sits inside this agent's folder: reading it is refused or put to a person like any
+other outside file, and searches leave it out of their results.
+
+**The emergency stop was greyed out while the page was busy (finding 384).** Creating an agent
+takes between half a minute and more than a minute. For all of that time the emergency stop's
+buttons could not be pressed, and nothing said why. They now stay available whatever else the
+page is doing, and the page says "Creating …" meanwhile.
+
+**The server itself stopped answering while it created an agent (finding 395).** Behind the
+page, OpenClaw spent 35 to 60 seconds of that time rereading the details of every add-on it has,
+and while it did, it answered nothing: not the page, not the emergency stop, and running agents
+were frozen as well. A stop pressed in that window was accepted and took effect the moment the
+server answered again. This was OpenClaw's own code, not the governance layer's. The reason: the
+server kept one ready-made list of its add-ons, made for the first agent's folder only, so for a
+new agent five different parts of it each made their own list from scratch, one after another.
+Fixed on 28 September: the server now keeps one list per agent folder and every part shares it.
+Creating an agent went from about 30 to 45 seconds to about 6, and the longest wait for an answer
+from about 30 seconds to about 6. The newer OpenClaw has a more thorough version of this fix;
+taking it is left for the next time this project catches up with OpenClaw.
+
+**The deployment report said "enforcing" when governance was switched off (finding 390).** The
+deployment report is Root's check that the installation is set up as designed, and it calls
+itself evidence. With governance switched off for every agent, so that nothing was checked or
+recorded, it still showed nothing failed and said the protective default was in force. It now
+has a line "Governance is enforcing" that fails when governance is off and warns when it is only
+watching (Monitor), naming the agents. Kinan confirmed that watching should stay a warning, not a
+failure, because watching is the documented way to find out which rules are needed.
+
+**The next person to sign in saw the last person's work (finding 392).** After Root signed out
+and an Administrator signed in on the same page, the Administrator saw Root's messages about
+creating and deleting an agent, and a half-filled "new account" form, password included. Signing
+out now clears both.
+
+**Accounts and agents could be left in impossible states (findings 381, 382 and 383).** Two
+rules hold the tenancy model together: an agent is owned by an Administrator (or Root), and a
+User may only be given agents that belong to the Administrator they answer to. Both were checked
+when they were first set up, but not by every later change. An Administrator who still owned
+agents could be demoted or deleted, leaving the agents owned by a User or by an account that no
+longer existed (381); this is now refused, and the message names the agents to hand over first.
+A User could be moved to a different Administrator while keeping the old one's agent, and could
+still use it (382); moving between levels now clears the User's list of agents, and a move to a
+different Administrator is refused while the User holds agents that Administrator does not own.
+And the refusal told Root to "assign those accounts to another Administrator first", which
+nothing on the page could do (383); each User and Viewer now has a control for exactly that.
+
+**An answer that came too late was thrown away without a word (finding 386).** Several people
+can answer the same question, and the first answer decides. When a second person answered a
+moment later, the server rightly refused it, but the page removed the question and the refusal
+with it. Root pressed "Allow" and then watched the agent be refused, with nothing saying Root's
+answer had not been the one used. The page now says so, and the message stays until it is
+dismissed.
+
+**The server restarting signed everyone out (finding 396).** When the server was restarted, every
+open governance page cleared itself and said the person's session had ended. It had not;
+reloading showed them still signed in. For a moment after a restart the page sends requests
+before its connection to the server is back, the server turns those away, and the page took that
+to mean the person had been signed out. It now says it is reconnecting and carries on.
+
+**Smaller things, all about what the page says.**
+
+- A rule made from an "Always allow" answer was titled with an internal label ("hitl-approval")
+  instead of the person's name, plus an instruction meant for whoever was deciding the request,
+  which stopped being true once the rule existed (393). It now reads "Requested by user1,
+  answering an escalation: Agent "scout" asked to run …".
+- One of the shipped rules described the governance command line, which no longer exists, as if
+  it did (388). The wording now says it was removed; the rule itself is unchanged.
+- The Add rule form forgot which agent a rule was for after each rule, while the folder form
+  remembered, and the next rule written in a hurry could end up applying to every agent (389).
+  Both remember now.
+- The list of rules for one agent showed "allow" and "forbid" only by colour (391). Since T70 a
+  rule's title is whatever its author wrote, so a forbid rule could read like a permission. The
+  words are now shown.
+- A User who typed someone else's agent into the emergency stop was told the stop "will still
+  succeed", next to a button that could not be pressed (394). It now says the agent is not
+  theirs.
+- When the emergency stop ended a task, the reason appeared twice (387). Now once.

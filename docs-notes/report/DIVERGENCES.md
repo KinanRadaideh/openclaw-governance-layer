@@ -16,6 +16,24 @@ So the rule for Chapter 3 is:
 
 Each row below names the section of Chapter 3 that owes the explanation.
 
+**Current-state note, 2026-09-28.** Kinan's report-so-far is synchronized into
+`main-reference.tex` and `chapter3.tex` (his 2026-09-27 paste). Chapter 3 is
+written through Section 3.5.2.3, Path Canonicalization (17 written, 26 stubs).
+Of the five differences below, only 1.3 falls in a written section, and Evaluation
+Order already states it; the other four sit in stubs. Treat this register as a
+map of claims to verify, not as a substitute for reading the current code. The
+implementation and focused tests decide what was built whenever an older note
+uses different wording.
+
+The current source hierarchy for a divergence is:
+
+1. compare the exact statement in Chapters 1 or 2;
+2. inspect the current owning implementation and its focused tests;
+3. use `CHAPTER3-MATERIAL.md`, `GOVERNANCE.md`, and this file to recover the
+   design reasoning; and
+4. state the difference and its justification in the relevant Chapter 3
+   subsection.
+
 ---
 
 ## 1. Verified differences
@@ -70,6 +88,11 @@ These have been checked against the code or the registers.
 | **What was built** | **Both halves of that are true**, of the conflict _detector_: on creation the candidate is compared against active rules inside the policy's write lock, the earlier rule prevails, the candidate is still stored, and the conflict is reported. **But that is not how a decision is reached.** At evaluation time a matching **denial beats a matching allowance whatever their creation order**. |
 | **Explain it in**  | §"Evaluation Order", with a sentence in §"Rule Model"                                                                                                                                                                                                                                                                                                                                              |
 
+**Stated in the report (checked 2026-09-28):** Kinan's Evaluation Order says that
+rule creation reports the earlier conflicting rule, implementing the preliminary
+design's use of creation order, and that creation order does not affect runtime
+precedence. Rule Model has the sentence too. Nothing more is owed here.
+
 **This is an incompleteness rather than a contradiction**, and it is the more
 dangerous kind, because a reader of Chapter 1 alone would reasonably conclude
 that creation order decides outcomes. It does not.
@@ -99,7 +122,16 @@ missed requirement unless the distinction is made properly:
   stricter than Chapter 1 measured. Say that plainly, give both numbers, and
   give the machine they were taken on.
 - Quote the VPS figure too once T3 re-measures there. A laptop under load is
-  the worst case, not the deployment target.
+  the worst case, not the deployment target. (T3 closed on 2026-09-21 with the
+  suite re-run on the VPS; the kill switch itself has still not been timed there.)
+- **Added 2026-09-28.** A third laptop measurement, from the dashboard QA of
+  2026-09-27: lockdown of a running task confirmed in **1,623 ms**, dispatch
+  **3.5 ms** (`mg/QA-SESSION-2026-09-27.md` §6). And one condition the section
+  must name: while an agent is being created, the Gateway could not answer any
+  request, the stop included, for 35 to 60 s (finding 395). A separate session
+  fixed most of that on 2026-09-28 (uncommitted): about 6 s remains, measured on
+  two Gateways (same log, finding 395's entry). Write the figure that holds once
+  that fix is committed.
 
 ### 1.5 Who sets the escalation timeout
 
@@ -151,8 +183,11 @@ noticed but not yet verified:
   approves; the answer itself never writes a rule. Close, but the mechanism
   differs and C15 later changed who the request is attributed to.
 - §1.6's **Viewer** "can read sanitized audit logs permitted by the Root". Check
-  this against the tier's actual read scope, which also includes the rule
-  requests queue in full.
+  this against the tier's actual read scope. It also includes rule requests, but
+  not "in full": a Viewer sees the requests for its assigned agents and those that
+  bind every agent, unmasked (finding 378 corrected the "in full" wording on
+  2026-09-19). Its ledger is projected to its assigned agents with resources
+  masked.
 - §1.6 describes network allowlisting "at the application layer" dictating which
   IP addresses or domains an agent may contact. Check what the network rule kind
   actually matches against.
@@ -164,8 +199,11 @@ noticed but not yet verified:
 
 ## 3. How to use this file
 
-- Chapter 3 sections that owe an explanation carry a `% DIVERGENCE` comment in
-  `docs-notes/report/chapter3.tex` pointing here.
+- Chapter 3 sections that owe an explanation should carry a `% DIVERGENCE` comment in
+  `docs-notes/report/chapter3.tex` pointing here. **Checked 2026-09-28: none does yet.**
+  The comments were drafted in chat that day for Kinan to paste (Hash Chaining and
+  Verification, Data Sanitization, Kill Switch, Escalation Routing); the file itself was
+  not edited, at his instruction.
 - When a new difference is found, add it here **with its justification**, not
   just its existence. The justification is the part that takes thought and the
   part the report needs.
