@@ -779,9 +779,32 @@ gaps the report named to be filled: a fresh review, the full lint gate, and the 
   - Not changed, with reasons: Root owning agents (Root is single and permanent, so it cannot be
     demoted or deleted); a narrower manifest registry in memory-slot selection (the derived
     registry is not filtered by enablement); a policy file with no `version` dropping undescribed
-    allowances (the fail-closed rule the T70 repair states); the 401-while-reconnecting tradeoff
-    and workspace-snapshot freshness (both the documented lifecycle); an approved request's
-    description passing 500 characters (nothing re-validates a stored description).
+    allowances (the fail-closed rule the T70 repair states).
+  - **Three first left as tradeoffs, then fixed at Kinan's request (2026-09-29)**, each proved
+    red first:
+    - **A lost session read as "reconnecting".** Finding 396's fix decided whether a 401 was the
+      Gateway's gate by whether the page had sent a device token, so on a Gateway that gives the
+      page none, every real sign-out showed "reconnecting" and the page never cleared. Governance
+      now marks its own 401 with the type `governance_login_required`
+      (`src/gateway/governance-login-required.ts`, mirrored in `api.errors.ts` and pinned by a
+      test), and the page ends the session on that type only; any other 401 is the Gateway gate.
+    - **Workspace plugins added after a scan were not seen.** Each shared workspace snapshot now
+      keeps a fingerprint of that workspace's own `.openclaw/extensions` folder, taken before the
+      scan, and a read reuses it only while the fingerprint matches
+      (`workspacePluginRootSignature`); one failed `stat` for a workspace with no such folder.
+    - **Rule descriptions of any length.** "Requested by …: " came on top of a reason that
+      could already be 500 characters, a folder grant appended its folder and every exception to
+      the purpose, and an escalation's sentence quoted a resource of up to 2,048 characters.
+      A person's words stay limited to 500 and are never cut (finding 362); a stored description
+      now has its own limit, `MAX_STORED_RULE_DESCRIPTION_LENGTH` = 1,000, enforced where every
+      rule is written (`addRuleChecked`), and only generated context is shortened to fit: the
+      folder grant's folder and exception list (`describeWithContext`), and an escalation
+      sentence's quoted resource (the rule's pattern keeps the resource whole). A first attempt
+      refused a 500-character request reason and a large grant outright; the governance suite
+      caught both (finding 362's tests, and the folder grant's "largest grant" test), and the
+      rule was changed to this one.
+    - Checked on the final code: governance suite **3,334 passed, 21 skipped, 0 failed**
+      (206 files); core, core-test and UI typechecks, `oxfmt` and `oxlint` clean.
 - **Lint gate** (`node scripts/run-lint.mjs`): the first run stopped at a tooling step, the
   plugin SDK's declaration build, "timed out after 300000ms", before any rule ran. Run on its own
   and uncapped it compiled cleanly in 224 s, so the cap was hit under load. Re-run on the final
