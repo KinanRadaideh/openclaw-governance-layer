@@ -27,7 +27,7 @@ export const GOVERNANCE_UNREACHABLE_MESSAGE =
  * connection dropped after the Gateway acted, so it says exactly what is known.
  */
 /**
- * What a request is told when it went out without the Gateway credential (finding 396).
+ * What a request is told when the Gateway's credential gate refused it (finding 396).
  *
  * Happens between the Gateway answering HTTP again and the page's connection to it
  * being re-established; the next refresh carries the credential and works.
@@ -69,26 +69,54 @@ export class GovernanceApiError extends Error {
      */
     readonly authenticating = false,
     /**
-     * The request carried no Gateway credential, so its 401 is the Gateway's own
-     * gate and not the governance session (finding 396). The page's credential is
-     * the device token its connection received, which is gone while the Gateway
-     * restarts; reading that 401 as a lost session signed every operator out.
+     * The 401 came from the Gateway's own credential gate, not from governance
+     * (finding 396). The page's Gateway credential is the device token its connection
+     * received, which is gone while the Gateway restarts; reading that 401 as a lost
+     * session signed every operator out.
      */
-    readonly withoutGatewayCredential = false,
+    readonly refusedByGatewayGate = false,
   ) {
     super(message);
     this.name = "GovernanceApiError";
   }
 }
 
-/** A refusal as the page must read it: a 401 to a request sent bare is the Gateway's gate (finding 396). */
+/**
+ * The `type` governance gives a 401 that means its sign-in is gone. Mirrored by hand
+ * from `src/gateway/governance-login-required.ts`, like every other server value this
+ * bundle uses; `api.errors.test.ts` pins the two together.
+ */
+export const GOVERNANCE_LOGIN_REQUIRED_TYPE = "governance_login_required";
+
+/**
+ * A refusal as the page must read it (finding 396). A 401 is a lost governance session
+ * only when governance says so by its type; any other 401 is the Gateway's credential
+ * gate, whether or not this request carried a credential. Deciding by whether one was
+ * sent misread every lost session on a Gateway that issues the page no device token.
+ */
 export function refusal(
   message: string,
   status: number,
-  credential: string | null,
+  errorType: unknown,
   authenticating = false,
 ): GovernanceApiError {
-  return status === 401 && !credential && !authenticating
+  return status === 401 && !authenticating && errorType !== GOVERNANCE_LOGIN_REQUIRED_TYPE
     ? new GovernanceApiError(GOVERNANCE_NOT_CONNECTED_MESSAGE, status, false, true)
     : new GovernanceApiError(message, status, authenticating);
+}
+
+/** `refusal` for a reply read as raw text, such as the streaming prompt route's. */
+export function refusalFromBody(text: string, status: number): GovernanceApiError {
+  let message = `Request failed (${status})`;
+  let errorType: unknown;
+  try {
+    const parsed = text ? JSON.parse(text) : {};
+    if (typeof parsed?.error?.message === "string") {
+      message = parsed.error.message;
+    }
+    errorType = parsed?.error?.type;
+  } catch {
+    // A non-JSON error body is still an error; the status carries it.
+  }
+  return refusal(message, status, errorType);
 }

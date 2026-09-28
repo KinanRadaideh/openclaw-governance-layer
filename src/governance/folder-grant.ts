@@ -43,7 +43,11 @@ import type { AuditActorInput } from "./admin-audit.js";
 import { normalizeGovernedPath } from "./path-normalize.js";
 import { addRuleChecked, type AddRuleResult } from "./policy-store.js";
 import type { RuleAccess } from "./policy-types.js";
-import { validateRuleDescription, validateRulePattern } from "./rule-validation.js";
+import {
+  describeWithContext,
+  validateRuleDescription,
+  validateRulePattern,
+} from "./rule-validation.js";
 
 /**
  * How many exceptions one grant may carry.
@@ -189,6 +193,19 @@ export async function grantFolderWithExceptions(
 
   const scope = input.agentId ? { agentId: input.agentId } : {};
 
+  // Every rule's description is the operator's purpose, whole, then which part of the grant
+  // it is (T70). That generated part is shortened to keep the description within the stored
+  // limit; the patterns still carry every path exactly, and each exception has its own rule.
+  const exceptionDescriptions = exceptions.map((entry) =>
+    describeWithContext(purpose.description, `exception to the grant on ${folder}: ${entry}`),
+  );
+  const grantDescription = describeWithContext(
+    purpose.description,
+    exceptions.length > 0
+      ? `grant on ${folder}, except ${exceptions.join(", ")}`
+      : `grant on ${folder}`,
+  );
+
   // Denials first. See the note at the top of this file: a partial write should
   // leave less access than intended, never more.
   const written: AddRuleResult[] = [];
@@ -207,7 +224,7 @@ export async function grantFolderWithExceptions(
           // exception to the whole folder.
           // The operator's purpose leads, because it is the rule's title; the
           // generated half says which part of the grant this rule is.
-          description: `${purpose.description} (exception to the grant on ${folder}: ${exceptions[index]})`,
+          description: exceptionDescriptions[index] ?? purpose.description,
           ...scope,
         },
         actor,
@@ -222,10 +239,7 @@ export async function grantFolderWithExceptions(
       pattern: subtreePattern(grantPath, folder),
       effect: "allow",
       ...(input.access ? { access: input.access } : {}),
-      description:
-        exceptions.length > 0
-          ? `${purpose.description} (grant on ${folder}, except ${exceptions.join(", ")})`
-          : `${purpose.description} (grant on ${folder})`,
+      description: grantDescription,
       ...scope,
     },
     actor,

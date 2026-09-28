@@ -1,5 +1,7 @@
 /** Tracks the current plugin metadata snapshot for control-plane lookups. */
 import { AsyncLocalStorage } from "node:async_hooks";
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { resolveGlobalSingleton } from "../shared/global-singleton.js";
 import {
@@ -18,6 +20,7 @@ import type {
   PluginMetadataSnapshotPluginIdScope,
 } from "./plugin-metadata-snapshot.types.js";
 import { normalizePluginIdScope, serializePluginIdScope } from "./plugin-scope.js";
+import { resolvePluginSourceRoots } from "./roots.js";
 
 type CurrentPluginMetadataSnapshotState = ReturnType<
   typeof getCurrentPluginMetadataSnapshotState
@@ -82,7 +85,10 @@ let activeTemporaryPluginMetadataSnapshotLease:
 let workspacePluginMetadataSnapshots:
   | {
       revision: CurrentPluginMetadataSnapshotRevision;
-      byWorkspaceDir: Map<string, PluginMetadataSnapshot>;
+      byWorkspaceDir: Map<
+        string,
+        { snapshot: PluginMetadataSnapshot; pluginRootSignature: string }
+      >;
     }
   | undefined;
 
@@ -431,14 +437,59 @@ export function getCurrentPluginMetadataSnapshot(
   if (current || params.workspaceDir === undefined) {
     return current;
   }
-  const workspaceSnapshot =
+  const entries =
     workspacePluginMetadataSnapshots?.revision === revision
-      ? workspacePluginMetadataSnapshots.byWorkspaceDir.get(params.workspaceDir)
+      ? workspacePluginMetadataSnapshots.byWorkspaceDir
       : undefined;
+  const entry = entries?.get(params.workspaceDir);
+  if (
+    entry &&
+    entry.pluginRootSignature !== workspacePluginRootSignature(params.workspaceDir, params.env)
+  ) {
+    // The workspace's own plugins changed since the scan: rescan, as every read did before
+    // these entries existed, rather than serve a list missing them.
+    entries?.delete(params.workspaceDir);
+    return undefined;
+  }
   return resolveCompatiblePluginMetadataSnapshot(
-    { snapshot: workspaceSnapshot, configFingerprint: workspaceSnapshot?.configFingerprint },
+    { snapshot: entry?.snapshot, configFingerprint: entry?.snapshot.configFingerprint },
     params,
   );
+}
+
+/**
+ * A cheap fingerprint of the one plugin source that differs between workspaces: the
+ * workspace's own `.openclaw/extensions` folder, its entries, and their manifests. Taken
+ * before a workspace is scanned and compared on every reuse of that scan, so a plugin
+ * added to, changed in, or removed from that folder is seen by the next read, as it was
+ * when every read rescanned. A workspace with no such folder, the usual case, costs one
+ * failed `stat`. The shared roots (bundled, global, load paths) keep the lifecycle of the
+ * Gateway's own snapshot.
+ */
+export function workspacePluginRootSignature(
+  workspaceDir: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const root = resolvePluginSourceRoots({ workspaceDir, env }).workspace;
+  if (!root) {
+    return "";
+  }
+  try {
+    const parts = [String(statSync(root).mtimeMs)];
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      const child = join(root, entry.name);
+      parts.push(`${entry.name}:${statSync(child).mtimeMs}`);
+      for (const manifest of ["openclaw.plugin.json", "package.json"]) {
+        const mtime = statSync(join(child, manifest), { throwIfNoEntry: false })?.mtimeMs;
+        if (mtime !== undefined) {
+          parts.push(`${entry.name}/${manifest}:${mtime}`);
+        }
+      }
+    }
+    return parts.join("|");
+  } catch {
+    return "absent";
+  }
 }
 
 /**
@@ -446,8 +497,14 @@ export function getCurrentPluginMetadataSnapshot(
  * workspace reuse it instead of rediscovering every plugin on disk. Entries belong to the
  * current publication: any new revision (replacement, clear, temporary lease) drops them, and
  * each workspace keeps only its latest snapshot, so this never holds historical generations.
+ *
+ * `pluginRootSignature` is `workspacePluginRootSignature` taken before the scan, so a plugin
+ * added while the scan ran is not hidden behind it.
  */
-export function rememberWorkspacePluginMetadataSnapshot(snapshot: PluginMetadataSnapshot): void {
+export function rememberWorkspacePluginMetadataSnapshot(
+  snapshot: PluginMetadataSnapshot,
+  pluginRootSignature: string,
+): void {
   const { snapshot: current, revision } = getCurrentPluginMetadataSnapshotState();
   // Only a Gateway-owned generation has a lifecycle that invalidates these entries.
   if (!current || snapshot.workspaceDir === undefined || snapshot.pluginIds !== undefined) {
@@ -456,5 +513,8 @@ export function rememberWorkspacePluginMetadataSnapshot(snapshot: PluginMetadata
   if (workspacePluginMetadataSnapshots?.revision !== revision) {
     workspacePluginMetadataSnapshots = { revision, byWorkspaceDir: new Map() };
   }
-  workspacePluginMetadataSnapshots.byWorkspaceDir.set(snapshot.workspaceDir, snapshot);
+  workspacePluginMetadataSnapshots.byWorkspaceDir.set(snapshot.workspaceDir, {
+    snapshot,
+    pluginRootSignature,
+  });
 }

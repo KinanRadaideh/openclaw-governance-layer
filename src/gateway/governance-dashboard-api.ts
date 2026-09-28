@@ -60,6 +60,7 @@ import { handleGovernanceFolderGrantRoutes } from "./governance-dashboard-folder
 import { requireAgentPolicyAuthoring, requireGroup } from "./governance-dashboard-group.js";
 import { handleGovernanceOversightRoutes } from "./governance-dashboard-oversight.js";
 import { handleGovernanceRuleRequestRoutes } from "./governance-dashboard-rule-requests.js";
+import { GOVERNANCE_LOGIN_REQUIRED_TYPE } from "./governance-login-required.js";
 import {
   MAX_JSON_BODY_BYTES,
   readJsonBodyOrError,
@@ -103,7 +104,7 @@ function requireRole(
 ): session is GovernanceSession {
   if (!session) {
     sendJson(res, 401, {
-      error: { message: "Governance login required", type: "unauthorized" },
+      error: { message: "Governance login required", type: GOVERNANCE_LOGIN_REQUIRED_TYPE },
     });
     return false;
   }

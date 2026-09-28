@@ -45,6 +45,8 @@ import {
   describeRuleRisks,
   isRuleAccess,
   MAX_RULE_DESCRIPTION_LENGTH,
+  fitGeneratedDescription,
+  requestedRuleDescription,
   validateRulePattern,
 } from "../governance/rule-validation.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
@@ -559,12 +561,16 @@ export async function handleGovernanceRuleRequestRoutes(
             // the justification an Administrator approved is the sentence the rule
             // is listed under and the ledger records.
             // The account that answered an escalation, when one did (C15), rather than
-            // the internal label its proposal is filed under (finding 393).
-            description: `Requested by ${
-              decided.answeredBy
-                ? `${decided.answeredBy}, answering an escalation`
-                : decided.requestedBy
-            }: ${decided.reason}`,
+            // the internal label its proposal is filed under (finding 393). A person's
+            // reason always fits the stored limit whole; only a system-written reason
+            // filed before that limit existed can need fitting here.
+            description: fitGeneratedDescription(
+              requestedRuleDescription({
+                requestedBy: decided.requestedBy,
+                ...(decided.answeredBy ? { answeredBy: decided.answeredBy } : {}),
+                reason: decided.reason,
+              }),
+            ),
             createdBy: session.username,
           },
           auditActor(session),

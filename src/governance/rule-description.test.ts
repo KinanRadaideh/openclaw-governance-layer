@@ -22,6 +22,7 @@ import {
   addRule,
   loadPolicy,
   MissingRuleDescriptionError,
+  RuleDescriptionTooLongError,
   policyFilePathForTests,
   removeRule,
   savePolicy,
@@ -83,6 +84,24 @@ describe("the store refuses a rule nobody can explain", () => {
     expect((await operatorRules()).map((stored) => stored.description)).toEqual([
       "Lets the agent list files",
     ]);
+  });
+
+  it("refuses a description past the stored limit, and writes nothing", async () => {
+    // Every writer fits its description first; this keeps the bound true for one that forgot.
+    await expect(
+      addRule(
+        TEST_GROUP,
+        { resourceKind: "command", pattern: "^ls$", description: "d".repeat(1001) },
+        ACTOR,
+      ),
+    ).rejects.toBeInstanceOf(RuleDescriptionTooLongError);
+    expect(await operatorRules()).toEqual([]);
+    const atLimit = await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^ls$", description: "d".repeat(1000) },
+      ACTOR,
+    );
+    expect(atLimit.description).toHaveLength(1000);
   });
 });
 

@@ -5,7 +5,12 @@
 // 359). Found by stopping the Gateway under a signed-in page:
 // every action said "Failed to fetch", and that stayed after it came back.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GOVERNANCE_NOT_CONNECTED_MESSAGE, GOVERNANCE_RECONNECTED_MESSAGE } from "./api.errors.ts";
+import { GOVERNANCE_LOGIN_REQUIRED_TYPE as SERVER_LOGIN_REQUIRED_TYPE } from "../../../../src/gateway/governance-login-required.js";
+import {
+  GOVERNANCE_LOGIN_REQUIRED_TYPE,
+  GOVERNANCE_NOT_CONNECTED_MESSAGE,
+  GOVERNANCE_RECONNECTED_MESSAGE,
+} from "./api.errors.ts";
 import { GOVERNANCE_UNREACHABLE_MESSAGE, GovernanceApi, GovernanceApiError } from "./api.ts";
 import { isSessionLost } from "./identity.ts";
 import { errorAfterRefresh } from "./refusal-focus.ts";
@@ -163,9 +168,32 @@ describe("a 401 to a request sent without the Gateway credential (finding 396)",
     expect(failure.message).toBe(GOVERNANCE_NOT_CONNECTED_MESSAGE);
   });
 
-  it("still ends the session when the credential was sent", async () => {
+  it("is not a lost session when the credential was sent and the Gateway refused it", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(unauthorized());
     const failure = await failureOf(new GovernanceApi("", "device-token").whoami());
+    expect(isSessionLost(failure)).toBe(false);
+  });
+
+  // Deciding by whether a credential was sent read every lost session as "reconnecting" on a
+  // Gateway that gives the page no device token, so the page never cleared itself.
+  it.each([
+    ["with the Gateway credential", "device-token"],
+    ["with no Gateway credential", null],
+  ])("ends the session when governance says its sign-in is gone, %s", async (_label, token) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: { message: "Governance login required", type: GOVERNANCE_LOGIN_REQUIRED_TYPE },
+        }),
+        { status: 401 },
+      ),
+    );
+    const failure = await failureOf(new GovernanceApi("", token).whoami());
     expect(isSessionLost(failure)).toBe(true);
+    expect(failure.message).toBe("Governance login required");
+  });
+
+  it("uses the same type the server sends", () => {
+    expect(GOVERNANCE_LOGIN_REQUIRED_TYPE).toBe(SERVER_LOGIN_REQUIRED_TYPE);
   });
 });

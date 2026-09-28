@@ -58,6 +58,56 @@ export function validateRulePattern(pattern: unknown): PatternValidation {
  */
 export const MAX_RULE_DESCRIPTION_LENGTH = 500;
 
+/**
+ * The longest description a stored rule may carry (T70), enforced where every rule is
+ * written. Larger than `MAX_RULE_DESCRIPTION_LENGTH` because the system adds context around
+ * a person's words: "Requested by <name>, answering an escalation: " before an approved
+ * request's reason, a folder grant's folder and exceptions after its purpose. A person's
+ * words are never cut (finding 362); only that generated context is shortened to fit.
+ */
+export const MAX_STORED_RULE_DESCRIPTION_LENGTH = 1000;
+
+/** Cuts generated text to the stored limit, marked, for text no person typed. */
+export function fitGeneratedDescription(
+  text: string,
+  max = MAX_STORED_RULE_DESCRIPTION_LENGTH,
+): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+
+/**
+ * A person's purpose followed by generated context in brackets, the context shortened so
+ * the whole fits the stored limit. The purpose (at most `MAX_RULE_DESCRIPTION_LENGTH`)
+ * always survives whole.
+ */
+export function describeWithContext(purpose: string, context: string): string {
+  const room = MAX_STORED_RULE_DESCRIPTION_LENGTH - purpose.length - " ()".length;
+  return `${purpose} (${fitGeneratedDescription(context, Math.max(1, room))})`;
+}
+
+/**
+ * The description an approved rule request's rule is stored under (T70): who asked, then
+ * why. The prefix is short and a person's reason is at most `MAX_RULE_DESCRIPTION_LENGTH`,
+ * so this fits the stored limit whole; a system-written reason (an escalation's) is fitted
+ * where it is written.
+ */
+export function requestedRuleDescription(input: {
+  requestedBy: string;
+  /** The account that answered an escalation (C15), named instead of the internal label. */
+  answeredBy?: string;
+  reason: string;
+}): string {
+  const who = input.answeredBy ? `${input.answeredBy}, answering an escalation` : input.requestedBy;
+  return `Requested by ${who}: ${input.reason}`;
+}
+
+/** How long a system-written request reason may be once the approval's prefix is counted. */
+export function requestReasonRoom(input: { requestedBy: string; answeredBy?: string }): number {
+  return (
+    MAX_STORED_RULE_DESCRIPTION_LENGTH - requestedRuleDescription({ ...input, reason: "" }).length
+  );
+}
+
 export type DescriptionValidation =
   | { ok: true; description: string }
   | { ok: false; error: string };

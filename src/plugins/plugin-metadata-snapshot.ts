@@ -8,6 +8,7 @@ import {
 import {
   getCurrentPluginMetadataSnapshot,
   rememberWorkspacePluginMetadataSnapshot,
+  workspacePluginRootSignature,
 } from "./current-plugin-metadata-snapshot.js";
 import { resolveActivePluginInstallRoots } from "./install-root-context.js";
 import { hashJson } from "./installed-plugin-index-hash.js";
@@ -335,8 +336,7 @@ export function resolvePluginMetadataSnapshot(
         : {}),
     });
     if (!current) {
-      const loaded = loadPluginMetadataSnapshot(params);
-      if (
+      const shared =
         params.workspaceDir !== undefined &&
         params.config !== undefined &&
         params.index === undefined &&
@@ -344,11 +344,17 @@ export function resolvePluginMetadataSnapshot(
         params.pluginIdScope === undefined &&
         // Configured agent workspaces only, which bounds what one generation keeps; an
         // ad-hoc directory (a run's or a sandbox's) is scanned per call, as before.
-        listAgentWorkspaceDirs(params.config).includes(params.workspaceDir)
-      ) {
+        listAgentWorkspaceDirs(params.config).includes(params.workspaceDir);
+      // Taken before the scan, so a plugin added while it runs is seen by the next read.
+      const pluginRootSignature =
+        shared && params.workspaceDir !== undefined
+          ? workspacePluginRootSignature(params.workspaceDir, params.env)
+          : undefined;
+      const loaded = loadPluginMetadataSnapshot(params);
+      if (pluginRootSignature !== undefined) {
         // A new agent workspace misses the Gateway's snapshot; share this scan with its other
-        // readers (model runtime, skills, auth lookups) for the rest of the generation.
-        rememberWorkspacePluginMetadataSnapshot(loaded);
+        // readers (model runtime, skills, auth lookups) until its own plugins change.
+        rememberWorkspacePluginMetadataSnapshot(loaded, pluginRootSignature);
       }
       return loaded;
     }

@@ -33,6 +33,7 @@ import {
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
 import { authorizeControlUiReadRequest } from "./control-ui.js";
+import { GOVERNANCE_LOGIN_REQUIRED_TYPE } from "./governance-login-required.js";
 import { readJsonBodyOrError, sendInvalidRequest, sendJson } from "./http-common.js";
 
 export const GOVERNANCE_AUTH_PATH_PREFIX = "/control-ui/governance/";
@@ -217,7 +218,9 @@ export async function handleGovernanceAuthRequest(
   if (pathname === `${GOVERNANCE_AUTH_PATH_PREFIX}whoami` && req.method === "GET") {
     const session = await resolveGovernanceSession(req);
     if (!session) {
-      sendJson(res, 401, { error: { message: "Not logged in", type: "unauthorized" } });
+      sendJson(res, 401, {
+        error: { message: "Not logged in", type: GOVERNANCE_LOGIN_REQUIRED_TYPE },
+      });
       return true;
     }
     sendJson(res, 200, {

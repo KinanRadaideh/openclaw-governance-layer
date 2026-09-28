@@ -7,7 +7,12 @@
 // issued by /control-ui/governance/login. Hence `credentials: "same-origin"`.
 import type { GovernanceRole } from "../../../../src/governance/roles.ts";
 import type { GovernanceUserRecord, OrganisationDeletionResponse } from "./api.accounts.ts";
-import { GOVERNANCE_UNREACHABLE_MESSAGE, GovernanceApiError, refusal } from "./api.errors.ts";
+import {
+  GOVERNANCE_UNREACHABLE_MESSAGE,
+  GovernanceApiError,
+  refusal,
+  refusalFromBody,
+} from "./api.errors.ts";
 
 export { GOVERNANCE_UNREACHABLE_MESSAGE, GovernanceApiError } from "./api.errors.ts";
 
@@ -443,7 +448,7 @@ export class GovernanceApi {
     if (!response.ok) {
       const error =
         typeof parsed === "object" && parsed !== null && "error" in parsed
-          ? (parsed as { error?: { message?: unknown; remedy?: unknown } }).error
+          ? (parsed as { error?: { message?: unknown; remedy?: unknown; type?: unknown } }).error
           : undefined;
       // The remedy rides on the message because every panel shows `err.message`, and a refusal
       // without its next step is a dead end (finding 374).
@@ -452,7 +457,7 @@ export class GovernanceApi {
         typeof error?.message === "string"
           ? [error.message, remedy].filter(Boolean).join(" ")
           : `Request failed (${response.status})`;
-      throw refusal(message, response.status, this.authToken, opts?.authenticating === true);
+      throw refusal(message, response.status, error?.type, opts?.authenticating === true);
     }
     return parsed as T;
   }
@@ -947,17 +952,7 @@ export class GovernanceApi {
       throw signal?.aborted ? err : new GovernanceApiError(GOVERNANCE_UNREACHABLE_MESSAGE, 0);
     });
     if (!response.ok || !response.body) {
-      const text = await response.text();
-      let failure = `Request failed (${response.status})`;
-      try {
-        const parsed = text ? JSON.parse(text) : {};
-        if (typeof parsed?.error?.message === "string") {
-          failure = parsed.error.message;
-        }
-      } catch {
-        // A non-JSON error body is still an error; the status carries it.
-      }
-      throw refusal(failure, response.status, this.authToken);
+      throw refusalFromBody(await response.text(), response.status);
     }
 
     const reader = response.body.getReader();

@@ -1,4 +1,7 @@
 // Verifies lifecycle snapshot loading, ownership facts, and immutable boundaries.
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveAgentWorkspaceDir } from "../agents/agent-scope-config.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
@@ -477,6 +480,49 @@ describe("plugin metadata snapshot", () => {
       created,
     );
     expect(loadPluginRegistrySnapshotWithMetadata).toHaveBeenCalledTimes(2);
+  });
+
+  it("rescans a workspace whose own plugins changed after it was scanned", async () => {
+    // The one plugin source that differs between workspaces is `.openclaw/extensions`
+    // inside it. A shared scan must not hide a plugin added there later, which every read
+    // saw when every read rescanned.
+    const root = await mkdtemp(join(tmpdir(), "openclaw-ws-plugins-"));
+    try {
+      const config = { agents: { entries: { beta: { workspace: root } } } } as OpenClawConfig;
+      const workspaceDir = resolveAgentWorkspaceDir(config, "beta");
+      const index = makeIndex();
+      index.policyHash = resolveInstalledPluginIndexPolicyHash(config);
+      loadPluginRegistrySnapshotWithMetadata.mockReturnValue({
+        source: "provided",
+        snapshot: index,
+        diagnostics: [],
+      });
+      const gateway = loadPluginMetadataSnapshot({
+        config,
+        env: {},
+        index,
+        workspaceDir: "/ws/main",
+      });
+      setCurrentPluginMetadataSnapshot(gateway, { config, env: {}, workspaceDir: "/ws/main" });
+      loadPluginRegistrySnapshotWithMetadata.mockClear();
+
+      const before = resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir });
+      expect(resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir })).toBe(before);
+      expect(loadPluginRegistrySnapshotWithMetadata).toHaveBeenCalledTimes(1);
+
+      const plugin = join(workspaceDir, ".openclaw", "extensions", "late-plugin");
+      await mkdir(plugin, { recursive: true });
+      await writeFile(join(plugin, "openclaw.plugin.json"), "{}");
+
+      const after = resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir });
+      expect(after).not.toBe(before);
+      expect(loadPluginRegistrySnapshotWithMetadata).toHaveBeenCalledTimes(2);
+      // And the new scan is shared again until the folder changes once more.
+      expect(resolvePluginMetadataSnapshot({ config, env: {}, workspaceDir })).toBe(after);
+      expect(loadPluginRegistrySnapshotWithMetadata).toHaveBeenCalledTimes(2);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("keeps no snapshot for a directory no agent is configured with", () => {

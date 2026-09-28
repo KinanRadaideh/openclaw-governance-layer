@@ -24,6 +24,7 @@ import {
   type PolicyRule,
 } from "./policy-types.js";
 import { detectRuleConflicts, type RuleConflict } from "./rule-conflicts.js";
+import { MAX_STORED_RULE_DESCRIPTION_LENGTH } from "./rule-validation.js";
 import { writeGovernanceJson } from "./state-file.js";
 
 /**
@@ -597,6 +598,12 @@ export async function addRuleChecked(
   if (!description) {
     throw new MissingRuleDescriptionError();
   }
+  // Every writer fits its description first (a person's words are limited at the route,
+  // generated context is shortened where it is composed), so this is a backstop that keeps
+  // the stored bound true for a caller that forgot.
+  if (description.length > MAX_STORED_RULE_DESCRIPTION_LENGTH) {
+    throw new RuleDescriptionTooLongError(description.length);
+  }
   const full: PolicyRule = {
     ...rule,
     description,
@@ -669,6 +676,16 @@ export class MissingRuleDescriptionError extends Error {
   constructor() {
     super("A rule must have a description saying why it exists.");
     this.name = "MissingRuleDescriptionError";
+  }
+}
+
+/** Raised when a rule reaches the store described past the stored limit (T70). */
+export class RuleDescriptionTooLongError extends Error {
+  constructor(length: number) {
+    super(
+      `A rule's description may be at most ${MAX_STORED_RULE_DESCRIPTION_LENGTH} characters; this one is ${length}.`,
+    );
+    this.name = "RuleDescriptionTooLongError";
   }
 }
 

@@ -15,7 +15,7 @@ import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { HITL_ACTOR } from "../governance/admin-audit.js";
 import { tailLedger } from "../governance/audit-ledger.js";
-import { escalationRequestReason } from "../governance/policy-engine.js";
+import { escalationRequestReason, proposeRuleFromEscalation } from "../governance/policy-engine.js";
 import { loadPolicy, savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument, type PolicyRule } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
@@ -192,6 +192,27 @@ describe("a folder grant requires the operator's purpose", () => {
       (await operatorRules()).every((rule) => rule.description.startsWith("Deploy the web app")),
     ).toBe(true);
   });
+
+  // The purpose was stored whole with the folder and every exception appended, so a large
+  // grant stored descriptions of any length. The purpose still survives whole; only the
+  // generated half is shortened, and the patterns keep every path exactly.
+  it("keeps the purpose whole and bounds the description however large the grant", async () => {
+    const purpose = "p".repeat(500);
+    const exceptions = Array.from({ length: 20 }, (_, i) => `C:/srv/app/${"x".repeat(60)}-${i}`);
+    const result = await call("policy/folder-grant", session("user", ["agent-a"]), {
+      ...grant,
+      exceptions,
+      description: purpose,
+    });
+    expect(result.status).toBe(200);
+    const rules = await operatorRules();
+    expect(rules).toHaveLength(21);
+    for (const rule of rules) {
+      expect(rule.description.startsWith(`${purpose} (`)).toBe(true);
+      expect(rule.description.length).toBeLessThanOrEqual(1000);
+    }
+    expect(result.body.grant.description.endsWith("…)")).toBe(true);
+  });
 });
 
 describe("an approved rule request's reason becomes the rule's description", () => {
@@ -235,5 +256,53 @@ describe("an approved rule request's reason becomes the rule's description", () 
     expect(rule?.description).toBe(
       'Requested by lina, answering an escalation: Agent "agent-a" asked to run "exec" against command "make".',
     );
+  });
+
+  // A reason may be 500 characters, and is stored whole (finding 362); the prefix comes on
+  // top and fits the stored limit, so the approved rule carries every word of it.
+  it("stores a 500-character reason whole in the approved rule, prefix included", async () => {
+    const reason = "r".repeat(500);
+    const filed = await call("rule-requests", session("user", ["agent-a"]), {
+      ...scopedRule,
+      reason,
+    });
+    expect(filed.status).toBe(200);
+    await call("rule-requests/decide", session("administrator"), {
+      id: filed.body.id,
+      approve: true,
+    });
+    const [rule] = await operatorRules();
+    expect(rule?.description).toBe(`Requested by user: ${reason}`);
+  });
+
+  it("keeps an escalation's approved rule within the limit however long the resource", async () => {
+    const resource = `/srv/${"deep/".repeat(400)}file.txt`;
+    const outcome = await proposeRuleFromEscalation(groupId, {
+      agentId: "agent-a",
+      resourceKind: "path",
+      resource,
+      toolName: "read",
+      access: "read",
+      answeredBy: { name: "lina", role: "user" },
+    });
+    expect(outcome.status).toBe("pending");
+    await call("rule-requests/decide", session("administrator"), {
+      id: (outcome as { requestId: string }).requestId,
+      approve: true,
+    });
+    const [rule] = await operatorRules();
+    expect(rule?.description.length).toBeLessThanOrEqual(1000);
+    expect(rule?.description).toMatch(/^Requested by lina, answering an escalation: Agent/u);
+    // The rule still matches the exact resource; only the sentence about it was shortened.
+    expect(new RegExp(rule?.pattern ?? "^$").test(resource)).toBe(true);
+  });
+
+  it("shortens only the quoted resource when an escalation's sentence would not fit", () => {
+    const sentence = escalationRequestReason(
+      { agentId: "agent-a", toolName: "read", resourceKind: "path", resource: "x".repeat(2048) },
+      200,
+    );
+    expect(sentence.length).toBeLessThanOrEqual(200);
+    expect(sentence).toMatch(/^Agent "agent-a" asked to run "read" against path "x+…"\.$/u);
   });
 });

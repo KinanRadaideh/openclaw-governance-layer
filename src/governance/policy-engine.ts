@@ -43,6 +43,7 @@ import {
 } from "./policy-types.js";
 import { type GovernedToolSpec, resolveGovernedTool } from "./resource-extraction.js";
 import { RuleRequestCapacityError, submitRuleRequest } from "./rule-requests.js";
+import { requestReasonRoom } from "./rule-validation.js";
 import { findLockedAncestor, lineageUnknown } from "./session-lineage.js";
 import { findUsersForAgent } from "./user-store.js";
 
@@ -378,17 +379,28 @@ async function resolveGovernedParamBinding(
  * (finding 393). It used to end "Approving makes that permanent; rejecting leaves it
  * needing approval each time.", which the rule then carried as its title for good.
  */
-export function escalationRequestReason(input: {
-  agentId: string;
-  toolName: string;
-  resourceKind: string;
-  resource: string;
-  access?: string;
-}): string {
-  return (
+export function escalationRequestReason(
+  input: {
+    agentId: string;
+    toolName: string;
+    resourceKind: string;
+    resource: string;
+    access?: string;
+  },
+  maxLength = Number.POSITIVE_INFINITY,
+): string {
+  const sentence = (resource: string) =>
     `Agent "${input.agentId}" asked to run "${input.toolName}" against ` +
-    `${input.resourceKind} "${input.resource}"${input.access ? ` (${input.access})` : ""}.`
-  );
+    `${input.resourceKind} "${resource}"${input.access ? ` (${input.access})` : ""}.`;
+  const whole = sentence(input.resource);
+  if (whole.length <= maxLength) {
+    return whole;
+  }
+  // The sentence becomes the approved rule's description, which is limited (T70). This
+  // text is the system's, not a person's, so the quoted resource is shortened to fit; the
+  // rule's own pattern still carries the resource exactly.
+  const keep = Math.max(0, input.resource.length - (whole.length - maxLength) - 1);
+  return sentence(`${input.resource.slice(0, keep)}…`);
 }
 
 /**
@@ -483,7 +495,13 @@ export async function proposeRuleFromEscalation(
       ...(input.answeredBy
         ? { answeredBy: input.answeredBy.name, answeredByRole: input.answeredBy.role }
         : {}),
-      reason: escalationRequestReason({ ...input, agentId }),
+      reason: escalationRequestReason(
+        { ...input, agentId },
+        requestReasonRoom({
+          requestedBy: HITL_ACTOR,
+          ...(input.answeredBy ? { answeredBy: input.answeredBy.name } : {}),
+        }),
+      ),
     });
     return { status: "pending", requestId: request.id };
   } catch (error) {
