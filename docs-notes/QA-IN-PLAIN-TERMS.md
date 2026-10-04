@@ -8498,3 +8498,54 @@ to mean the person had been signed out. It now says it is reconnecting and carri
   succeed", next to a button that could not be pressed (394). It now says the agent is not
   theirs.
 - When the emergency stop ended a task, the reason appeared twice (387). Now once.
+
+**A second look at the fixes, and two small leftovers (2026-09-28 and 29).** Once everything was
+committed, the fixes were reviewed again from scratch. Three were made tighter. The fence around
+another agent's folder (385) could be slipped by reaching the folder through a shortcut or by
+spelling it differently; it now compares the real location. The page's way of telling "the
+server is reconnecting" from "you have been signed out" (396) could, on a server set up without a
+connection password, mistake a real sign-out for a reconnect; the governance layer now labels its
+own "please sign in again", so the two can no longer be confused. And a rule's explanation could
+grow without limit once the system added who asked and which folders a grant covered; what a
+person types is still limited to 500 characters and never cut, the stored explanation is limited
+to 1,000, and only the part the system added is shortened. Two small leftovers from the check
+were fixed as well: a message that said an agent "is now owned by" someone stayed on screen after
+the owner changed back (it now says what was done, which stays true), and a User was offered an
+"Add rule" button that could only be refused (it now waits until the User picks one of their
+agents). Finding 169, an old test failure nobody has been able to reproduce, was closed by Kinan
+as not reproducible, without a fix. Everything is committed.
+
+## 5.124 A feature check and the dashboard used again (findings 397 to 402)
+
+On 3 October two checks were run. The first picked fourteen of the dashboard's 46 operations
+(twelve by a fixed random draw, two chosen because they had changed or were about to be written
+up) and checked each one: who may use it, what it says when it refuses, whether it is recorded,
+whether the page offers it, and whether the report describes it correctly. The second used the
+page itself on the running copy, with the stand-in AI model, as an Administrator, a User and a
+Viewer, looking for anything a person would find confusing, slow or missing. Six things were
+found, all fixed; each fix was shown to be needed by a test that failed without it.
+
+**An Administrator could not give their staff an agent (finding 397).** The report says an
+Administrator assigns agents to the Users and Viewers who answer to them, and the server allowed
+it, but the page only ever showed Root the list of accounts. So an Administrator could do it only
+by sending a hand-written request. Worse, the server let any Administrator change the agents of
+anyone's staff, not just their own. Now an Administrator has a "Your accounts" section listing
+exactly the people who answer to them, and the server refuses changes to anybody else's staff.
+
+**A typing mistake became a rule for an agent that does not exist (finding 399).** An
+Administrator writing a rule for `zetta` instead of `zeta` was not stopped. The rule did nothing,
+the agent list then showed `zetta` as if it were a real agent waiting to be registered, and any
+agent created later under that name would have inherited the rule. Rules, folder permissions and
+per-agent settings can now be written only for agents that are actually registered, and the list
+says plainly when a name appears only in the rules.
+
+**Smaller things that made the page harder to use (398, 400, 401, 402).** The audit log loaded
+200 entries but showed 50, with no way to see the rest; it now has a "Show the other … loaded
+entries" button. Four boxes asking for an agent offered no suggestions while others did; now all
+do. Stopping an agent that was not doing anything showed a warning telling the operator to check
+the name, although the stop had worked; it now says plainly that nothing needed stopping. And
+while an agent waited for a person's approval, the conversation just said "Working", with the
+question at the very top of a long page; it now says it is waiting for you and links to the
+question, and an "Always allow" answer now says that an Administrator still has to approve the
+permanent version. Messages from earlier days now show their date, and the message box takes
+several lines.

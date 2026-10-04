@@ -85,11 +85,13 @@ table is used.
 **A condition the discussion must name (finding 395).** Creating an agent blocked the
 Gateway's event loop for 35 to 60 s, and during that time no request was answered, the
 stop included: a lockdown pressed then took effect only when the Gateway answered again.
-The dashboard's controls stayed pressable (finding 384). A separate session fixed most of
-it on 2026-09-28 (uncommitted when this was written): the longest `/healthz` wait during
-a provisioning fell from 28–35 s to about 6 s on two isolated Gateways. Quote the figure
-that holds once that fix is committed, and do not claim the one-second bound holds while
-an agent is being created.
+The dashboard's controls stayed pressable (finding 384). **Fixed and committed**
+(`15bebeb58b0`; bounded after review in `46fe1ae6f60`, `d436e8effb6`). Measured on isolated
+Gateways after startup: slowest `/healthz` during an agent's creation 28.2–34.5 s before,
+5.4–6.4 s after; creating an agent 28.8–44.0 s before, 5.9–7.0 s after. About 6 s remains
+(real work for the new workspace). Do not claim the one-second bound holds while an agent is
+being created; state the window. Possible results-table row: "Gateway unresponsive during
+agent creation, before and after finding 395".
 
 **The discussion that has to go with it**, and this is the part the table cannot
 carry on its own:
@@ -148,7 +150,7 @@ Confirm & The host's registry reports those runs gone & 2{,}170\,ms, 2{,}760\,ms
 
 **The confirmed stop has not been re-measured on the VPS**, and the deployment
 target is the machine the figure should be quoted from. It is blocked by the VPS
-connectivity probe failure that also blocks the dashboard. `DIVERGENCES.md` §1.4
+connectivity probe failure that also blocks the dashboard. `report/DOCUMENTATION-UPDATES.md` §5.1
 already says to quote the VPS figure once it exists. If it lands under a second
 there, the discussion above shortens considerably and Chapter 4 gets a clean
 number. **This is the highest-value outstanding measurement for Chapter 4.**

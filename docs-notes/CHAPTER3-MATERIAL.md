@@ -10953,6 +10953,15 @@ later operator can act on, why the rule exists.
   rest. The limit, `MAX_RULE_DESCRIPTION_LENGTH`, is 500, one constant shared with a rule
   request's reason, because an approved reason becomes the rule's description. Over-limit is
   refused, never cut (finding 362's rule).
+- **The stored limit (added by the review, 2026-09-29).** The system composes context around a
+  person's words ("Requested by …, answering an escalation: ", a folder grant's folder and every
+  exception, an escalation's quoted resource of up to 2,048 characters), so a stored description
+  has its own bound, `MAX_STORED_RULE_DESCRIPTION_LENGTH` = 1,000, enforced in `addRuleChecked`
+  (`RuleDescriptionTooLongError`) as a backstop. Only the generated context is shortened, with a
+  mark (`describeWithContext`, `fitGeneratedDescription`); the person's up-to-500 characters
+  survive whole, and a rule's pattern keeps the resource whole. A first version refused long
+  reasons and large grants outright; finding 362's tests and the folder grant's largest-grant
+  test caught it.
 - **Sources of the sentence.** Core and baseline rules keep their descriptions declared in
   `baseline-policy.ts`. A direct rule's is typed by its author. A folder grant takes the
   operator's **purpose**, which leads the description of the grant and of every exception it
@@ -11034,7 +11043,7 @@ findings: fifteen fixed the same day (each proved red by a test first, then re-c
 a rebuilt Gateway), and 395 (upstream) fixed on 2026-09-28. The engineering record is
 `mg/QA-SESSION-2026-09-27.md`; the rows are in `GOVERNANCE.md`; the plain account is
 `QA-IN-PLAIN-TERMS.md` §5.123; what each changes in Chapter 3 is
-`docs-notes/report/QA-2026-09-27-FOR-THE-REPORT.md`. The design material follows.
+`docs-notes/report/DOCUMENTATION-UPDATES.md`. The design material follows.
 
 **Agent workspaces nested in the default agent's (385; §3.5.8, Tenancy).**
 
@@ -11066,7 +11075,13 @@ a rebuilt Gateway), and 395 (upstream) fixed on 2026-09-28. The engineering reco
   would still return nested agents' files. `search-audit.ts` withholds results under the
   nested roots the way it withholds a denied path. A search result has no approval path, so
   withholding is the only safe outcome there; a direct read of a named file can still be put
-  to a person (a decision left to Kinan in `DOC-CHANGES-AFTER-T70.md` §6).
+  to a person (a decision left to Kinan in `DOCUMENTATION-UPDATES.md` §9). **Refined by the
+  2026-09-28/29 review:** search results are compared in canonical form, while the roots came
+  from the configured spelling, so a workspace reached through a link (or macOS `/var` →
+  `/private/var`, or a different case) escaped. `canonicalNestedAgentWorkspaceRoots` now
+  resolves the roots once per configuration snapshot and `isWithheld` compares them
+  case-folded. The canonicalizer's own relative comparison (above) is unaffected: both sides
+  there come from the same configuration.
 
 **Ownership invariants held across two stores (381, 382, 383; Ownership and Assignment).**
 
@@ -11114,10 +11129,15 @@ reads.
 **The two gates are refused separately (396; Two-Gate Authentication).** The dashboard answers
 the Gateway's credential gate with its connection's device token, and there is none between the
 Gateway answering HTTP again after a restart and the socket reconnecting. The page read every
-401 as the governance session ending. It now tells the two gates' refusals apart by whether the
-request carried the credential: without it, the page is reconnecting and the session stands;
-with it, the session has ended. The accepted tradeoff, named in the code: on a Gateway with no
-credential at all, a lost session shows as reconnecting.
+401 as the governance session ending. It now tells the two gates' refusals apart by **type**:
+governance marks its own 401 `governance_login_required`
+(`src/gateway/governance-login-required.ts`, mirrored in `ui/src/pages/governance/api.errors.ts`
+and pinned by a test), and the page ends the session on that type only; any other 401 is the
+Gateway's gate, shown as reconnecting while the session stands. _(The first fix decided by
+whether the request had carried a credential, which left a tradeoff: on a Gateway that gives the
+page no device token, a real sign-out showed as reconnecting. The type removed it, 2026-09-29,
+proved red first.)_ The design point for the report: each gate answers in its own words, so a
+refusal from one is never mistaken for the other.
 
 **An emergency control must not wait on ordinary work (384, 395; Kill Switch).** On the page,
 the stop controls read the same `busy` flag as every other action, so creating an agent (35–77
@@ -11130,9 +11150,12 @@ not one rediscovery but five: the Gateway publishes one plugin metadata snapshot
 default agent's workspace, and every reader requires the workspace to match, so a new agent's
 workspace sent each reader (model runtime, memory-slot selection, ambient credentials, the
 hot-reload auth warm-up once per agent, skill commands) to rescan the disk on its own. The owner
-(`current-plugin-metadata-snapshot.ts`) now keeps one snapshot per agent workspace, belonging to
-the current publication and dropped with it, each read still passing the same compatibility
-check; one scan per new workspace remains. Provisioning 28.8–44.0 s → 5.9–7.0 s, worst health
+(`current-plugin-metadata-snapshot.ts`) now keeps one snapshot per **configured** agent
+workspace (bounded after review, `listAgentWorkspaceDirs`), belonging to the current publication
+and dropped with it, each read still passing the same compatibility check, and reused only
+while a fingerprint of that workspace's own `.openclaw/extensions` folder still matches
+(`workspacePluginRootSignature`, so plugins added later are seen); one scan per new workspace
+remains. Committed `15bebeb58b0`, `46fe1ae6f60`, `d436e8effb6`. Provisioning 28.8–44.0 s → 5.9–7.0 s, worst health
 check 28.2–34.5 s → 5.4–6.4 s. The residue (one scan, loading the workspace's plugins, a
 skill-file scan) is a limitation worth one sentence; upstream's later redesign, one snapshot
 covering every agent workspace, is the future-work item.
@@ -11149,3 +11172,36 @@ failed, 206 files; all three typechecks, `oxlint`, `oxfmt`, i18n verification an
 build clean. After 396 (dashboard only): the governance UI tests, the UI typecheck, lint and
 format clean. Every fix was re-checked live on the rebuilt QA Gateway (`mg/QA-SESSION-2026-09-27.md`
 §§17–18).
+
+### 3.5.97 The feature sweep and live QA of 2026-10-03 (findings 397–402)
+
+Engineering record: `mg/WORK-LOG-2026-10-03.md`; rows: `GOVERNANCE.md`; plain account:
+`QA-IN-PLAIN-TERMS.md` §5.124; what each changes in Chapter 3:
+`docs-notes/report/DOCUMENTATION-UPDATES.md` §4 and §5.
+
+**Assignment belongs to the account's own Administrator (397; §3.5.4 Access Control).**
+`users/agents` was Administrator-tier with no subject check: `assertAssignable` constrains the
+_agents_ (owned by the account's manager, or by Root) but nothing constrained _whose account_.
+The design (M4) gives each Administrator a silo; a second Administrator acting on the first one's
+staff crossed it, in both directions (emptying an assignment, or granting an agent the owner had
+withheld). The route now requires `target.managedBy === session.userId` below Root. The page had
+no Administrator surface for the route at all, so `GET users/managed` returns the caller's own
+Users and Viewers (Root: all of them) in `GovernanceUserRecord` shape minus `canAuthorPolicy`,
+and the account section renders _Your accounts_ for the Administrator tier. Assignment remains
+agent management, not account management: an Administrator still cannot create, delete, re-role
+or reset the password of any account.
+
+**Policy writes name a registered agent (399; §3.5.2.1 Rule Model, §3.5.2.5 Folder Grants).**
+Agent-scoped rules, folder grants, and per-agent posture and escalation overrides are refused
+(409 `agent_not_registered`) for an id not registered in the organisation;
+clearing an override stays open so stale state can be removed. The reasoning is finding 379's
+(an unregistered id can never act, M5) plus a latent-inheritance hazard: the write waited for any
+later registration under that id. The listing marks each unregistered row `onHost`, so an id
+named only by policy is shown as such and not offered for registration.
+
+**Interface (398, 400, 401, 402; §3.5.11 Management Interface).** The ledger view keeps every
+loaded entry reachable (a `<details>` disclosure after the first fifty) and calls 200 "loaded",
+not the trail's size; every agent-id field offers the agent list; a lockdown with nothing running
+is reported as a completed stop; a conversation whose run waits for the operator's own approval
+says so and links to the card; an _Always allow_ answer is confirmed as a rule request and
+refreshes the page.

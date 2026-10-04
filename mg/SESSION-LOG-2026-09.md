@@ -5894,3 +5894,18 @@ stood two days earlier, a catalogue excerpt no longer matched its function, and 
 contradicted itself about requirement 9. Comments marking what each Chapter 3 heading must now
 say are in `docs-notes/report/CH3-EDIT-COMMENTS-2026-09-28.md`, not in `chapter3.tex`. Record:
 `mg/WORK-LOG-2026-09-28.md`; summary: `mg/HANDOFF-2026-09-28.md`. Nothing committed.
+
+## 2026-09-29: committed, reviewed, and the notes brought level
+
+At Kinan's word everything from 2026-09-27 and 28 was committed and pushed, seven commits ending
+at `0b477ce46db`. A fresh code review of the two code commits raised nine candidates; the real ones
+were fixed, each red first: finding 385's search withholding now compares the canonical locations
+of other agents' workspaces (a link or a different spelling had slipped past), finding 395's
+per-workspace plugin lists are kept only for configured workspaces and re-checked against each
+workspace's plugin folder, finding 396's two refusals are told apart by a type governance puts on
+its own ("governance_login_required"), which removed a tradeoff, and a rule's stored description
+is bounded at 1,000 characters while a person's 500 are never cut. The final code: governance
+suite 3,334 passed / 21 skipped / 0 failed, the full lint gate exit 0. The two low observations of
+the QA were fixed; finding 169 was closed by Kinan as not reproducible, without a fix. The handoffs,
+the Chapter 3 edit comments, the per-heading notes and the registers were then updated to the
+committed code. Overview: `mg/SESSION-SUMMARY-2026-09-29.md`; record: `mg/WORK-LOG-2026-09-29.md`.

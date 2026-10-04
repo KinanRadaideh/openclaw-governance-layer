@@ -5,15 +5,16 @@ is as written on 2026-09-26). This handoff is for the next writer working on
 Chapter 3. It supersedes the earlier status that Chapter 3 stopped at Sections
 3.3 or 3.4. The project-wide summary of those two days is `mg/HANDOFF-2026-09-28.md`.
 
-## 0. What changed on 2026-09-27 and 28, for the writer
+## 0. What changed on 2026-09-27 to 29, for the writer
 
 - **Three sections written** by Kinan (3.5.2.1 Rule Model, 3.5.2.2 Evaluation Order, 3.5.2.3
   Path Canonicalization) and synced from his paste. Next: **3.5.2.4 Baseline Policy**.
 - **The system changed under the chapter.** T70 made every rule carry a required description,
   and the dashboard QA fixed findings 381–396. Several headings now owe a sentence or a
-  paragraph, including the three just written. Per heading, with sources:
-  `CH3-EDIT-COMMENTS-2026-09-28.md` (the LaTeX comments, not yet in `chapter3.tex`),
-  `QA-2026-09-27-FOR-THE-REPORT.md` and `T70-FOR-THE-REPORT.md` §7.
+  paragraph, including the three just written. **Since 2026-10-03 everything still owed, per
+  heading, is in one file: `docs-notes/report/DOCUMENTATION-UPDATES.md`**, checked against Kinan's 2026-10-03
+  paste (written through 3.5.6.1 in Overleaf). The older per-topic files were folded into it and
+  deleted.
 - **Code panels are dark**, drawn by `reportcodebox`; every `lstlisting` goes inside one
   (`WRITING-GUIDE.md`, "Code panels are dark, not light"). In the repo; Kinan's Overleaf gets it
   through T71.
@@ -22,6 +23,25 @@ Chapter 3. It supersedes the earlier status that Chapter 3 stopped at Sections
   not `CODE-SNIPPETS.md`'s; cite by label.
 - **The note files were QA'd** against the chapter, the compiled report and the code
   (`mg/WORK-LOG-2026-09-28.md`); still treat them as research aids, not specifications.
+- **2026-09-29: everything committed and pushed** (`0b477ce46db`), after a fresh code review
+  that changed four facts the chapter will state: rule descriptions have two limits (a person's
+  500 characters, never cut; a stored description at most 1,000, only generated context
+  shortened); finding 396's two refusals are told apart by type (`governance_login_required`),
+  not by whether a credential was sent; finding 385's search withholding compares canonical
+  roots; finding 395 is fixed, and about 6 s of Gateway unresponsiveness remains while an agent
+  is created. The edit comments and both per-heading notes carry these. Findings stand at
+  396 / 396 / 0, with 169 closed as not reproducible (not "fixed"). Overview:
+  `mg/SESSION-SUMMARY-2026-09-29.md`.
+- **Pending System Security paragraph:** Section 10 of this handoff preserves Kinan's accepted
+  placement and draft for the arbitrary-code-runner limitation. Do not add it to the report until
+  the `runs-arbitrary-code` warning is committed and the paragraph is rechecked against that
+  commit. Do not edit `chapter3.tex` for this item unless Kinan asks; his Overleaf copy is the
+  report master.
+- **Pending checkpoint-tail limitation (2026-10-02):** Kinan removed the detailed overwrite
+  case from Hash Chaining and Verification. Section 10 records it for the later System Security
+  subsection, which already owns accepted limitations. Chapter 5 may then present an off-host or
+  append-only checkpoint as future work. Do not restore the case to the finalized ledger sections.
+  Implementation follow-ups are T73 and T74 in `mg/REMAINING-WORK.md`.
 
 ## 1. Current document state
 
@@ -49,8 +69,8 @@ written 17 | stub 26 | total 43
 
 Written material ends after Section 3.5.2.3, Path Canonicalization. The next stub
 is 3.5.2.4 Baseline Policy; `WRITING-GUIDE.md` has a section note for it. What the
-recent work (T70, findings 381–396) changes in each heading, written or not, is in
-`QA-2026-09-27-FOR-THE-REPORT.md` and `T70-FOR-THE-REPORT.md` §7 beside this file.
+recent work changes in each heading, written or not, is in `DOCUMENTATION-UPDATES.md`
+beside this file. (Overleaf is ahead of this count: written through 3.5.6.1 on 2026-10-03.)
 
 Kinan chooses the order. Write one requested section at a time and paste the
 complete LaTeX into chat. Do not silently replace additional stubs.
@@ -66,8 +86,8 @@ Use this order:
 3. Read the relevant entries in `GOVERNANCE.md` and
    `docs-notes/QA-IN-PLAIN-TERMS.md` when the section depends on defect history
    or verification evidence.
-4. Read `docs-notes/report/DIVERGENCES.md` when Chapters 1 or 2 proposed a
-   different mechanism.
+4. Read `docs-notes/report/DOCUMENTATION-UPDATES.md` §2 and §5 when Chapters 1 or 2
+   proposed a different mechanism.
 5. Inspect the current implementation and focused tests. Code and current tests
    decide what the built system does.
 
@@ -80,24 +100,20 @@ more than one Markdown file.
 
 ## 3. Main material files
 
-| File                                                | Purpose                                                                                     |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `docs-notes/report/chapter3.tex`                    | Current accepted Chapter 3 prose and remaining outline                                      |
-| `docs-notes/report/main-reference.tex`              | Current report context, preamble, earlier chapters, bibliography, and appendices            |
-| `docs-notes/CHAPTER3-MATERIAL.md`                   | Raw Chapter 3 material organized by destination section                                     |
-| `docs-notes/WRITING-GUIDE.md`                       | Writing rules, evidence limits, and chapter routing                                         |
-| `docs-notes/report/DIVERGENCES.md`                  | Verified differences between the preliminary and developed designs                          |
-| `GOVERNANCE.md`                                     | Engineering finding register                                                                |
-| `docs-notes/QA-IN-PLAIN-TERMS.md`                   | Plain-language explanation of QA findings                                                   |
-| `docs-notes/FIGURES.md`                             | Prose, Mermaid, and TikZ sources for design drawings                                        |
-| `docs-notes/CODE-SNIPPETS.md`                       | Recommended source-code figures, their LaTeX, and source paths                              |
-| `docs-notes/CHAPTER4-MATERIAL.md`                   | Chapter 4's spine, ready tables (the kill-switch table), and claims not to overstate        |
-| `docs-notes/report/CH3-EDIT-COMMENTS-2026-09-28.md` | The comments marking what each Chapter 3 heading must change after T70 and findings 381–396 |
-| `docs-notes/report/QA-2026-09-27-FOR-THE-REPORT.md` | Findings 381–396, per Chapter 3 heading, in plain terms                                     |
-| `docs-notes/report/T70-FOR-THE-REPORT.md`           | T70's account, with LaTeX drafts (§7)                                                       |
-| `docs-notes/report/DOC-CHANGES-AFTER-T70.md`        | Every documentation change T70 and the QA need; only §1 (the registers) applied             |
-| `mg/HANDOFF.md`                                     | Historical engineering handoff and detailed project record                                  |
-| `mg/NEXT-AGENT.md`                                  | Current short prompt for the next agent                                                     |
+| File                                         | Purpose                                                                                    |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `docs-notes/report/chapter3.tex`             | Current accepted Chapter 3 prose and remaining outline                                     |
+| `docs-notes/report/main-reference.tex`       | Current report context, preamble, earlier chapters, bibliography, and appendices           |
+| `docs-notes/CHAPTER3-MATERIAL.md`            | Raw Chapter 3 material organized by destination section                                    |
+| `docs-notes/WRITING-GUIDE.md`                | Writing rules, evidence limits, and chapter routing                                        |
+| `docs-notes/report/DOCUMENTATION-UPDATES.md` | The one file of everything the report and repo documents still owe; delete items when done |
+| `GOVERNANCE.md`                              | Engineering finding register                                                               |
+| `docs-notes/QA-IN-PLAIN-TERMS.md`            | Plain-language explanation of QA findings                                                  |
+| `docs-notes/FIGURES.md`                      | Prose, Mermaid, and TikZ sources for design drawings                                       |
+| `docs-notes/CODE-SNIPPETS.md`                | Recommended source-code figures, their LaTeX, and source paths                             |
+| `docs-notes/CHAPTER4-MATERIAL.md`            | Chapter 4's spine, ready tables (the kill-switch table), and claims not to overstate       |
+| `mg/HANDOFF.md`                              | Historical engineering handoff and detailed project record                                 |
+| `mg/NEXT-AGENT.md`                           | Current short prompt for the next agent                                                    |
 
 The model reports used as local structural references are the two `.docx` files
 under `C:\Users\kinan\OneDrive\Desktop\Uni\GradProj`. They inform chapter
@@ -243,3 +259,66 @@ figure crosses into the following subsection, add `\FloatBarrier` before the
 new subsection rather than forcing every figure with `[H]`.
 
 Do not commit or push unless Kinan explicitly requests it.
+
+## 10. Pending material for System Security
+
+### Checkpoint evidence can be replaced after tail removal
+
+Kinan chose on 2026-10-02 to remove this edge case from Hash Chaining and
+Verification and retain it for a later accepted-limitations discussion. Its
+preferred Chapter 3 destination is the System Security subsection,
+`\label{sec:gov-security}`, because that subsection already owns residual
+security limitations. If the Chapter 3 treatment remains brief, carry the
+remedy into Chapter 5 as future work.
+
+The limitation is precise. A checkpoint at sequence 100 exposes a ledger whose
+tail has been removed back to sequence 95. If a legitimate action is appended
+before verification, the writer creates a new entry 96 and replaces the
+checkpoint with the new head at sequence 96. The shortened chain and the new
+checkpoint then agree, so local verification no longer proves that the original
+entries 96 through 100 existed. The attacker still cannot rewrite interior
+entries or create a valid HMAC without the installation key. Preserving the old
+head in off-host or append-only storage would retain evidence of the removed
+tail and is the corresponding future-work direction.
+
+Do not describe this as every tail deletion passing verification. The deletion
+is detectable while the older, contradictory checkpoint remains. It becomes
+undetectable to the local verifier only after a later legitimate append replaces
+that checkpoint. T73 tracks the append-time preservation and operator recovery
+work. T74 tracks an independent off-host witness for already anchored history.
+
+### Arbitrary-code allowances can bypass command-text denials
+
+The following paragraph belongs in the System Security subsection,
+`\label{sec:gov-security}`. Place it after the filesystem-race and native-harness
+limitations already named by that stub. Nothing in the finalized sections needs
+to change.
+
+The paragraph depends on the `runs-arbitrary-code` warning returned by
+`describeRuleRisks` in `src/governance/rule-validation.ts`. As of 2026-09-30,
+that warning exists in the working tree but not in `HEAD`. Before placing the
+paragraph in the report, confirm that the warning and its focused tests are
+committed, then recheck the function, both warning surfaces, and the policy
+behavior described below. Hold the paragraph if those conditions are not met.
+
+```latex
+The command denials protecting the governance directory match the text of a
+command, so they cannot recognize a path that the command assembles while it
+runs. An allowance such as \lstinline~^python3 .*$~ lets the agent pass its own
+code to an interpreter, and that code can build the location of
+\texttt{policy.json} from fragments that match no denial. Tool execution runs
+under the same operating-system account as the Gateway, so the code can then set
+its own agent's posture to \texttt{monitor} or the installation's posture to
+\texttt{off}. \texttt{loadPolicy} accepts both values. The ledger records the
+interpreter command but no posture change, because the edit does not pass
+through the governance functions that record administrative actions. When an
+allowance would admit an interpreter or a tool that starts another program,
+\texttt{describeRuleRisks} in \texttt{src/governance/rule-validation.ts} returns
+the \texttt{runs-arbitrary-code} warning. The warning appears both when the rule
+is added and when an Administrator previews a rule request. It does not block
+the rule, because some agents need to run code for their work. Closing the
+exposure fully would require running tools under a separate operating-system
+identity that cannot reach the governance directory, such as OpenClaw's
+container sandbox. That configuration has not been evaluated with the
+governance layer and is left as future work.
+```

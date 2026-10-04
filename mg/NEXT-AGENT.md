@@ -1,23 +1,24 @@
 # Prompt for the next agent
 
-> **Start at `mg/HANDOFF-2026-09-28.md`** (updated 2026-09-28, end of day). It summarises
-> 2026-09-27 and 28 in one place: the report's state, what changed in it, what each Chapter 3
-> heading still owes, and what is open. **If you are writing the report with Kinan**, read in
-> this order:
+> **Start at `mg/HANDOFF-2026-09-28.md`** (updated 2026-09-29). It summarises 2026-09-27 to 29
+> in one place: the report's state, what changed in it, what each Chapter 3 heading still owes,
+> and what is open. The engineering side of the last day is `mg/SESSION-SUMMARY-2026-09-29.md`.
+> **If you are writing the report with Kinan**, read in this order:
 >
 > 1. `mg/HANDOFF-2026-09-28.md` §1–§4;
 > 2. the report-writing rules in the lower half of this file, and `docs-notes/WRITING-GUIDE.md`;
 > 3. `docs-notes/report/WRITING-HANDOFF.md`;
-> 4. `docs-notes/report/CH3-EDIT-COMMENTS-2026-09-28.md`, then
->    `docs-notes/report/QA-2026-09-27-FOR-THE-REPORT.md` and
->    `docs-notes/report/T70-FOR-THE-REPORT.md` §7;
-> 5. `docs-notes/report/DIVERGENCES.md`.
+> 4. `docs-notes/report/DOCUMENTATION-UPDATES.md`: since 2026-10-03 the one file of
+>    everything the report and the repo documents still owe (it replaced the edit comments, the
+>    QA and T70 notes, DOC-CHANGES and DIVERGENCES, which were deleted).
 >
 > Chapter 3: **17 written / 26 stubs**, next **3.5.2.4 Baseline Policy**. Kinan's Overleaf is the
 > master copy; ask for a fresh paste before editing. Code panels are **dark** (T71: Kinan copies
-> that into Overleaf). Nothing is committed.
+> that into Overleaf). Findings 396 / 396 / 0, but 169 was closed as not reproducible, without a
+> fix: never write "all fixed". Everything is committed and pushed at `0b477ce46db`; commit
+> nothing further without Kinan's word.
 
-**Current through 2026-09-28.** This is the short, current handoff. Historical engineering
+**Current through 2026-09-29.** This is the short, current handoff. Historical engineering
 detail remains in `mg/HANDOFF.md`; report-specific detail remains in
 `docs-notes/report/WRITING-HANDOFF.md`. The report-writing rules further down still apply to
 every `.tex` change.
@@ -40,8 +41,8 @@ In his words, condensed:
    - (b) one **describing everything that happened with T70**, for later inclusion in
      the report.
 
-   Suggested names: `docs-notes/report/DOC-CHANGES-AFTER-T70.md` and
-   `docs-notes/report/T70-FOR-THE-REPORT.md`. Tell Kinan where they are.
+   (Done 2026-09-27; since 2026-10-03 both are folded into
+   `docs-notes/report/DOCUMENTATION-UPDATES.md`.)
 
 **Kinan pasted the entire report-so-far with this request.** It is newer than the repo:
 **3.5.2.1 Rule Model, 3.5.2.2 Evaluation Order and 3.5.2.3 Path Canonicalization are
@@ -110,7 +111,7 @@ Kinan. Preserve his latest wording and follow his requested section order.
 
 1. `AGENTS.md`, including any scoped instructions for files you touch.
 2. `mg/NEXT-AGENT.md` and `docs-notes/report/WRITING-HANDOFF.md`.
-3. `docs-notes/report/DIVERGENCES.md` and `docs-notes/WRITING-GUIDE.md`.
+3. `docs-notes/report/DOCUMENTATION-UPDATES.md` and `docs-notes/WRITING-GUIDE.md`.
 4. `docs-notes/report/chapter3.tex`, then
    `docs-notes/report/main-reference.tex` when preamble, labels, or earlier
    chapters matter.
@@ -138,8 +139,8 @@ The report cannot be written from one document alone.
 - The current code and its focused tests are authoritative for what the system
   actually does. Inspect the owning function, its callers, and its tests before
   describing behavior.
-- `DIVERGENCES.md` explains where the developed design differs from Chapters 1
-  and 2. State and justify every relevant difference.
+- `DOCUMENTATION-UPDATES.md` §2 and §5 say where the developed design differs from
+  Chapters 1 and 2. State and justify every relevant difference.
 - `FIGURES.md` and `CODE-SNIPPETS.md` are the editable sources of figure content.
   Use LaTeX labels in prose; never rely on a typed figure number.
 
@@ -200,9 +201,8 @@ Chapter 3 is written through:
 The next unwritten heading is 3.5.2.4 Baseline Policy (the writing guide has a
 section note for it). Continue one section at a time in Kinan's chosen order. Do
 not replace later stubs until he asks for those sections. What the recent work
-(T70, findings 381–396) changes in each heading is listed in
-`docs-notes/report/QA-2026-09-27-FOR-THE-REPORT.md` and
-`docs-notes/report/T70-FOR-THE-REPORT.md` §7.
+changes in each heading is listed in
+`docs-notes/report/DOCUMENTATION-UPDATES.md`.
 
 ## Figures and code excerpts
 
