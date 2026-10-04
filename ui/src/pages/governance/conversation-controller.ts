@@ -177,6 +177,11 @@ export class ConversationController implements ReactiveController {
    * job. Both run-control bundles share one cancel path, so the composer and
    * *Active agent sessions* can never disagree about what a press did.
    */
+  /** The agent whose conversation is open, or "" (finding 402: the page counts its escalations). */
+  openAgentId(): string {
+    return this.agentId;
+  }
+
   panelProps(page: {
     refresh: () => Promise<void>;
     assignDrafts: (patch: Record<string, unknown>) => void;

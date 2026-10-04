@@ -8,15 +8,20 @@ import { randomBytes } from "node:crypto";
 // changes, not a correctness requirement today.
 import { mkdir } from "node:fs/promises";
 import { readJsonIfExists } from "../infra/json-files.js";
-import { isValidAgentId, normalizeAgentId } from "../routing/session-key.js";
+import {
+  AccountStillExistsError,
+  finishDeletedAccount,
+  SessionRevocationError,
+  type AccountDeletion,
+} from "./account-deletion.js";
 import { canonicalAccountName } from "./account-name.js";
-import { purgeAccountState } from "./account-purge.js";
 import {
   ADMIN_ACTIONS,
   isReservedActorName,
   recordAdminAction,
   type AuditActorInput,
 } from "./admin-audit.js";
+import { normalizeAgentIds } from "./agent-ids.js";
 import { withFileLock } from "./file-lock.js";
 import { newGovernanceId } from "./ids.js";
 import { forgetLoginThrottle } from "./login-throttle.js";
@@ -24,6 +29,9 @@ import { hashPassword, needsRehash, verifyPassword } from "./password.js";
 import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import { governanceHomeDir, usersFilePath } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
+import { revokeSessionsForUser } from "./session-tokens.js";
+
+export { AccountStillExistsError, SessionRevocationError, type AccountDeletion };
 import { writeGovernanceJson } from "./state-file.js";
 
 export type GovernanceUser = {
@@ -138,56 +146,7 @@ async function ensureHomeDir(): Promise<void> {
   await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
 }
 
-/**
- * Folds, de-duplicates, and drops empty agent ids.
- *
- * ## Why the fold, and what it was costing (finding 200)
- *
- * This trimmed and nothing else, while **every id it is compared against is
- * canonical**. The host mints session keys through `normalizeAgentId`, which
- * lowercases; `agent-registry.ts` stores canonical ids (finding 128); and the
- * gate resolves an agent id out of a session key. The assignment list was the
- * one identifier in this system kept as typed and then compared with `===`.
- *
- * So an Administrator assigning `Scout` to a User, from a comma-separated text
- * field, on either surface, produced an assignment that was **accepted,
- * stored, echoed back and never consulted**. `assertAssignable` permitted it,
- * because it canonicalises for its own lookup; `canViewAgent` then asked
- * `["Scout"].includes("scout")` and answered no. The User could not read that
- * agent's ledger, prompt it, stop it, or write policy for it, and
- * `findUsersForAgent` could not find them behind it, so the per-user escalation
- * axis had nobody to ask. Nothing anywhere reported a problem.
- *
- * That is the sentence `account-name.ts` was written for, *"a governance
- * control that silently did nothing"*, reproduced on the other identifier, and
- * the same repair: fold where the value becomes a key.
- *
- * **Here rather than at the route**, because this function is the choke point
- * for both directions: `readUsersFile` calls it on the way in and the setters
- * call it on the way out. Folding on read means an installation that already
- * holds `Scout` starts working immediately and is rewritten canonically by the
- * next assignment, rather than needing a migration.
- *
- * The failure direction was safe, a stored non-canonical id can never match a
- * canonical one, so this only ever withheld access, which is why it survived:
- * nothing broke loudly, an assignment simply did not work.
- */
-export function normalizeAgentIds(agentIds: readonly string[] | undefined): string[] {
-  return [
-    ...new Set(
-      (agentIds ?? [])
-        .map((id) => id.trim())
-        .filter(Boolean)
-        // Filtered *before* folding: `normalizeAgentId` is a coercion, not a
-        // validator, and returns the installation's default id `main` for
-        // anything with no canonical form of its own. Folding unfiltered would
-        // turn a typo like `###` into an assignment of the default agent,
-        // finding 129's trap, arriving here by a different route.
-        .filter((id) => isValidAgentId(id) || normalizeAgentId(id) !== "main")
-        .map((id) => normalizeAgentId(id)),
-    ),
-  ];
-}
+export { normalizeAgentIds } from "./agent-ids.js";
 
 async function readUsersFile(): Promise<UsersFile> {
   const existing = await readJsonIfExists<UsersFile>(usersFilePath());
@@ -988,7 +947,44 @@ export async function setUserAssignedAgents(
   return true;
 }
 
+/** Whether an account was deleted. For callers that need nothing more; the route uses `deleteAccount`. */
 export async function deleteUser(userId: string, actor: AuditActorInput): Promise<boolean> {
+  return (await deleteAccount(userId, actor)) !== undefined;
+}
+
+/**
+ * Deletes one account. `undefined` when there is no such account.
+ *
+ * ## The point of no return, and why revocation sits inside it (T76)
+ *
+ * Until 2026-10-04 the route revoked the account's sessions only after this
+ * function had removed the record, purged what was held under the name, and
+ * written the ledger entry. Either of the last two could throw, and when one did
+ * the route answered 500 **with the account already gone and every session it
+ * had still valid**: a session carries its own copy of the role and scope, and
+ * nothing re-reads the account on each request, so whoever was signed in as the
+ * deleted account kept its authority for up to twelve hours.
+ *
+ * So the sessions are revoked **inside the users-file lock, after every refusal
+ * has been decided and before the record is removed**, which puts the two in
+ * the order that fails safe:
+ *
+ *   - revocation fails: nothing is deleted, `SessionRevocationError` says why;
+ *   - removal fails after revocation: the account stays and its holder is
+ *     signed out, the restrictive direction, and may sign in again;
+ *   - both succeed: the point of no return. Nothing after it may report the
+ *     deletion as not having happened, so the purge and the ledger entry are
+ *     attempted and their failures **reported** (`cleanupError`, `auditError`).
+ *
+ * The lock order is users then sessions, and nothing takes them the other way
+ * round, so the nesting cannot deadlock. A sign-in that read the account just
+ * before it went and issues its session after this lock is released is closed
+ * at the sign-in route, which checks the account still exists after issuing.
+ */
+export async function deleteAccount(
+  userId: string,
+  actor: AuditActorInput,
+): Promise<AccountDeletion | undefined> {
   await ensureHomeDir();
   const deleted = await withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
@@ -1016,46 +1012,68 @@ export async function deleteUser(userId: string, actor: AuditActorInput): Promis
         stranded.map((account) => account.username),
       );
     }
+    let sessionsRevoked: number;
+    try {
+      sessionsRevoked = await revokeSessionsForUser(userId);
+    } catch (err) {
+      throw new SessionRevocationError(user.username, err);
+    }
     file.users = file.users.filter((u) => u.id !== userId);
     await writeGovernanceJson(usersFilePath(), file);
-    return { username: user.username, role: user.role, groupId: user.groupId };
+    return {
+      username: user.username,
+      role: user.role,
+      ...(user.groupId ? { groupId: user.groupId } : {}),
+      sessionsRevoked,
+    };
   });
   if (!deleted) {
-    return false;
+    return undefined;
   }
-  // **The account's name is now free, so everything held under it goes too.**
-  //
-  // Three stores key on the canonical username rather than on the id above:
-  // the escalation override, the conversation transcript and the login
-  // throttle. A username is released by this very write and can be claimed
-  // again immediately, so anything left behind stops describing a person and
-  // starts describing a name. Measured before the repair: a new account created
-  // with a released username read the previous holder's transcript in full.
-  //
-  // Before the record is written, not after, so the entry can state what the
-  // deletion actually removed. `purgeAccountState` throws rather than swallows,
-  // which is right: residue left here is not visible anywhere else, and a
-  // deletion that reports success while leaving a readable transcript is the
-  // failure this layer refuses to commit.
-  const purged = await purgeAccountState(
-    deleted.groupId ?? INSTALLATION_LEDGER_GROUP,
-    deleted.username,
-  );
-  await recordAdminAction(deleted.groupId ?? INSTALLATION_LEDGER_GROUP, {
+  const finished = await finishDeletedAccount(userId, deleted, actor, "delete");
+  return {
+    ...deleted,
+    ...finished,
+    sessionsRevoked: deleted.sessionsRevoked + finished.sessionsRevoked,
+  };
+}
+
+/**
+ * Finishes a deletion that reported `cleanupError` or `auditError` (T76).
+ *
+ * Runs everything after the point of no return again: sweeps any session still
+ * held for the id (idempotent), purges what is held under the name, and records
+ * the outcome as `governance.account.delete-finish`. Its own action, not a second
+ * `userDelete`, so counting deletions in the ledger still counts each once.
+ *
+ * **Refused while any account holds the id or the name.** The purge keys on the
+ * username, and a name is free to be claimed the moment it is released, so a
+ * finish after somebody re-used it would erase the new holder's transcript.
+ */
+export async function finishAccountDeletion(
+  input: { userId: string; username: string; groupId: string },
+  actor: AuditActorInput,
+): Promise<
+  Pick<
+    AccountDeletion,
+    "sessionsRevoked" | "conversationTurnsRemoved" | "cleanupError" | "auditError"
+  >
+> {
+  const all = await readUsersFile();
+  const canonical = canonicalAccountName(input.username);
+  if (
+    all.users.some(
+      (user) => user.id === input.userId || canonicalAccountName(user.username) === canonical,
+    )
+  ) {
+    throw new AccountStillExistsError(input.username);
+  }
+  return finishDeletedAccount(
+    input.userId,
+    { username: input.username, groupId: input.groupId },
     actor,
-    action: ADMIN_ACTIONS.userDelete,
-    // Name and role are captured here because the account record is gone: after
-    // this point the ledger is the only place that says who existed. The purge
-    // counts are here for the same reason and one more: destroying a transcript
-    // is itself an act worth recording, and the ledger is the only place left
-    // that can say it happened.
-    target:
-      `account ${deleted.username} (role ${deleted.role}) deleted` +
-      `, ${purged.conversationTurns} conversation turn(s) removed` +
-      (purged.hadAskOverride ? ", escalation override cleared" : ""),
-    subjectId: userId,
-  });
-  return true;
+    "finish",
+  );
 }
 
 /**

@@ -54,8 +54,14 @@ import type {
   GovernanceRuleRequest,
   GovernanceUserRecord,
 } from "../api.ts";
+import {
+  deleteAccountAndReport,
+  renderAccountDeletionNotice,
+  type AccountDeletionNotice,
+} from "./account-deletion.ts";
 import { renderAnswersToControl } from "./account-manager-control.ts";
 import { renderAgentSettingRequestRow } from "./agent-setting-request.ts";
+import { renderManagedAccountsSection } from "./managed-accounts-panel.ts";
 import type { RuleRequestDrafts } from "./rule-request-drafts.ts";
 import { renderRuleRequestPreview } from "./rule-request-preview.ts";
 
@@ -240,6 +246,8 @@ export type AccountDrafts = {
   orgConfirmName: string;
   /** The outcome of the last organisation deletion, kept until the next action. */
   orgNotice: string;
+  /** A deleted account that left something to finish (T76), until it is finished. */
+  deletionNotice: AccountDeletionNotice | null;
 };
 
 export function emptyAccountDrafts(): AccountDrafts {
@@ -252,6 +260,7 @@ export function emptyAccountDrafts(): AccountDrafts {
     newUserManagedBy: "",
     orgConfirmName: "",
     orgNotice: "",
+    deletionNotice: null,
   };
 }
 
@@ -347,6 +356,8 @@ export type AccountsPanelProps = PanelEffects & {
    * the panel would otherwise keep rendering the old flag until the next poll.
    */
   reloadUsers: () => Promise<void>;
+  /** The agents this page holds, so an Administrator's section can offer its own (finding 397). */
+  agents?: readonly { agentId: string; registered?: boolean; adminUsername?: string }[];
 };
 
 export type RuleRequestsPanelProps = PanelEffects & {
@@ -363,14 +374,47 @@ export type RuleRequestsPanelProps = PanelEffects & {
   onDraft: (patch: Partial<RuleRequestDrafts>) => void;
 };
 
+/**
+ * The accounts this tier may see: Root's whole list, an Administrator's own Users and
+ * Viewers (finding 397), and nothing below. Asking as a lower tier would 403 and spoil
+ * an otherwise successful refresh.
+ */
+export function accountsInReach(
+  api: GovernanceApi,
+  identity: GovernanceIdentity | null,
+): Promise<GovernanceUserRecord[]> {
+  if (identity?.role === "root") {
+    return api.listUsers();
+  }
+  return identity?.role === "administrator" ? api.listManagedAccounts() : Promise.resolve([]);
+}
+
 export function renderUsersSection(props: AccountsPanelProps): TemplateResult | typeof nothing {
   // Account administration is the Root tier's defining responsibility: the
   // design doc gives Root the human side of the system and Administrator the
   // agent side, so this section is hidden below Root entirely.
+  if (props.identity?.role === "administrator") {
+    // An Administrator reaches only its own Users and Viewers (finding 397); the page
+    // loads exactly those into `users` for this tier.
+    return renderManagedAccountsSection({
+      ...props,
+      accounts: props.users,
+      ownedAgentIds: (props.agents ?? [])
+        .filter((agent) => agent.registered && agent.adminUsername === props.identity?.username)
+        .map((agent) => agent.agentId),
+      reload: props.reloadUsers,
+    });
+  }
   if (props.identity?.role !== "root") {
     return nothing;
   }
+  const deletion = {
+    ...props,
+    notice: props.drafts.deletionNotice,
+    setNotice: (deletionNotice: AccountDeletionNotice | null) => props.onDraft({ deletionNotice }),
+  };
   return renderSettingsSection({ title: t("governance.users.title") }, [
+    renderAccountDeletionNotice(deletion),
     ...props.users.map((user) =>
       renderSettingsRow({
         title: user.username,
@@ -607,7 +651,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
                     details: user.username,
                     confirmLabel: t("governance.users.delete"),
                   },
-                  () => props.api().deleteUser(user.id),
+                  () => deleteAccountAndReport(deletion, user.id),
                 )}
             >
               ${t("governance.users.delete")}
@@ -912,6 +956,7 @@ export function renderRuleRequestsSection(
               <input
                 class="input"
                 type="text"
+                list="governance-new-rule-agents"
                 aria-label=${t("governance.requests.agentLabel")}
                 placeholder=${t("governance.requests.agentPlaceholder")}
                 .value=${props.drafts.requestAgentId}

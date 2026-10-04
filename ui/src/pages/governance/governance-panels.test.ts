@@ -76,7 +76,14 @@ async function mount(state: Partial<PageState>): Promise<PageState> {
   page = document.createElement("openclaw-governance-page") as PageState;
   document.body.append(page);
   await page.updateComplete;
-  Object.assign(page, { loading: false, users: [], ...state });
+  // The chain verification moved off the page into its integrity controller
+  // (T73, 2026-10-04), so a seeded verdict goes where the page now reads it.
+  const { verification, ...rest } = state;
+  Object.assign(page, { loading: false, users: [], ...rest });
+  if (verification !== undefined) {
+    (page as unknown as { integrity: { verification: unknown } }).integrity.verification =
+      verification;
+  }
   page.requestUpdate();
   await page.updateComplete;
   await page.updateComplete;
@@ -355,8 +362,18 @@ describe("the accounts panel", () => {
   });
 
   it("is not rendered below Root, because account administration is Root's tier", async () => {
+    // An Administrator sees *Your accounts* instead (finding 397): the agents of the
+    // accounts that answer to it, loaded by the page from `users/managed`, and none of
+    // Root's account controls. This asserted "watcher" absent while `users` was Root's
+    // list; for an Administrator the page now loads only that Administrator's own.
     await mount({ identity: identity("administrator"), users });
-    expect(text()).not.toContain("watcher");
+    expect(text()).toContain("Your accounts");
+    expect(text()).not.toContain("Create account");
+    expect(text()).not.toContain("Set password");
+    for (const role of ["user", "viewer"] as const) {
+      await mount({ identity: identity(role), users });
+      expect(text(), role).not.toContain("watcher");
+    }
   });
 });
 

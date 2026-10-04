@@ -353,6 +353,10 @@ export const enGovernance: TranslationMap = {
       // Said always, not only when something is missing: a count that appears
       // only on truncation is a count nobody learns to look for (T56's rule).
       showing: "Showing the {shown} most recent of {total} entries",
+      // When the page holds only the most recent entries the route returns, {total} is
+      // what was loaded, not the size of the trail (2026-10-03).
+      showingLoaded: "Showing the {shown} most recent of the {total} entries loaded",
+      showMore: "Show the other {count} loaded entries",
       // Under a filter, {total} counts matches and not the trail.
       showingFiltered:
         "Showing the {shown} most recent of {total} matching, out of {held} entries loaded",
@@ -369,6 +373,26 @@ export const enGovernance: TranslationMap = {
       filterAgent: "Agent actions",
       filterAdmin: "Policy changes",
       filterAuth: "Sign-ins",
+      // T73: a chain that verifies with the ledger's own alerts in it is intact
+      // *since* them, and must not read as "intact" alone.
+      intactWithAlerts: "Intact since {count} integrity alert(s)",
+      alertsHeading: "Integrity alerts recorded in the chain",
+      alertMissing: "Entries #{from}–#{to} are missing.",
+    },
+    integrity: {
+      // The banner (T73, idea 14). Shown to Administrators and Root.
+      title: "Audit ledger integrity alert",
+      hint: "The audit ledger recorded that its own history was cut short or rewritten. Nothing has stopped and every entry since is intact, but entries before this point were lost or changed. Root must find out what happened and acknowledge each alert with the reason.",
+      hintAdmin:
+        "Only Root can acknowledge these. Tell Root, and keep the ledger files as they are until they have looked.",
+      entry: "Entry #{seq}, {time}",
+      reasonLabel: "What you found, and why it is safe to carry on",
+      reasonPlaceholder: "For example: restored from the 3 October backup after a disk failure",
+      acknowledge: "Acknowledge",
+      // The witness (idea 4), shown to every tier when this browser proved it.
+      witnessContradicted:
+        "This browser saw the audit ledger reach entry #{seq} on an earlier visit, and the ledger no longer holds that entry as it was. This was recorded in the ledger as an integrity alert; Root has been asked to review it.",
+      witnessDismiss: "Dismiss",
     },
     freshness: {
       // Not "the rest of the page is current": when every panel failed, that was
@@ -438,6 +462,14 @@ export const enGovernance: TranslationMap = {
       newRoleLabel: "New account role",
       agentsLabel: "Agents assigned to this account",
       delete: "Delete",
+      // T76: a deletion that finished incompletely. The account is gone and signed out.
+      deletionIncompleteTitle: "{username} was deleted, but not everything was finished",
+      deletionIncomplete:
+        "The account no longer exists and every session it had is signed out. Something after that did not complete; finishing it removes what is left without bringing the account back.",
+      deletionCleanupError: "Still held under the name: {reason}",
+      deletionAuditError: "The audit ledger did not record the deletion: {reason}",
+      deletionSignedOut: "Deleted and signed out",
+      finishDeletion: "Finish deleting",
       cannotDeleteSelf: "You cannot delete the account you are signed in with",
       passwordPlaceholder: "Password (min 8 characters)",
       agentsPlaceholder: "Assigned agents (comma separated)",
@@ -454,6 +486,16 @@ export const enGovernance: TranslationMap = {
       policyAuthoringHint:
         "Whether this account may change the rules for the agents it manages. Withholding keeps everything else: they can still read the policy and audit log, prompt and stop their agents, and request rule changes for an Administrator to approve.",
       saveAgents: "Save agents",
+    },
+    // Finding 397: the accounts that answer to an Administrator, and their agents.
+    managedAccounts: {
+      title: "Your accounts",
+      description:
+        "The Users and Viewers that answer to you. Give each the agents it works with: a User may then prompt and stop them, a Viewer may read their audit trail. You can assign the agents you own, and any agent Root owns.",
+      empty: "No accounts answer to you yet",
+      emptyHint: "Root creates accounts and chooses the Administrator each one answers to.",
+      holds: "holds {agents}",
+      holdsNone: "holds no agents",
     },
     organisation: {
       title: "Organisation",
@@ -486,6 +528,10 @@ export const enGovernance: TranslationMap = {
       dismiss: "Dismiss",
       // Finding 386: a press that arrived after the question was answered elsewhere, cancelled
       // or expired. The card goes with the next read, so this is what is left to say so.
+      // Worded so it stays true when the request could not be saved (a full queue,
+      // T60): that case has its own notice beside this one.
+      alwaysFiled:
+        "“{title}” was allowed this time. Allowing it every time needs an Administrator's approval: the request is under Rule requests, and until it is approved the next attempt asks again.",
       answerNotUsed:
         "Your answer to “{title}” was not used: the question had already been answered by another account, cancelled, or had expired. The agent's conversation and the audit ledger show the answer that was.",
     },
@@ -521,6 +567,10 @@ export const enGovernance: TranslationMap = {
       ownedBy: "Owned by {owner}",
       unregisteredHint:
         "This agent exists in OpenClaw but is not governed, so every tool call it makes is refused. Register it to bring it under your policy.",
+      // Finding 399: an id the policy names that OpenClaw does not have. Not registrable,
+      // because there is nothing to register; its rules bind nothing until such an agent exists.
+      policyOnlyHint:
+        "Named in this organisation's policy, but OpenClaw has no agent with this id. Its rules bind nothing; remove them under Policy if the id was a mistake.",
       register: "Register",
       remove: "Remove…",
       cancelRemove: "Keep this agent",
@@ -684,6 +734,9 @@ export const enGovernance: TranslationMap = {
         "This process cannot run agents, so prompting is unavailable here. Start the Gateway to enable it.",
       working: "replying…",
       thinking: "Working. Nothing said yet.",
+      waitingForYou:
+        "It is waiting for your answer: it asked before doing something no rule covers. The question is at the top of this page.",
+      goToQuestion: "Go to the question",
       cancel: "Cancel",
       cancelHint:
         "Stops this one prompt. The agent stays available. Use Stop agent for an emergency.",
@@ -794,8 +847,11 @@ export const enGovernance: TranslationMap = {
         "Stop signal sent, but the agent was not confirmed to have stopped. Runs signalled:",
       signalled: "signalled in",
       noticeStopped: "Lockdown engaged. In-flight runs aborted:",
+      // Not a warning (2026-10-03). It used to tell the operator to "check whether the
+      // id is correct", from before the route refused an id that is not registered
+      // here; now the id is always a real agent, and nothing running is the common case.
       noticeNoRuns:
-        "Lockdown engaged, but no in-flight run matched that agent id. The agent will be blocked from further actions; check whether the id is correct and whether anything is still executing.",
+        "Locked down. Nothing was running for this agent, so nothing had to be stopped. Every further action it attempts is refused until it is released.",
       noticeNoTermination:
         "Lockdown engaged, but in-flight termination is unavailable here. Anything the agent is doing right now continues until it finishes. Further actions are blocked.",
       noticeAuditFailed:

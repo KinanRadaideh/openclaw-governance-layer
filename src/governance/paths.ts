@@ -27,7 +27,7 @@ import { join } from "node:path";
  */
 let testSandboxDir: string | undefined;
 
-function isTestRun(): boolean {
+export function isTestRun(): boolean {
   return Boolean(process.env.VITEST || process.env.VITEST_WORKER_ID);
 }
 

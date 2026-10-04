@@ -37,6 +37,7 @@ export function renderObserveAgentRow(
             <input
               class="input"
               type="text"
+              list="governance-new-rule-agents"
               aria-label=${t("governance.policy.observeAgent")}
               placeholder=${t("governance.kill.agentIdPlaceholder")}
               .value=${props.drafts.postureAgentId}

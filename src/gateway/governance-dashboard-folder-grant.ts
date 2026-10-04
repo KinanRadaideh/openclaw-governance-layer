@@ -19,7 +19,11 @@ import { FolderGrantError, grantFolderWithExceptions } from "../governance/folde
 import { canManageGlobalPolicy, type GovernanceActor } from "../governance/permissions.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
-import { requireAgentPolicyAuthoring, requireGroup } from "./governance-dashboard-group.js";
+import {
+  requireAgentPolicyAuthoring,
+  requireGroup,
+  requireRegisteredAgentForPolicy,
+} from "./governance-dashboard-group.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
 
 export type FolderGrantRouteContext = {
@@ -117,7 +121,10 @@ export async function handleGovernanceFolderGrantRoutes(
       });
       return true;
     }
-  } else if (!requireAgentPolicyAuthoring(res, actor, scopedAgentId)) {
+  } else if (
+    !requireAgentPolicyAuthoring(res, actor, scopedAgentId) ||
+    !(await requireRegisteredAgentForPolicy(res, groupId, scopedAgentId))
+  ) {
     return true;
   }
 

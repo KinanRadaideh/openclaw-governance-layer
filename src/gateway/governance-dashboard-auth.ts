@@ -27,6 +27,7 @@ import type { GovernanceSession } from "../governance/session-tokens.js";
 import {
   authenticate,
   createUser,
+  findUserByUsername,
   installationHasOrganisation,
   newGroupId,
 } from "../governance/user-store.js";
@@ -51,7 +52,20 @@ function readCookie(req: IncomingMessage, name: string): string | undefined {
       continue;
     }
     if (part.slice(0, index).trim() === name) {
-      return decodeURIComponent(part.slice(index + 1).trim());
+      // **A malformed escape is not a session we issued (T78).** We set this cookie
+      // with `encodeURIComponent`, so a value that does not decode never came from
+      // us, and `decodeURIComponent` throws on it: this read runs for every
+      // governance request, after the Gateway gate, so a stray `%` turned the
+      // typed "sign in" answer into a 500 the page could not act on. Treated as
+      // no cookie, which is the answer for every other token we did not issue;
+      // signing in replaces it. `agent-conversation.ts` makes the same call for
+      // its own percent-encoded segment. Skipped rather than ending the search, so
+      // a well-formed cookie of the same name later in the header still counts.
+      try {
+        return decodeURIComponent(part.slice(index + 1).trim());
+      } catch {
+        continue;
+      }
     }
   }
   return undefined;
@@ -180,6 +194,15 @@ export async function handleGovernanceAuthRequest(
     recordLoginSuccess(throttleKey);
     await auditLoginSuccess(user);
     const session = await issueSession(user);
+    // **The account must still exist now that its session does** (T76). A
+    // deletion between `authenticate` reading the account and this session being
+    // written revoked every session it could see, which was not yet this one.
+    // The deletion sweeps again after removing the record; this closes the rest.
+    if ((await findUserByUsername(user.username))?.id !== user.id) {
+      await revokeSession(session.token);
+      sendJson(res, 401, { error: { message: "Invalid credentials", type: "unauthorized" } });
+      return true;
+    }
     setSessionCookie(
       res,
       session.token,

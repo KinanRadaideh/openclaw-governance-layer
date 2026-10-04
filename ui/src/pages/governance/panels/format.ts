@@ -36,3 +36,16 @@ export function formatAttachmentSize(bytes: number): string {
   }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/**
+ * When a conversation turn happened: the time alone for today, the date as well
+ * for any other day (2026-10-03). Time alone made a reply from last week read as
+ * one from this morning, in the one place an operator reconstructs what an agent
+ * was asked and when.
+ */
+export function formatTurnTime(at: string | number, now: Date = new Date()): string {
+  const when = new Date(at);
+  return when.toDateString() === now.toDateString()
+    ? when.toLocaleTimeString()
+    : when.toLocaleString();
+}

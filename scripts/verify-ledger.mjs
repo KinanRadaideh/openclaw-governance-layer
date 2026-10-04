@@ -210,15 +210,38 @@ async function readJsonOrUndefined(path) {
  * reported as a broken chain rather than as a checkpoint mismatch downstream of
  * it.
  */
+/**
+ * A gap line (T73): the ledger's own record that its checkpoint proved entries
+ * were removed, written before the next entry and numbered on from the
+ * checkpoint. The only entry allowed to jump the sequence, and only because its
+ * seal, checked like every other, needs the key. Mirrors `isLedgerIntegrityAlert`
+ * in `src/governance/audit-ledger.ts`.
+ */
+const LEDGER_INTEGRITY_ACTOR = "ledger-integrity";
+const LEDGER_GAP_ACTION = "governance.ledger.gap";
+const LEDGER_WITNESS_ACTION = "governance.ledger.witness-contradiction";
+
+function isIntegrityAlert(entry) {
+  return (
+    entry.entryKind === "admin" &&
+    entry.actor === LEDGER_INTEGRITY_ACTOR &&
+    entry.keyed === true &&
+    (entry.toolName === LEDGER_GAP_ACTION || entry.toolName === LEDGER_WITNESS_ACTION)
+  );
+}
+
 function verifyChain({ entries, key, installationIsKeyed, checkpoint }) {
   let expectedSeq = 1;
   let expectedPrevHash = GENESIS_HASH;
   let seenKeyed = false;
   let checked = 0;
   let lastEntry;
+  const alerts = [];
 
   for (const entry of entries) {
-    if (entry.seq !== expectedSeq) {
+    const declaredJump =
+      entry.seq > expectedSeq && isIntegrityAlert(entry) && entry.toolName === LEDGER_GAP_ACTION;
+    if (entry.seq !== expectedSeq && !declaredJump) {
       return {
         ok: false,
         checked,
@@ -290,9 +313,16 @@ function verifyChain({ entries, key, installationIsKeyed, checkpoint }) {
         why: "entry hash does not match its own recomputed content",
       };
     }
+    if (isIntegrityAlert(entry)) {
+      alerts.push({
+        seq: entry.seq,
+        resource: entry.resource,
+        ...(declaredJump ? { missingFrom: expectedSeq, missingTo: entry.seq - 1 } : {}),
+      });
+    }
     seenKeyed ||= entry.keyed === true;
     expectedPrevHash = hash;
-    expectedSeq += 1;
+    expectedSeq = entry.seq + 1;
     checked += 1;
     lastEntry = entry;
   }
@@ -340,7 +370,31 @@ function verifyChain({ entries, key, installationIsKeyed, checkpoint }) {
       };
     }
   }
-  return { ok: true, checked, head: lastEntry, checkpoint };
+  return { ok: true, checked, head: lastEntry, checkpoint, alerts };
+}
+
+/**
+ * The group's segments, oldest first: `audit-ledger.jsonl.1`, `.2`, … then the
+ * active file. **Finding 403**: this tool read only the active file, so after the
+ * first rotation (8 MiB) the active file starts part-way through the chain and an
+ * intact ledger was reported `BROKEN at entry N: unexpected sequence number
+ * (expected 1)`. The product's verifier has always read the archives first.
+ */
+async function readSegments(groupDir) {
+  const base = "audit-ledger.jsonl";
+  let names;
+  try {
+    names = await readdir(groupDir);
+  } catch {
+    return [];
+  }
+  const archives = names
+    .filter((name) => name.startsWith(`${base}.`))
+    .map((name) => ({ name, index: Number.parseInt(name.slice(base.length + 1), 10) }))
+    .filter((item) => Number.isInteger(item.index) && item.index > 0)
+    .toSorted((a, b) => a.index - b.index)
+    .map((item) => join(groupDir, item.name));
+  return names.includes(base) ? [...archives, join(groupDir, base)] : archives;
 }
 
 function parseArgs(argv) {
@@ -397,15 +451,17 @@ async function main() {
   let anyBroken = false;
   let anyUncheckable = false;
   let anyChecked = false;
+  let anyAlerts = false;
 
   for (const group of groups) {
-    const ledgerPath = join(dir, "groups", group, "audit-ledger.jsonl");
-    let raw;
-    try {
-      raw = await readFile(ledgerPath, "utf8");
-    } catch {
+    const segments = await readSegments(join(dir, "groups", group));
+    if (segments.length === 0) {
       console.log(`\n${group}: no ledger file`);
       continue;
+    }
+    let raw = "";
+    for (const segment of segments) {
+      raw += `${await readFile(segment, "utf8")}\n`;
     }
     const lines = raw.split("\n").filter((line) => line.trim().length > 0);
     const entries = [];
@@ -452,6 +508,21 @@ async function main() {
       continue;
     }
     console.log(`  INTACT — ${result.checked} entr${result.checked === 1 ? "y" : "ies"} verified`);
+    if (segments.length > 1) {
+      console.log(
+        `  segments: ${segments.length - 1} archive${segments.length === 2 ? "" : "s"} and the active file`,
+      );
+    }
+    // **Intact since, not intact throughout.** Every entry still here is the one
+    // that was written; the alerts say what was lost or contradicted before.
+    for (const alert of result.alerts) {
+      anyAlerts = true;
+      const range =
+        alert.missingFrom !== undefined
+          ? ` (entries #${alert.missingFrom}–#${alert.missingTo} are missing)`
+          : "";
+      console.log(`  INTEGRITY ALERT at entry #${alert.seq}${range}: ${alert.resource}`);
+    }
     if (result.head) {
       console.log(`  chain head: #${result.head.seq}  ${result.head.hash}`);
       console.log(`  keyed: ${result.head.keyed === true}`);
@@ -502,7 +573,14 @@ async function main() {
     );
     process.exit(2);
   }
-  console.log("\nEvery chain checked is intact.");
+  // Exit 0 either way: every entry still present verified. The wording is what
+  // differs, so a reader who stops at the last line is not told "intact" alone
+  // about a ledger that recorded losing part of its history (T73).
+  console.log(
+    anyAlerts
+      ? "\nEvery chain checked is intact since the integrity alerts listed above."
+      : "\nEvery chain checked is intact.",
+  );
   process.exit(0);
 }
 

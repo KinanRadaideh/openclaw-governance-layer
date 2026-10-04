@@ -363,7 +363,11 @@ function renderAgentRow(
           owner: agent.adminUsername ?? owner?.username ?? agent.adminId ?? "-",
         })}
         ${renderEngineState(agent)}`
-      : t("governance.agents.unregisteredHint"),
+      : // Only an agent OpenClaw has can be registered (finding 399). An id that a
+        // rule merely names is said to be that, with nothing to press.
+        agent.onHost === false
+        ? t("governance.agents.policyOnlyHint")
+        : t("governance.agents.unregisteredHint"),
     stacked: open || editing,
     control: open
       ? renderRemoveChoice(agent, props)
@@ -421,8 +425,9 @@ function renderAgentRow(
                 >
                   ${t("governance.agents.remove")}
                 </button>`
-              : agent.registered
+              : agent.registered || agent.onHost === false
                 ? // Registered, but somebody else's: the row names the owner and offers nothing.
+                  // Or not an agent at all, only an id in the policy (finding 399).
                   nothing
                 : html`<button
                     class="btn"

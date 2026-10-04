@@ -118,7 +118,7 @@ describe("Your agents: the assigned rows (the User tier)", () => {
     });
     const rows = [...(section()?.querySelectorAll(".settings-row") ?? [])];
     const withComposer = rows.filter((row) =>
-      row.querySelector('input[aria-label="Message to the agent"]'),
+      row.querySelector('textarea[aria-label="Message to the agent"]'),
     );
     expect(withComposer).toHaveLength(1);
     // And it is the scout row, not a row of its own after the list.

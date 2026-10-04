@@ -63,7 +63,7 @@ import {
 } from "../identity.ts";
 import type { KillNotice } from "../kill-notice.ts";
 import type { PanelEffects } from "./account-panels.ts";
-import { formatAttachmentSize } from "./format.ts";
+import { formatAttachmentSize, formatTurnTime } from "./format.ts";
 import {
   renderPromptRunNotices,
   renderPromptRunRows,
@@ -139,6 +139,12 @@ export type ConversationProps = AgentPanelBase & {
   promptStream: string;
   /** This tab's own task was stopped and is unwinding. */
   promptStopping?: boolean;
+  /**
+   * How many escalations from the open agent are waiting for this account's answer
+   * (finding 402). The card is drawn at the top of the page, far from this
+   * conversation, which meanwhile said only "Working. Nothing said yet.".
+   */
+  waitingForMyAnswer?: number;
   attachmentUploading: boolean;
   onDraft: (patch: Partial<AgentDrafts>) => void;
   /** Owns the streaming lifecycle; the panel only asks. Reads the page's current conversation. */
@@ -163,7 +169,7 @@ export type AgentsSectionProps = ConversationProps & {
    * declared it. Which is why an Administrator who had just created an agent
    * was shown a free-text box asking for an id the page was holding.
    */
-  agents: readonly { agentId: string; displayName?: string }[];
+  agents: readonly { agentId: string; displayName?: string; registered?: boolean }[];
 };
 
 /**
@@ -202,7 +208,8 @@ export function renderKillNotice(
     </div>`;
   }
   if (aborted === 0) {
-    return html`<div id="governance-kill-notice" class="settings-empty" role="alert">
+    // A status, not an alert: the stop did everything asked of it.
+    return html`<div id="governance-kill-notice" class="settings-empty" role="status">
       ${named}${t("governance.kill.noticeNoRuns")}
     </div>`;
   }
@@ -655,7 +662,7 @@ export function renderConversation(
                   <strong
                     >${turn.role === "user" ? t("governance.conversation.you") : agentId}</strong
                   >
-                  <span style="opacity:0.6"> · ${new Date(turn.at).toLocaleTimeString()}</span>
+                  <span style="opacity:0.6"> · ${formatTurnTime(turn.at)}</span>
                   <div style="white-space:pre-wrap">
                     ${turn.error
                       ? html`<em>${t("governance.conversation.failed")}: ${turn.error}</em>`
@@ -698,6 +705,20 @@ export function renderConversation(
                 ? props.promptStream
                 : html`<em>${t("governance.conversation.thinking")}</em>`}
             </div>
+            ${(props.waitingForMyAnswer ?? 0) > 0 && !props.promptStopping
+              ? html`<div class="settings-empty" role="status" style="margin-top:0.35rem">
+                  ${t("governance.conversation.waitingForYou")}
+                  <button
+                    class="btn"
+                    @click=${() =>
+                      document
+                        .querySelector("#governance-waiting-approvals")
+                        ?.scrollIntoView?.({ behavior: "smooth", block: "start" })}
+                  >
+                    ${t("governance.conversation.goToQuestion")}
+                  </button>
+                </div>`
+              : nothing}
           </div>`
         : nothing}
       ${props.promptError
@@ -732,10 +753,13 @@ export function renderConversation(
         : nothing}
       ${transcript.supported
         ? html`<div style="display:flex;gap:0.5rem">
-            <input
+            <!-- A textarea since 2026-10-03: a prompt may run to 8,000 characters and
+                 several paragraphs, and a one-line box could hold neither. Enter still
+                 sends; Shift+Enter, which the handler below already spared, adds a line. -->
+            <textarea
               class="input"
-              type="text"
-              style="flex:1"
+              rows="2"
+              style="flex:1;resize:vertical;min-height:2.5rem"
               aria-label=${t("governance.conversation.promptLabel")}
               placeholder=${t("governance.conversation.promptPlaceholder")}
               .value=${props.promptDraft}
@@ -746,7 +770,7 @@ export function renderConversation(
                 // typed message reached no state at all: Send's `?disabled` still
                 // read the empty draft it was rendered with, and the button never
                 // came alive however much was typed.
-                props.onDraft({ promptDraft: (e.target as HTMLInputElement).value });
+                props.onDraft({ promptDraft: (e.target as HTMLTextAreaElement).value });
               }}
               @keydown=${(e: KeyboardEvent) => {
                 // Enter sends, which is what every chat input on the web does.
@@ -755,7 +779,7 @@ export function renderConversation(
                   void props.sendPrompt();
                 }
               }}
-            />
+            ></textarea>
             ${
               // The attach control below is a real <button> that opens a hidden
               // input, rather than a <label> wrapping one (QA round 18, finding
@@ -959,13 +983,17 @@ export function renderAgentsSection(props: AgentsSectionProps): TemplateResult |
                         }}
                       >
                         <option value="">${t("governance.conversation.chooseAgentPick")}</option>
-                        ${props.agents.map(
-                          (agent) => html`<option value=${agent.agentId}>
-                            ${agent.displayName
-                              ? `${agent.displayName} (${agent.agentId})`
-                              : agent.agentId}
-                          </option>`,
-                        )}
+                        ${props.agents
+                          // Registered agents only (finding 399): the prompt route refuses
+                          // any other, so offering one is offering a refusal.
+                          .filter((agent) => agent.registered !== false)
+                          .map(
+                            (agent) => html`<option value=${agent.agentId}>
+                              ${agent.displayName
+                                ? `${agent.displayName} (${agent.agentId})`
+                                : agent.agentId}
+                            </option>`,
+                          )}
                       </select>`
                     : nothing}
                   <input

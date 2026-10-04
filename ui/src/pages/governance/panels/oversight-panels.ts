@@ -105,6 +105,33 @@ export function renderFreshness(props: FreshnessProps): TemplateResult | typeof 
 }
 
 /**
+ * The ledger's own integrity alerts a verification found in the chain (T73): the
+ * gap lines and witness contradictions, each in the ledger's words, with the
+ * numbers a gap line jumped over. Every entry still in the chain verified; these
+ * say what was lost or contradicted before.
+ */
+function renderChainAlerts(alerts: GovernanceLedgerVerification["alerts"]) {
+  if (!alerts?.length) {
+    return nothing;
+  }
+  return html`<span style="display:block;margin-top:0.5rem">
+    <strong>${t("governance.ledger.alertsHeading")}</strong>
+    ${alerts.map(
+      (alert) =>
+        html`<span style="display:block;margin-top:0.25rem;overflow-wrap:anywhere"
+          >#${alert.seq}: ${alert.resource}
+          ${alert.missingFrom === undefined
+            ? nothing
+            : t("governance.ledger.alertMissing", {
+                from: String(alert.missingFrom),
+                to: String(alert.missingTo),
+              })}</span
+        >`,
+    )}
+  </span>`;
+}
+
+/**
  * How many ledger rows this panel draws.
  *
  * A named constant because two places have to agree about it — the slice below
@@ -149,6 +176,51 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
   // missing is a count nobody learns to look for.
   // ------------------------------------------------------------------------
   const shownRows = Math.min(visibleLedger.length, LEDGER_ROWS);
+  // "of 200 entries" read as the size of the trail when 200 is only what was loaded.
+  const loadedOnly = ledger.length >= LEDGER_PAGE;
+  const newestFirst = visibleLedger.toReversed();
+  const renderEntry = (entry: GovernanceLedgerEntry): TemplateResult =>
+    renderSettingsRow({
+      title: html`<code>#${entry.seq} ${entry.toolName}</code> ${entry.resource}`,
+      // The intent rides *under* the description rather than inside it,
+      // and is omitted entirely when absent. Two reasons, both learned
+      // here: absence is the common case, so a row must not grow an empty
+      // "Intent:" label that reads as the model having said nothing when
+      // in fact nothing was captured; and this is model-authored text
+      // beside a decision the model is the subject of, so it should never
+      // be mistaken for something the layer concluded.
+      description: html`${describeLedgerEntry(entry, {
+        by: t("governance.ledger.by"),
+      })}${entry.intent
+        ? html`<span style="display:block;margin-top:0.25rem;opacity:0.85">
+            <em>${t("governance.ledger.intent")}:</em> ${entry.intent}
+          </span>`
+        : nothing}`,
+      // The badge is the row's **kind or verdict**, and it carried no
+      // label at all: an operator seeing a red dot reading "admin" beside
+      // every row had nothing telling them what that column was. `title`
+      // names it on hover and `aria-label` names it for a screen reader,
+      // which is the same repair finding 103 made for the unnamed "×".
+      control: html`<span
+        title=${`${t("governance.ledger.kindColumn")}: ${
+          entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision
+        }`}
+        aria-label=${`${t("governance.ledger.kindColumn")}: ${
+          entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision
+        }`}
+        >${renderSettingsStatus({
+          kind:
+            entry.entryKind === "admin"
+              ? "accent"
+              : entry.decision === "allow"
+                ? "ok"
+                : entry.decision === "deny"
+                  ? "warn"
+                  : "muted",
+          label: entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision,
+        })}</span
+      >`,
+    });
   const filterButton = (value: LedgerFilter, label: string) => html`<button
     class="btn ${ledgerFilter === value ? "primary" : ""}"
     aria-pressed=${ledgerFilter === value ? "true" : "false"}
@@ -226,13 +298,17 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
                         command: "node scripts/verify-ledger.mjs",
                       })
                     }
-                  </span>`
+                  </span>
+                  ${renderChainAlerts(verification.alerts)}`
               : t("governance.ledger.integrityHow"),
             stacked: true,
             control: renderSettingsStatus({
-              kind: verification.ok ? "ok" : "warn",
+              // T73: intact *since* the ledger's own alerts is not "intact".
+              kind: verification.ok && !verification.alerts?.length ? "ok" : "warn",
               label: verification.ok
-                ? `${t("governance.ledger.intact")} (${verification.entriesChecked})`
+                ? verification.alerts?.length
+                  ? `${t("governance.ledger.intactWithAlerts", { count: String(verification.alerts.length) })} (${verification.entriesChecked})`
+                  : `${t("governance.ledger.intact")} (${verification.entriesChecked})`
                 : verification.brokenAtSeq === undefined
                   ? // No sequence number when the failure is not tied to one
                     // entry. An unparseable line, or a checkpoint saying the
@@ -260,10 +336,13 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
               // screen and wrong to leave what the number counts unsaid.
               label:
                 ledgerFilter === "all"
-                  ? t("governance.ledger.showing", {
-                      shown: String(shownRows),
-                      total: String(visibleLedger.length),
-                    })
+                  ? t(
+                      loadedOnly ? "governance.ledger.showingLoaded" : "governance.ledger.showing",
+                      {
+                        shown: String(shownRows),
+                        total: String(visibleLedger.length),
+                      },
+                    )
                   : t("governance.ledger.showingFiltered", {
                       shown: String(shownRows),
                       total: String(visibleLedger.length),
@@ -292,57 +371,24 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
             description: ledger.length > 0 ? undefined : t("governance.ledger.emptyHint"),
           })
         : nothing,
-      ...visibleLedger
-        // `toReversed`, which copies. The `slice()` that used to guard the
-        // in-place `reverse()` is no longer needed, and `visibleLedger` is
-        // derived from the page's `ledger` state, so reversing it in place would have
-        // reordered the state behind every other reader of that array.
-        .toReversed()
-        .slice(0, LEDGER_ROWS)
-        .map((entry) =>
-          renderSettingsRow({
-            title: html`<code>#${entry.seq} ${entry.toolName}</code> ${entry.resource}`,
-            // The intent rides *under* the description rather than inside it,
-            // and is omitted entirely when absent. Two reasons, both learned
-            // here: absence is the common case, so a row must not grow an empty
-            // "Intent:" label that reads as the model having said nothing when
-            // in fact nothing was captured; and this is model-authored text
-            // beside a decision the model is the subject of, so it should never
-            // be mistaken for something the layer concluded.
-            description: html`${describeLedgerEntry(entry, {
-              by: t("governance.ledger.by"),
-            })}${entry.intent
-              ? html`<span style="display:block;margin-top:0.25rem;opacity:0.85">
-                  <em>${t("governance.ledger.intent")}:</em> ${entry.intent}
-                </span>`
-              : nothing}`,
-            // The badge is the row's **kind or verdict**, and it carried no
-            // label at all: an operator seeing a red dot reading "admin" beside
-            // every row had nothing telling them what that column was. `title`
-            // names it on hover and `aria-label` names it for a screen reader,
-            // which is the same repair finding 103 made for the unnamed "×".
-            control: html`<span
-              title=${`${t("governance.ledger.kindColumn")}: ${
-                entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision
-              }`}
-              aria-label=${`${t("governance.ledger.kindColumn")}: ${
-                entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision
-              }`}
-              >${renderSettingsStatus({
-                kind:
-                  entry.entryKind === "admin"
-                    ? "accent"
-                    : entry.decision === "allow"
-                      ? "ok"
-                      : entry.decision === "deny"
-                        ? "warn"
-                        : "muted",
-                label:
-                  entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision,
-              })}</span
-            >`,
-          }),
-        ),
+      // `toReversed`, which copies. The `slice()` that used to guard the
+      // in-place `reverse()` is no longer needed, and `visibleLedger` is
+      // derived from the page's `ledger` state, so reversing it in place would have
+      // reordered the state behind every other reader of that array.
+      ...newestFirst.slice(0, LEDGER_ROWS).map(renderEntry),
+      // **The rest of what was loaded, one click away** (2026-10-03). The page fetched
+      // 200 entries and drew 50, with no way to see the other 150. A `<details>` keeps
+      // the open or closed state in the element itself, so the page holds none.
+      newestFirst.length > LEDGER_ROWS
+        ? html`<details class="governance-ledger-more">
+            <summary class="btn">
+              ${t("governance.ledger.showMore", {
+                count: String(newestFirst.length - LEDGER_ROWS),
+              })}
+            </summary>
+            ${newestFirst.slice(LEDGER_ROWS).map(renderEntry)}
+          </details>`
+        : nothing,
     ],
   );
 }

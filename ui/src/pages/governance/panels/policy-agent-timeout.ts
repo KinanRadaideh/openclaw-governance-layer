@@ -32,6 +32,7 @@ export function renderAgentTimeoutRow(props: PolicyPanelProps): TemplateResult |
             <input
               class="input"
               type="text"
+              list="governance-new-rule-agents"
               aria-label=${t("governance.policy.agentHitlTimeoutAgent")}
               placeholder=${t("governance.kill.agentIdPlaceholder")}
               .value=${props.drafts.agentTimeoutAgentId}

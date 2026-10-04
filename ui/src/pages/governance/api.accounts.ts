@@ -78,3 +78,22 @@ export type OrganisationDeletionResponse = {
    */
   incomplete: string[];
 };
+
+/**
+ * What came back from deleting one account (T76), mirrored from `AccountDeletion`
+ * in `src/governance/user-store.ts`.
+ *
+ * **The account is gone and signed out whenever this arrives.** The two optional
+ * fields are the ways a completed deletion can still be incomplete, reported
+ * rather than thrown for the reason `GovernanceDeprovisionResult` gives for agents;
+ * `finishUserDeletion` completes either. The same shape comes back from finishing.
+ */
+export type AccountDeletionResponse = {
+  ok: true;
+  username: string;
+  sessionsRevoked: number;
+  /** What was held under the name (conversations, escalation override) could not be cleared. */
+  cleanupError?: string;
+  /** The ledger would not record the deletion. */
+  auditError?: string;
+};

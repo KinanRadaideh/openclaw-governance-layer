@@ -330,7 +330,7 @@ describe("a conversation whose agent is taken away while it is open", () => {
 
     const agentsSection = section("Your agents");
     expect(agentsSection?.textContent).toContain("no longer assigned to you");
-    expect(agentsSection?.querySelector('input[aria-label="Message to the agent"]')).toBeNull();
+    expect(agentsSection?.querySelector('textarea[aria-label="Message to the agent"]')).toBeNull();
   });
 
   it("still gives an Administrator who opened an agent from the picker a message box", async () => {
@@ -344,7 +344,9 @@ describe("a conversation whose agent is taken away while it is open", () => {
     });
 
     const agentsSection = section("Your agents");
-    expect(agentsSection?.querySelector('input[aria-label="Message to the agent"]')).not.toBeNull();
+    expect(
+      agentsSection?.querySelector('textarea[aria-label="Message to the agent"]'),
+    ).not.toBeNull();
     expect(agentsSection?.textContent).not.toContain("no longer assigned to you");
   });
 });

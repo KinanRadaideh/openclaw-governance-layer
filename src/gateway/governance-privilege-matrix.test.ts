@@ -121,6 +121,15 @@ const ROUTES: RouteCase[] = [
   { method: "GET", route: "sessions", floor: "viewer" },
   { method: "GET", route: "rule-requests", floor: "viewer" },
   { method: "POST", route: "ledger/verify", floor: "viewer" },
+  // T73: every tier witnesses the head; alerts at Administrator; Root acknowledges.
+  { method: "POST", route: "integrity/witness", floor: "viewer", body: {} },
+  { method: "GET", route: "integrity/alerts", floor: "administrator" },
+  {
+    method: "POST",
+    route: "integrity/acknowledge",
+    floor: "root",
+    body: { seq: 999, reason: "probe" },
+  },
   { method: "GET", route: "pending-decisions", floor: "user" },
   // T68: escalations from dashboard prompts, answered by the accounts that manage the agent.
   { method: "GET", route: "approvals", floor: "user" },
@@ -204,6 +213,9 @@ const ROUTES: RouteCase[] = [
     floor: "administrator",
     body: { userId: "nope", agentIds: [] },
   },
+  // The accounts that answer to the caller, so an Administrator can assign
+  // agents from the page and not only by hand-written HTTP (finding 397).
+  { method: "GET", route: "users/managed", floor: "administrator" },
   // The agent registry (M4). Reading the group's agents is a Viewer act;
   // changing the registry is agent management, so the floor is Administrator.
   // Ownership is checked *after* the tier, and is not what this suite is about.
@@ -358,8 +370,9 @@ describe("the escalations that matter most", () => {
     // Viewer is defined as strictly read-only oversight, so every mutation must
     // refuse it, including the ones whose floor is only one tier above.
     for (const testCase of ROUTES.filter((entry) => entry.method === "POST")) {
-      if (testCase.route === "ledger/verify") {
-        // Read-only recomputation that happens to be a POST.
+      if (testCase.route === "ledger/verify" || testCase.route === "integrity/witness") {
+        // Read-only recomputation that happens to be a POST; and the witness,
+        // which writes only the ledger's own alert when it proves a contradiction.
         continue;
       }
       expect(

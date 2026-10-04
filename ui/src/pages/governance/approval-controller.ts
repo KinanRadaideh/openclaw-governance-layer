@@ -41,6 +41,12 @@ export type ApprovalHostBridge = {
   api: () => GovernanceApi;
   identity: () => GovernanceIdentity | null;
   onSessionLost: () => void;
+  /**
+   * After an answer lands. "Always allow" files a rule request, and the page's own
+   * refresh is fifteen seconds away, so the request the operator just made was
+   * nowhere on screen (finding 402). Optional so a test host need not supply it.
+   */
+  onAnswered?: () => void;
 };
 
 type ApprovalHost = ReactiveControllerHost & HTMLElement & { updateComplete: Promise<unknown> };
@@ -81,6 +87,14 @@ export class ApprovalController implements ReactiveController {
     private readonly bridge: ApprovalHostBridge,
   ) {
     host.addController(this);
+  }
+
+  /**
+   * How many questions from one agent wait for this account (finding 402). Every card
+   * this controller holds is one the account may answer, so it is a plain count.
+   */
+  waitingFor(agentId: string): number {
+    return agentId ? this.approvals.filter((approval) => approval.agentId === agentId).length : 0;
   }
 
   hostConnected(): void {
@@ -194,7 +208,23 @@ export class ApprovalController implements ReactiveController {
     try {
       await this.bridge.api().decideApproval(id, decision);
       if (generation === this.generation) {
+        const asked = this.approvals.find((approval) => approval.id === id);
         this.approvals = this.approvals.filter((approval) => approval.id !== id);
+        if (decision === "allow-always") {
+          // Said, because nothing else on the card said where the "always" went: it is
+          // a request, decided by an Administrator, not a rule (finding 402).
+          this.lateAnswers = [
+            ...this.lateAnswers.filter((notice) => notice.id !== `filed:${id}`),
+            {
+              id: `filed:${id}`,
+              agentId: asked?.agentId ?? "",
+              message: t("governance.approvals.alwaysFiled", { title: asked?.title ?? id }),
+              severity: "info",
+              at: Date.now(),
+            },
+          ];
+        }
+        this.bridge.onAnswered?.();
       }
     } catch (err) {
       if (generation !== this.generation) {

@@ -204,6 +204,9 @@ describe("listing agents", () => {
     expect(agents.find((entry) => entry.agentId === "agent-legacy")).toEqual({
       agentId: "agent-legacy",
       registered: false,
+      // Named only by the policy: no such agent in OpenClaw, and the panel must not
+      // say there is one, or offer to register it (finding 399).
+      onHost: false,
     });
     const ids = agents.map((entry) => entry.agentId);
     expect(ids.indexOf("agent-known")).toBeLessThan(ids.indexOf("agent-legacy"));
@@ -517,5 +520,140 @@ describe("the two Codex switches, and the tiers that own them (§3.5.62)", () =>
       allowed: true,
     });
     expect(res.status).toBeGreaterThanOrEqual(400);
+  });
+});
+
+describe("assignment stays with the account's own Administrator (finding 397)", () => {
+  // `users/agents` admitted any Administrator for any account in the
+  // organisation. `assertAssignable` only asked whether the *agents* belonged to
+  // the account's manager, so a second Administrator could empty another
+  // Administrator's User, or hand that User agents its own Administrator had
+  // chosen to withhold. Root keeps the whole organisation.
+  async function withAssignment() {
+    const org = await organisation("alpha");
+    await registerAgent(
+      { id: "agent-a", displayName: "A", groupId: org.groupId, adminId: org.admin.id },
+      "alpha-admin",
+    );
+    const first = await call("POST", "users/agents", sessionFor(org.admin), {
+      userId: org.user.id,
+      agentIds: ["agent-a"],
+    });
+    expect(first.status).toBe(200);
+    return org;
+  }
+
+  it("refuses another Administrator, and leaves the assignment as it was", async () => {
+    const org = await withAssignment();
+    const reply = await call("POST", "users/agents", sessionFor(org.other), {
+      userId: org.user.id,
+      agentIds: [],
+    });
+    expect(reply.status).toBe(403);
+    expect(reply.body.error.message).toContain("answers to another Administrator");
+    const stored = (await listUsers()).find((account) => account.id === org.user.id);
+    expect(stored?.assignedAgents).toEqual(["agent-a"]);
+  });
+
+  it("still lets Root change any account's agents", async () => {
+    const org = await withAssignment();
+    const reply = await call("POST", "users/agents", sessionFor(org.root), {
+      userId: org.user.id,
+      agentIds: [],
+    });
+    expect(reply.status).toBe(200);
+    const stored = (await listUsers()).find((account) => account.id === org.user.id);
+    expect(stored?.assignedAgents).toEqual([]);
+  });
+
+  it("lists to an Administrator only the accounts that answer to them", async () => {
+    const org = await withAssignment();
+    const mine = await call("GET", "users/managed", sessionFor(org.admin));
+    expect(mine.status).toBe(200);
+    expect(mine.body.map((account: { username: string }) => account.username)).toEqual([
+      "alpha-user",
+    ]);
+    // No password hash, and not Root's policy-authoring flag.
+    expect(Object.keys(mine.body[0]).toSorted()).toEqual([
+      "assignedAgents",
+      "createdAt",
+      "id",
+      "managedBy",
+      "role",
+      "username",
+    ]);
+    const theirs = await call("GET", "users/managed", sessionFor(org.other));
+    expect(theirs.status).toBe(200);
+    expect(theirs.body).toEqual([]);
+  });
+
+  it("refuses the listing below Administrator", async () => {
+    const org = await withAssignment();
+    const reply = await call("GET", "users/managed", sessionFor(org.user, ["agent-a"]));
+    expect(reply.status).toBe(403);
+  });
+});
+
+describe("a policy write names a registered agent (finding 399)", () => {
+  // A typo (`zetta` for `zeta`) was stored as a rule that bound nothing, listed the id
+  // as an agent that "exists in OpenClaw", and waited for anything later registered
+  // under that name. Clearing an override stays open, so stale state can be removed.
+  async function withAgent() {
+    const org = await organisation("alpha");
+    await registerAgent(
+      { id: "zeta", displayName: "Zeta", groupId: org.groupId, adminId: org.admin.id },
+      "alpha-admin",
+    );
+    return org;
+  }
+
+  it("refuses a rule for an id nobody registered, and accepts the real one", async () => {
+    const org = await withAgent();
+    const rule = {
+      resourceKind: "command",
+      pattern: "^uptime$",
+      description: "QA: report uptime",
+    };
+    const typo = await call("POST", "policy/rules", sessionFor(org.admin), {
+      ...rule,
+      agentId: "zetta",
+    });
+    expect(typo.status).toBe(409);
+    expect(typo.body.error.type).toBe("agent_not_registered");
+    expect(typo.body.error.message).toContain('"zetta" is not registered');
+    const real = await call("POST", "policy/rules", sessionFor(org.admin), {
+      ...rule,
+      agentId: "zeta",
+    });
+    expect(real.status).toBe(200);
+  });
+
+  it("refuses a folder grant for an unregistered id", async () => {
+    const org = await withAgent();
+    const reply = await call("POST", "policy/folder-grant", sessionFor(org.admin), {
+      folder: "reports",
+      description: "QA: weekly reports",
+      agentId: "zetta",
+    });
+    expect(reply.status).toBe(409);
+  });
+
+  it("refuses setting a posture or escalation for it, and still allows clearing one", async () => {
+    const org = await withAgent();
+    const mode = await call("POST", "policy/agent-mode", sessionFor(org.admin), {
+      agentId: "zetta",
+      mode: "monitor",
+    });
+    expect(mode.status).toBe(409);
+    const ask = await call("POST", "policy/agent-ask", sessionFor(org.admin), {
+      agentId: "zetta",
+      ask: "off",
+    });
+    expect(ask.status).toBe(409);
+    const cleared = await call("POST", "policy/agent-mode", sessionFor(org.admin), {
+      agentId: "zetta",
+      mode: null,
+    });
+    expect(cleared.status).toBe(200);
   });
 });

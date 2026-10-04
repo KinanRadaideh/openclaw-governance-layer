@@ -57,7 +57,12 @@ import { handleGovernanceAgentControlRoutes } from "./governance-dashboard-agent
 import { handleGovernanceAgentRoutes } from "./governance-dashboard-agents.js";
 import { handleGovernanceCodexBackendRoutes } from "./governance-dashboard-backend.js";
 import { handleGovernanceFolderGrantRoutes } from "./governance-dashboard-folder-grant.js";
-import { requireAgentPolicyAuthoring, requireGroup } from "./governance-dashboard-group.js";
+import {
+  requireAgentPolicyAuthoring,
+  requireGroup,
+  requireRegisteredAgentForPolicy,
+} from "./governance-dashboard-group.js";
+import { handleGovernanceIntegrityRoutes } from "./governance-dashboard-integrity.js";
 import { handleGovernanceOversightRoutes } from "./governance-dashboard-oversight.js";
 import { handleGovernanceRuleRequestRoutes } from "./governance-dashboard-rule-requests.js";
 import { GOVERNANCE_LOGIN_REQUIRED_TYPE } from "./governance-login-required.js";
@@ -563,6 +568,10 @@ export async function handleGovernanceApiRequest(
     if (!requireAgentPolicyAuthoring(res, toActor(session), agentId.trim())) {
       return true;
     }
+    // Clearing stays open for any id, so a stale override can still be removed.
+    if (ask !== null && !(await requireRegisteredAgentForPolicy(res, groupId, agentId.trim()))) {
+      return true;
+    }
     await setAgentAskMode(
       groupId,
       agentId.trim(),
@@ -631,6 +640,10 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     if (!requireAgentPolicyAuthoring(res, toActor(session), agentId.trim())) {
+      return true;
+    }
+    // Clearing stays open for any id, so a stale override can still be removed.
+    if (mode !== null && !(await requireRegisteredAgentForPolicy(res, groupId, agentId.trim()))) {
       return true;
     }
     await setAgentMode(
@@ -723,7 +736,10 @@ export async function handleGovernanceApiRequest(
         });
         return true;
       }
-    } else if (!requireAgentPolicyAuthoring(res, ruleActor, scopedAgentId)) {
+    } else if (
+      !requireAgentPolicyAuthoring(res, ruleActor, scopedAgentId) ||
+      !(await requireRegisteredAgentForPolicy(res, groupId, scopedAgentId))
+    ) {
       return true;
     }
     if (!isResourceKind(resourceKind)) {
@@ -950,6 +966,18 @@ export async function handleGovernanceApiRequest(
       requireRole,
       readJsonObjectBodyOrError,
       toActor,
+      auditActor,
+    })
+  ) {
+    return true;
+  }
+
+  // The ledger's own integrity (T73): witness, alerts, acknowledgement. Before the
+  // oversight module, which answers every GET beginning with `ledger`.
+  if (
+    await handleGovernanceIntegrityRoutes(req, res, route, session, {
+      requireRole,
+      readJsonObjectBodyOrError,
       auditActor,
     })
   ) {

@@ -18,7 +18,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { canViewAgent, canWritePolicy } from "./permissions.js";
-import { issueSession, updateSessionsAssignedAgents, verifySession } from "./session-tokens.js";
+import {
+  issueSession,
+  updateSessionsAssignedAgents,
+  updateSessionsRoleForUser,
+  verifySession,
+} from "./session-tokens.js";
 import { seedNamedGroup } from "./test-group.js";
 import {
   authenticate,
@@ -143,5 +148,26 @@ describe("agent assignment mirrored into live sessions", () => {
     const verified = await verifySession(issued.token);
     // Two copies of one fact; the point is that they cannot disagree.
     expect(verified?.assignedAgents).toEqual(stored?.assignedAgents);
+  });
+});
+
+// The managing Administrator is mirrored on the session too (2026-10-03). A move
+// to another Administrator left the live session naming the old one, which the
+// report's Two-Gate Authentication section says cannot happen.
+describe("the managing Administrator, mirrored on a live session", () => {
+  it("follows a move, and clears on a promotion", async () => {
+    const userId = await seedManagedUser();
+    const other = await createUser(
+      { username: "admin2", password: PASSWORD, role: "administrator", groupId: TEST_GROUP },
+      TEST_ACTOR,
+    );
+    const issued = await issueSession((await authenticate("malek", PASSWORD))!);
+    await updateSessionsRoleForUser(userId, "user", other.id);
+    expect((await verifySession(issued.token))?.managedBy).toBe(other.id);
+    // Undefined leaves it alone, as every caller before this change passed.
+    await updateSessionsRoleForUser(userId, "user");
+    expect((await verifySession(issued.token))?.managedBy).toBe(other.id);
+    await updateSessionsRoleForUser(userId, "administrator", null);
+    expect((await verifySession(issued.token))?.managedBy).toBeUndefined();
   });
 });

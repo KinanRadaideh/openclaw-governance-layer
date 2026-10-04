@@ -273,7 +273,8 @@ function contentWidth(el: HTMLElement): number {
 }
 
 function textBoxes(): HTMLInputElement[] {
-  return [...page.querySelectorAll<HTMLInputElement>("input")].filter(
+  // `textarea` too: the conversation composer is one since 2026-10-03.
+  return [...page.querySelectorAll<HTMLInputElement>("input, textarea")].filter(
     (el) => !["hidden", "checkbox", "radio", "button", "submit", "reset"].includes(el.type),
   );
 }

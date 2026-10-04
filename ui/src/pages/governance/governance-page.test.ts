@@ -610,7 +610,8 @@ async function typeInto(el: PageState, input: HTMLInputElement, value: string): 
 }
 
 function inputByLabel(el: PageState, label: string): HTMLInputElement | undefined {
-  return Array.from(el.querySelectorAll<HTMLInputElement>("input")).find(
+  // `textarea` too: the composer is one since 2026-10-03.
+  return Array.from(el.querySelectorAll<HTMLInputElement>("input, textarea")).find(
     (candidate) => candidate.getAttribute("aria-label") === label,
   );
 }

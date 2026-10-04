@@ -171,6 +171,7 @@ export function renderFolderGrantPanel(
         <input
           class="input"
           ?required=${!props.canAdminister}
+          list="governance-new-rule-agents"
           aria-label=${t("governance.policy.folderGrantAgentLabel")}
           placeholder=${props.canAdminister
             ? t("governance.policy.folderGrantAgentPlaceholder")

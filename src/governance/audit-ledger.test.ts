@@ -129,11 +129,22 @@ describe("audit ledger hash chain", () => {
     // Dropping the tail leaves a still-valid prefix chain, so verification
     // alone cannot detect it. Appending afterwards must not silently reuse a
     // sequence number that already existed.
+    //
+    // **This test asserted the T73 defect until 2026-10-04**: it expected the
+    // next append to take number 2 again and the chain to verify clean, which is
+    // the checkpoint's evidence of the truncation overwritten by the next
+    // ordinary write. Now the append records a gap line first (#3, numbered on
+    // from the checkpoint's #2), then the entry (#4), and verification reports
+    // the gap rather than a clean chain.
     await writeFile(path, `${lines[0]}\n`);
     const ledgerAfter = await freshLedgerModule();
     await ledgerAfter.appendLedgerEntry(TEST_GROUP, entryInput("three"));
-    expect(await readSeqs()).toEqual([1, 2]);
-    expect((await ledgerAfter.verifyLedgerChain(TEST_GROUP)).ok).toBe(true);
+    expect(await readSeqs()).toEqual([1, 3, 4]);
+    const verification = await ledgerAfter.verifyLedgerChain(TEST_GROUP);
+    expect(verification.ok).toBe(true);
+    expect(verification.alerts).toEqual([
+      expect.objectContaining({ seq: 3, missingFrom: 2, missingTo: 2 }),
+    ]);
   });
 
   it("stays consistent when a second process appends concurrently", async () => {

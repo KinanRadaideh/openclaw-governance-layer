@@ -3,10 +3,11 @@
 // Split out of `governance-dashboard-api.ts` (T16), which had grown past 1,500
 // lines and past the project's own 700-line limit. The split is along the seam
 // the design doc already draws: **Root manages people, Administrator manages
-// agents.** Every route here is account administration and every one is
-// Root-only, so the file has a single, statable authorization rule rather than
-// a mixture, which is the property that makes a split worth doing rather than
-// merely making two files out of one.
+// agents.** Every route here is account administration and Root-only, with two
+// stated exceptions at Administrator: `users/agents`, delegating an agent, and
+// `users/managed`, the list that delegation needs. Both are confined to the
+// accounts that answer to the calling Administrator (finding 397). This header
+// said "every one is Root-only" while `users/agents` already was not.
 //
 // Behaviour is unchanged. The routes, their tier checks, their status codes and
 // their audit calls moved verbatim; the privilege matrix and account-lifecycle
@@ -32,9 +33,11 @@ import {
   type GovernanceSession,
 } from "../governance/session-tokens.js";
 import {
+  AccountStillExistsError,
   createUser,
-  deleteUser,
+  deleteAccount,
   DuplicateRootError,
+  finishAccountDeletion,
   LastRootError,
   listUsers,
   ManagedAccountsRemainError,
@@ -43,6 +46,7 @@ import {
   setUserPassword,
   setUserPolicyAuthoring,
   setUserRole,
+  SessionRevocationError,
 } from "../governance/user-store.js";
 import { requireGroup } from "./governance-dashboard-group.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
@@ -302,18 +306,15 @@ export async function handleGovernanceAccountRoutes(
     }
     // A role change must bind immediately, not at next login: an operator
     // demoted for cause keeps their elevated cookie otherwise.
-    await updateSessionsRoleForUser(userId, role);
-    // A tier crossing releases the assignment list (finding 382); bind that too.
+    // A tier crossing releases the assignment list (finding 382), and a move changes the
+    // Administrator the account answers to; the live sessions mirror both.
     const after = (await listUsers(session.groupId)).find((user) => user.id === userId);
+    await updateSessionsRoleForUser(userId, role, after?.managedBy ?? null);
     await updateSessionsAssignedAgents(userId, after?.assignedAgents ?? []);
     sendJson(res, 200, { ok: true });
     return true;
   }
 
-  // Administrator and above: assign which agents an account manages. This is
-  // agent management, not account management, so it sits at Administrator,
-  // an Administrator can delegate an agent without being able to create the
-  // account that receives it.
   // Root only: set another account's password. The recovery path whose absence
   // made a hash that could no longer be verified unrecoverable. Bootstrap
   // refuses once any account exists, so there was no way back.
@@ -352,6 +353,51 @@ export async function handleGovernanceAccountRoutes(
     return true;
   }
 
+  // Administrator and above: the accounts that answer to the caller (finding 397).
+  //
+  // `users/agents` below has admitted an Administrator since M4, and the page
+  // never offered it: the only account list is `users`, which is Root's, so an
+  // Administrator could delegate an agent only by hand-written HTTP. This is the
+  // list that control needs and no more: the caller's own Users and Viewers,
+  // in the shape Root's list uses, minus the policy-authoring flag, which is
+  // Root's to read and set. No hash, and no account answering to anybody else.
+  // Root, who answers for every account, gets every User and Viewer.
+  if (route === "users/managed" && req.method === "GET") {
+    if (!requireRole(res, session, "administrator")) {
+      return true;
+    }
+    const managed = (await listUsers(session.groupId)).filter(
+      (user) =>
+        (user.role === "user" || user.role === "viewer") &&
+        (session.role === "root" || user.managedBy === session.userId),
+    );
+    sendJson(
+      res,
+      200,
+      managed.map((user) => ({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        createdAt: user.createdAt,
+        assignedAgents: [...user.assignedAgents],
+        managedBy: user.managedBy,
+      })),
+    );
+    return true;
+  }
+
+  // Administrator and above: assign which agents an account manages. This is
+  // agent management, not account management, so it sits at Administrator,
+  // an Administrator can delegate an agent without being able to create the
+  // account that receives it.
+  //
+  // **Only to the accounts that answer to them (finding 397).** The route used
+  // to admit every Administrator for every account in the organisation, and
+  // `assertAssignable` asks only whether the *agents* belong to the account's
+  // own Administrator. So a second Administrator could empty another
+  // Administrator's User, or hand that User agents its Administrator had chosen
+  // to withhold: acting inside a silo M4 gives to one person. Root answers for
+  // every account and keeps the whole organisation.
   if (route === "users/agents" && req.method === "POST") {
     if (!requireRole(res, session, "administrator")) {
       return true;
@@ -377,6 +423,17 @@ export async function handleGovernanceAccountRoutes(
     const target = (await listUsers(session.groupId)).find((user) => user.id === userId);
     if (!target) {
       sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
+      return true;
+    }
+    if (session.role !== "root" && target.managedBy !== session.userId) {
+      sendJson(res, 403, {
+        error: {
+          message:
+            `${target.username} answers to another Administrator, so only that Administrator ` +
+            "or Root can change which agents it holds.",
+          type: "forbidden",
+        },
+      });
       return true;
     }
     if (!Array.isArray(agentIds) || agentIds.some((id) => typeof id !== "string")) {
@@ -438,16 +495,27 @@ export async function handleGovernanceAccountRoutes(
       sendJson(res, 409, { error: { message: deleteGuard.reason, type: "would_lock_out" } });
       return true;
     }
+    let deletion;
     try {
       const target = deleteUsers.find((user) => user.id === userId);
       if (target) {
         await assertOwnershipSurvives(target, { role: "deleted" }, deleteUsers);
       }
-      if (!(await deleteUser(userId, auditActor(session)))) {
+      // T76: the sessions are revoked inside the deletion's own commit, before the
+      // record goes, so a deleted account never keeps a working session. This
+      // route used to revoke them last, after the purge and the ledger entry, and
+      // either of those failing left the account gone and its sessions valid.
+      deletion = await deleteAccount(userId, auditActor(session));
+      if (!deletion) {
         sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
         return true;
       }
     } catch (err) {
+      // Nothing was deleted: the sessions could not be signed out first.
+      if (err instanceof SessionRevocationError) {
+        sendJson(res, 503, { error: { message: err.message, type: "sessions_unavailable" } });
+        return true;
+      }
       if (err instanceof LastRootError) {
         sendJson(res, 409, { error: { message: err.message, type: "would_lock_out" } });
         return true;
@@ -460,9 +528,52 @@ export async function handleGovernanceAccountRoutes(
       }
       throw err;
     }
-    // Sessions outlive the account otherwise, for up to the session TTL.
-    await revokeSessionsForUser(userId);
-    sendJson(res, 200, { ok: true });
+    // **Completed, and said to be incomplete when it is** (T76). The account is
+    // gone and signed out either way; a purge or ledger failure after that point
+    // is reported with the way to finish it, never as a failed deletion.
+    sendJson(res, 200, {
+      ok: true,
+      username: deletion.username,
+      sessionsRevoked: deletion.sessionsRevoked,
+      ...(deletion.cleanupError ? { cleanupError: deletion.cleanupError } : {}),
+      ...(deletion.auditError ? { auditError: deletion.auditError } : {}),
+    });
+    return true;
+  }
+
+  // Root only: finish a deletion that reported `cleanupError` or `auditError`
+  // (T76). The account is already gone, so its id and name come from the
+  // request, and the domain refuses if any account holds either now.
+  if (route === "users/delete/finish" && req.method === "POST") {
+    if (!requireRole(res, session, "root")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const { userId, username } = body as { userId?: unknown; username?: unknown };
+    if (typeof userId !== "string" || !userId || typeof username !== "string" || !username) {
+      sendInvalidRequest(res, "userId and username of the deleted account are required");
+      return true;
+    }
+    try {
+      const finished = await finishAccountDeletion(
+        { userId, username, groupId },
+        auditActor(session),
+      );
+      sendJson(res, 200, { ok: true, username, ...finished });
+    } catch (err) {
+      if (err instanceof AccountStillExistsError) {
+        sendJson(res, 409, { error: { message: err.message, type: "conflict" } });
+        return true;
+      }
+      throw err;
+    }
     return true;
   }
 
@@ -483,8 +594,8 @@ export async function handleGovernanceAccountRoutes(
   // meanings behind one path, separated by which id happened to be posted, is
   // how a mis-click becomes an unrecoverable installation.
   //
-  // The confirmation is checked in the domain module, not here, so the command
-  // line asks for the same word.
+  // The confirmation is checked in the domain module, not here, so every caller
+  // of that module has to supply the same word.
   // ---------------------------------------------------------------------
   if (route === "organisation/delete" && req.method === "POST") {
     if (!requireRole(res, session, "root")) {

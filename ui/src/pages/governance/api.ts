@@ -6,7 +6,11 @@
 // endpoints enforce their own named-account session via an HttpOnly cookie
 // issued by /control-ui/governance/login. Hence `credentials: "same-origin"`.
 import type { GovernanceRole } from "../../../../src/governance/roles.ts";
-import type { GovernanceUserRecord, OrganisationDeletionResponse } from "./api.accounts.ts";
+import type {
+  AccountDeletionResponse,
+  GovernanceUserRecord,
+  OrganisationDeletionResponse,
+} from "./api.accounts.ts";
 import {
   GOVERNANCE_UNREACHABLE_MESSAGE,
   GovernanceApiError,
@@ -146,53 +150,6 @@ export type GovernanceActiveSessionsView = {
   sampledAt: string;
 };
 
-export type GovernanceLedgerEntry = {
-  seq: number;
-  timestamp: string;
-  agentId: string;
-  sessionKey: string;
-  toolName: string;
-  resourceKind: string;
-  resource: string;
-  ruleId: string;
-  /**
-   * `ungoverned` marks an action the policy layer did not evaluate. A tool with
-   * no resource extractor. It was missing from this union while the server had
-   * emitted it since complete-record logging landed, so the dashboard's own type
-   * disagreed with the data it was rendering.
-   */
-  decision: "allow" | "deny" | "ask" | "ungoverned";
-  prevHash: string;
-  hash: string;
-  /**
-   * What the model said it was doing on the turn that produced this call.
-   *
-   * §1.6's sixth "Granular Event Tracking" field, and the only one that comes
-   * from the *model* rather than the runtime, so it is the only field that
-   * lets the trail be read as "the agent said it was doing X, and then did Y".
-   *
-   * **Absent far more often than present, and that is normal rather than an
-   * error**: a turn with no narration, a harness that reports none, a restart
-   * between the model speaking and the tool running, or any call not made by a
-   * model at all, the CLI, a test, an administrative action.
-   *
-   * A Viewer receives the placeholder rather than the text (finding 133):
-   * narration names files the agent is about to touch and quotes what it has
-   * already read, so it discloses strictly more than `resource` does.
-   *
-   * **Declared here only on 2026-08-28.** The server had recorded and returned
-   * it since round twenty-one; this type omitted it, so the dashboard could not
-   * render it even as a read-only fact, the same omission `userAsk` had.
-   */
-  intent?: string;
-  /** Present only on administrative entries (policy and account changes). */
-  entryKind?: "admin";
-  /** Account responsible for an administrative action; `cli` for terminal changes. */
-  actor?: string;
-  /** The tier the actor held when they acted. Absent on entries predating it. */
-  actorRole?: "root" | "administrator" | "user" | "viewer";
-};
-
 /**
  * A rule that is valid but grants more than it appears to. An unanchored
  * pattern, or one whose body matches everything. Advisory, never blocking.
@@ -208,24 +165,6 @@ import type {
 export type GovernanceRuleCreation = GovernancePolicyRule & {
   conflicts?: GovernanceRuleConflict[];
   warnings?: GovernanceRuleWarning[];
-};
-
-export type GovernanceLedgerVerification = {
-  ok: boolean;
-  entriesChecked: number;
-  brokenAtSeq?: number;
-  reason?: string;
-  /**
-   * What the check observed, so a green verdict can be examined rather than
-   * believed. Mirrored by hand from `LedgerVerification` in
-   * `src/governance/audit-ledger.ts`, like every type in this file.
-   */
-  evidence?: {
-    headSeq: number;
-    headHash: string;
-    checkpointSeq?: number;
-    keyed: boolean;
-  };
 };
 
 export type GovernanceIdentity = {
@@ -286,10 +225,15 @@ export type {
 // Account shapes live in `api.accounts.ts` and are re-exported here, so the
 // dozen modules that import them from `./api.ts` keep working and there is
 // still one name to import from.
-export type { GovernanceUserRecord, OrganisationDeletionResponse } from "./api.accounts.ts";
+export type {
+  AccountDeletionResponse,
+  GovernanceUserRecord,
+  OrganisationDeletionResponse,
+} from "./api.accounts.ts";
 
 // Re-exported so every consumer still imports its API types from one place.
 export type * from "./api.agents.ts";
+export type * from "./api.ledger.ts";
 import type {
   GovernanceAgentEntry,
   GovernanceAgentPolicyHoldings,
@@ -297,6 +241,7 @@ import type {
   GovernanceHostDeletionMode,
   GovernanceHostLeftovers,
 } from "./api.agents.ts";
+import type * as Ledger from "./api.ledger.ts";
 
 // Escalations waiting for a person: live ones from dashboard prompts (T68), and the
 // timed-out ones answered later.
@@ -311,51 +256,13 @@ import type {
 // The agent-control shapes, moved out on the same rule (T60, T63).
 export type * from "./api.agent-control.ts";
 import type {
+  GovernanceKillResult,
   GovernancePromptOutcome,
   GovernancePromptRun,
   GovernanceTranscript,
 } from "./api.agent-control.ts";
 
 const BASE = "/control-ui/governance";
-
-/**
- * What the kill switch actually achieved.
- *
- * The lockdown always lands: it is a policy write. Terminating the run already
- * in flight is separate and can fail to be available at all (no terminator
- * registered: the gateway is still starting, or the request came from a context
- * that does not own the run registry). Discarding this and reporting a flat
- * success let the console show "locked down" while the runaway run kept going,
- * which is the exact opposite of what an emergency stop must communicate.
- */
-export type GovernanceKillResult = {
-  ok: true;
-  /** Total time, including waiting for the runs to actually stop. */
-  elapsedMs?: number;
-  /** Time spent only sending the stop signal. */
-  dispatchMs?: number;
-  /**
-   * True when every signalled run was observed to end.
-   *
-   * False means either that nothing could watch, or that runs were still going
-   * when the wait expired: so the headline time must not be presented as the
-   * time the agent stopped.
-   */
-  stoppedConfirmed?: boolean;
-  abortedRunIds?: string[];
-  inFlightTerminationSupported?: boolean;
-  /**
-   * Present when the stop landed but its ledger entry could not be written
-   * (finding 195).
-   *
-   * The request still succeeds, because the agent really is stopped. Shown as a
-   * warning beside the outcome rather than reported as a failure: a
-   * tamper-evident trail missing an entry is something the operator must be
-   * told, and telling them the emergency stop failed when it did not is the
-   * reading that makes them escalate during an incident.
-   */
-  auditError?: string;
-};
 
 /**
  * What the server records about an attachment, and all it ever returns.
@@ -590,12 +497,33 @@ export class GovernanceApi {
     return this.request<{ ok: boolean }>("policy/rules/remove", { method: "POST", body: { id } });
   }
 
-  ledger(limit = 200): Promise<GovernanceLedgerEntry[]> {
-    return this.request<GovernanceLedgerEntry[]>(`ledger?limit=${limit}`);
+  ledger(limit = 200): Promise<Ledger.GovernanceLedgerEntry[]> {
+    return this.request<Ledger.GovernanceLedgerEntry[]>(`ledger?limit=${limit}`);
   }
 
-  verifyLedger(): Promise<GovernanceLedgerVerification> {
-    return this.request<GovernanceLedgerVerification>("ledger/verify", {
+  /** Hands back the receipt this browser kept, and takes the current head's (T73). */
+  witnessLedger(
+    receipt: Ledger.GovernanceLedgerReceipt | undefined,
+  ): Promise<Ledger.GovernanceWitnessResult> {
+    return this.request<Ledger.GovernanceWitnessResult>("integrity/witness", {
+      method: "POST",
+      body: receipt ? { receipt } : {},
+    });
+  }
+
+  integrityAlerts(): Promise<{ alerts: Ledger.GovernanceIntegrityAlert[] }> {
+    return this.request<{ alerts: Ledger.GovernanceIntegrityAlert[] }>("integrity/alerts");
+  }
+
+  acknowledgeIntegrityAlert(
+    seq: number,
+    reason: string,
+  ): Promise<{ ok: boolean; alerts: Ledger.GovernanceIntegrityAlert[] }> {
+    return this.request("integrity/acknowledge", { method: "POST", body: { seq, reason } });
+  }
+
+  verifyLedger(): Promise<Ledger.GovernanceLedgerVerification> {
+    return this.request<Ledger.GovernanceLedgerVerification>("ledger/verify", {
       method: "POST",
       body: {},
     });
@@ -1072,6 +1000,11 @@ export class GovernanceApi {
     return this.request<GovernanceUserRecord[]>("users");
   }
 
+  /** Administrator: the Users and Viewers that answer to this account (finding 397). */
+  listManagedAccounts(): Promise<GovernanceUserRecord[]> {
+    return this.request<GovernanceUserRecord[]>("users/managed");
+  }
+
   createUser(input: {
     username: string;
     password: string;
@@ -1134,8 +1067,19 @@ export class GovernanceApi {
     });
   }
 
-  deleteUser(userId: string): Promise<{ ok: true }> {
-    return this.request<{ ok: true }>("users/delete", { method: "POST", body: { userId } });
+  deleteUser(userId: string): Promise<AccountDeletionResponse> {
+    return this.request<AccountDeletionResponse>("users/delete", {
+      method: "POST",
+      body: { userId },
+    });
+  }
+
+  /** Root: finish a deletion that reported residue (T76); the account is already gone. */
+  finishUserDeletion(userId: string, username: string): Promise<AccountDeletionResponse> {
+    return this.request<AccountDeletionResponse>("users/delete/finish", {
+      method: "POST",
+      body: { userId, username },
+    });
   }
 
   /**

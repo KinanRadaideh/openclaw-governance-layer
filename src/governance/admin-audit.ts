@@ -20,7 +20,13 @@
 // That is deliberate: a logging obligation enforced by review is one somebody
 // eventually forgets.
 import { canonicalAccountName } from "./account-name.js";
-import { appendLedgerEntry, type LedgerEntry } from "./audit-ledger.js";
+import {
+  appendLedgerEntry,
+  LEDGER_GAP_ACTION,
+  LEDGER_INTEGRITY_ACTOR,
+  LEDGER_WITNESS_ACTION,
+  type LedgerEntry,
+} from "./audit-ledger.js";
 import type { GovernanceRole } from "./roles.js";
 
 /**
@@ -152,6 +158,12 @@ export const ADMIN_ACTIONS = {
   authFailuresSuppressed: "governance.auth.failures-suppressed",
   userCreate: "governance.account.create",
   userDelete: "governance.account.delete",
+  /**
+   * A deletion that left residue was finished (T76): what was held under the
+   * name purged, or the deletion recorded, after the account was already gone.
+   * Its own action so that counting `userDelete` still counts each deletion once.
+   */
+  userDeleteFinish: "governance.account.delete-finish",
   userRoleChange: "governance.account.role",
   userPasswordReset: "governance.account.password-reset",
   userAgentsChange: "governance.account.agents",
@@ -238,6 +250,18 @@ export const ADMIN_ACTIONS = {
    */
   organisationDeleteRequest: "governance.organisation.delete-request",
   organisationDelete: "governance.organisation.delete",
+  /**
+   * The ledger's own integrity alerts (T73), written by `audit-ledger.ts` and
+   * `ledger-witness.ts` under `LEDGER_INTEGRITY_ACTOR`, never by an account.
+   * Listed here so the set an auditor filters on stays closed and complete.
+   */
+  ledgerGap: LEDGER_GAP_ACTION,
+  ledgerWitnessContradiction: LEDGER_WITNESS_ACTION,
+  /**
+   * Root acknowledged one of those alerts, with a stated reason. The alert stays
+   * in the chain for ever; this entry is what stops the dashboard raising it.
+   */
+  ledgerAlertAcknowledge: "governance.ledger.alert-acknowledge",
 } as const;
 
 export type AdminAction = (typeof ADMIN_ACTIONS)[keyof typeof ADMIN_ACTIONS];
@@ -398,6 +422,8 @@ const RESERVED_ACTOR_NAMES: ReadonlySet<string> = new Set([
   // same reason as the rest: an account called `host-prompt` would produce
   // entries indistinguishable from the anonymous ones.
   "host-prompt",
+  // T73. The ledger's own integrity alerts: a gap line, a witness contradiction.
+  LEDGER_INTEGRITY_ACTOR,
 ]);
 
 /**

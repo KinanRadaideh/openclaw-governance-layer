@@ -199,10 +199,23 @@ export async function handleGovernanceAgentRoutes(
     const owners = new Map(
       (await listUsers(groupId)).map((account) => [account.id, account.username]),
     );
+    // **Whether an unregistered row is an agent at all** (finding 399). The fallback
+    // folds in ids named only by the policy document, and the panel described every
+    // unregistered row as one that "exists in OpenClaw", with a Register button: true
+    // of the host's roster and of a running session, false of an id a rule merely
+    // names (a typo, or an agent long gone). Said per row so the panel can tell them
+    // apart; the row itself stays, because the policy still mentions it.
+    const presentOnHost = new Set([
+      ...hostAgentIds,
+      ...live.sessions.map((entry) => entry.agentId),
+    ]);
     sendJson(res, 200, {
       agents: entries
         .filter((entry) => visible.has(entry.agentId))
         .map((entry) => {
+          if (!entry.registered) {
+            return Object.assign({}, entry, { onHost: presentOnHost.has(entry.agentId) });
+          }
           const ownerName = entry.adminId ? owners.get(entry.adminId) : undefined;
           // `Object.assign` onto a fresh object rather than a spread, which
           // `no-map-spread` refuses. **A copy either way, deliberately**: these

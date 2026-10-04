@@ -119,6 +119,12 @@ export type GovernanceAgentEntry = {
   adminUsername?: string;
   registered: boolean;
   /**
+   * On an unregistered row only: whether OpenClaw has this agent (its own roster or a
+   * running session). `false` means the id is only named by the policy, so there is
+   * nothing to register (finding 399).
+   */
+  onHost?: boolean;
+  /**
    * What this agent's id was already carrying when it was created or
    * registered (T55). Absent when it carried nothing.
    *

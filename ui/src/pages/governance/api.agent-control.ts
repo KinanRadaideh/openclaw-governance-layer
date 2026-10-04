@@ -62,3 +62,44 @@ export type GovernancePromptRun = {
   /** Decided by the authenticated route, so the browser never re-folds account names. */
   ownedByRequester: boolean;
 };
+
+// The kill switch's result moved here from `api.ts` on 2026-10-04 (T73 and T76 took
+// that file past its limit): stopping an agent is this module's subject on the server.
+/**
+ * What the kill switch actually achieved.
+ *
+ * The lockdown always lands: it is a policy write. Terminating the run already
+ * in flight is separate and can fail to be available at all (no terminator
+ * registered: the gateway is still starting, or the request came from a context
+ * that does not own the run registry). Discarding this and reporting a flat
+ * success let the console show "locked down" while the runaway run kept going,
+ * which is the exact opposite of what an emergency stop must communicate.
+ */
+export type GovernanceKillResult = {
+  ok: true;
+  /** Total time, including waiting for the runs to actually stop. */
+  elapsedMs?: number;
+  /** Time spent only sending the stop signal. */
+  dispatchMs?: number;
+  /**
+   * True when every signalled run was observed to end.
+   *
+   * False means either that nothing could watch, or that runs were still going
+   * when the wait expired: so the headline time must not be presented as the
+   * time the agent stopped.
+   */
+  stoppedConfirmed?: boolean;
+  abortedRunIds?: string[];
+  inFlightTerminationSupported?: boolean;
+  /**
+   * Present when the stop landed but its ledger entry could not be written
+   * (finding 195).
+   *
+   * The request still succeeds, because the agent really is stopped. Shown as a
+   * warning beside the outcome rather than reported as a failure: a
+   * tamper-evident trail missing an entry is something the operator must be
+   * told, and telling them the emergency stop failed when it did not is the
+   * reading that makes them escalate during an incident.
+   */
+  auditError?: string;
+};

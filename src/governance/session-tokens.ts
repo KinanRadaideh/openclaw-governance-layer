@@ -4,11 +4,11 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 // doesn't silently log everyone out; a background sweep drops expired rows.
 import { mkdir } from "node:fs/promises";
 import { readJsonIfExists } from "../infra/json-files.js";
+import { normalizeAgentIds } from "./agent-ids.js";
 import { withFileLock } from "./file-lock.js";
 import { governanceHomeDir, sessionsFilePath } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
 import { writeGovernanceJson } from "./state-file.js";
-import { normalizeAgentIds } from "./user-store.js";
 
 export type GovernanceSession = {
   token: string;
@@ -240,6 +240,13 @@ export async function updateSessionsPolicyAuthoring(
 export async function updateSessionsRoleForUser(
   userId: string,
   role: GovernanceRole,
+  /**
+   * The account's Administrator after the change, when the caller knows it.
+   * The session mirrors `managedBy` like `assignedAgents`, and a move to
+   * another Administrator left the mirror naming the old one (2026-10-03).
+   * `null` clears it, for a promotion out of the managed tiers.
+   */
+  managedBy?: string | null,
 ): Promise<void> {
   await ensureHomeDir();
   await withFileLock(sessionsFilePath(), async () => {
@@ -247,6 +254,11 @@ export async function updateSessionsRoleForUser(
     for (const session of file.sessions) {
       if (session.userId === userId) {
         session.role = role;
+        if (managedBy === null) {
+          delete session.managedBy;
+        } else if (managedBy !== undefined) {
+          session.managedBy = managedBy;
+        }
       }
     }
     await writeGovernanceJson(sessionsFilePath(), file);

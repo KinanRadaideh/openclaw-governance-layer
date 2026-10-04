@@ -25,7 +25,6 @@ import {
   GovernanceApiError,
   type GovernanceIdentity,
   type GovernanceLedgerEntry,
-  type GovernanceLedgerVerification,
   type GovernancePolicyDocument,
   type GovernancePolicyRule,
   type GovernanceActiveSessionsView,
@@ -44,9 +43,10 @@ import {
 import { ApprovalController } from "./approval-controller.ts";
 import { ConversationController, type ConversationSlice } from "./conversation-controller.ts";
 import { canAdminister, canManageAnyAgent, isSessionLost, panelCapabilities } from "./identity.ts";
+import { IntegrityController } from "./integrity-controller.ts";
 import { keptKillNotice, revealKillNotice, type KillNotice } from "./kill-notice.ts";
 import type { LedgerFilter } from "./ledger-filter.ts";
-import { MIN_PASSWORD_LENGTH } from "./panels/account-panels.ts";
+import { accountsInReach, MIN_PASSWORD_LENGTH } from "./panels/account-panels.ts";
 import {
   AccountsController,
   renderRuleRequestsSection,
@@ -76,6 +76,7 @@ import {
 } from "./panels/agent-registry-panels.ts";
 import { renderWaitingApprovals } from "./panels/approval-panel.ts";
 import { EMPTY_FOLDER_GRANT } from "./panels/folder-grant-panel.ts";
+import { renderIntegrityAlerts } from "./panels/integrity-panel.ts";
 import { renderOrganisationSection } from "./panels/organisation-panel.ts";
 import {
   renderDeploymentSection,
@@ -190,7 +191,6 @@ class GovernancePage extends OpenClawLightDomElement {
    * several and compare them, which is the whole point of asking the question.
    */
   @state() private ruleTargets: Record<string, GovernanceRuleTargets> = {};
-  @state() private verification: GovernanceLedgerVerification | null = null;
   @state() private busy = false;
   /** How many `run` calls are in flight; `busy` is true while any is (finding 384). */
   private runsInFlight = 0;
@@ -275,6 +275,13 @@ class GovernancePage extends OpenClawLightDomElement {
   });
   /** Escalations from dashboard prompts waiting for this account (T68). See `approval-controller.ts`. */
   private readonly approvals = new ApprovalController(this, {
+    api: () => this.api(),
+    identity: () => this.identity,
+    onSessionLost: () => this.markSessionExpired(),
+    onAnswered: () => void this.refreshData(),
+  });
+  /** The ledger's integrity: witness, alerts, chain verification (T73). See `integrity-controller.ts`. */
+  private readonly integrity = new IntegrityController(this, {
     api: () => this.api(),
     identity: () => this.identity,
     onSessionLost: () => this.markSessionExpired(),
@@ -476,6 +483,10 @@ class GovernancePage extends OpenClawLightDomElement {
       pendingDecisions: this.pendingDecisions,
       pendingDecisionsShed: this.pendingDecisionsShed,
       conversationAgentDraft: this.conversationAgentDraft,
+      // Escalations from the open agent waiting for this account (finding 402). Every
+      // card this controller holds is one this account may answer, so the count is
+      // simply those for the agent whose conversation is open.
+      waitingForMyAnswer: this.approvals.waitingFor(this.conversation.openAgentId()),
       // The conversation's slice, both run-control bundles and its callbacks,
       // assembled by its controller (T53's seam, used again for T63).
       ...this.conversation.panelProps({
@@ -591,7 +602,8 @@ class GovernancePage extends OpenClawLightDomElement {
         : Promise.resolve({ decisions: [], shedUndecided: 0 }),
       // Only Root may list accounts; requesting as a lower tier would 403 and
       // surface a confusing error on an otherwise successful refresh.
-      this.identity?.role === "root" ? api.listUsers() : Promise.resolve([]),
+      // Root's whole list, or an Administrator's own accounts (finding 397).
+      accountsInReach(api, this.identity),
       // Same reasoning, same tier: the deployment report is Root-only (A7).
       // **Appended at the end deliberately**. This array is destructured by
       // position below, so inserting into the middle silently misassigns every
@@ -748,7 +760,7 @@ class GovernancePage extends OpenClawLightDomElement {
     this.partialFailure = failed > 0;
     this.error = errorAfterRefresh(this.error, failed);
     this.lastRefreshedAt = Date.now();
-    await this.conversation.refreshRuns();
+    await Promise.all([this.conversation.refreshRuns(), this.integrity.refresh()]);
   }
 
   /**
@@ -799,9 +811,9 @@ class GovernancePage extends OpenClawLightDomElement {
     this.ruleRequests = [];
     this.systemStatus = null;
     this.deployment = null;
-    this.verification = null;
     this.conversation.forget();
     this.approvals.forget();
+    this.integrity.forget();
     // ---------------------------------------------------------------------
     // **Everything else this component holds, and the two things it keeps**
     // (finding 280).
@@ -1070,10 +1082,6 @@ class GovernancePage extends OpenClawLightDomElement {
    * The transcript is fetched on open rather than kept for every agent, because
    * a User may be assigned several and only ever talks to one at a time.
    */
-  /** Administrators in this group, who are the only accounts that may manage a User (M3). */
-  private administrators(): GovernanceUserRecord[] {
-    return (this.users as GovernanceUserRecord[]).filter((user) => user.role === "administrator");
-  }
 
   /**
    * Accounts eligible to own an agent: the Administrators, plus this group's Root.
@@ -1133,6 +1141,7 @@ class GovernancePage extends OpenClawLightDomElement {
         ${renderRuleWarnings(this.ruleWarnings, () => {
           this.ruleWarnings = null;
         })}
+        ${renderIntegrityAlerts(this.integrity.slice())}
         ${renderWaitingApprovals(this.approvals.slice())}
         <div class="governance-page governance-page__layout">
           ${renderSectionNav({
@@ -1156,7 +1165,8 @@ class GovernancePage extends OpenClawLightDomElement {
               ...this.effects(),
               identity: this.identity,
               users: this.users,
-              administrators: this.administrators(),
+              // Administrators in this group, the only accounts that may manage a User (M3).
+              administrators: this.users.filter((user) => user.role === "administrator"),
               busy: this.busy,
               ...this.accounts.slice(),
               setPassword: (userId, username) =>
@@ -1168,8 +1178,9 @@ class GovernancePage extends OpenClawLightDomElement {
                     this.error = message;
                   },
                 }),
+              agents: this.agents,
               reloadUsers: async () => {
-                this.users = await this.api().listUsers();
+                this.users = await accountsInReach(this.api(), this.identity);
               },
             })}
             ${renderAgentRegistrySection({ ...agentProps, ...this.agentRegistry.slice() })}
@@ -1195,29 +1206,12 @@ class GovernancePage extends OpenClawLightDomElement {
             ${renderLedgerSection({
               ledger: this.ledger,
               ledgerFilter: this.ledgerFilter,
-              verification: this.verification,
+              verification: this.integrity.verification,
               busy: this.busy,
               onFilter: (value) => {
                 this.ledgerFilter = value;
               },
-              onVerify: () =>
-                void this.run(async () => {
-                  this.verification = await this.api().verifyLedger();
-                  // **Bring the result to the reader** rather than leaving them
-                  // where the inserted row put them. The verdict renders above
-                  // the ledger list, so appearing pushes the list down: somebody
-                  // part-way through the entries was left looking at a different
-                  // one with the answer off-screen above, which reads as the page
-                  // scrolling itself downward.
-                  //
-                  // `block: "nearest"` so a reader who is already looking at the
-                  // row is not moved at all.
-                  await this.updateComplete;
-                  this.querySelector("#governance-chain-integrity")?.scrollIntoView({
-                    block: "nearest",
-                    behavior: "smooth",
-                  });
-                }),
+              onVerify: () => void this.run(() => this.integrity.verify()),
             })}
             ${renderRuleRequestsSection({
               ...this.effects(),

@@ -32,6 +32,14 @@ import { join } from "node:path";
 import { redactToolPayloadText } from "../logging/redact.js";
 import { MAX_INTENT_LENGTH } from "./agent-intent.js";
 import { withFileLock } from "./file-lock.js";
+import { forgetLedgerFileProtection, protectLedgerFile } from "./ledger-append-only.js";
+import {
+  describeFinding,
+  findingSubject,
+  findingToken,
+  type CheckpointFinding,
+  type LedgerCheckpoint,
+} from "./ledger-gap.js";
 import { loadLedgerKey, readLedgerKeyIfPresent } from "./ledger-key.js";
 import { ensureGroupDir, groupDir, ledgerCheckpointFilePath, ledgerFilePath } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
@@ -343,7 +351,28 @@ async function readLedgerRecords(path: string): Promise<LedgerRecord[]> {
  * Keyed by group id, therefore, and every read and write of it goes through
  * the group the append is for.
  */
-const cachedHeads = new Map<string, { seq: number; hash: string; fileSize: number }>();
+const cachedHeads = new Map<string, ChainHead & { fileSize: number }>();
+
+/**
+ * The newest entry of a chain, as much of it as the append path needs.
+ *
+ * `prevHash` and `keyed` joined `seq` and `hash` for T73: comparing the head with
+ * the checkpoint needs the link behind the head (the ordinary crash leaves the
+ * checkpoint exactly one entry behind) and whether the head was written by a keyed
+ * installation, which is the one kind that always writes a checkpoint.
+ */
+type ChainHead = { seq: number; hash: string; prevHash: string; keyed: boolean };
+
+const EMPTY_HEAD: ChainHead = { seq: 0, hash: GENESIS_HASH, prevHash: GENESIS_HASH, keyed: false };
+
+function headOf(entry: LedgerEntry): ChainHead {
+  return {
+    seq: entry.seq,
+    hash: entry.hash,
+    prevHash: entry.prevHash,
+    keyed: entry.keyed === true,
+  };
+}
 
 async function activeFileSize(groupId: string): Promise<number> {
   try {
@@ -432,19 +461,19 @@ async function listArchives(groupId: string): Promise<string[]> {
 }
 
 /** Chain head carried in from the newest archive, for a freshly rotated file. */
-async function readCarriedHead(groupId: string): Promise<{ seq: number; hash: string }> {
+async function readCarriedHead(groupId: string): Promise<ChainHead> {
   const newest = (await listArchives(groupId)).at(-1);
   if (!newest) {
-    return { seq: 0, hash: GENESIS_HASH };
+    return EMPTY_HEAD;
   }
   const records = await readLedgerRecords(newest);
   for (let index = records.length - 1; index >= 0; index -= 1) {
     const record = records[index];
     if (record?.ok) {
-      return { seq: record.entry.seq, hash: record.entry.hash };
+      return headOf(record.entry);
     }
   }
-  return { seq: 0, hash: GENESIS_HASH };
+  return EMPTY_HEAD;
 }
 
 /**
@@ -467,25 +496,35 @@ export function fullChainReadsForTests(): number {
   return fullChainReads;
 }
 
-async function readChainHead(groupId: string): Promise<{ seq: number; hash: string }> {
+async function readChainHead(groupId: string): Promise<ChainHead> {
   const size = await activeFileSize(groupId);
   const cached = cachedHeads.get(groupId);
   if (cached && cached.fileSize === size) {
-    return { seq: cached.seq, hash: cached.hash };
+    const { fileSize: _fileSize, ...head } = cached;
+    return head;
   }
   fullChainReads += 1;
   const records = await readLedgerRecords(ledgerFilePath(groupId));
   for (let index = records.length - 1; index >= 0; index -= 1) {
     const record = records[index];
     if (record?.ok) {
-      cachedHeads.set(groupId, { seq: record.entry.seq, hash: record.entry.hash, fileSize: size });
-      return { seq: record.entry.seq, hash: record.entry.hash };
+      const head = headOf(record.entry);
+      cachedHeads.set(groupId, { ...head, fileSize: size });
+      return head;
     }
   }
   // An empty active file after rotation still continues the archived chain.
   const carried = await readCarriedHead(groupId);
   cachedHeads.set(groupId, { ...carried, fileSize: size });
   return carried;
+}
+
+/** The last rotation failure per group, for the deployment report. */
+const rotationFailures = new Map<string, string>();
+
+/** Why this group's ledger last failed to rotate, if it did. */
+export function ledgerRotationFailure(groupId: string): string | undefined {
+  return rotationFailures.get(groupId);
 }
 
 /**
@@ -504,7 +543,21 @@ async function rotateIfNeeded(groupId: string): Promise<void> {
   // side effect of ordinary logging.
   const segments = await listArchiveSegments(groupId);
   const nextIndex = (segments.at(-1)?.index ?? 0) + 1;
-  await rename(ledgerFilePath(groupId), archivePath(groupId, nextIndex));
+  try {
+    await rename(ledgerFilePath(groupId), archivePath(groupId, nextIndex));
+  } catch (err) {
+    // **A rotation that cannot happen must not fail the append it follows** (T73).
+    // The entry is already on disk and in the checkpoint, so throwing here told the
+    // caller its action went unrecorded when it had been recorded, and the gate
+    // refused a tool call over a file rename. The file goes on growing instead,
+    // and the next append tries again. `chattr +a` on Linux is the known cause.
+    rotationFailures.set(groupId, err instanceof Error ? err.message : String(err));
+    return;
+  }
+  rotationFailures.delete(groupId);
+  // The archive keeps the ACL it had as the active file; the next active file is
+  // a new file, which has none until it is protected in its turn.
+  forgetLedgerFileProtection(ledgerFilePath(groupId));
   cachedHeads.delete(groupId);
 }
 
@@ -575,6 +628,302 @@ export type AppendLedgerEntryInput = {
   intent?: string;
 };
 
+/**
+ * The labelled actor of the entries the ledger writes about itself (T73).
+ *
+ * Not an account and holding no tier, like `host-prompt` and `hitl-approval`, and
+ * reserved for the same reason (`RESERVED_ACTOR_NAMES` in admin-audit.ts): an
+ * account of this name would write entries a reader could not tell from the
+ * ledger's own integrity alerts.
+ */
+export const LEDGER_INTEGRITY_ACTOR = "ledger-integrity";
+
+/**
+ * A gap line: the checkpoint and the ledger disagreed when an append came to
+ * write, and this entry records how, before anything else is written (T73).
+ */
+export const LEDGER_GAP_ACTION = "governance.ledger.gap";
+
+/**
+ * A dashboard witness held a receipt for an entry the ledger no longer holds as
+ * it was (T73, idea 4). Written by `ledger-witness.ts`.
+ */
+export const LEDGER_WITNESS_ACTION = "governance.ledger.witness-contradiction";
+
+/** Whether an entry is one of the ledger's own integrity alerts. */
+export function isLedgerIntegrityAlert(entry: LedgerEntry): boolean {
+  return (
+    entry.entryKind === "admin" &&
+    entry.actor === LEDGER_INTEGRITY_ACTOR &&
+    entry.keyed === true &&
+    (entry.toolName === LEDGER_GAP_ACTION || entry.toolName === LEDGER_WITNESS_ACTION)
+  );
+}
+
+/**
+ * Checkpoints this process has already confirmed are in the chain, per group.
+ *
+ * Only consulted when the checkpoint is behind the head by more than one entry,
+ * which happens when checkpoint writes keep failing. Without it every append in
+ * that state would scan the whole ledger to confirm the same old checkpoint.
+ */
+const confirmedCheckpoints = new Map<string, string>();
+
+/**
+ * Findings already recorded by this process, per group.
+ *
+ * A checkpoint that cannot be written stays where it was, so the same
+ * disagreement would be found again on the next append and recorded again on
+ * every append after it. One gap line per disagreement is the record; repeating
+ * it would bury the ledger in copies of one alert. After a restart the first
+ * append may record it once more, which says truthfully that it is still so.
+ */
+const reportedFindings = new Map<string, Set<string>>();
+
+/**
+ * Where an entry is, by sequence number: the entry itself, or the fact that its
+ * number falls inside a jump a gap line declared (the numbers a truncation
+ * removed, which `appendLedgerEntry` deliberately does not reuse).
+ *
+ * Reads every segment, oldest first. Used only on paths that are rare by
+ * construction: a checkpoint far behind its head, and a dashboard witness.
+ */
+export async function locateLedgerEntry(
+  groupId: string,
+  seq: number,
+): Promise<{ entry?: LedgerEntry; insideRecordedGap: boolean }> {
+  let previousSeq = 0;
+  for (const segment of [...(await listArchives(groupId)), ledgerFilePath(groupId)]) {
+    for (const record of await readLedgerRecords(segment)) {
+      if (!record.ok) {
+        continue;
+      }
+      const entry = record.entry;
+      if (entry.seq === seq) {
+        return { entry, insideRecordedGap: false };
+      }
+      if (previousSeq < seq && seq < entry.seq) {
+        return { insideRecordedGap: isLedgerIntegrityAlert(entry) };
+      }
+      previousSeq = entry.seq;
+    }
+  }
+  return { insideRecordedGap: false };
+}
+
+async function compareWithCheckpoint(
+  groupId: string,
+  head: ChainHead,
+): Promise<CheckpointFinding | undefined> {
+  const checkpoint = await readCheckpoint(groupId);
+  if (!checkpoint) {
+    // A head written by a keyed installation always had a checkpoint written
+    // after it. A legacy, unkeyed head legitimately has none (finding 76).
+    return head.seq > 0 && head.keyed ? { kind: "missing" } : undefined;
+  }
+  if (checkpoint.seq > head.seq) {
+    return { kind: "ahead", checkpoint };
+  }
+  if (checkpoint.seq === head.seq) {
+    return checkpoint.hash === head.hash
+      ? undefined
+      : { kind: "replaced", checkpoint, foundHash: head.hash };
+  }
+  // Behind: the ordinary crash state, the entry written and the checkpoint not.
+  // Accepted quietly, as it always was, but only once the entry it names is
+  // confirmed to be in the chain unchanged, so advancing the checkpoint cannot
+  // overwrite evidence that something before the head was replaced.
+  const token = `${checkpoint.seq}:${checkpoint.hash}`;
+  if (confirmedCheckpoints.get(groupId) === token) {
+    return undefined;
+  }
+  if (checkpoint.seq === head.seq - 1 && checkpoint.hash === head.prevHash) {
+    confirmedCheckpoints.set(groupId, token);
+    return undefined;
+  }
+  const located = await locateLedgerEntry(groupId, checkpoint.seq);
+  if (located.entry) {
+    if (located.entry.hash === checkpoint.hash) {
+      confirmedCheckpoints.set(groupId, token);
+      return undefined;
+    }
+    return { kind: "replaced", checkpoint, foundHash: located.entry.hash };
+  }
+  if (located.insideRecordedGap) {
+    confirmedCheckpoints.set(groupId, token);
+    return undefined;
+  }
+  return { kind: "vanished", checkpoint };
+}
+
+type IntegrityFields = Pick<LedgerEntry, "toolName" | "resource" | "ruleId">;
+
+/** The fields every integrity alert shares, around the three that differ. */
+function integrityEntry(
+  seq: number,
+  prevHash: string,
+  fields: IntegrityFields,
+): Omit<LedgerEntry, "hash"> {
+  return {
+    seq,
+    timestamp: new Date().toISOString(),
+    agentId: "-",
+    sessionKey: "-",
+    toolName: fields.toolName,
+    resourceKind: "administration",
+    resource: clampResource(redactToolPayloadText(fields.resource)),
+    ruleId: fields.ruleId,
+    // Nothing was permitted or refused; the ledger is recording something about
+    // itself that no policy evaluated. The value the policy engine already uses
+    // for its own system records (`escalation-proposal-failed`).
+    decision: "ungoverned",
+    prevHash,
+    entryKind: "admin",
+    actor: LEDGER_INTEGRITY_ACTOR,
+    keyed: true,
+  };
+}
+
+/**
+ * Writes one entry inside the held lock, then the cache and the checkpoint after it.
+ * Returns whether the checkpoint was written.
+ */
+async function writeEntryLocked(groupId: string, entry: LedgerEntry): Promise<boolean> {
+  const path = ledgerFilePath(groupId);
+  // JSON.stringify escapes newlines, so one entry is always exactly one line.
+  await appendFile(path, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
+  await protectLedgerFile(path);
+  cachedHeads.set(groupId, { ...headOf(entry), fileSize: await activeFileSize(groupId) });
+  // Written after the entry, never before: a checkpoint ahead of the ledger is
+  // the signal for truncation, so it must only ever describe an entry that
+  // genuinely reached the file. A crash between the two leaves the checkpoint
+  // one behind, which reports nothing. The safe direction to fail.
+  const checkpointed = await writeCheckpoint(groupId, entry);
+  if (checkpointed) {
+    // The checkpoint agrees with the chain again, so any disagreement found from
+    // here on is a new one and must be recorded, even if it looks like an old one.
+    reportedFindings.delete(groupId);
+  }
+  return checkpointed;
+}
+
+/**
+ * Compares the head with the checkpoint and, when they disagree, writes the gap
+ * line that records it. Returns the head the next entry must follow.
+ *
+ * **Why here, before the append, and not in the verifier** (T73). The checkpoint
+ * is the only proof that a shortened ledger was shortened, and the very next
+ * append used to overwrite it with the new, lower head: the evidence lasted until
+ * the next agent action, minutes at most, after which the chain verified as
+ * intact. The verifier runs when somebody asks; the append runs regardless. So the
+ * owner of the overwrite is the place that must notice first, and the record goes
+ * into the sealed chain itself, where removing it means cutting the ledger again,
+ * which the next append catches again.
+ *
+ * Nothing stops. The finding is written down, the requested entry follows it, and
+ * the dashboard raises an alert for Root (`ledger-alerts.ts`). Stopping every agent
+ * on a mismatch was the alternative, rejected for the friction Kinan asked to avoid
+ * and because the record does not depend on anybody acting on it.
+ */
+async function recordCheckpointDisagreement(
+  groupId: string,
+  head: ChainHead,
+  key: Buffer,
+): Promise<ChainHead> {
+  const finding = await compareWithCheckpoint(groupId, head);
+  if (!finding) {
+    return head;
+  }
+  const token = findingToken(finding);
+  const reported = reportedFindings.get(groupId) ?? new Set<string>();
+  if (reported.has(token)) {
+    return head;
+  }
+  // Numbering continues from the checkpoint, never from the shortened head, so a
+  // number already quoted in an export, a report or a dashboard can never come to
+  // mean a different entry. The verifier accepts the jump only on a sealed gap line.
+  const seq = (finding.kind === "ahead" ? finding.checkpoint.seq : head.seq) + 1;
+  const withoutHash = integrityEntry(seq, head.hash, {
+    toolName: LEDGER_GAP_ACTION,
+    resource: describeFinding(finding, head),
+    ruleId: findingSubject(finding),
+  });
+  const gap: LedgerEntry = { ...withoutHash, hash: hashEntry(withoutHash, key) };
+  if (!(await writeEntryLocked(groupId, gap))) {
+    // The checkpoint could not be moved past the disagreement, so the next append
+    // would find it again. Recorded once is the record.
+    reported.add(token);
+    reportedFindings.set(groupId, reported);
+  }
+  return headOf(gap);
+}
+
+/**
+ * Appends one of the ledger's own integrity alerts that is not a gap line: the
+ * dashboard witness's contradiction (`ledger-witness.ts`). The gap check runs
+ * first, as for every append.
+ */
+export async function appendIntegrityAlert(
+  groupId: string,
+  fields: { toolName: typeof LEDGER_WITNESS_ACTION; resource: string; ruleId: string },
+): Promise<LedgerEntry> {
+  await ensureGroupDir(groupId);
+  const key = await loadLedgerKey();
+  return withFileLock(ledgerFilePath(groupId), async () => {
+    const head = await recordCheckpointDisagreement(groupId, await readChainHead(groupId), key);
+    const withoutHash = integrityEntry(head.seq + 1, head.hash, fields);
+    const entry: LedgerEntry = { ...withoutHash, hash: hashEntry(withoutHash, key) };
+    await writeEntryLocked(groupId, entry);
+    await rotateIfNeeded(groupId);
+    return entry;
+  });
+}
+
+/**
+ * Runs the checkpoint comparison now, without appending anything else.
+ *
+ * For the witness: a browser reporting the very entry the checkpoint names should
+ * find the gap line already written, not provoke it and then add a second alert
+ * about the same fact. Writes nothing when the two agree, or when the ledger has
+ * never been written.
+ */
+export async function reconcileLedgerWithCheckpoint(groupId: string): Promise<void> {
+  const key = await readLedgerKeyIfPresent();
+  if (!key) {
+    return;
+  }
+  await ensureGroupDir(groupId);
+  await withFileLock(ledgerFilePath(groupId), async () => {
+    await recordCheckpointDisagreement(groupId, await readChainHead(groupId), key);
+  });
+}
+
+/**
+ * The chain head, read under the append lock so it is never half an append.
+ * For the dashboard witness; `undefined` while the ledger is empty.
+ */
+export async function readLedgerHead(
+  groupId: string,
+): Promise<{ seq: number; hash: string } | undefined> {
+  await ensureGroupDir(groupId);
+  const head = await withFileLock(ledgerFilePath(groupId), () => readChainHead(groupId));
+  return head.seq > 0 ? { seq: head.seq, hash: head.hash } : undefined;
+}
+
+/** Whether an entry's seal is the one this key produces: the check a forged alert or acknowledgement fails. */
+export function ledgerEntrySealIsValid(entry: LedgerEntry, key: Buffer | undefined): boolean {
+  if (!entry.keyed || !key) {
+    return false;
+  }
+  const { hash, ...withoutHash } = entry;
+  return hashEntry(withoutHash, key) === hash;
+}
+
+/** Every segment of a group's ledger, oldest first: the archives, then the active file. */
+export async function listLedgerSegments(groupId: string): Promise<string[]> {
+  return [...(await listArchives(groupId)), ledgerFilePath(groupId)];
+}
+
 export async function appendLedgerEntry(
   groupId: string,
   input: AppendLedgerEntryInput,
@@ -583,7 +932,7 @@ export async function appendLedgerEntry(
   const key = await loadLedgerKey();
   // The lock covers read-head + append as one unit, across processes.
   return withFileLock(ledgerFilePath(groupId), async () => {
-    const prior = await readChainHead(groupId);
+    const prior = await recordCheckpointDisagreement(groupId, await readChainHead(groupId), key);
     const withoutHash: Omit<LedgerEntry, "hash"> = {
       seq: prior.seq + 1,
       timestamp: new Date().toISOString(),
@@ -614,18 +963,7 @@ export async function appendLedgerEntry(
       keyed: true as const,
     };
     const entry: LedgerEntry = { ...withoutHash, hash: hashEntry(withoutHash, key) };
-    // JSON.stringify escapes newlines, so one entry is always exactly one line.
-    await appendFile(ledgerFilePath(groupId), `${JSON.stringify(entry)}\n`, { mode: 0o600 });
-    cachedHeads.set(groupId, {
-      seq: entry.seq,
-      hash: entry.hash,
-      fileSize: await activeFileSize(groupId),
-    });
-    // Written after the entry, never before: a checkpoint ahead of the ledger is
-    // the signal for truncation, so it must only ever describe an entry that
-    // genuinely reached the file. A crash between the two leaves the checkpoint
-    // one behind, which reports nothing. The safe direction to fail.
-    await writeCheckpoint(groupId, entry);
+    await writeEntryLocked(groupId, entry);
     await rotateIfNeeded(groupId);
     return entry;
   });
@@ -682,9 +1020,24 @@ export type LedgerVerification = {
     /** Whether the newest entry was hashed with the installation's key. */
     keyed: boolean;
   };
+  /**
+   * The ledger's own integrity alerts found in the chain, oldest first (T73).
+   *
+   * A chain that verifies with alerts in it is intact **since** them: every entry
+   * still in it is the one that was written, and the alerts say what was lost or
+   * contradicted before. `ok` stays true so a later, new break is still reported
+   * as a break, and a reader must show these rather than the word "intact" alone.
+   * `missingFrom`/`missingTo` are the numbers a gap line jumped over.
+   */
+  alerts?: Array<{
+    seq: number;
+    action: string;
+    timestamp: string;
+    resource: string;
+    missingFrom?: number;
+    missingTo?: number;
+  }>;
 };
-
-type LedgerCheckpoint = { seq: number; hash: string; updatedAt: string };
 
 /**
  * Records how far the chain had got, in a file of its own.
@@ -725,7 +1078,7 @@ async function readCheckpointFile(): Promise<LedgerCheckpointFile> {
   }
 }
 
-async function writeCheckpoint(groupId: string, entry: LedgerEntry): Promise<void> {
+async function writeCheckpoint(groupId: string, entry: LedgerEntry): Promise<boolean> {
   const checkpoint: LedgerCheckpoint = {
     seq: entry.seq,
     hash: entry.hash,
@@ -747,10 +1100,12 @@ async function writeCheckpoint(groupId: string, entry: LedgerEntry): Promise<voi
         mode: 0o600,
       });
     });
+    return true;
   } catch {
     // A checkpoint that cannot be written must never fail the append it
     // describes: losing the action from the audit trail would be a worse
     // outcome than losing the ability to detect truncation of it.
+    return false;
   }
 }
 
@@ -786,6 +1141,7 @@ export async function verifyLedgerChain(groupId: string): Promise<LedgerVerifica
   // is worth nothing.
   let seenKeyed = false;
   let lastEntry: LedgerEntry | undefined;
+  const alerts: NonNullable<LedgerVerification["alerts"]> = [];
   for (const record of records) {
     if (!record.ok) {
       return {
@@ -795,7 +1151,15 @@ export async function verifyLedgerChain(groupId: string): Promise<LedgerVerifica
       };
     }
     const entry = record.entry;
-    if (entry.seq !== expectedSeq) {
+    // A jump forward is accepted on exactly one kind of entry: a gap line, which
+    // `appendLedgerEntry` writes when the checkpoint proves entries were removed,
+    // numbering on from the checkpoint so no number is reused (T73). It is sealed
+    // like every entry, checked below, so a jump needs the key to forge.
+    const declaredJump =
+      entry.seq > expectedSeq &&
+      isLedgerIntegrityAlert(entry) &&
+      entry.toolName === LEDGER_GAP_ACTION;
+    if (entry.seq !== expectedSeq && !declaredJump) {
       return {
         ok: false,
         entriesChecked: checked,
@@ -828,9 +1192,18 @@ export async function verifyLedgerChain(groupId: string): Promise<LedgerVerifica
         reason: "entry hash does not match its own recomputed content hash",
       };
     }
+    if (isLedgerIntegrityAlert(entry)) {
+      alerts.push({
+        seq: entry.seq,
+        action: entry.toolName,
+        timestamp: entry.timestamp,
+        resource: entry.resource,
+        ...(declaredJump ? { missingFrom: expectedSeq, missingTo: entry.seq - 1 } : {}),
+      });
+    }
     seenKeyed ||= entry.keyed === true;
     expectedPrevHash = hash;
-    expectedSeq += 1;
+    expectedSeq = entry.seq + 1;
     checked += 1;
     lastEntry = entry;
   }
@@ -927,5 +1300,6 @@ export async function verifyLedgerChain(groupId: string): Promise<LedgerVerifica
           },
         }
       : {}),
+    ...(alerts.length > 0 ? { alerts } : {}),
   };
 }

@@ -9,11 +9,12 @@
 //
 // Two tests deliberately touch the real filesystem, and both assert the *branch
 // taken* rather than a value. See "dispatch" below.
-import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { SecurityAuditFinding } from "../security/audit.types.js";
+import { appendLedgerEntry, resetLedgerCursorForTests } from "./audit-ledger.js";
 import {
   readDeploymentStatus,
   type DeploymentCheck,
@@ -624,5 +625,55 @@ describe("the posture in force is reported (finding 390)", () => {
   it("no longer claims enforcement in the gate-armed check", async () => {
     const armed = checkFor(await statusOf(), "deployment.gate_not_disarmed");
     expect(armed.detail).not.toContain("enforce default is in force");
+  });
+});
+
+describe("T73: the ledger's own integrity is reported", () => {
+  async function appendOne(resource: string): Promise<void> {
+    await appendLedgerEntry(TEST_GROUP, {
+      agentId: "-",
+      toolName: "exec",
+      resourceKind: "command",
+      resource,
+      ruleId: "default-deny",
+      decision: "deny",
+    });
+  }
+
+  it("passes the alert row while nothing has been raised, and fails it once a gap is recorded", async () => {
+    await appendOne("one");
+    await appendOne("two");
+    expect(checkFor(await statusOf(), "deployment.ledger_alerts").status).toBe("pass");
+    const kept = (await readFile(ledgerFilePath(TEST_GROUP), "utf8")).split("\n")[0];
+    await writeFile(ledgerFilePath(TEST_GROUP), `${kept}\n`);
+    resetLedgerCursorForTests();
+    await appendOne("three");
+    const row = checkFor(await statusOf(), "deployment.ledger_alerts");
+    expect(row.status).toBe("fail");
+    expect(row.detail).toContain("1 integrity alert not yet acknowledged");
+    expect(row.remediation).toContain("acknowledge");
+  });
+
+  it("reports the alerts as could-not-check, not as a crash, when the key is unusable", async () => {
+    process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY = "x";
+    expect(checkFor(await statusOf(), "deployment.ledger_alerts").status).toBe("unknown");
+  });
+
+  it("says plainly that an unprivileged process on Linux cannot make the ledger append-only", async () => {
+    await appendOne("one");
+    const row = checkFor(await statusOf(), "deployment.ledger_append_only");
+    expect(row.status).toBe("warn");
+    expect(row.detail).toContain("cannot make a file append-only");
+    expect(row.remediation).toContain("chattr +a");
+  });
+
+  it("passes the append-only row when the operating system refuses a rewrite", async () => {
+    await appendOne("one");
+    await chmod(ledgerFilePath(TEST_GROUP), 0o444);
+    try {
+      expect(checkFor(await statusOf(), "deployment.ledger_append_only").status).toBe("pass");
+    } finally {
+      await chmod(ledgerFilePath(TEST_GROUP), 0o644);
+    }
   });
 });

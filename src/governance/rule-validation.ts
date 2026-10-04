@@ -9,6 +9,7 @@
 // front doors with different locks is the same as one unlocked door, and it
 // also made the written specification untrue for half the callers. (The CLI
 // was removed on 2026-09-07; the dashboard route and the folder grant remain.)
+import { matchesPattern } from "./pattern-match.js";
 import { checkRegexSafety } from "./regex-safety.js";
 import { UNIVERSAL_PATTERNS } from "./rule-conflicts.js";
 
@@ -286,9 +287,89 @@ export function describeRuleRisks(
         : `This is anchored but its body matches any ${resourceKind}, so it grants ` +
           `everything of this kind.`,
     });
+    // Already told it grants everything; naming the interpreters inside
+    // "everything" would only repeat that.
+    return warnings;
+  }
+
+  if (resourceKind === "command" && !denies) {
+    const programs = CODE_RUNNERS.filter((runner) => matchesPattern(trimmed, runner.probe)).map(
+      (runner) => runner.program,
+    );
+    if (programs.length > 0) {
+      warnings.push({
+        code: "runs-arbitrary-code",
+        message:
+          `This lets the agent run ${listPrograms(programs)} with code of its own ` +
+          `choosing, which amounts to allowing every command. Inside that code a path ` +
+          `can be put together while it runs, where the shipped denials protecting the ` +
+          `governance layer's own files (policy, accounts, ledger) cannot see it, so the ` +
+          `agent could edit the policy file itself: put itself into monitor, or switch ` +
+          `governance off. Allow one script with fixed arguments instead ` +
+          `(for example ^python3 scripts/report[.]py$), and if you need this, give it a ` +
+          `short time limit.`,
+      });
+    }
   }
 
   return warnings;
+}
+
+/**
+ * Programs that run code handed to them on the command line, each with one
+ * probe spelling that does so (2026-09-30).
+ *
+ * **Why a rule allowing one of these gets its own warning.** The core command
+ * denials name the governance directory and the governance command, and they
+ * are a backstop, as `baseline-policy.ts` says in its header: the boundary is
+ * the allowlist. A rule such as `^python3 .*$` looks anchored and specific,
+ * draws no other warning, and lets the agent run
+ * `python3 -c "…os.environ['OPENCLAW_GOVERNANCE_'+'DIR']…"`, a path no pattern
+ * can see because it does not exist until the code runs. Measured against the
+ * gate on 2026-09-30 (`mg/WORK-LOG-2026-09-30.md`): the plain spelling was
+ * refused, the assembled one allowed, and the loader keeps a per-agent
+ * `monitor` or an installation-wide `off` written that way.
+ *
+ * **Probed, not parsed.** The rule is tested with the gate's own matcher against
+ * a concrete call, so `^(node|npm|npx|pnpm) .*$`, `^python.*`, an unanchored
+ * `bash` and every other spelling are judged by what they would actually let
+ * through, and a rule confined to a script (`^node scripts/build[.]js$`) is
+ * not warned. What a probe cannot see is a script the agent wrote itself and
+ * then runs; that needs a write rule as well, and the write is governed.
+ */
+const CODE_RUNNERS: readonly { program: string; probe: string }[] = [
+  { program: "python", probe: 'python -c "print(1)"' },
+  { program: "python3", probe: 'python3 -c "print(1)"' },
+  { program: "py", probe: 'py -c "print(1)"' },
+  { program: "node", probe: 'node -e "console.log(1)"' },
+  { program: "bash", probe: 'bash -c "echo 1"' },
+  { program: "sh", probe: 'sh -c "echo 1"' },
+  { program: "zsh", probe: 'zsh -c "echo 1"' },
+  { program: "powershell", probe: 'powershell -Command "echo 1"' },
+  { program: "pwsh", probe: 'pwsh -Command "echo 1"' },
+  { program: "cmd", probe: "cmd /c echo 1" },
+  { program: "perl", probe: "perl -e 'print 1'" },
+  { program: "ruby", probe: "ruby -e 'puts 1'" },
+  { program: "php", probe: "php -r 'echo 1;'" },
+  { program: "deno", probe: 'deno eval "console.log(1)"' },
+  { program: "bun", probe: 'bun -e "console.log(1)"' },
+  // Download and run a package.
+  { program: "npx", probe: "npx cowsay 1" },
+  { program: "npm", probe: "npm exec cowsay 1" },
+  { program: "pnpm", probe: "pnpm dlx cowsay 1" },
+  { program: "env", probe: 'env sh -c "echo 1"' },
+  { program: "awk", probe: "awk 'BEGIN{system(\"echo 1\")}'" },
+  // Common "harmless" tools that start another program.
+  { program: "find", probe: "find . -exec sh -c 'echo 1' ;" },
+  { program: "git", probe: "git -c alias.x='!echo 1' x" },
+];
+
+/** "a", "a or b", "a, b or c": the matched programs, named as a person would. */
+function listPrograms(programs: readonly string[]): string {
+  if (programs.length === 1) {
+    return programs[0] ?? "";
+  }
+  return `${programs.slice(0, -1).join(", ")} or ${programs.at(-1) ?? ""}`;
 }
 
 /** True only for a value the rule model accepts as an effect. */

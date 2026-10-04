@@ -22,7 +22,12 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ADMIN_ACTIONS, BOOTSTRAP_ACTOR, recordAdminAction } from "./admin-audit.js";
-import { appendLedgerEntry, verifyLedgerChain } from "./audit-ledger.js";
+import {
+  appendLedgerEntry,
+  resetLedgerCursorForTests,
+  setLedgerRotateBytesForTests,
+  verifyLedgerChain,
+} from "./audit-ledger.js";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { ledgerFilePath } from "./paths.js";
 import { seedGroupWithAgents } from "./test-group.js";
@@ -167,6 +172,60 @@ describe("the standalone verifier agrees with the product", () => {
     const { code, stdout } = await runScript();
     expect(code).toBe(1);
     expect(stdout).toContain("removed from the end");
+  });
+
+  it("reads the rotated archives, so a rotated chain is not reported broken (finding 403)", async () => {
+    setLedgerRotateBytesForTests(700);
+    try {
+      await seedEntries(6);
+    } finally {
+      setLedgerRotateBytesForTests(undefined);
+    }
+    const product = await verifyLedgerChain(group);
+    expect(product.ok).toBe(true);
+    const { code, stdout } = await runScript();
+    expect(code, stdout).toBe(0);
+    expect(stdout).toContain(`INTACT — ${product.entriesChecked} entries verified`);
+    expect(stdout).toMatch(/segments: \d+ archives? and the active file/);
+  });
+
+  it("agrees with the product on a gap line: intact since, with the missing numbers (T73)", async () => {
+    await seedEntries(5);
+    const path = ledgerFilePath(group);
+    const lines = (await readFile(path, "utf8")).split("\n").filter(Boolean);
+    await writeFile(path, `${lines.slice(0, 3).join("\n")}\n`);
+    resetLedgerCursorForTests();
+    // The next ordinary append records the cut before writing.
+    await appendLedgerEntry(group, {
+      agentId: "jack",
+      toolName: "exec",
+      resourceKind: "command",
+      resource: "after the cut",
+      ruleId: "default-deny",
+      decision: "deny",
+    });
+    const product = await verifyLedgerChain(group);
+    expect(product.ok).toBe(true);
+    const gap = product.alerts?.[0];
+    expect(gap?.missingFrom).toBe(4);
+    const { code, stdout } = await runScript();
+    expect(code, stdout).toBe(0);
+    expect(stdout).toContain(
+      `INTEGRITY ALERT at entry #${gap?.seq} (entries #${gap?.missingFrom}–#${gap?.missingTo} are missing)`,
+    );
+    expect(stdout).toContain("intact since the integrity alerts listed above");
+  });
+
+  it("calls an undeclared jump in numbering BROKEN, as the product does", async () => {
+    await seedEntries(3);
+    const path = ledgerFilePath(group);
+    const lines = (await readFile(path, "utf8")).split("\n").filter(Boolean);
+    lines[2] = (lines[2] ?? "").replace('"seq":3', '"seq":9');
+    await writeFile(path, `${lines.join("\n")}\n`);
+    expect((await verifyLedgerChain(group)).ok).toBe(false);
+    const { code, stdout } = await runScript();
+    expect(code).toBe(1);
+    expect(stdout).toContain("unexpected sequence number");
   });
 
   it("refuses to pass when the checkpoint has been deleted", async () => {

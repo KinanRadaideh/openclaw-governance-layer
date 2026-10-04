@@ -105,6 +105,44 @@ export async function requireAgentInGroup(
 }
 
 /**
+ * Refuses a policy write naming an agent that is not registered in this
+ * organisation (finding 399, 2026-10-03).
+ *
+ * The policy routes asked only `requireAgentPolicyAuthoring`, which is true for
+ * every id at Administrator tier, so a typo was stored: a rule for `zetta`
+ * beside the real `zeta` bound nothing, and the agent list then rendered
+ * `zetta` as an agent that "exists in OpenClaw but is not governed", with a
+ * Register button for an agent that exists nowhere. Worse, the write waits:
+ * anything later registered under that id inherits it, unasked.
+ *
+ * Called **after** the authoring check, so it only ever speaks to a caller who
+ * already passed it. A User passes that check only for assigned agents, and
+ * assignment needs registration (M5), so in practice this answers Administrator
+ * and Root, who can read the registry anyway; "not registered" discloses nothing
+ * `requireAgentInGroup`'s single message protects. The same reasoning, status
+ * and type as the setting-request refusal (finding 379).
+ */
+export async function requireRegisteredAgentForPolicy(
+  res: ServerResponse,
+  groupId: string,
+  agentId: string,
+): Promise<boolean> {
+  if ((await findAgent(agentId))?.groupId === groupId) {
+    return true;
+  }
+  sendJson(res, 409, {
+    error: {
+      message:
+        `Agent "${agentId}" is not registered with governance in this organisation, so ` +
+        "this would bind nothing. Choose an agent listed under Agents in your organisation, " +
+        "or register it there first.",
+      type: "agent_not_registered",
+    },
+  });
+  return false;
+}
+
+/**
  * May this caller change the rules that bind this agent? Refuses with the
  * reason that actually applies.
  *
