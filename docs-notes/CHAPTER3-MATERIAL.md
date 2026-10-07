@@ -11205,3 +11205,84 @@ not the trail's size; every agent-id field offers the agent list; a lockdown wit
 is reported as a completed stop; a conversation whose run waits for the operator's own approval
 says so and links to the card; an _Always allow_ answer is confirmed as a rule request and
 refreshes the page.
+
+### 3.5.98 Several operators at once, from a fresh installation (2026-10-07; findings 406–411)
+
+Engineering record: `mg/QA-SESSION-2026-10-07.md`; rows: `GOVERNANCE.md`; plain account:
+`QA-IN-PLAIN-TERMS.md` §5.125. Method: a fresh organisation claimed through the first-run form,
+every account created through the page, two operators signed in at once on two origins (separate
+cookies), and the qa-lab mock model behind four agents.
+
+**The dashboard's own credential was being penalised (406; §3.5.4 Access Control, §3.5.11
+Management Interface).** The Control UI authenticates its HTTP reads with the paired-device token
+the Gateway issued at connect (`resolveControlUiAuthToken` prefers it), and
+`authorizeControlUiReadRequest` evaluated it as the shared secret first. The mismatch entered the
+loopback brute-force throttle (250 ms doubling to a 5 s cap) before the device-token check admitted
+it. Measured with a logging reverse proxy: a constant ~5,030 ms of server-side wait on every
+governance read, while the process was idle. The repair keeps the throttle's guarantee (a
+credential that is neither secret nor device token is penalised in both scopes, and a locked
+device-token scope still refuses) and stops charging it to a valid credential. The latency figures
+recorded by earlier passes, including the kill switch's dashboard round trip, were inflated by
+this and should be re-measured; the `kill` request itself took 710 ms here.
+
+**Escalations into another agent's workspace say so (408; §3.5.2.3 Path Canonicalization,
+§3.5.7 Escalation).** After 385 a nested agent's path is rendered absolute and falls outside the
+baseline read rule, so it is unlisted: denied under Deny-on-miss, escalated under the default
+Ask-a-human. The escalation reaches every manager of the calling agent, Users included. That is
+consistent with the role model, because a User may already write an allow rule for any path for an
+agent it holds (Root's withhold is the control), so the decision is the User's to make; the defect
+was that it was uninformed. `otherAgentHoldingPath` resolves the innermost configured workspace
+containing the path, and the question names that agent ahead of the path.
+
+**Identifiers and rule language (409, 410; §3.5.2.1 Rule Model).** The access roster folds the
+agent id like every other key (finding 200's rule). Network patterns are matched against the
+hostname only, lower-cased; the authoring warnings now say when a pattern contains a scheme or path
+(it can never match) or a literal capital, and the unanchored warning's example is written per
+resource kind.
+
+**Interface (407, 411; §3.5.11 Management Interface).** Root chooses an owner when registering a
+host agent (the route already took `adminId`); a conversation names the account that cancelled a
+run when it was not the sender's.
+
+### 3.5.99 The second pass of 2026-10-07: what the first left, and five more (findings 412–416)
+
+Engineering record: `mg/QA-SESSION-2026-10-07-PART2.md`; rows: `GOVERNANCE.md`; plain account:
+`QA-IN-PLAIN-TERMS.md` §5.126. Method as §3.5.98, on the same fixture, with a rebuilt Gateway.
+
+**One projection for every policy response (412; §3.5.4 Access Control).** `GET policy` scoped
+each agent-keyed collection by hand and missed `agentHitlTimeout`, and the seven routes that
+write the policy answered with the stored document whole, so the one a User may call returned
+every agent's rules and an Administrator received `userAsk`, which is Root's. `policyViewFor`
+(`src/gateway/governance-policy-view.ts`) is now the only projection, used by the read and by
+every write. The general point for the chapter: a scoping rule written as a list of fields at
+one call site drifts twice (it had already missed `agentMode` once); written as a function that
+every response passes through, a new field is scoped in one place or visibly not at all.
+
+**A cancelled task no longer returns with the next message (§3.5.5 Prompt Execution Path,
+§3.5.8 Run Control).** Upstream merges a transcript's trailing user turn into the next prompt,
+and closes an aborted turn only when some reply had streamed. A governance run stopped before
+any reply (cancel, timeout or kill switch) left the request as the leaf, so the next unrelated
+prompt carried it back to the model. The governance runner now closes such a turn the way
+upstream's `chat.abort` does (an assistant turn marked aborted, with any partial reply), when
+the newest transcript message is still the user's. Measured: a cancelled three-minute task
+followed by a one-line prompt returned in 8.4 s; before, the task restarted.
+
+**Lockout and reset (414; §3.5.4).** A password reset forgets the account's failed attempts: the
+guesses were counted against a credential that no longer exists, and the new one starts with a
+full allowance.
+
+**Deleting a nested agent (416; §3.5.2.3 Path Canonicalization, §3.5.11).** 385's withholding is
+keyed to _configured_ agents. Deleting an agent from OpenClaw's list only (C13's `roster` mode)
+keeps its folder, and for an agent placed inside another's workspace the kept folder then lies
+in the enclosing agent's workspace with no other owner, so the enclosing agent reads it under
+the baseline rule; measured live. Decided by C13's and 408's precedent (state the consequence at
+the moment of choosing rather than refuse): the deletion question names the enclosing agent. Driving the other
+choice live showed OpenClaw's own delete leaves such a folder in place as well (it moved only the
+session records), so the question says the folder stays under both and must be moved by hand. A protective alternative (keeping
+deleted agents' roots in the withholding set) is noted as a candidate, not built.
+
+**Interface (413, 415; §3.5.11 Management Interface).** Per-agent approval timeouts are listed
+like the other per-agent overrides and the range is checked in the form; a prompt refused unsent
+(a locked-down agent) is reported in the conversation with the typed text kept, where the
+streamed refusal had been discarded silently. A decision on a rule request may carry a note to
+the requester, stored on the request and written into the ledger entry.

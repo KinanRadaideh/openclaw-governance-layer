@@ -8549,3 +8549,113 @@ question at the very top of a long page; it now says it is waiting for you and l
 question, and an "Always allow" answer now says that an Administrator still has to approve the
 permanent version. Messages from earlier days now show their date, and the message box takes
 several lines.
+
+## 5.125 Several people using it at once (findings 406 to 411)
+
+On 7 October the dashboard was used from scratch the way a new organisation would: the first
+Root account was made through the page, then two Administrators, three Users (one with no
+agents) and two Viewers, all through the page, and four agents shared between the two
+Administrators. Two people were signed in at the same time in two browser tabs, an
+Administrator and a User, with the stand-in AI model behind the agents. Six things were found.
+All six are fixed, and each fix was shown to be needed by a test that failed without it.
+
+**Everything on the page was slow, for a reason nobody had found (finding 406).** Every button
+took ten to thirty seconds, and earlier checks had blamed the testing browser. It was not the
+browser. The page proves who it is with a key the browser was given when it first connected,
+and the server tried that key first as the main password, decided it was wrong, and then made
+the page wait, which is how it slows down someone guessing passwords, before checking it the
+right way and letting it in. The page asks the server about a dozen questions every fifteen
+seconds, so the waits piled up to five seconds each. Now the server only makes a caller wait
+when the key is wrong both ways. Someone guessing is slowed down exactly as before.
+
+**Root could not say who owns an agent when bringing it under governance (finding 407).**
+Registering an agent always made Root its owner, so giving it to an Administrator took four more
+clicks and a warning about people who did not exist. Root now picks the owner right next to
+the Register button; leaving it alone still makes Root the owner, as before.
+
+**A question did not say that the file belonged to someone else's agent (finding 408).** An
+agent asked to read a file inside another agent's folder now always stops and asks a person
+first (that was the fix for finding 385). But the person asked can be the User working with
+the agent, and the question named only the file's location. The User approved it without
+knowing it was another Administrator's agent's file. The question now says so: "a path inside
+the workspace of another agent, …". Users are allowed to make this decision (they can already
+write rules for their own agents), so the fix is to tell them, not to stop them.
+
+**The page told a User that nobody had access to an agent they had access to (finding 409).**
+Looking up "Scout" with a capital S found the agent's rules, but the list of people with access
+said "Nobody", because that one lookup did not ignore capital letters. It now does.
+
+**A web rule that could never work was accepted with the wrong warning (finding 410).** Rules
+about web access are checked against the site's name only, such as `api.github.com`, never the
+full address. A request written as a full address (`https://api.github.com/`) can never match
+anything, and the page warned instead about a shell command example that had nothing to do with
+it. It now says plainly that only the site's name is compared and shows how to write one, and
+warns about capital letters, which also never match.
+
+**A User whose task was stopped by their Administrator was not told who stopped it (finding
+411).** The conversation said only "The prompt was cancelled.", which looks like something went
+wrong. It now says "The prompt was cancelled by admin1."
+
+Two small things were also tidied: pressing Enter in the box where an Administrator types which
+agents someone may use now saves it, and each of those boxes now says whose it is, so a screen
+reader can tell them apart.
+
+## 5.126 The same day, second pass: the loose ends, and five more (findings 412 to 416)
+
+The first pass on 7 October left several things alone. The second pass dealt with them, then
+used parts of the dashboard nobody had driven yet: setting other people's passwords, being
+locked out, changing someone's role, stopping an agent from the list of running work, sending a
+file, and deleting an agent. Five more things were found. All are fixed, each shown to be needed
+by a test that failed without it, and each checked again on the running system.
+
+**What the first pass left alone, now dealt with.** An Administrator turning down a request can
+now write a sentence back ("write the site's name, not the whole address"), and the person who
+asked sees it next to "rejected". A task cancelled by someone else used to come back by itself
+the next time its User sent anything at all, because the underlying system carries an
+unanswered message into the next one; a stopped task is now closed properly, so the next message
+is only the next message. A dozen sentences that were vague or slightly wrong now say the true
+thing: who is asking a question, who loses an agent when it changes hands (or that nobody
+does), which Administrator to ask for an agent, and that a rule for someone else's agent will be
+refused before pressing the button rather than after.
+
+**People with access to one agent could see settings for every agent (finding 412).** How long
+an agent waits for a human answer can be set per agent. That setting was sent to everyone who
+opened the policy page, so a Viewer allowed to see one agent learned which other agents existed
+and how they were set. Worse, saving that setting sent back the whole policy, every agent's
+rules included, to a User who should only see their own agents. The server now cuts the policy
+down to what the reader may see in one place, for every answer that contains it.
+
+**A setting could be saved and then never seen again (finding 413).** The same waiting time
+could be set for one agent, and then nothing on the page showed it, and a value outside the
+allowed range came back with a programmer's error message. The page now lists each agent's
+waiting time with a "Use default" button, like the other per-agent settings, and says the
+allowed range before anything is sent.
+
+**Resetting a locked-out person's password did not let them in (finding 414).** After five
+wrong guesses an account is locked for fifteen minutes. If Root then gave that person a new
+password, they were still locked out until the fifteen minutes passed. A new password now
+clears the count, because the guesses were against a password that no longer exists.
+
+**A message to a stopped agent disappeared without a word (finding 415).** When an agent has
+been stopped with the emergency button, it refuses new work until someone releases it. A User
+typing to it saw their message vanish and nothing else. The page now shows the reason ("this
+agent is locked down; release it first") and keeps what was typed. The Stop agent button's own
+question now also says the agent stays stopped until released.
+
+**Deleting an agent could leave its files readable by another agent (finding 416).** Agents
+made from the dashboard get a folder inside the main agent's folder. Deleting one "from the list
+only" keeps its files, which is the point of that choice, but then those files sit inside the
+main agent's folder with nobody else's name on them, and the main agent could read them without
+asking anyone. The other kind of deletion turned out to leave that folder in place too. The
+deletion question now says so for such an agent, before either choice, and that the folder has
+to be moved or deleted on the server if that is not wanted.
+
+Smaller things fixed on the way: setting someone's password now says it worked, the "your
+session ended" message goes away once you try to sign in again, and every control on an
+account's row says whose account it is, for screen readers.
+
+Not changed, and why: switching off one of the built-in protections was not tried past its
+warning (the testing tool refused to weaken a protection, even on test data); messages the
+system writes for itself (its "dreaming") are recorded like every other message an agent
+receives, which is the design; and the files sent with a message are listed in the audit
+record but not yet next to the message in the conversation.
