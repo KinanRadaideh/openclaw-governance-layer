@@ -17,7 +17,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return {
     ...original,
     rename: async (from: string, to: string) => {
-      if (fault.rename && String(from).endsWith("audit-ledger.jsonl")) {
+      if (fault.rename && from.endsWith("audit-ledger.jsonl")) {
         throw Object.assign(new Error("EPERM: operation not permitted, rename"), { code: "EPERM" });
       }
       return original.rename(from, to);
