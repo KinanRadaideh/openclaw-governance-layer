@@ -317,3 +317,16 @@ src/agents/governance-agent-runner.stopped.test.ts ui/src/pages/governance/`): *
 - The QA fixture is still running (mock 44091, Gateway 18841) with part 1's scratchpad state, plus
   user3 (Viewer, admin1), Scout's 120 s timeout, and the leftover `ws-main/zeta-worker` and
   `ws-main/epsilon-worker` folders.
+
+## 9. Full lint gate, commits and push
+
+- `node scripts/run-lint.mjs`, first run: exit 1 on the i18n raw-copy baseline, because the three
+  existing raw option labels (command, path, network) moved with the rule-request queue into
+  `rule-requests-panel.ts`; baseline regenerated (155 entries, paths only). Second run: every
+  oxlint shard finished, one type-aware error at HEAD in a file neither pass touched
+  (`ledger-rotation-failure.test.ts`, a redundant `String()` from T73), fixed; confirmed with
+  `scripts/run-oxlint.mjs` and a positive control (the old line fails, the new one passes);
+  stylelint, skipped by the gate after the oxlint failure, run on its own: exit 0.
+- Commits on `governance-layer`, pushed to `personal`: `c09e1c9f7ab` (code and tests, findings
+  406–416), `4125e50bbb0` (registers and both logs), `d29a802f988` (i18n baseline paths),
+  `2a9810cd03b` (the lint fix), and this log's last section.
