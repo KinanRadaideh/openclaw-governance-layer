@@ -81,6 +81,12 @@ export type AgentRegistryDrafts = {
    * group's Root.
    */
   provisionAdminId: string;
+  /**
+   * Root's owner choice beside Register (finding 407), and the row it was made on, so
+   * a choice made on one unregistered agent is never applied to another.
+   */
+  registerOwnerFor: string;
+  registerOwnerId: string;
   /** Which row currently has its remove chooser open, or "" for none. */
   removeChoiceFor: string;
   /** Which row has its editor open (A13), or "" for none; and what is typed and chosen there. */
@@ -119,6 +125,11 @@ export type AgentRegistryPanelProps = PanelEffects & {
   agents: readonly GovernanceAgentEntry[];
   /** Accounts that may own an agent, for Root's owner picker. */
   administrators: readonly GovernanceUserRecord[];
+  /**
+   * Every account the caller can list (Root's whole organisation; empty below it), so
+   * the change-owner confirmation names who actually loses the agent (QA of 2026-10-07).
+   */
+  accounts?: readonly GovernanceUserRecord[];
   drafts: AgentRegistryDrafts;
   onDraft: (patch: Partial<AgentRegistryDrafts>) => void;
   /** Reloads the page's data after a change. */
@@ -162,6 +173,8 @@ export function emptyAgentRegistryDrafts(): AgentRegistryDrafts {
     provisionWorkspace: "",
     provisionModel: "",
     provisionAdminId: "",
+    registerOwnerFor: "",
+    registerOwnerId: "",
     removeChoiceFor: "",
     editFor: "",
     editName: "",
@@ -281,24 +294,26 @@ function renderRemoveChoice(
           // **Which deletion, chosen in a dialog** (decision C13). The two leave very
           // different things on the server, so each option says in words what it removes,
           // what it leaves and what the audit ledger keeps; neither is the default.
-          void chooseHostDeletion(t("governance.agents.deleteChoiceMessage", { name })).then(
-            (hostDeletion) =>
-              hostDeletion === null
-                ? undefined
-                : props.run(async () => {
-                    const result = await props
-                      .api()
-                      .deprovisionAgent(agent.agentId, true, hostDeletion);
-                    // What happened, then every problem, not the first: the ledger can
-                    // refuse its entry while the rules clear cleanly, and the reverse.
-                    const notice = deletionNotice(result);
-                    props.onDraft({
-                      removeChoiceFor: "",
-                      rowNotice: notice.text,
-                      rowNoticeWarning: notice.warning,
-                    });
-                    await props.refresh();
-                  }),
+          void chooseHostDeletion(
+            t("governance.agents.deleteChoiceMessage", { name }),
+            agent.insideWorkspaceOf,
+          ).then((hostDeletion) =>
+            hostDeletion === null
+              ? undefined
+              : props.run(async () => {
+                  const result = await props
+                    .api()
+                    .deprovisionAgent(agent.agentId, true, hostDeletion);
+                  // What happened, then every problem, not the first: the ledger can
+                  // refuse its entry while the rules clear cleanly, and the reverse.
+                  const notice = deletionNotice(result);
+                  props.onDraft({
+                    removeChoiceFor: "",
+                    rowNotice: notice.text,
+                    rowNoticeWarning: notice.warning,
+                  });
+                  await props.refresh();
+                }),
           )}
       >
         ${t("governance.agents.delete")}
@@ -328,6 +343,58 @@ function renderEngineState(agent: GovernanceAgentEntry): TemplateResult {
           >(denied search results are not withheld on Codex)</span
         >`
     : html`engine: built-in only`;
+}
+
+/** The owner Root chose on this row, or `undefined` for the caller (finding 407). */
+function registerOwnerFor(
+  agent: GovernanceAgentEntry,
+  props: AgentRegistryPanelProps,
+): string | undefined {
+  return props.identity?.role === "root" && props.drafts.registerOwnerFor === agent.agentId
+    ? props.drafts.registerOwnerId || undefined
+    : undefined;
+}
+
+/**
+ * Root's owner picker beside Register (finding 407). Root first, as itself, so the
+ * one-press registration that worked before still does; an Administrator registers to
+ * itself, as the route requires, and is shown nothing new.
+ */
+function renderRegisterOwner(
+  agent: GovernanceAgentEntry,
+  props: AgentRegistryPanelProps,
+): TemplateResult | typeof nothing {
+  const owners = agentOwners(props.administrators);
+  if (props.identity?.role !== "root" || !owners.some((owner) => owner.role === "administrator")) {
+    return nothing;
+  }
+  const chosen = registerOwnerFor(agent, props);
+  const ordered = [
+    ...owners.filter((owner) => owner.role === "root"),
+    ...owners.filter((owner) => owner.role !== "root"),
+  ];
+  return html`<select
+    class="input"
+    aria-label=${t("governance.agents.registerOwnerLabel", { agent: agent.agentId })}
+    ?disabled=${props.busy}
+    @change=${(e: Event) =>
+      props.onDraft({
+        registerOwnerFor: agent.agentId,
+        registerOwnerId: (e.target as HTMLSelectElement).value,
+      })}
+  >
+    ${ordered.map(
+      (owner) =>
+        html`<option
+          value=${owner.role === "root" ? "" : owner.id}
+          ?selected=${owner.role === "root" ? !chosen : chosen === owner.id}
+        >
+          ${owner.role === "root"
+            ? t("governance.agents.ownerRootSuffix", { username: owner.username })
+            : owner.username}
+        </option>`,
+    )}
+  </select>`;
 }
 
 /** One agent, with who owns it and the way in to changing it. */
@@ -429,34 +496,38 @@ function renderAgentRow(
                 ? // Registered, but somebody else's: the row names the owner and offers nothing.
                   // Or not an agent at all, only an id in the policy (finding 399).
                   nothing
-                : html`<button
-                    class="btn"
-                    ?disabled=${props.busy}
-                    @click=${() =>
-                      void props.run(async () => {
-                        // Registering an existing agent is the *other* verb, and
-                        // the one an operator migrating an installation needs. It
-                        // claims an id the host already has; it never creates one.
-                        const registered = await props
-                          .api()
-                          .registerAgent(agent.agentId, agent.displayName || agent.agentId);
-                        // **The other half of T55 part b′** (finding 326). The
-                        // route has computed `inheritedPolicy` for this verb since
-                        // T55 landed, and this call site awaited the response and
-                        // threw it away — so "registering an agent onto a loaded id
-                        // says so" was true of the create form and of nothing else.
-                        // Registering is the *more* likely of the two to meet rules
-                        // it did not write: the id comes from the host, already
-                        // named, and may have been governed here before.
-                        props.onDraft({
-                          rowNotice: inheritedClause(registered.inheritedPolicy) ?? "",
-                          rowNoticeWarning: false,
-                        });
-                        await props.refresh();
-                      })}
-                  >
-                    ${t("governance.agents.register")}
-                  </button>`}
+                : html`${renderRegisterOwner(agent, props)}<button
+                      class="btn"
+                      ?disabled=${props.busy}
+                      @click=${() =>
+                        void props.run(async () => {
+                          // Registering an existing agent is the *other* verb, and
+                          // the one an operator migrating an installation needs. It
+                          // claims an id the host already has; it never creates one.
+                          const registered = await props
+                            .api()
+                            .registerAgent(
+                              agent.agentId,
+                              agent.displayName || agent.agentId,
+                              registerOwnerFor(agent, props),
+                            );
+                          // **The other half of T55 part b′** (finding 326). The
+                          // route has computed `inheritedPolicy` for this verb since
+                          // T55 landed, and this call site awaited the response and
+                          // threw it away — so "registering an agent onto a loaded id
+                          // says so" was true of the create form and of nothing else.
+                          // Registering is the *more* likely of the two to meet rules
+                          // it did not write: the id comes from the host, already
+                          // named, and may have been governed here before.
+                          props.onDraft({
+                            rowNotice: inheritedClause(registered.inheritedPolicy) ?? "",
+                            rowNoticeWarning: false,
+                          });
+                          await props.refresh();
+                        })}
+                    >
+                      ${t("governance.agents.register")}
+                    </button>`}
           </div>`,
   });
 }

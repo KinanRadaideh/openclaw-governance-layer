@@ -111,6 +111,12 @@ export type GovernancePolicyDocument = {
    */
   agentMode: Record<string, "enforce" | "monitor" | "off">;
   hitlTimeoutSeconds: number;
+  /**
+   * Per-agent approval timeouts in seconds; absent key means the installation value.
+   * Sent by the server all along and never declared here, so no screen showed one
+   * (finding 413); scoped to the reader's agents since finding 412.
+   */
+  agentHitlTimeout?: Record<string, number>;
   rules: GovernancePolicyRule[];
   lockedAgents: string[];
   /** Core rule ids Root has switched off. Self-protecting rules never appear. */
@@ -177,6 +183,8 @@ export type GovernanceIdentity = {
   assignedAgents?: string[];
   /** Absent means allowed. Meaningful for the User tier only. */
   canAuthorPolicy?: boolean;
+  /** The Administrator a User or Viewer answers to, by username (QA of 2026-10-07). */
+  answersTo?: string;
 };
 
 // Rule-request shapes live in `api.rule-requests.ts` and are re-exported here, so
@@ -989,10 +997,10 @@ export class GovernanceApi {
     return this.request<GovernanceRuleRequest>("rule-requests", { method: "POST", body: input });
   }
 
-  decideRuleRequest(id: string, approve: boolean): Promise<GovernanceRuleRequest> {
+  decideRuleRequest(id: string, approve: boolean, note?: string): Promise<GovernanceRuleRequest> {
     return this.request<GovernanceRuleRequest>("rule-requests/decide", {
       method: "POST",
-      body: { id, approve },
+      body: { id, approve, ...(note ? { note } : {}) },
     });
   }
 

@@ -29,6 +29,7 @@ import {
   createUser,
   findUserByUsername,
   installationHasOrganisation,
+  listUsers,
   newGroupId,
 } from "../governance/user-store.js";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
@@ -283,6 +284,7 @@ export async function handleGovernanceAuthRequest(
       ...(session.canAuthorPolicy !== undefined
         ? { canAuthorPolicy: session.canAuthorPolicy }
         : {}),
+      ...(await answersTo(session)),
     });
     return true;
   }
@@ -414,3 +416,20 @@ export async function handleGovernanceAuthRequest(
 }
 
 export { isGovernanceRole };
+
+/**
+ * The Administrator a User or Viewer answers to, by username (QA of 2026-10-07).
+ *
+ * The page told an account with no agents to "ask yours to add one" and named nobody.
+ * The caller's own manager is no disclosure: it is the person they are told to ask.
+ * Absent for Administrator and Root, and when the record cannot be found.
+ */
+async function answersTo(session: GovernanceSession): Promise<{ answersTo?: string }> {
+  if (session.role !== "user" && session.role !== "viewer") {
+    return {};
+  }
+  const accounts = await listUsers(session.groupId);
+  const managerId = accounts.find((account) => account.id === session.userId)?.managedBy;
+  const manager = managerId ? accounts.find((account) => account.id === managerId) : undefined;
+  return manager ? { answersTo: manager.username } : {};
+}

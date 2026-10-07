@@ -33,6 +33,7 @@ import {
   unregisterAgent,
   UnknownAgentError,
 } from "../governance/agent-registry.js";
+import { agentWorkspaceEnclosedBy } from "../governance/agent-workspace-roots.js";
 import { canViewAgent, visibleAgents, type GovernanceActor } from "../governance/permissions.js";
 import { knownAgentIds } from "../governance/policy-projection.js";
 import { holdsNothing, loadPolicy, readAgentPolicyHoldings } from "../governance/policy-store.js";
@@ -217,13 +218,24 @@ export async function handleGovernanceAgentRoutes(
             return Object.assign({}, entry, { onHost: presentOnHost.has(entry.agentId) });
           }
           const ownerName = entry.adminId ? owners.get(entry.adminId) : undefined;
+          // **Whose workspace this agent's folder sits in (finding 416)**, so the
+          // deletion choice can say who reads the kept folder once this agent is gone.
+          // Named only when the caller can see that agent too.
+          const enclosing = agentWorkspaceEnclosedBy(entry.agentId);
+          const insideWorkspaceOf =
+            enclosing && visible.has(enclosing) ? { insideWorkspaceOf: enclosing } : {};
           // `Object.assign` onto a fresh object rather than a spread, which
           // `no-map-spread` refuses. **A copy either way, deliberately**: these
           // rows come from the registry read above, and writing a display-only
           // field into them in place would be a rendering concern mutating
           // stored state — the same hazard `active-sessions.ts` records against
           // the Gateway's live run registry.
-          return ownerName ? Object.assign({}, entry, { adminUsername: ownerName }) : entry;
+          return Object.assign(
+            {},
+            entry,
+            ownerName ? { adminUsername: ownerName } : {},
+            insideWorkspaceOf,
+          );
         }),
     });
     return true;

@@ -80,6 +80,8 @@ type PromptRun = {
   controller: AbortController;
   startedAt: number;
   ending?: PromptRunEnding;
+  /** Who cancelled it, when that was not its own account (finding 411). */
+  cancelledBy?: string;
   finishing?: boolean;
   timer: ReturnType<typeof setTimeout>;
 };
@@ -272,7 +274,19 @@ export function cancelPromptRun(input: {
     // Already ending. A timeout that fired first, or a second click.
     return { cancelled: false, reason: "not-found" };
   }
+  if (run.username !== input.username) {
+    run.cancelledBy = input.username;
+  }
   return { cancelled: true, agentId: run.agentId };
+}
+
+/**
+ * The account that cancelled a run, when it was not the run's own (finding 411), or
+ * `undefined`. Read while the run is settling, before its slot is released, so the
+ * sender is told their task was stopped by someone and not that it simply failed.
+ */
+export function promptRunCancelledBy(runId: string): string | undefined {
+  return runs.get(runId)?.cancelledBy;
 }
 
 /**

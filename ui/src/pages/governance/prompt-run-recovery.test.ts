@@ -365,6 +365,46 @@ describe("prompt recovery in the conversation and active sessions", () => {
     expect(h.controller.slice().promptStopping).toBe(false);
   });
 
+  it("says a newer task is running when the one pressed had just ended (QA of 2026-10-07)", async () => {
+    // Root pressed Cancel on a row that still carried user1's previous, just-ended
+    // task: "This task is no longer running" was true of that task and read as wrong,
+    // because user1's new task was plainly running for the same agent.
+    const h = harness("administrator");
+    h.list.mockResolvedValue({ runs: [task("ended-task")] });
+    await h.controller.showConversation("scout");
+    h.cancel.mockResolvedValueOnce({ cancelled: false });
+    h.list.mockResolvedValue({ runs: [task("newer-task")] });
+    await h.controller.cancelPrompt("ended-task");
+    h.draw();
+    expect(h.activity.textContent).toContain(
+      "That task had already finished. A newer task is running for scout; press Cancel on it to stop that one.",
+    );
+    expect(h.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("says why a prompt was refused unsent, and keeps what was typed (finding 415)", async () => {
+    // A locked-down agent's refusal arrives on the stream as an ordinary outcome, not
+    // the thrown 409 the code expected: the typed message vanished and nothing said why.
+    const h = harness();
+    await h.controller.showConversation("scout");
+    vi.spyOn(GovernanceApi.prototype, "promptAgentStreaming").mockResolvedValue({
+      ok: false,
+      runId: "never-started",
+      sessionKey: "agent:scout:governance:lina",
+      reply: "",
+      lockedDown: true,
+      error: 'Agent "scout" is locked down. Release it before prompting.',
+    });
+    h.controller.setDraft("Reply with exactly: WHILE-LOCKED");
+
+    await h.controller.sendPrompt();
+
+    expect(h.controller.slice().promptError).toBe(
+      'Agent "scout" is locked down. Release it before prompting.',
+    );
+    expect(h.controller.slice().promptDraft).toBe("Reply with exactly: WHILE-LOCKED");
+  });
+
   it("drops the cancellation notice once the task it was about has gone", async () => {
     // 6b.5: "Cancellation requested. The task stays listed until it finishes
     // stopping." stayed on screen above "No agent sessions are running".

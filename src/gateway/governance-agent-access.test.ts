@@ -157,6 +157,15 @@ describe("who can reach an agent", () => {
     expect(reply.body.assignedTo.toSorted()).toEqual(["malek", "watcher"]);
   });
 
+  // Finding 409: the lookup accepts the id as typed, and the rules beside it are
+  // found for `Scout`, so the roster must be too. It answered "Nobody" instead.
+  it("names the holders when the id is typed in another case", async () => {
+    await assignedAccount("malek", "user", ["agent-a"]);
+    const reply = await accessFor(session("user", "malek", ["agent-a"]), "Agent-A");
+    expect(reply.status).toBe(200);
+    expect(reply.body.assignedTo).toEqual(["malek"]);
+  });
+
   it("answers with an empty list rather than an error when nobody holds it", async () => {
     // The state the panel exists to make visible: an agent running under
     // Administrator authority alone. The page renders this as a sentence; the

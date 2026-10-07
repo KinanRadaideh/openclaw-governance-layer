@@ -475,6 +475,7 @@ class GovernancePage extends OpenClawLightDomElement {
       // The agent panels' owner picker, not the accounts panel's manager
       // picker: Root may own an agent and may not be answered to.
       administrators: agentOwners(this.users),
+      accounts: this.users,
       refresh: () => this.refreshData(),
       policy: this.policy,
       identity: this.identity,
@@ -1035,6 +1036,9 @@ class GovernancePage extends OpenClawLightDomElement {
       });
       return;
     }
+    // Gone once somebody signs in again, whatever the answer (QA of 2026-10-07): it
+    // stood above seven refusals and a lockout, two notices about different things.
+    this.sessionExpired = false;
     await this.run(async () => {
       const api = this.api();
       this.identity = bootstrapping
@@ -1043,7 +1047,6 @@ class GovernancePage extends OpenClawLightDomElement {
       this.loginPassword = "";
       this.loginConfirm = "";
       this.needsBootstrap = false;
-      this.sessionExpired = false;
       this.startAutoRefresh();
     });
   }

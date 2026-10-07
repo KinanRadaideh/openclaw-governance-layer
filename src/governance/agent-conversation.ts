@@ -48,6 +48,7 @@ import {
   listRunningPromptsForSessions,
   PromptCapacityError,
   PROMPT_TIMEOUT_MS,
+  promptRunCancelledBy,
   settlePromptRun,
   type PromptRunEnding,
 } from "./prompt-runs.js";
@@ -639,6 +640,7 @@ export async function promptAgent(
         : {}),
     });
     const ending = settlePromptRun(runId);
+    const cancelledBy = promptRunCancelledBy(runId);
 
     // A cancelled or timed-out run is reported as what it is, in preference to
     // whatever transport error the abort produced on the way out. The underlying
@@ -651,7 +653,9 @@ export async function promptAgent(
         reply: outcome.reply,
         error:
           ending === "cancelled"
-            ? "The prompt was cancelled."
+            ? cancelledBy
+              ? `The prompt was cancelled by ${cancelledBy}.`
+              : "The prompt was cancelled."
             : ending === "kill-switch"
               ? "The agent was stopped by the emergency kill switch."
               : `The prompt ran longer than ${Math.round(PROMPT_TIMEOUT_MS / 60_000)} minutes and was stopped.`,

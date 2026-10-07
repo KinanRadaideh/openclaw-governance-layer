@@ -38,6 +38,35 @@ export function renderEditButton(
 }
 
 /**
+ * What a change of owner costs, said about the accounts it costs (QA of 2026-10-07).
+ *
+ * The confirmation warned that "Users and Viewers who answer to root lose this agent"
+ * when nobody answered to Root and nobody held it. Root's page has every account, so
+ * the holders are named, or the dialog says nobody loses anything.
+ */
+function ownerChangeDetails(
+  agent: GovernanceAgentEntry,
+  props: AgentRegistryPanelProps,
+  previous: string,
+  chosen: GovernanceUserRecord,
+): string {
+  const holders = (props.accounts ?? [])
+    .filter(
+      (account) =>
+        (account.role === "user" || account.role === "viewer") &&
+        (account.assignedAgents ?? []).includes(agent.agentId),
+    )
+    .map((account) => account.username);
+  return holders.length > 0
+    ? t("governance.agents.confirmOwnerDetails", {
+        holders: holders.join(", "),
+        previous,
+        owner: chosen.username,
+      })
+    : t("governance.agents.confirmOwnerNobody", { owner: chosen.username });
+}
+
+/**
  * The editor that replaces the row's controls while open: the display name, and for
  * Root the owner. `owners` is the organisation's Administrators and Root.
  */
@@ -95,7 +124,10 @@ export function renderAgentEditor(
               ${owners.map(
                 (account) =>
                   html`<option value=${account.id} ?selected=${account.id === drafts.editOwnerId}>
-                    ${account.username} (${account.role})
+                    ${account.role === "root"
+                      ? // Worded as the create form and Register word it (QA of 2026-10-07).
+                        t("governance.agents.ownerRootSuffix", { username: account.username })
+                      : account.username}
                   </option>`,
               )}
             </select>
@@ -116,10 +148,7 @@ export function renderAgentEditor(
                       name,
                       owner: chosenOwner.username,
                     }),
-                    details: t("governance.agents.confirmOwnerDetails", {
-                      previous: previousOwner,
-                      owner: chosenOwner.username,
-                    }),
+                    details: ownerChangeDetails(agent, props, previousOwner, chosenOwner),
                     confirmLabel: t("governance.agents.changeOwner"),
                     danger: false,
                   },

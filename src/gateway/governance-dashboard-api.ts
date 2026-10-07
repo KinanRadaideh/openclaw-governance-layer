@@ -12,7 +12,6 @@ import { listActiveSessions } from "../governance/active-sessions.js";
 import { listAgents } from "../governance/agent-registry.js";
 import { isSafeObjectKey } from "../governance/object-keys.js";
 import {
-  canManageAccounts,
   canManageGlobalPolicy,
   canViewAgent,
   visibleAgents,
@@ -39,7 +38,6 @@ import {
   NotACoreRuleError,
   SelfProtectingCoreRuleError,
   setCoreRuleEnabled,
-  switchedOffCoreRules,
 } from "../governance/policy-store.js";
 import type { ResourceKind } from "../governance/policy-types.js";
 import { roleAtLeast, type GovernanceRole } from "../governance/roles.js";
@@ -66,6 +64,7 @@ import { handleGovernanceIntegrityRoutes } from "./governance-dashboard-integrit
 import { handleGovernanceOversightRoutes } from "./governance-dashboard-oversight.js";
 import { handleGovernanceRuleRequestRoutes } from "./governance-dashboard-rule-requests.js";
 import { GOVERNANCE_LOGIN_REQUIRED_TYPE } from "./governance-login-required.js";
+import { policyViewFor } from "./governance-policy-view.js";
 import {
   MAX_JSON_BODY_BYTES,
   readJsonBodyOrError,
@@ -178,38 +177,8 @@ export async function handleGovernanceApiRequest(
     }
     // A scoped account sees global rules (they bind its agents too) plus the
     // rules for agents it was assigned. Never another team's agent rules.
-    const policy = await loadPolicy(groupId);
-    const actor = toActor(session);
-    sendJson(res, 200, {
-      ...policy,
-      rules: policy.rules.filter(
-        (rule) => rule.agentId === undefined || canViewAgent(actor, rule.agentId),
-      ),
-      lockedAgents: policy.lockedAgents.filter((agentId) => canViewAgent(actor, agentId)),
-      // Every agent-keyed collection in this response has to be scoped, not
-      // just the obvious one. The override map would otherwise let a caller
-      // limited to one agent enumerate every other agent in the installation.
-      agentAsk: Object.fromEntries(
-        Object.entries(policy.agentAsk).filter(([agentId]) => canViewAgent(actor, agentId)),
-      ),
-      // `agentMode` arrived with the tier model and was not added to the list
-      // above, so the invariant the comment states was true of three
-      // collections out of four. A scoped caller could read back every agent id
-      // in the installation from the posture map.
-      agentMode: Object.fromEntries(
-        Object.entries(policy.agentMode).filter(([agentId]) => canViewAgent(actor, agentId)),
-      ),
-      // Keyed by *account*, not by agent, so agent scope says nothing about it:
-      // it is a list of who has an escalation override, which is account
-      // administration and therefore Root's. A Viewer was previously handed the
-      // installation's user list as a side effect of reading the policy.
-      userAsk: canManageAccounts(actor) ? policy.userAsk : {},
-      // **The switched-off core rules, whole (finding 367).** Their ids were already here
-      // for every tier; without the rules behind them the page could neither name one nor
-      // offer to switch it back on, while the deployment report told Root to do exactly
-      // that on this page. The declarations are shipped source, so nothing is disclosed.
-      switchedOffCoreRules: switchedOffCoreRules(policy.disabledCoreRules ?? []),
-    });
+    // Scoped by the one projection every policy response goes through (finding 412).
+    sendJson(res, 200, policyViewFor(await loadPolicy(groupId), toActor(session)));
     return true;
   }
 
@@ -467,7 +436,7 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     await setHitlTimeout(groupId, Math.round(seconds), auditActor(session));
-    sendJson(res, 200, await loadPolicy(groupId));
+    sendJson(res, 200, policyViewFor(await loadPolicy(groupId), toActor(session)));
     return true;
   }
 
@@ -494,7 +463,7 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     await setMode(groupId, mode, auditActor(session));
-    sendJson(res, 200, await loadPolicy(groupId));
+    sendJson(res, 200, policyViewFor(await loadPolicy(groupId), toActor(session)));
     return true;
   }
 
@@ -516,7 +485,7 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     await setAskMode(groupId, ask, auditActor(session));
-    sendJson(res, 200, await loadPolicy(groupId));
+    sendJson(res, 200, policyViewFor(await loadPolicy(groupId), toActor(session)));
     return true;
   }
 
@@ -578,7 +547,7 @@ export async function handleGovernanceApiRequest(
       ask === null ? undefined : ask,
       auditActor(session),
     );
-    sendJson(res, 200, await loadPolicy(groupId));
+    sendJson(res, 200, policyViewFor(await loadPolicy(groupId), toActor(session)));
     return true;
   }
 
@@ -652,7 +621,7 @@ export async function handleGovernanceApiRequest(
       mode === null ? undefined : mode,
       auditActor(session),
     );
-    sendJson(res, 200, await loadPolicy(groupId));
+    sendJson(res, 200, policyViewFor(await loadPolicy(groupId), toActor(session)));
     return true;
   }
 
@@ -694,7 +663,7 @@ export async function handleGovernanceApiRequest(
       ask === null ? undefined : ask,
       auditActor(session),
     );
-    sendJson(res, 200, await loadPolicy(groupId));
+    sendJson(res, 200, policyViewFor(await loadPolicy(groupId), toActor(session)));
     return true;
   }
 

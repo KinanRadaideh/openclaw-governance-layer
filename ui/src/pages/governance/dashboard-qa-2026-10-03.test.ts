@@ -102,6 +102,22 @@ describe("finding 397: an Administrator assigns agents to the accounts that answ
     expect(setUserAgents).toHaveBeenCalledWith("user-1", ["beta"]);
   });
 
+  // 2026-10-07 QA: Enter did nothing in the box, and every row's box had the same
+  // accessible name, so a screen reader could not tell whose agents it was editing.
+  it("saves on Enter, and names the account in each box's label", async () => {
+    const setUserAgents = vi.fn(async () => ({ ok: true as const, assignedAgents: [] }));
+    const { value, reload } = props("administrator", { setUserAgents });
+    const el = mountTemplate(renderManagedAccountsSection(value));
+    const boxes = [...el.querySelectorAll("input[type=text]")] as HTMLInputElement[];
+    expect(boxes.map((box) => box.getAttribute("aria-label"))).toEqual([
+      "Agents assigned to user0",
+      "Agents assigned to viewer2",
+    ]);
+    boxes[0]?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await vi.waitFor(() => expect(reload).toHaveBeenCalled());
+    expect(setUserAgents).toHaveBeenCalledWith("user-1", ["beta"]);
+  });
+
   it("is drawn for the Administrator tier only", () => {
     for (const role of ["root", "user", "viewer"] as const) {
       const el = mountTemplate(renderManagedAccountsSection(props(role).value));

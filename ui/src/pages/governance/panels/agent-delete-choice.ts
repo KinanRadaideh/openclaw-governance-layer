@@ -19,11 +19,26 @@ import type {
   GovernanceHostLeftovers,
 } from "../api.ts";
 
+/**
+ * The question, with what neither answer removes (finding 416): when this agent's folder
+ * sits inside another agent's workspace, OpenClaw leaves it in place under both deletions
+ * (measured: the full delete moved only the session records), and the agent around it
+ * then reads those files unasked. Said in the question, because it holds for both choices.
+ */
+export function deletionChoiceMessage(message: string, insideWorkspaceOf?: string): string {
+  return insideWorkspaceOf
+    ? `${message}\n\n${t("governance.agents.deleteNested", { agent: insideWorkspaceOf })}`
+    : message;
+}
+
 /** Asks which deletion to run. Resolves `null` when the operator keeps the agent. */
-export function chooseHostDeletion(message: string): Promise<GovernanceHostDeletionMode | null> {
+export function chooseHostDeletion(
+  message: string,
+  insideWorkspaceOf?: string,
+): Promise<GovernanceHostDeletionMode | null> {
   return showChoiceDialog<GovernanceHostDeletionMode>({
     title: t("governance.confirm.title"),
-    message,
+    message: deletionChoiceMessage(message, insideWorkspaceOf),
     choices: [
       {
         value: "roster",

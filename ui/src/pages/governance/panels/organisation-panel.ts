@@ -76,7 +76,11 @@ export function renderOrganisationSection(
     renderSettingsRow({
       title: t("governance.organisation.deleteTitle"),
       description: t("governance.organisation.deleteHint", {
-        accounts: String(props.accountCount),
+        // Root is always one of them, so 0 means the list has not loaded yet.
+        accounts:
+          props.accountCount > 0
+            ? t("governance.organisation.deleteHintCount", { count: String(props.accountCount) })
+            : t("governance.organisation.deleteHintEvery"),
         username: rootUsername,
       }),
       stacked: true,

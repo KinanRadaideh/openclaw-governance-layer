@@ -51,7 +51,7 @@ import type {
   GovernanceRuleWarning,
   GovernanceUserRecord,
 } from "../api.ts";
-import { canRemoveRule, canWritePolicy, hasAgentToGovern } from "../identity.ts";
+import { canManageAgent, canRemoveRule, canWritePolicy, hasAgentToGovern } from "../identity.ts";
 import {
   EMPTY_RULE_FILTER,
   filterRules,
@@ -63,9 +63,9 @@ import type { PanelEffects } from "./account-panels.ts";
 import { renderRuleTargets } from "./agent-policy-lookup.ts";
 import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend-panel.ts";
 import { renderFolderGrantPanel, type RuleNotices } from "./folder-grant-panel.ts";
-import { formatDuration } from "./format.ts";
+import { formatDuration, unassignedAgentsHint } from "./format.ts";
 import { renderAgentAskRow, renderObserveAgentRow } from "./policy-agent-overrides.ts";
-import { renderAgentTimeoutRow } from "./policy-agent-timeout.ts";
+import { renderAgentTimeoutOverrides, renderAgentTimeoutRow } from "./policy-agent-timeout.ts";
 import type { PolicyDrafts } from "./policy-drafts.ts";
 import { renderPolicyReadingNotes } from "./policy-reading-notes.ts";
 import { renderRootPolicySettings } from "./policy-root-settings.ts";
@@ -562,6 +562,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
     renderObserveAgentRow(props, canEditPostures),
     renderAgentAskRow(props, canEditPostures),
     renderAgentTimeoutRow(props),
+    ...renderAgentTimeoutOverrides(props),
     // The three explanatory rows, in their own module: see its header for why
     // the split happened here rather than a suppression comment landing here.
     ...renderPolicyReadingNotes(isRoot),
@@ -726,7 +727,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
     canEditRules && !hasRuleTarget
       ? renderSettingsRow({
           title: t("governance.policy.addRule"),
-          description: t("governance.conversation.chooseAgentHintUnassigned"),
+          description: unassignedAgentsHint(props.identity),
         })
       : nothing,
     canEditRules && hasRuleTarget
@@ -877,7 +878,8 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                 ?disabled=${!props.drafts.newRulePattern ||
                 !props.drafts.newRuleDescription.trim() ||
                 // Blank means every agent, which the server refuses below Administrator.
-                (!props.canAdminister && !props.drafts.newRuleAgentId.trim())}
+                (!props.canAdminister && !props.drafts.newRuleAgentId.trim()) ||
+                ruleAgentNotHeld(props)}
                 @click=${() =>
                   props.run(async () => {
                     const ttl = Number.parseInt(props.drafts.newRuleTtl, 10);
@@ -931,7 +933,11 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                   : html`<span class="settings-row__hint"
                       >${t("governance.policy.agentRequiredHint")}</span
                     >`
-              }
+              }${ruleAgentNotHeld(props)
+                ? html`<span class="settings-row__hint" role="status"
+                    >${t("governance.policy.ruleAgentNotHeld")}</span
+                  >`
+                : nothing}
               <span class="settings-row__hint governance-rule-description-count"
                 >${t("governance.policy.descriptionCount", {
                   used: String(props.drafts.newRuleDescription.length),
@@ -943,4 +949,16 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         })
       : nothing,
   ]);
+}
+
+/**
+ * A User has typed an agent that is not theirs (QA of 2026-10-07).
+ *
+ * `policy/rules` refuses it ("You do not manage agent …") and the form said so only
+ * after the press. Compared the way the route compares, by the folded id, so "Scout"
+ * is user1's `scout`; the kill switch's twin is finding 394's.
+ */
+function ruleAgentNotHeld(props: PolicyPanelProps): boolean {
+  const typed = props.drafts.newRuleAgentId.trim();
+  return Boolean(typed) && !props.canAdminister && !canManageAgent(props.identity, typed);
 }

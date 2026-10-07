@@ -41,6 +41,7 @@ import {
   type GovernanceAgentPolicyView,
   type GovernanceApi,
 } from "../api.ts";
+import { unassignedAgentsHint } from "./format.ts";
 import type { PolicyPanelProps } from "./policy-panels.ts";
 
 /**
@@ -103,7 +104,7 @@ function pickHint(props: PolicyPanelProps): string {
     return t("governance.agentPolicy.pickHintReadOnly");
   }
   if (props.identity?.role === "user" && (props.identity.assignedAgents ?? []).length === 0) {
-    return t("governance.conversation.chooseAgentHintUnassigned");
+    return unassignedAgentsHint(props.identity);
   }
   return t("governance.agentPolicy.pickHint");
 }

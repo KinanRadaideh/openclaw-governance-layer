@@ -565,12 +565,14 @@ export class ConversationController implements ReactiveController {
     this.runId = "";
     this.stopping = false;
     this.changed();
+    let started = false;
     try {
-      await this.bridge.api().promptAgentStreaming(
+      const outcome = await this.bridge.api().promptAgentStreaming(
         agentId,
         message,
         {
           onStart: (info) => {
+            started = true;
             if (session !== this.sessionVersion) {
               return;
             }
@@ -597,6 +599,15 @@ export class ConversationController implements ReactiveController {
         this.attachments.map((held) => held.sha256),
       );
       if (session !== this.sessionVersion) {
+        return;
+      }
+      // **Refused before it ran (finding 415).** A locked-down agent, or a full prompt
+      // queue, answers on the stream as an outcome with no run behind it, not as the
+      // thrown 409 the catch below expects. Nothing records it as a turn, so it is said
+      // here, and what was typed is kept to send once the agent is released.
+      // A run that was stopped carries `ending`; it ran, and its turn says why.
+      if (!outcome.ok && !started && !outcome.ending) {
+        this.error = outcome.error ?? t("governance.conversation.promptRefused");
         return;
       }
       this.draft = "";
@@ -657,11 +668,26 @@ export class ConversationController implements ReactiveController {
    * not cancel the run (T63): the task outlives its tab and stays stoppable from
    * any tab, and asking by id records the cancellation against whoever pressed.
    */
+  /** Whether another task, not already stopping, is running for this agent. */
+  private hasNewerRun(agentId: string, endedRunId: string): boolean {
+    return this.runs.some(
+      (run) =>
+        run.agentId === agentId &&
+        run.runId !== endedRunId &&
+        !this.endedRunIds.has(run.runId) &&
+        !run.ending &&
+        !run.finishing,
+    );
+  }
+
   async cancelPrompt(runId = this.runId): Promise<void> {
     if (!runId || this.cancelling.has(runId)) {
       return;
     }
     const session = this.sessionVersion;
+    // Which agent the pressed task was for, read before the refresh replaces the list.
+    const agentId = this.runs.find((run) => run.runId === runId)?.agentId;
+    let alreadyEnded = false;
     this.cancelling.add(runId);
     this.runsVersion++;
     this.runsError = null;
@@ -673,6 +699,7 @@ export class ConversationController implements ReactiveController {
         return;
       }
       this.runNoticeRunId = outcome.cancelled ? runId : "";
+      alreadyEnded = !outcome.cancelled;
       this.runNotice = t(
         outcome.cancelled
           ? "governance.conversation.cancelRequested"
@@ -683,6 +710,7 @@ export class ConversationController implements ReactiveController {
         return;
       }
       if (err instanceof GovernanceApiError && err.status === 404) {
+        alreadyEnded = true;
         this.runNoticeRunId = "";
         this.runNotice = t("governance.conversation.noLongerRunning");
       } else {
@@ -696,6 +724,14 @@ export class ConversationController implements ReactiveController {
           // Another tab may have won the race. Keep a real refusal visible while
           // the refreshed list supplies the current state to both controls.
           this.runsError = failure ?? this.runsError;
+          // **A newer task for the same agent is said to be one (QA of 2026-10-07).** A
+          // row can still carry a task that ended a moment ago when its agent's next one
+          // has started; "no longer running" was true of the pressed task and read as
+          // wrong beside a task plainly running. Never cancelled on the operator's
+          // behalf: which task they meant is theirs to say.
+          if (alreadyEnded && agentId && this.hasNewerRun(agentId, runId)) {
+            this.runNotice = t("governance.conversation.newerTaskRunning", { agent: agentId });
+          }
           this.cancelling.delete(runId);
           this.changed();
         }

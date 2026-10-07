@@ -299,6 +299,27 @@ describe("a User is not offered a rule or grant for every agent", () => {
     expect(button("Allow folder")?.disabled).toBe(false);
   });
 
+  it("says before the press that an agent the User does not hold is refused (QA of 2026-10-07)", async () => {
+    await mount({
+      identity: identity("user", ["agent-a"]),
+      policy: policyWith([]),
+      newRulePattern: "^make$",
+    });
+    type(descriptionInput(), "Build the project");
+    await settle();
+
+    type(page.querySelector('input[aria-label="Agent this rule applies to"]'), "beta");
+    await settle();
+    expect(button("Add rule")?.disabled).toBe(true);
+    expect(page.textContent).toContain("That agent is not assigned to you");
+
+    // Compared as the route compares, by the folded id.
+    type(page.querySelector('input[aria-label="Agent this rule applies to"]'), "Agent-A");
+    await settle();
+    expect(button("Add rule")?.disabled).toBe(false);
+    expect(page.textContent).not.toContain("That agent is not assigned to you");
+  });
+
   it("still lets an Administrator leave the agent blank for every agent", async () => {
     await mount({
       identity: identity("administrator"),

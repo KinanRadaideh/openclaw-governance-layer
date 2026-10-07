@@ -308,6 +308,28 @@ export async function authorizeControlUiReadRequest(
   const clientIp =
     resolveRequestClientIp(req, opts.trustedProxies, opts.allowRealIpFallback === true) ??
     req.socket?.remoteAddress;
+  // The Control UI sends its paired-device token as the Bearer credential
+  // (`resolveControlUiAuthToken` prefers it), and it is tried as the shared
+  // secret first. A shared-secret mismatch from loopback sleeps 250 ms doubling
+  // to 5 s, so every read made with a valid device token used to pay that
+  // penalty before the device check below accepted it; a page polling a dozen
+  // routes kept it at 5 s (finding 406). The shared-secret failure is therefore
+  // held back and applied only if the device token is not valid either.
+  const tryDeviceToken = Boolean(
+    token && opts.auth.mode !== "trusted-proxy" && opts.auth.mode !== "none",
+  );
+  let heldSharedFailure: Parameters<AuthRateLimiter["recordFailureAndDelay"]> | undefined;
+  const sharedSecretLimiter: AuthRateLimiter | undefined =
+    token && opts.rateLimiter && tryDeviceToken
+      ? {
+          ...opts.rateLimiter,
+          recordFailureAndDelay: async (...args) => {
+            heldSharedFailure = args;
+          },
+        }
+      : token
+        ? opts.rateLimiter
+        : undefined;
   const authResult = await authorizeHttpGatewayConnect({
     auth: opts.auth,
     connectAuth: token ? { token, password: token } : null,
@@ -315,7 +337,7 @@ export async function authorizeControlUiReadRequest(
     browserOriginPolicy: resolveHttpBrowserOriginPolicy(req),
     trustedProxies: opts.trustedProxies,
     allowRealIpFallback: opts.allowRealIpFallback,
-    rateLimiter: token ? opts.rateLimiter : undefined,
+    rateLimiter: sharedSecretLimiter,
     clientIp,
     rateLimitScope: AUTH_RATE_LIMIT_SCOPE_SHARED_SECRET,
   });
@@ -325,12 +347,7 @@ export async function authorizeControlUiReadRequest(
   );
   let resolvedAuthResult = authResult;
   let verifiedDeviceScopes: string[] | undefined;
-  if (
-    !resolvedAuthResult.ok &&
-    token &&
-    opts.auth.mode !== "trusted-proxy" &&
-    opts.auth.mode !== "none"
-  ) {
+  if (!resolvedAuthResult.ok && token && tryDeviceToken) {
     const deviceRateCheck = opts.rateLimiter?.check(clientIp, AUTH_RATE_LIMIT_SCOPE_DEVICE_TOKEN);
     if (deviceRateCheck && !deviceRateCheck.allowed) {
       resolvedAuthResult = {
@@ -353,6 +370,9 @@ export async function authorizeControlUiReadRequest(
         await opts.rateLimiter?.recordFailureAndDelay(clientIp, AUTH_RATE_LIMIT_SCOPE_DEVICE_TOKEN);
       }
     }
+  }
+  if (!resolvedAuthResult.ok && heldSharedFailure) {
+    await opts.rateLimiter?.recordFailureAndDelay(...heldSharedFailure);
   }
   if (!resolvedAuthResult.ok) {
     sendGatewayAuthFailure(res, resolvedAuthResult);

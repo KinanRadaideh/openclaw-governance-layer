@@ -34,6 +34,7 @@ import { onAgentEvent } from "../infra/agent-events.js";
 import { logWarn } from "../logger.js";
 import { defaultRuntime } from "../runtime.js";
 import { GOVERNANCE_MESSAGE_CHANNEL } from "../utils/message-channel-constants.js";
+import { closeStoppedGovernanceTurn } from "./governance-stopped-turn.js";
 
 /**
  * Pulls the reply text out of an agent result.
@@ -154,9 +155,13 @@ function subscribeToReply(runId: string, onProgress: (text: string) => void): ()
 
 async function runGovernancePrompt(request: AgentRunRequest): Promise<AgentRunResult> {
   const { createDefaultDeps } = await import("../cli/deps.js");
-  const stopStreaming = request.onProgress
-    ? subscribeToReply(request.runId, request.onProgress)
-    : undefined;
+  // Kept for a stop as well as for the dashboard, so a stopped turn is closed with
+  // whatever reply had streamed (see `closeStoppedGovernanceTurn`).
+  let replySoFar = "";
+  const stopStreaming = subscribeToReply(request.runId, (text) => {
+    replySoFar = text;
+    request.onProgress?.(text);
+  });
   try {
     const result = await agentCommandFromIngress(
       {
@@ -200,7 +205,16 @@ async function runGovernancePrompt(request: AgentRunRequest): Promise<AgentRunRe
     // timeout produces. A listener left on the host's event bus after its run
     // has gone is a leak that grows with every prompt, on the process that also
     // holds the gate.
-    stopStreaming?.();
+    stopStreaming();
+    // A stopped task must not ride back in on the next message (QA of 2026-10-07).
+    if (request.signal?.aborted) {
+      await closeStoppedGovernanceTurn({
+        agentId: request.agentId,
+        sessionKey: request.sessionKey,
+        runId: request.runId,
+        replySoFar,
+      });
+    }
   }
 }
 

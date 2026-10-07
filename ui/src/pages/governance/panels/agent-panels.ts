@@ -63,7 +63,7 @@ import {
 } from "../identity.ts";
 import type { KillNotice } from "../kill-notice.ts";
 import type { PanelEffects } from "./account-panels.ts";
-import { formatAttachmentSize, formatTurnTime } from "./format.ts";
+import { formatAttachmentSize, formatTurnTime, unassignedAgentsHint } from "./format.ts";
 import {
   renderPromptRunNotices,
   renderPromptRunRows,
@@ -414,7 +414,7 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
     return renderSettingsSection({ title: t("governance.kill.title") }, [
       renderSettingsRow({
         title: t("governance.kill.engage"),
-        description: t("governance.conversation.chooseAgentHintUnassigned"),
+        description: unassignedAgentsHint(props.identity),
       }),
     ]);
   }
@@ -963,7 +963,7 @@ export function renderAgentsSection(props: AgentsSectionProps): TemplateResult |
             // this section's own header says the assignment list exists for.
             description: props.canAdminister
               ? t("governance.conversation.chooseAgentHint")
-              : t("governance.conversation.chooseAgentHintUnassigned"),
+              : unassignedAgentsHint(props.identity),
             stacked: true,
             control: props.canAdminister
               ? html`<div class="settings-row__control" style="gap:0.5rem">

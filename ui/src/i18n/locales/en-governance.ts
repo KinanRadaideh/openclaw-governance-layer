@@ -194,6 +194,9 @@ export const enGovernance: TranslationMap = {
       agentRequiredPlaceholder: "Agent id (required)",
       agentRequiredHint:
         "Pick one of your agents. Only an Administrator can write a rule that binds every agent.",
+      // QA of 2026-10-07: refused only after the press before.
+      ruleAgentNotHeld:
+        "That agent is not assigned to you, so you cannot write its rules. Pick one of your agents from the list, or ask under Rule requests.",
       bindsOne: "Binds one agent: {agent}",
       bindsAll: "Global. Binds every agent, including ones not created yet.",
       bindsKnown: "Currently known: {agents}.",
@@ -223,6 +226,12 @@ export const enGovernance: TranslationMap = {
       agentHitlTimeoutAgent: "Agent id",
       agentHitlTimeoutSeconds: "Seconds",
       agentHitlTimeoutSave: "Set for this agent",
+      // Finding 413: what is set, said where it is set, and the range said before a press.
+      agentTimeoutOverride: "Approval timeout",
+      agentTimeoutOverrideHint:
+        "This agent waits this long for an answer instead of the installation timeout.",
+      agentTimeoutSeconds: "{seconds} seconds",
+      agentTimeoutRange: "Enter a whole number of seconds from {min} to {max}.",
       hitlTimeout: "Approval timeout",
       hitlTimeoutHint:
         "How long an escalation waits for a human before it times out. The value is in seconds: 300 is five minutes. Between 5 (five seconds) and 86400 (24 hours). Administrator and above.",
@@ -408,8 +417,12 @@ export const enGovernance: TranslationMap = {
         "Set a new password for this account? Every device signed in as this account will be signed out.",
       setOwnPassword:
         "Set a new password for your own Root account? You will be signed out immediately and must sign in again with the new password. Root has no other password recovery. Make sure you have the new one recorded.",
-      deleteUser: "Delete this account? This cannot be undone, and there is no password reset.",
-      stopAgent: "Stop this agent? Work already running will be interrupted.",
+      deleteUser:
+        "Delete this account? This cannot be undone: it is signed out everywhere at once, and giving this person access again means creating a new account.",
+      // QA of 2026-10-07: Stop agent is a lockdown, and the agent refused every prompt
+      // afterwards with nothing in this sentence saying it would.
+      stopAgent:
+        "Stop this agent? Work already running is interrupted, and the agent stays locked down, refusing every action and prompt, until it is released under Emergency kill switch.",
       killSwitch:
         "Lock down this agent? Work already running is stopped, and every further action is refused until it is released.",
       changeRole: "Change this account's role?",
@@ -441,6 +454,9 @@ export const enGovernance: TranslationMap = {
       // Moving an account to another Administrator (finding 383). The refusal to demote
       // or delete an Administrator told Root to do this, and nothing on the page could.
       answersToLabel: "Administrator this account answers to",
+      // The same, naming the row, for assistive technology (QA of 2026-10-07).
+      answersToLabelFor: "Administrator {username} answers to",
+      roleFor: "Role of {username}",
       confirmRehome:
         "Move this account to another Administrator? It must hold only agents that Administrator owns; remove any others from its agents first.",
       rehomeAction: "Move account",
@@ -453,14 +469,18 @@ export const enGovernance: TranslationMap = {
       // The sole Administrator cannot be demoted, because nobody would be
       // left to answer for them. Said out loud for the reason `rootPermanent`
       // is: a control with one option looks like a page that failed to draw.
+      // QA of 2026-10-07: the reason given was about other accounts, shown while
+      // nobody answered to this one. The rule holds for the account itself.
       soleAdministrator:
-        "The only Administrator. Create a second one before changing this account's role, so the accounts answering to it still have someone answerable.",
+        "The only Administrator. Every User and Viewer must answer to an Administrator, and so would this account once its role changed, so create a second one first.",
       setPassword: "Set password",
+      // QA of 2026-10-07: success used to leave only an empty field.
+      passwordSet: "Password set; every session it had is signed out",
       newPasswordFor: "New password for {username}",
       newUsernameLabel: "New account username",
       newPasswordLabel: "New account password",
       newRoleLabel: "New account role",
-      agentsLabel: "Agents assigned to this account",
+      agentsLabel: "Agents assigned to {username}",
       delete: "Delete",
       // T76: a deletion that finished incompletely. The account is gone and signed out.
       deletionIncompleteTitle: "{username} was deleted, but not everything was finished",
@@ -501,7 +521,10 @@ export const enGovernance: TranslationMap = {
       title: "Organisation",
       deleteTitle: "Delete this organisation",
       deleteHint:
-        "Removes all {accounts} account(s), including your own Root account, {username}, and every agent in this organisation, from OpenClaw as well as from governance; you choose whether only their entries in OpenClaw's agent list go, or everything, the way OpenClaw's own delete removes it. You will be signed out and there is no way back in: there is no password reset. The audit ledger is kept: it is the record of what happened here and is not an operator's to delete. The next account created on this installation starts a new organisation.",
+        "Removes {accounts}, including your own Root account, {username}, and every agent in this organisation, from OpenClaw as well as from governance; you choose whether only their entries in OpenClaw's agent list go, or everything, the way OpenClaw's own delete removes it. You will be signed out and there is no way back in: there is no password reset. The audit ledger is kept: it is the record of what happened here and is not an operator's to delete. The next account created on this installation starts a new organisation.",
+      // QA of 2026-10-07: "Removes all 0 account(s)" was drawn before the accounts had loaded.
+      deleteHintCount: "all {count} account(s)",
+      deleteHintEvery: "every account",
       confirmLabel: "Type {username} to confirm",
       typeToEnable: "Type {username} exactly to enable this",
       deleteButton: "Delete organisation",
@@ -525,13 +548,18 @@ export const enGovernance: TranslationMap = {
     approvals: {
       title: "Waiting for your answer",
       hint: "An agent you manage asked before doing something no rule covers. Only accounts that manage this agent see this question, and your answer is recorded under your name.",
+      // QA of 2026-10-07: the requester was readable only inside the session key.
+      askedBy: "Asked while {username} was talking to {agent}:",
+      askedByYou: "Asked in your conversation with {agent}:",
       dismiss: "Dismiss",
       // Finding 386: a press that arrived after the question was answered elsewhere, cancelled
       // or expired. The card goes with the next read, so this is what is left to say so.
       // Worded so it stays true when the request could not be saved (a full queue,
       // T60): that case has its own notice beside this one.
+      // Reworded in the QA of 2026-10-07: "until it is approved" stayed on screen after
+      // the approval and read as still pending. This wording is true before and after.
       alwaysFiled:
-        "“{title}” was allowed this time. Allowing it every time needs an Administrator's approval: the request is under Rule requests, and until it is approved the next attempt asks again.",
+        "“{title}” was allowed this time. Allowing it every time is a request under Rule requests: once an Administrator approves it, the agent stops asking.",
       answerNotUsed:
         "Your answer to “{title}” was not used: the question had already been answered by another account, cancelled, or had expired. The agent's conversation and the audit ledger show the answer that was.",
     },
@@ -588,7 +616,10 @@ export const enGovernance: TranslationMap = {
       changeOwnerAskRoot: "To give this agent to another Administrator, ask Root.",
       confirmOwner: "Give “{name}” to {owner}?",
       confirmOwnerDetails:
-        "Users and Viewers who answer to {previous} lose this agent, because an agent is assigned only to accounts under its own Administrator; {owner} can assign it again. The change is recorded in the audit ledger.",
+        "{holders} lose this agent: they answer to {previous}, and an agent is assigned only to accounts under its own Administrator; {owner} can assign it again. The change is recorded in the audit ledger.",
+      // QA of 2026-10-07: the warning above was shown when nobody held the agent.
+      confirmOwnerNobody:
+        "No User or Viewer holds this agent, so nobody loses access; {owner} can assign it. The change is recorded in the audit ledger.",
       // An event, like `renamed`: it stays true if the owner is changed again elsewhere.
       reowned: "Gave “{name}” to {owner}.",
       closeEdit: "Close",
@@ -603,6 +634,10 @@ export const enGovernance: TranslationMap = {
       deleteRosterLabel: "Delete from OpenClaw's agent list only",
       deleteRosterExplain:
         "What it does: removes the agent from OpenClaw's list of agents, as this page always has. Its working folder and files, its conversation history, its scheduled tasks and its saved command approvals all stay on the server.\nWhen to choose it: to keep what the agent produced, to look at or recover later.\nThe catch: an agent created later with the same name picks all of that up. It opens the same folder, sees the same history, runs the old scheduled tasks and gets the old approvals. The page says so when that happens.\nAudit ledger: nothing in it is removed or changed. One new entry records this deletion and says what was left behind.",
+      // Finding 416: said only when the folder sits inside another agent's workspace, where
+      // OpenClaw leaves it under both deletions.
+      deleteNested:
+        "Before choosing: this agent's folder is inside {agent}'s workspace. OpenClaw leaves a folder there in place whichever way it is deleted, so once this agent is gone {agent}, and everyone who talks to it, can read those files without being asked. If that is not intended, move or delete the folder on the server.",
       deleteFullLabel: "Delete the way OpenClaw does",
       deleteFullExplain:
         "What it does: runs OpenClaw's own delete. The agent's scheduled tasks, saved command approvals and session records are removed, and its working folder, its own folder and its conversation files are moved to a .Trash folder in the home folder of the account the Gateway runs as. Governance's copy of its dashboard conversations goes too; attachments already sent in a prompt are kept.\nWhen to choose it: for a clean end. An agent created later with the same name starts with nothing OpenClaw could remove; anything it leaves is named here and again when you create that name.\nThe catch: the files leave the agent's folders. Nothing on this page brings them back: someone with access to the server has to move them out of .Trash by hand, and they use disk space until then. It is refused while the agent is still working, and when the governance folder is inside one of the folders it would move.\nAudit ledger: nothing in it is removed or changed. One new entry records this deletion and lists what was removed. The ledger never held whole conversations or the contents of files, so those leave with the files.",
@@ -655,6 +690,8 @@ export const enGovernance: TranslationMap = {
       ownerLabel: "Owning account",
       ownerPlaceholder: "Choose who owns this agent...",
       ownerRootSuffix: "{username} (you, Root)",
+      // Root's owner choice beside Register (finding 407); names the row's agent.
+      registerOwnerLabel: "Who will own {agent} once registered",
       create: "Create agent",
       // Shown while an agent is being created (finding 384): the wait is long and was silent.
       creating:
@@ -681,6 +718,10 @@ export const enGovernance: TranslationMap = {
       savingReply: "Saving reply…",
       cancelRequested: "Cancellation requested. The task stays listed until it finishes stopping.",
       noLongerRunning: "This task is no longer running. The list has been refreshed.",
+      // Finding 415: the fallback when a refusal arrives without a reason of its own.
+      promptRefused: "The prompt was refused before it ran; nothing was sent to the agent.",
+      newerTaskRunning:
+        "That task had already finished. A newer task is running for {agent}; press Cancel on it to stop that one.",
       runsUnavailable:
         "Running tasks could not be refreshed. The last known state is shown; try refreshing the page. {reason}",
       replyRefreshFailed:
@@ -706,6 +747,8 @@ export const enGovernance: TranslationMap = {
       // refuse.
       chooseAgentHintUnassigned:
         "No agents are assigned to you yet. You can only work with agents an Administrator assigns to you; ask yours to add one.",
+      chooseAgentHintUnassignedNamed:
+        "No agents are assigned to you yet. You can only work with agents an Administrator assigns to you; ask {admin} to add one.",
       chooseAgentPick: "Choose an agent…",
       // The row title for a User with an empty assignment. "Agent to talk
       // to" labelled a control that is no longer offered to that tier, so
@@ -793,6 +836,10 @@ export const enGovernance: TranslationMap = {
       // C15: a request filed by answering an escalation, named for who answered.
       answeredEscalation: "{name}, answering an escalation",
       decidedBy: "decided by",
+      // QA of 2026-10-07: a rejection reached the requester as the bare word. The
+      // note travels with either press and is shown on the decided request.
+      noteLabel: "Note to {name} (optional)",
+      notePlaceholder: "Why, in a sentence they will read",
       approve: "Approve",
       reject: "Reject",
       pending: "awaiting an administrator",

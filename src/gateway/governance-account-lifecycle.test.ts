@@ -259,7 +259,9 @@ describe("Root creates accounts that can then sign in", () => {
     expect(login.body).toMatchObject({ username: "malek", role: "user" });
 
     const who = await call("GET", `${AUTH}whoami`, { cookie: cookieFrom(login) });
-    expect(who.body).toMatchObject({ username: "malek", role: "user" });
+    // QA of 2026-10-07: an account with no agents was told to "ask yours" with nobody
+    // named, though the server knows who that is.
+    expect(who.body).toMatchObject({ username: "malek", role: "user", answersTo: "amina" });
   });
 
   it("creates an account at each of the four roles", async () => {

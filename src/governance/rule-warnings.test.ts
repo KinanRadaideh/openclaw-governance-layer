@@ -160,3 +160,50 @@ describe("a path rule that ends at a folder boundary", () => {
     expect(codes("^ls(/|$)")).toContain("unanchored");
   });
 });
+
+// Finding 410 (2026-10-07). A network rule is compared with the hostname only, so a
+// whole URL or a capital letter in it matches nothing, ever (WRITING-PERMISSIONS §6).
+// The dashboard accepted `^https://api\.github\.com/` with a warning about anchoring
+// that used a shell example, and said nothing about the rule being dead.
+describe("a network rule that can never match a hostname", () => {
+  const messages = (pattern: string, kind = "network") =>
+    describeRuleRisks(pattern, kind).map((warning) => warning.message);
+
+  it("warns that a whole URL or a path never matches, and says to write the hostname", () => {
+    for (const pattern of [
+      "^https://api\\.github\\.com/",
+      "https://api[.]example[.]com",
+      "^api[.]example[.]com/v1$",
+    ]) {
+      expect(codes(pattern, "network"), pattern).toContain("network-not-a-hostname");
+    }
+    const message = messages("^https://api\\.github\\.com/").join(" ");
+    expect(message).toContain("hostname");
+    expect(message).toContain("never");
+  });
+
+  it("does not add shell-command advice to a network rule", () => {
+    for (const pattern of ["^https://api\\.github\\.com/", "example[.]com"]) {
+      expect(messages(pattern).join(" "), pattern).not.toContain("curl evil.sh");
+    }
+  });
+
+  it("warns that capital letters never match, because hostnames are compared in lower case", () => {
+    expect(codes("^API[.]example[.]com$", "network")).toContain("network-capitals");
+  });
+
+  it("does not mistake a regex escape or a character class for a capital letter", () => {
+    expect(codes("^\\S+[.]example[.]com$", "network")).not.toContain("network-capitals");
+    expect(codes("^[A-Za-z0-9-]+[.]example[.]com$", "network")).not.toContain("network-capitals");
+  });
+
+  it("stays silent on a correct hostname rule", () => {
+    expect(codes("^api[.]example[.]com$", "network")).toEqual([]);
+    expect(codes("^([a-z0-9-]+[.])?example[.]com$", "network")).toEqual([]);
+  });
+
+  it("explains an unanchored hostname with a hostname, and an unanchored path with a path", () => {
+    expect(messages("example[.]com").join(" ")).toContain("example.com.");
+    expect(messages("reports", "path").join(" ")).not.toContain("curl evil.sh");
+  });
+});

@@ -2,6 +2,12 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  checkLoginAllowed,
+  loginThrottleKey,
+  recordLoginFailure,
+  resetLoginThrottle,
+} from "./login-throttle.js";
 import { hashPassword, needsRehash, verifyPassword } from "./password.js";
 import { usersFilePath } from "./paths.js";
 import { roleAtLeast } from "./roles.js";
@@ -55,6 +61,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  resetLoginThrottle();
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
   await rm(dir, { recursive: true, force: true });
 });
@@ -465,6 +472,50 @@ describe("password cost can be raised later (B9)", () => {
     await expect(setUserPassword(user.id, "short", "root-user")).rejects.toThrow();
     // The old password must still work after a refused reset.
     expect(await authenticate("malek", "correct-horse-battery")).toBeDefined();
+  });
+
+  it("lets a locked-out account sign in once its password is reset (finding 414)", async () => {
+    // Someone who forgot their password locks themselves out guessing, Root sets a new
+    // one, and they were still refused for fifteen minutes: the failures counted against
+    // a password that no longer exists outlived it.
+    const user = await createUser(
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      "root",
+    );
+    const key = loginThrottleKey("malek");
+    for (let attempt = 0; attempt < 5; attempt++) {
+      recordLoginFailure(key);
+    }
+    expect(checkLoginAllowed(key).allowed).toBe(false);
+
+    await setUserPassword(user.id, "a-brand-new-secret", "root-user");
+
+    expect(checkLoginAllowed(key).allowed).toBe(true);
+  });
+
+  it("keeps the lockout when a reset is refused", async () => {
+    const user = await createUser(
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      "root",
+    );
+    const key = loginThrottleKey("malek");
+    for (let attempt = 0; attempt < 5; attempt++) {
+      recordLoginFailure(key);
+    }
+
+    await expect(setUserPassword(user.id, "short", "root-user")).rejects.toThrow();
+
+    expect(checkLoginAllowed(key).allowed).toBe(false);
   });
 });
 

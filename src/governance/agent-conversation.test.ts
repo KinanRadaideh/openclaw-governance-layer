@@ -446,6 +446,28 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
     expect(outcome.error).toBe("The prompt was cancelled.");
   });
 
+  // Finding 411 (2026-10-07): an Administrator cancelled a User's task from Active agent
+  // sessions and the User read only "The prompt was cancelled.", which looks like a fault.
+  it("says who cancelled a run when it was another account", async () => {
+    clearAgentRunner();
+    registerAgentRunner(async (request) => {
+      cancelPromptRun({
+        runId: request.runId,
+        username: "amina",
+        mayCancelOthers: true,
+        groupAgentIds: ["agent-a"],
+      });
+      return { ok: false, reply: "", error: "aborted" };
+    });
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "malek",
+      message: "long job",
+    });
+    expect(outcome.ending).toBe("cancelled");
+    expect(outcome.error).toBe("The prompt was cancelled by amina.");
+  });
+
   it("says the run is stopping the moment it is stopped, before the reply", async () => {
     // A Cancel from another tab or account left the sender's view on
     // "replying" beside a Cancel that could only be refused, until the reply.

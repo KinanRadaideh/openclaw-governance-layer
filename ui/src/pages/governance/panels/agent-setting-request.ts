@@ -18,6 +18,7 @@ import type {
   GovernanceIdentity,
 } from "../api.ts";
 import { hasAgentToGovern, manageableAgentIds } from "../identity.ts";
+import { unassignedAgentsHint } from "./format.ts";
 
 export type AgentSettingRequestDrafts = {
   settingAgentId: string;
@@ -86,7 +87,7 @@ export function renderAgentSettingRequestRow(props: AgentSettingRequestProps): T
   if (!hasAgentToGovern(props.identity)) {
     return renderSettingsRow({
       title,
-      description: t("governance.conversation.chooseAgentHintUnassigned"),
+      description: unassignedAgentsHint(props.identity),
     });
   }
   // The agents this account may ask about, not every agent the page has seen: the

@@ -43,6 +43,7 @@ function mount(
   who: { username: string; role: GovernanceIdentity["role"] },
   drafts: Partial<AgentRegistryDrafts> = {},
   registered = true,
+  accounts: GovernanceUserRecord[] = [],
 ) {
   const container = document.createElement("div");
   document.body.append(container);
@@ -75,6 +76,7 @@ function mount(
         },
       ],
       administrators: [ROOT, ADA, BEN],
+      accounts: [ROOT, ADA, BEN, ...accounts],
       drafts: { ...emptyAgentRegistryDrafts(), ...drafts },
       onDraft,
       refresh: async () => {},
@@ -181,15 +183,47 @@ describe("changing the owner (A13)", () => {
     const picker = container.querySelector<HTMLSelectElement>('select[aria-label="New owner"]');
 
     expect([...(picker?.options ?? [])].map((option) => option.textContent?.trim())).toEqual([
-      "root (root)",
-      "ada (administrator)",
-      "ben (administrator)",
+      // Worded as the create form and Register word them (QA of 2026-10-07).
+      "root (you, Root)",
+      "ada",
+      "ben",
     ]);
     expect(buttonIn(container, "Change owner")?.disabled).toBe(true);
   });
 
-  it("asks first, saying who loses the agent, then sends the new owner", async () => {
+  it("asks first, naming who loses the agent, then sends the new owner", async () => {
+    const holder = {
+      id: "user-1",
+      username: "lina",
+      role: "user",
+      assignedAgents: ["agent-a"],
+    } as GovernanceUserRecord;
+    const bystander = {
+      id: "user-2",
+      username: "omar",
+      role: "viewer",
+      assignedAgents: ["agent-b"],
+    } as GovernanceUserRecord;
     const { container, setAgentOwner, confirmThen, settled } = mount(
+      { username: "root", role: "root" },
+      { editFor: "agent-a", editName: "Support triage", editOwnerId: "admin-2" },
+      true,
+      [holder, bystander],
+    );
+
+    buttonIn(container, "Change owner")!.click();
+    await settled();
+
+    const [options] = confirmThen.mock.calls[0]!;
+    expect(options.message).toContain("ben");
+    expect(options.details).toContain("lina lose this agent: they answer to ada");
+    expect(options.details).not.toContain("omar");
+    expect(setAgentOwner).toHaveBeenCalledWith("agent-a", "admin-2");
+  });
+
+  it("says nobody loses access when nobody holds the agent (QA of 2026-10-07)", async () => {
+    // It warned about "Users and Viewers who answer to root" when none existed.
+    const { container, confirmThen, settled } = mount(
       { username: "root", role: "root" },
       { editFor: "agent-a", editName: "Support triage", editOwnerId: "admin-2" },
     );
@@ -198,9 +232,8 @@ describe("changing the owner (A13)", () => {
     await settled();
 
     const [options] = confirmThen.mock.calls[0]!;
-    expect(options.message).toContain("ben");
-    expect(options.details).toContain("answer to ada");
-    expect(setAgentOwner).toHaveBeenCalledWith("agent-a", "admin-2");
+    expect(options.details).toContain("No User or Viewer holds this agent");
+    expect(options.details).not.toContain("answer to");
   });
 
   it("is not offered to the owning Administrator, who is told to ask Root", () => {

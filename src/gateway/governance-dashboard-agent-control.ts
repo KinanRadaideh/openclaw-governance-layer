@@ -33,6 +33,7 @@ import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import { handleGovernanceApprovalRoutes } from "./governance-dashboard-approvals.js";
 import { requireAgentInGroup, requireGroup } from "./governance-dashboard-group.js";
+import { policyViewFor } from "./governance-policy-view.js";
 import {
   MAX_JSON_BODY_BYTES,
   readJsonBodyOrError,
@@ -717,7 +718,7 @@ export async function handleGovernanceAgentControlRoutes(
       seconds === null ? undefined : Math.round(seconds),
       auditActor(session),
     );
-    sendJson(res, 200, await loadPolicy(groupId));
+    sendJson(res, 200, policyViewFor(await loadPolicy(groupId), toActor(session)));
     return true;
   }
 

@@ -54,8 +54,17 @@ export function renderManagedAccountsSection(
             description: t("governance.managedAccounts.emptyHint"),
           }),
         ]
-      : props.accounts.map((account) =>
-          renderSettingsRow({
+      : props.accounts.map((account) => {
+          // One action for the button and for Enter in the box (2026-10-07 QA).
+          const save = () =>
+            props.run(async () => {
+              const raw = props.drafts.agentEdits[account.id] ?? account.assignedAgents.join(", ");
+              await props.api().setUserAgents(account.id, parseAgentList(raw));
+              const { [account.id]: _saved, ...rest } = props.drafts.agentEdits;
+              props.onDraft({ agentEdits: rest });
+              await props.reload();
+            });
+          return renderSettingsRow({
             title: account.username,
             description: `${account.role} · ${
               account.assignedAgents.length > 0
@@ -69,7 +78,7 @@ export function renderManagedAccountsSection(
                 type="text"
                 style="max-width:14rem"
                 list="governance-owned-agents"
-                aria-label=${t("governance.users.agentsLabel")}
+                aria-label=${t("governance.users.agentsLabel", { username: account.username })}
                 placeholder=${t("governance.users.agentsPlaceholder")}
                 .value=${props.drafts.agentEdits[account.id] ?? account.assignedAgents.join(", ")}
                 @input=${(e: Event) => {
@@ -80,24 +89,18 @@ export function renderManagedAccountsSection(
                     },
                   });
                 }}
+                @keydown=${(e: KeyboardEvent) => {
+                  // Not while an input method is composing, nor on a held key's repeats.
+                  if (e.key === "Enter" && !e.isComposing && !e.repeat && !props.busy) {
+                    void save();
+                  }
+                }}
               />
-              <button
-                class="btn"
-                ?disabled=${props.busy}
-                @click=${() =>
-                  props.run(async () => {
-                    const raw =
-                      props.drafts.agentEdits[account.id] ?? account.assignedAgents.join(", ");
-                    await props.api().setUserAgents(account.id, parseAgentList(raw));
-                    const { [account.id]: _saved, ...rest } = props.drafts.agentEdits;
-                    props.onDraft({ agentEdits: rest });
-                    await props.reload();
-                  })}
-              >
+              <button class="btn" ?disabled=${props.busy} @click=${() => save()}>
                 ${t("governance.users.saveAgents")}
               </button>`,
-          }),
-        );
+          });
+        });
   return renderSettingsSection(
     {
       title: t("governance.managedAccounts.title"),

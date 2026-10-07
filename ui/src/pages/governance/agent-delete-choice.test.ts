@@ -12,27 +12,15 @@ import type { GovernanceDeprovisionResult, GovernanceIdentity } from "./api.ts";
 import { emptyAccountDrafts } from "./panels/account-panels.ts";
 import { deletionNotice, leftoversClause } from "./panels/agent-delete-choice.ts";
 import {
+  emptyAgentRegistryDrafts,
   renderAgentRegistrySection,
   type AgentRegistryDrafts,
 } from "./panels/agent-registry-panels.ts";
 import { renderOrganisationSection } from "./panels/organisation-panel.ts";
 
 function drafts(): AgentRegistryDrafts {
-  return {
-    provisionName: "",
-    provisionId: "",
-    provisionWorkspace: "",
-    provisionModel: "",
-    provisionAdminId: "",
-    removeChoiceFor: "agent-a",
-    editFor: "",
-    editName: "",
-    editOwnerId: "",
-    rowNotice: "",
-    rowNoticeWarning: false,
-    provisionNotice: "",
-    provisionNoticeWarning: false,
-  };
+  // From the panel's own blank state, so a new draft field cannot leave this list stale.
+  return { ...emptyAgentRegistryDrafts(), removeChoiceFor: "agent-a" };
 }
 
 function words(node: Node | null): string {

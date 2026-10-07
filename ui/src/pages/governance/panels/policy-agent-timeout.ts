@@ -14,10 +14,51 @@
 // and reaching for the neighbouring predicate here would have quietly merged
 // the two questions again.
 import { html, nothing, type TemplateResult } from "lit";
-import { renderSettingsRow } from "../../../components/settings-ui.ts";
+import { renderSettingsRow, renderSettingsValue } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
-import { hasAgentToGovern } from "../identity.ts";
+import { canManageAgent, hasAgentToGovern } from "../identity.ts";
 import type { PolicyPanelProps } from "./policy-panels.ts";
+
+/** The route's bounds, mirrored so the form says them rather than relaying a refusal. */
+const MIN_SECONDS = 5;
+const MAX_SECONDS = 86_400;
+
+/**
+ * Whether the typed value is one the route accepts (finding 413). The refusal used to
+ * be the server's own wording, "… or null to clear the override", shown to an operator.
+ */
+function secondsInRange(typed: string): boolean {
+  const seconds = Number(typed.trim());
+  return Number.isInteger(seconds) && seconds >= MIN_SECONDS && seconds <= MAX_SECONDS;
+}
+
+/**
+ * One row per agent with its own approval timeout, like the posture and escalation
+ * overrides beside it (finding 413). Setting one used to leave nothing on the page:
+ * the form emptied, and no screen said which agents waited how long.
+ */
+export function renderAgentTimeoutOverrides(props: PolicyPanelProps): TemplateResult[] {
+  return Object.entries(props.policy?.agentHitlTimeout ?? {}).map(([agentId, seconds]) =>
+    renderSettingsRow({
+      title: `${t("governance.policy.agentTimeoutOverride")}: ${agentId}`,
+      description: t("governance.policy.agentTimeoutOverrideHint"),
+      control: html`<div class="settings-row__control" style="gap:0.5rem;min-width:max-content">
+        ${renderSettingsValue(
+          t("governance.policy.agentTimeoutSeconds", { seconds: String(seconds) }),
+        )}
+        ${canManageAgent(props.identity, agentId)
+          ? html`<button
+              class="btn"
+              ?disabled=${props.busy}
+              @click=${() => props.run(() => props.api().setAgentHitlTimeout(agentId, null))}
+            >
+              ${t("governance.policy.clearOverride")}
+            </button>`
+          : nothing}
+      </div>`,
+    }),
+  );
+}
 
 export function renderAgentTimeoutRow(props: PolicyPanelProps): TemplateResult | typeof nothing {
   // **And an agent to set it for.** A User with nothing assigned passes the tier
@@ -58,7 +99,7 @@ export function renderAgentTimeoutRow(props: PolicyPanelProps): TemplateResult |
               class="btn"
               ?disabled=${props.busy ||
               !props.drafts.agentTimeoutAgentId.trim() ||
-              !props.drafts.agentTimeoutSeconds.trim()}
+              !secondsInRange(props.drafts.agentTimeoutSeconds)}
               @click=${() =>
                 props.run(async () => {
                   const seconds = Number(props.drafts.agentTimeoutSeconds);
@@ -89,6 +130,15 @@ export function renderAgentTimeoutRow(props: PolicyPanelProps): TemplateResult |
             >
               ${t("governance.policy.clearOverride")}
             </button>
+            ${props.drafts.agentTimeoutSeconds.trim() &&
+            !secondsInRange(props.drafts.agentTimeoutSeconds)
+              ? html`<span class="settings-row__hint" role="status"
+                  >${t("governance.policy.agentTimeoutRange", {
+                    min: String(MIN_SECONDS),
+                    max: String(MAX_SECONDS),
+                  })}</span
+                >`
+              : nothing}
           </div>
         `,
       })

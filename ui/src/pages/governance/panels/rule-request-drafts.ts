@@ -15,6 +15,13 @@ export type RuleRequestDrafts = AgentSettingRequestDrafts & {
   requestAgentId: string;
   /** A path request's direction; empty asks for both. Not sent for other kinds. */
   requestAccess: "" | "read" | "write";
+  /**
+   * The note an Administrator is typing back to a requester, and which request it is
+   * for: one box per pending row, one draft, so a note typed on one row never rides
+   * along with a press on another (407's per-row shape).
+   */
+  decisionNoteFor: string;
+  decisionNote: string;
 };
 
 export function emptyRuleRequestDrafts(): RuleRequestDrafts {
@@ -24,6 +31,8 @@ export function emptyRuleRequestDrafts(): RuleRequestDrafts {
     requestReason: "",
     requestAgentId: "",
     requestAccess: "",
+    decisionNoteFor: "",
+    decisionNote: "",
     settingAgentId: "",
     settingKind: "mode",
     settingValue: "",

@@ -209,9 +209,15 @@ export async function findUserByUsername(username: string): Promise<GovernanceUs
  * test, because no test had two groups in it until M3 existed.
  */
 export async function findUsersForAgent(agentId: string, groupId?: string): Promise<string[]> {
+  // Stored assignments are canonical (`normalizeAgentIds`), so the id asked
+  // about is folded the same way; "Scout" was answered with nobody (finding 409).
+  const [canonical] = normalizeAgentIds([agentId]);
+  if (!canonical) {
+    return [];
+  }
   const file = await readUsersFile();
   return file.users
-    .filter((user) => user.assignedAgents.includes(agentId))
+    .filter((user) => user.assignedAgents.includes(canonical))
     .filter((user) => (groupId ? user.groupId === groupId : true))
     .map((user) => user.username);
 }
@@ -1275,6 +1281,12 @@ export async function setUserPassword(
   if (!changed) {
     return false;
   }
+  // **The failures go with the password they were counted against (finding 414).** A
+  // person who forgot their password locks themselves out guessing; Root sets a new
+  // one, and the lockout kept them out for up to fifteen minutes more. The guesses
+  // were against a credential that no longer exists, and the new one starts with a
+  // full allowance, so nothing the throttle defends is given up.
+  forgetLoginThrottle(changed.username);
   await recordAdminAction(changed.groupId ?? INSTALLATION_LEDGER_GROUP, {
     actor,
     action: ADMIN_ACTIONS.userPasswordReset,

@@ -23,6 +23,8 @@ export type GovernanceRuleRequest = {
   status: "pending" | "approved" | "rejected";
   decidedBy?: string;
   decidedAt?: string;
+  /** What the deciding Administrator said back; see the server's `RuleRequest`. */
+  decisionNote?: string;
   createdRuleId?: string;
   /**
    * For a pending rule request, what approving it would report: the warnings and the

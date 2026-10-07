@@ -96,6 +96,14 @@ export type RuleRequest = {
   status: RuleRequestStatus;
   decidedBy?: string;
   decidedAt?: string;
+  /**
+   * What the deciding Administrator said back, if anything (QA of 2026-10-07).
+   *
+   * A rejection used to reach the requester as the bare word "rejected", so a User
+   * whose network rule was turned down for naming a whole URL learned nothing about
+   * how to ask again. Optional on both outcomes; absent when nothing was said.
+   */
+  decisionNote?: string;
   /** Set when an approval created a rule, linking request to granted policy. */
   createdRuleId?: string;
 };
@@ -360,6 +368,8 @@ export async function decideRuleRequest(
     /** The tier the approver held; see `ActorTier` for why it rides alongside. */
     decidedByRole?: GovernanceRole;
     createdRuleId?: string;
+    /** Trimmed and bounded by the route; empty means nothing was said. */
+    note?: string;
   },
 ): Promise<RuleRequest | undefined> {
   await ensureHomeDir(groupId);
@@ -372,6 +382,9 @@ export async function decideRuleRequest(
     request.status = params.approve ? "approved" : "rejected";
     request.decidedBy = params.decidedBy;
     request.decidedAt = new Date().toISOString();
+    if (params.note) {
+      request.decisionNote = params.note;
+    }
     if (params.createdRuleId) {
       request.createdRuleId = params.createdRuleId;
     }
@@ -404,7 +417,7 @@ export async function decideRuleRequest(
     // the ledger and an Administrator reading the review list see the same
     // words. Two descriptions of one request is how the two drift." There were
     // two descriptions, and one of them had drifted into nonsense.
-    target: `${params.approve ? "approved" : "rejected"} ${decided.answeredBy ?? decided.requestedBy}'s request: ${describeRequest(decided)}`,
+    target: `${params.approve ? "approved" : "rejected"} ${decided.answeredBy ?? decided.requestedBy}'s request: ${describeRequest(decided)}${decided.decisionNote ? `, saying: ${decided.decisionNote}` : ""}`,
     subjectId: decided.id,
     ...(decided.agentId ? { agentId: decided.agentId } : {}),
   });
@@ -454,6 +467,7 @@ export async function reopenRuleRequest(groupId: string, id: string): Promise<vo
     request.status = "pending";
     delete request.decidedBy;
     delete request.decidedAt;
+    delete request.decisionNote;
     delete request.createdRuleId;
     await writeGovernanceJson(ruleRequestsFilePath(groupId), file);
   });

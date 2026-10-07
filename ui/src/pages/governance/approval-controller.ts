@@ -32,6 +32,8 @@ export type ApprovalSlice = {
   errors: ReadonlyMap<string, string>;
   answering: ReadonlySet<string>;
   nowMs: number;
+  /** Who is reading, so a question from their own conversation says "your" (QA of 2026-10-07). */
+  viewer?: string;
   decide: (id: string, decision: GovernanceApprovalDecision) => void;
   dismissNotice: (id: string) => void;
 };
@@ -113,6 +115,7 @@ export class ApprovalController implements ReactiveController {
       errors: this.errors,
       answering: this.answering,
       nowMs: Date.now(),
+      viewer: this.bridge.identity()?.username,
       decide: (id, decision) => void this.answer(id, decision),
       dismissNotice: (id) => {
         this.dismissed.add(id);

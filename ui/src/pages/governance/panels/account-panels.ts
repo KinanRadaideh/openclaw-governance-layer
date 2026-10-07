@@ -47,23 +47,17 @@ import {
   renderSettingsValue,
 } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
-import type {
-  GovernanceApi,
-  GovernanceIdentity,
-  GovernancePolicyRule,
-  GovernanceRuleRequest,
-  GovernanceUserRecord,
-} from "../api.ts";
+import type { GovernanceApi, GovernanceIdentity, GovernanceUserRecord } from "../api.ts";
 import {
   deleteAccountAndReport,
   renderAccountDeletionNotice,
   type AccountDeletionNotice,
 } from "./account-deletion.ts";
 import { renderAnswersToControl } from "./account-manager-control.ts";
-import { renderAgentSettingRequestRow } from "./agent-setting-request.ts";
 import { renderManagedAccountsSection } from "./managed-accounts-panel.ts";
-import type { RuleRequestDrafts } from "./rule-request-drafts.ts";
-import { renderRuleRequestPreview } from "./rule-request-preview.ts";
+// The queue moved to its own module on 2026-10-07 (the decision note took this file past
+// its 700-line limit); re-exported so every importer keeps working.
+export { renderRuleRequestsSection, type RuleRequestsPanelProps } from "./rule-requests-panel.ts";
 
 /**
  * Roles an account can actually be given.
@@ -104,13 +98,6 @@ const ASSIGNABLE_ROLE_OPTIONS: ReadonlyArray<{ value: GovernanceRole; label: str
  * "Administrator this account answers to" picker (finding 383; before it, no such
  * field existed and this sentence was untrue).
  */
-/** Who a request is from: the account that answered an escalation, when one did (C15). */
-function requester(request: GovernanceRuleRequest): string {
-  return request.answeredBy
-    ? t("governance.requests.answeredEscalation", { name: request.answeredBy })
-    : request.requestedBy;
-}
-
 function successorFor(
   user: GovernanceUserRecord,
   props: AccountsPanelProps,
@@ -248,6 +235,11 @@ export type AccountDrafts = {
   orgNotice: string;
   /** A deleted account that left something to finish (T76), until it is finished. */
   deletionNotice: AccountDeletionNotice | null;
+  /**
+   * The account whose password was just set, so its row says so (QA of 2026-10-07: the
+   * field only emptied, and a set password looked like a press that did nothing).
+   */
+  passwordSetFor: string;
 };
 
 export function emptyAccountDrafts(): AccountDrafts {
@@ -261,6 +253,7 @@ export function emptyAccountDrafts(): AccountDrafts {
     orgConfirmName: "",
     orgNotice: "",
     deletionNotice: null,
+    passwordSetFor: "",
   };
 }
 
@@ -360,20 +353,6 @@ export type AccountsPanelProps = PanelEffects & {
   agents?: readonly { agentId: string; registered?: boolean; adminUsername?: string }[];
 };
 
-export type RuleRequestsPanelProps = PanelEffects & {
-  role: GovernanceRole | undefined;
-  identity: GovernanceIdentity | null;
-  ruleRequests: readonly GovernanceRuleRequest[];
-  busy: boolean;
-  canAdminister: boolean;
-  canManageAnyAgent: boolean;
-  /** The agents the setting-request form may offer, narrowed to those this account manages. */
-  knownAgentIds: readonly string[];
-  agentLabel: (agentId: string) => string;
-  drafts: RuleRequestDrafts;
-  onDraft: (patch: Partial<RuleRequestDrafts>) => void;
-};
-
 /**
  * The accounts this tier may see: Root's whole list, an Administrator's own Users and
  * Viewers (finding 397), and nothing below. Asking as a lower tier would 403 and spoil
@@ -387,6 +366,22 @@ export function accountsInReach(
     return api.listUsers();
   }
   return identity?.role === "administrator" ? api.listManagedAccounts() : Promise.resolve([]);
+}
+
+/** Saves one account's typed agent list; the button and Enter in the box share it. */
+function saveAgents(user: GovernanceUserRecord, props: AccountsPanelProps) {
+  return props.run(async () => {
+    const raw = props.drafts.agentEdits[user.id] ?? user.assignedAgents.join(", ");
+    await props.api().setUserAgents(
+      user.id,
+      raw
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    );
+    const { [user.id]: _cleared, ...rest } = props.drafts.agentEdits;
+    props.onDraft({ agentEdits: rest });
+  });
 }
 
 export function renderUsersSection(props: AccountsPanelProps): TemplateResult | typeof nothing {
@@ -476,6 +471,8 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
                 : renderSettingsSegmented({
                     value: user.role,
                     disabled: props.busy,
+                    // Named per row (QA of 2026-10-07): unnamed, every row read the same.
+                    ariaLabel: t("governance.users.roleFor", { username: user.username }),
                     options: roleOptionsFor(user, props),
                     // A privilege change used to apply the instant the control
                     // was clicked, including a mis-click onto a higher tier. It
@@ -529,7 +526,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
                     class="input"
                     type="text"
                     style="max-width:14rem"
-                    aria-label=${t("governance.users.agentsLabel")}
+                    aria-label=${t("governance.users.agentsLabel", { username: user.username })}
                     placeholder=${t("governance.users.agentsPlaceholder")}
                     .value=${props.drafts.agentEdits[user.id] ?? user.assignedAgents.join(", ")}
                     @input=${(e: Event) => {
@@ -540,24 +537,17 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
                         },
                       });
                     }}
+                    @keydown=${(e: KeyboardEvent) => {
+                      // Not while an input method is composing, nor on a held key's repeats.
+                      if (e.key === "Enter" && !e.isComposing && !e.repeat && !props.busy) {
+                        void saveAgents(user, props);
+                      }
+                    }}
                   />
                   <button
                     class="btn"
                     ?disabled=${props.busy}
-                    @click=${() =>
-                      props.run(async () => {
-                        const raw =
-                          props.drafts.agentEdits[user.id] ?? user.assignedAgents.join(", ");
-                        await props.api().setUserAgents(
-                          user.id,
-                          raw
-                            .split(",")
-                            .map((id) => id.trim())
-                            .filter(Boolean),
-                        );
-                        const { [user.id]: _cleared, ...rest } = props.drafts.agentEdits;
-                        props.onDraft({ agentEdits: rest });
-                      })}
+                    @click=${() => saveAgents(user, props)}
                   >
                     ${t("governance.users.saveAgents")}
                   </button>`
@@ -615,6 +605,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
                     ...props.drafts.passwordEdits,
                     [user.id]: (e.target as HTMLInputElement).value,
                   },
+                  passwordSetFor: "",
                 });
               }}
             />
@@ -625,6 +616,9 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
             >
               ${t("governance.users.setPassword")}
             </button>
+            ${props.drafts.passwordSetFor === user.id
+              ? renderSettingsStatus({ kind: "ok", label: t("governance.users.passwordSet") })
+              : nothing}
             <button
               class="btn danger"
               ?disabled=${props.busy || user.username === props.identity?.username}
@@ -772,251 +766,6 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
   ]);
 }
 
-export function renderRuleRequestsSection(
-  props: RuleRequestsPanelProps,
-): TemplateResult | typeof nothing {
-  const pending = props.ruleRequests.filter((request) => request.status === "pending");
-  const recent = props.ruleRequests
-    .filter((request) => request.status !== "pending")
-    .slice(-5)
-    .toReversed();
-  // Users propose; Administrators decide. Both see the queue.
-  const canPropose = props.canManageAnyAgent || props.role === "user";
-  const canDecide = props.canAdminister;
-  return renderSettingsSection({ title: t("governance.requests.title") }, [
-    ...pending.map((request) =>
-      renderSettingsRow({
-        // A setting request has no pattern; an empty code block for it would
-        // read as a rule request whose pattern failed to load. Applied to the
-        // decided list as well as the pending one. A request an operator
-        // reviews and a request they later look back at are the same object.
-        title:
-          request.kind === "agent-setting"
-            ? html`${t("governance.requests.settingTitle", {
-                setting:
-                  request.setting === "ask"
-                    ? t("governance.requests.settingAsk")
-                    : t("governance.requests.settingMode"),
-                value: request.value ?? "",
-              })}`
-            : html`<code>${request.pattern}</code>`,
-        // Scope is stated first and unambiguously. An approver deciding from
-        // pattern and reason alone cannot tell a single-agent request from
-        // one that will bind every agent in the installation, and those are
-        // very different decisions.
-        description: html`${renderSettingsStatus(
-          request.agentId
-            ? { kind: "ok", label: `${t("governance.requests.scopeAgent")} ${request.agentId}` }
-            : { kind: "warn", label: t("governance.requests.scopeGlobal") },
-        )}
-        ${request.kind === "agent-setting"
-          ? t("governance.requests.settingKind")
-          : request.resourceKind}${
-          // The direction a path request asks for (A11). Approving grants exactly
-          // it, and a row reading only "path" looks the same whether it asks for
-          // reading, writing or both — the difference the Administrator is deciding.
-          request.access
-            ? ` (${request.access === "read" ? t("governance.policy.readOnlyBadge") : t("governance.policy.writeOnlyBadge")})`
-            : ""
-        }
-        · ${t("governance.requests.by")} ${requester(request)}, ${request.reason}
-        ${renderRuleRequestPreview(request)}${request.agentRegistered === false
-          ? html`<div class="governance-request-preview" role="note">
-              ${t("governance.requests.agentGone")}
-            </div>`
-          : nothing}`,
-        control: canDecide
-          ? html`
-              <div class="settings-row__control" style="gap:0.5rem">
-                <button
-                  class="btn primary"
-                  ?disabled=${props.busy || request.agentRegistered === false}
-                  @click=${() => props.run(() => props.api().decideRuleRequest(request.id, true))}
-                >
-                  ${t("governance.requests.approve")}
-                </button>
-                <button
-                  class="btn danger"
-                  ?disabled=${props.busy}
-                  @click=${() => props.run(() => props.api().decideRuleRequest(request.id, false))}
-                >
-                  ${t("governance.requests.reject")}
-                </button>
-              </div>
-            `
-          : renderSettingsStatus({ kind: "muted", label: t("governance.requests.pending") }),
-      }),
-    ),
-    ...recent.map((request) =>
-      renderSettingsRow({
-        // A setting request has no pattern; an empty code block for it would
-        // read as a rule request whose pattern failed to load. Applied to the
-        // decided list as well as the pending one. A request an operator
-        // reviews and a request they later look back at are the same object.
-        title:
-          request.kind === "agent-setting"
-            ? html`${t("governance.requests.settingTitle", {
-                setting:
-                  request.setting === "ask"
-                    ? t("governance.requests.settingAsk")
-                    : t("governance.requests.settingMode"),
-                value: request.value ?? "",
-              })}`
-            : html`<code>${request.pattern}</code>`,
-        description: `${t("governance.requests.by")} ${requester(request)} · ${t("governance.requests.decidedBy")} ${request.decidedBy ?? "-"}`,
-        control: renderSettingsStatus({
-          kind: request.status === "approved" ? "ok" : "warn",
-          label: request.status,
-        }),
-      }),
-    ),
-    pending.length === 0 && recent.length === 0
-      ? renderSettingsRow({
-          title: t("governance.requests.empty"),
-          description: t("governance.requests.emptyHint"),
-        })
-      : nothing,
-    canPropose
-      ? renderSettingsRow({
-          title: t("governance.requests.submit"),
-          // The "ask an Administrator" sentence belongs to the tier that has
-          // one to ask. An Administrator and Root decide these requests and
-          // can write the rule outright, so for them the form is a way to
-          // record a request, not a way to obtain permission, and telling them
-          // to go and ask themselves is the falsehood finding 303 names.
-          description: props.canAdminister
-            ? t("governance.requests.submitHint")
-            : `${t("governance.requests.submitHintAsk")} ${t("governance.requests.submitHint")}`,
-          stacked: true,
-          control: html`
-            <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">
-              <select
-                class="input"
-                aria-label=${t("governance.policy.kindLabel")}
-                .value=${props.drafts.requestKind}
-                @change=${(e: Event) => {
-                  props.onDraft({
-                    requestKind: (e.target as HTMLSelectElement)
-                      .value as GovernancePolicyRule["resourceKind"],
-                  });
-                }}
-              >
-                <option value="command">command</option>
-                <option value="path">path</option>
-                <option value="network">network</option>
-              </select>
-              ${
-                // **A path request can ask for one direction (A11)**, as the Add a
-                // rule form can, because approving grants exactly what was asked:
-                // without it every form-filed path request asked for read and write.
-                // Only for paths, since the server refuses a direction on anything else.
-                props.drafts.requestKind === "path"
-                  ? html`<select
-                      class="input"
-                      aria-label=${t("governance.policy.accessLabel")}
-                      title=${t("governance.policy.accessHint")}
-                      .value=${props.drafts.requestAccess}
-                      @change=${(e: Event) => {
-                        props.onDraft({
-                          requestAccess: (e.target as HTMLSelectElement).value as
-                            | ""
-                            | "read"
-                            | "write",
-                        });
-                      }}
-                    >
-                      <option value="">${t("governance.policy.accessBoth")}</option>
-                      <option value="read">${t("governance.policy.accessRead")}</option>
-                      <option value="write">${t("governance.policy.accessWrite")}</option>
-                    </select>`
-                  : nothing
-              }
-              <input
-                class="input"
-                type="text"
-                aria-label=${t("governance.policy.patternLabel")}
-                placeholder=${t("governance.policy.patternPlaceholder")}
-                .value=${props.drafts.requestPattern}
-                @input=${(e: Event) => {
-                  props.onDraft({ requestPattern: (e.target as HTMLInputElement).value });
-                }}
-              />
-              <input
-                class="input"
-                type="text"
-                style="min-width:14rem"
-                maxlength="500"
-                aria-label=${t("governance.requests.reasonLabel")}
-                placeholder=${t("governance.requests.reasonPlaceholder")}
-                .value=${props.drafts.requestReason}
-                @input=${(e: Event) => {
-                  props.onDraft({ requestReason: (e.target as HTMLInputElement).value });
-                }}
-              />
-              <input
-                class="input"
-                type="text"
-                list="governance-new-rule-agents"
-                aria-label=${t("governance.requests.agentLabel")}
-                placeholder=${t("governance.requests.agentPlaceholder")}
-                .value=${props.drafts.requestAgentId}
-                @input=${(e: Event) => {
-                  props.onDraft({ requestAgentId: (e.target as HTMLInputElement).value });
-                }}
-              />
-              <button
-                class="btn primary"
-                ?disabled=${props.busy ||
-                !props.drafts.requestPattern ||
-                !props.drafts.requestReason}
-                @click=${() =>
-                  props.run(async () => {
-                    const agentId = props.drafts.requestAgentId.trim();
-                    await props.api().submitRuleRequest({
-                      resourceKind: props.drafts.requestKind,
-                      pattern: props.drafts.requestPattern,
-                      reason: props.drafts.requestReason,
-                      // Sent only when non-empty: an empty string would be a
-                      // request for an agent literally named "", whereas an
-                      // absent field is the deliberate "installation-wide"
-                      // choice the server understands.
-                      ...(agentId ? { agentId } : {}),
-                      // Only a path, and only when narrowed: the server refuses a
-                      // direction on any other kind, and leaving it out asks for both.
-                      ...(props.drafts.requestKind === "path" && props.drafts.requestAccess
-                        ? { access: props.drafts.requestAccess }
-                        : {}),
-                    });
-                    props.onDraft({ requestPattern: "" });
-                    props.onDraft({ requestReason: "" });
-                    props.onDraft({ requestAgentId: "" });
-                    props.onDraft({ requestAccess: "" });
-                  })}
-              >
-                ${t("governance.requests.submitButton")}
-              </button>
-            </div>
-          `,
-        })
-      : nothing,
-    // A User's way to ask for one agent's posture or escalation (A11), beside the
-    // form that asks for a rule, because it is the same queue and the same decision.
-    canPropose
-      ? renderAgentSettingRequestRow({
-          api: props.api,
-          run: props.run,
-          identity: props.identity,
-          busy: props.busy,
-          canAdminister: props.canAdminister,
-          knownAgentIds: props.knownAgentIds,
-          agentLabel: props.agentLabel,
-          drafts: props.drafts,
-          onDraft: props.onDraft,
-        })
-      : nothing,
-  ]);
-}
-
 /**
  * Sets one account's password, including Root's own.
  *
@@ -1066,7 +815,10 @@ export async function setAccountPassword(
       // Cleared whatever happens next: on a self-reset the page is about to
       // return to sign-in, and leaving a password sitting in a field behind
       // that transition is the kind of thing nobody notices until it matters.
-      ctx.onDraft({ passwordEdits: { ...ctx.drafts.passwordEdits, [userId]: "" } });
+      ctx.onDraft({
+        passwordEdits: { ...ctx.drafts.passwordEdits, [userId]: "" },
+        passwordSetFor: userId,
+      });
     },
   );
 }

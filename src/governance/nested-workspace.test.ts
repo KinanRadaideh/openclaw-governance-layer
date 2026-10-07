@@ -16,6 +16,7 @@ import {
   setRuntimeConfigSnapshot,
 } from "../config/runtime-snapshot.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { agentWorkspaceEnclosedBy } from "./agent-workspace-roots.js";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { resolveGovernedPath } from "./path-normalize.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
@@ -155,5 +156,67 @@ describe("finding 385: a nested agent workspace is outside the enclosing agent's
       mainCtx(),
     );
     expect(decision).toBeUndefined();
+  });
+});
+
+// Finding 408 (2026-10-07). The escalation above goes to everyone who manages the
+// calling agent, a User included, and the question named only the path. The person
+// deciding was never told the file belongs to another agent.
+describe("finding 408: the question says whose workspace the path is in", () => {
+  function questionOf(decision: unknown): string {
+    const approval = (decision as { requireApproval?: { description?: string } } | undefined)
+      ?.requireApproval;
+    return approval?.description ?? "";
+  }
+
+  it("names the other agent when the path is inside its nested workspace", async () => {
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "read", params: { path: "gamma/notes.txt" } },
+      mainCtx(),
+    );
+    expect(questionOf(decision)).toContain('inside the workspace of another agent, "gamma"');
+  });
+
+  it("names the other agent when its workspace is elsewhere on the host", async () => {
+    const elsewhere = join(dir, "ws-beta");
+    await mkdir(elsewhere, { recursive: true });
+    setRuntimeConfigSnapshot({
+      agents: {
+        defaults: { workspace },
+        entries: {
+          main: { default: true },
+          gamma: { name: "gamma" },
+          beta: { name: "beta", workspace: elsewhere },
+        },
+      },
+    } as unknown as OpenClawConfig);
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "read", params: { path: join(elsewhere, "plan.md") } },
+      mainCtx(),
+    );
+    expect(questionOf(decision)).toContain('inside the workspace of another agent, "beta"');
+  });
+
+  it("says nothing of the kind for a path that is no agent's workspace", async () => {
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "read", params: { path: join(dir, "elsewhere", "x.txt") } },
+      mainCtx(),
+    );
+    expect(questionOf(decision)).toContain("which no policy rule currently covers");
+    expect(questionOf(decision)).not.toContain("another agent");
+  });
+});
+
+describe("finding 416: whose workspace a nested agent's folder sits in", () => {
+  it("names the agent whose workspace holds another agent's folder", () => {
+    // Deleting gamma from OpenClaw's list keeps its folder, and the folder is inside
+    // main's workspace: main can read it unasked once gamma is gone. The deletion
+    // choice says so, from this.
+    expect(agentWorkspaceEnclosedBy("gamma")).toBe("main");
+  });
+
+  it("names nobody for an agent whose folder is its own", () => {
+    expect(agentWorkspaceEnclosedBy("main")).toBeUndefined();
+    expect(agentWorkspaceEnclosedBy("not-configured")).toBeUndefined();
   });
 });

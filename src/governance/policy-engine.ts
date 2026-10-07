@@ -23,7 +23,7 @@ import { parseGovernanceSessionKey } from "./agent-conversation.js";
 import { resolveAgentGroup } from "./agent-group.js";
 import { readAgentIntent } from "./agent-intent.js";
 import { findAgent } from "./agent-registry.js";
-import { nestedAgentWorkspaceRoots } from "./agent-workspace-roots.js";
+import { nestedAgentWorkspaceRoots, otherAgentHoldingPath } from "./agent-workspace-roots.js";
 import { takeResolvingApprovalAnswerer, type ApprovalAnswerer } from "./approval-answerers.js";
 import {
   appendLedgerEntry,
@@ -1082,7 +1082,15 @@ export async function evaluateGovernancePolicy(
     // When the question was put, so one that ends is recorded with the wait it
     // really had rather than the configured window.
     const askedAtMs = Date.now();
-    const actionDescription = `Agent "${agentId ?? "unknown"}" wants to run "${event.toolName}" against ${spec.resourceKind} "${resource}", which no policy rule currently covers.`;
+    // Whose folder it is, when it is another agent's: the one fact that should give the
+    // person deciding pause, and the path alone did not say it (finding 408). Before the
+    // path, so the truncation below can shorten the path but never drop this.
+    const holder =
+      spec.resourceKind === "path" ? await otherAgentHoldingPath(agentId, resource) : undefined;
+    const target = holder
+      ? `a path inside the workspace of another agent, "${holder}": "${resource}"`
+      : `${spec.resourceKind} "${resource}"`;
+    const actionDescription = `Agent "${agentId ?? "unknown"}" wants to run "${event.toolName}" against ${target}, which no policy rule currently covers.`;
     return {
       requireApproval: {
         title: `Governance: unlisted ${spec.resourceKind}`,

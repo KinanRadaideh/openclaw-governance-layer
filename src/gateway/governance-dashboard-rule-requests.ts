@@ -427,9 +427,21 @@ export async function handleGovernanceRuleRequestRoutes(
     if (body === undefined) {
       return true;
     }
-    const { id, approve } = body as { id?: unknown; approve?: unknown };
+    const { id, approve, note } = body as { id?: unknown; approve?: unknown; note?: unknown };
     if (typeof id !== "string" || !id || typeof approve !== "boolean") {
       sendInvalidRequest(res, "id and approve are required");
+      return true;
+    }
+    // A note back to the requester (QA of 2026-10-07: a rejection said only
+    // "rejected"). Refused past the limit rather than cut, as a request's own
+    // reason is (finding 362), and checked before the decision is claimed.
+    if (note !== undefined && typeof note !== "string") {
+      sendInvalidRequest(res, "note must be text");
+      return true;
+    }
+    const decisionNote = note?.trim() ?? "";
+    if (decisionNote.length > MAX_REQUEST_REASON_LENGTH) {
+      sendInvalidRequest(res, `note must be at most ${MAX_REQUEST_REASON_LENGTH} characters`);
       return true;
     }
     const pending = await findPendingRuleRequest(groupId, id);
@@ -493,6 +505,7 @@ export async function handleGovernanceRuleRequestRoutes(
       approve,
       decidedBy: session.username,
       decidedByRole: session.role,
+      ...(decisionNote ? { note: decisionNote } : {}),
     });
     if (!decided) {
       sendJson(res, 409, {

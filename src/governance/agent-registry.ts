@@ -757,7 +757,8 @@ export async function assertAssignable(
       // registration exists on all three surfaces already.
       throw new AgentNotAssignableError(
         `agent "${agentId}" is not in the agent registry, so it cannot be assigned. ` +
-          "An Administrator must register it first.",
+          // Said to whoever assigns, an Administrator or Root (QA of 2026-10-07).
+          "Register it under Agents in your organisation first.",
       );
     }
     if (agent.groupId !== groupId) {

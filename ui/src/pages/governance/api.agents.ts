@@ -117,6 +117,8 @@ export type GovernanceAgentEntry = {
    * exists, which is why the panel still keeps its `adminId` fallback.
    */
   adminUsername?: string;
+  /** The agent whose workspace holds this one's folder, when the reader can see it (finding 416). */
+  insideWorkspaceOf?: string;
   registered: boolean;
   /**
    * On an unregistered row only: whether OpenClaw has this agent (its own roster or a

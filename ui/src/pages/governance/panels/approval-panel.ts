@@ -12,6 +12,28 @@ import { renderExecApprovalCard } from "../../../components/exec-approval-card.t
 import { t } from "../../../i18n/index.ts";
 import type { GovernanceApproval } from "../api.ts";
 import type { ApprovalSlice } from "../approval-controller.ts";
+import { startedByFromSessionKey } from "./format.ts";
+
+/**
+ * Whose conversation a question came from (QA of 2026-10-07).
+ *
+ * The card names the requester only inside the session key, so admin1 answering for
+ * user1 read `agent:main:governance:user1` and had to decode it. Omitted for a host
+ * run, whose key names no account.
+ */
+function renderAskedBy(approval: GovernanceApproval, viewer: string | undefined) {
+  const username = approval.sessionKey ? startedByFromSessionKey(approval.sessionKey) : undefined;
+  if (!username) {
+    return nothing;
+  }
+  // Both are canonical account names: the session key is minted by the server.
+  const own = viewer !== undefined && viewer.toLowerCase() === username.toLowerCase();
+  return html`<p class="governance-approvals__hint">
+    ${own
+      ? t("governance.approvals.askedByYou", { agent: approval.agentId })
+      : t("governance.approvals.askedBy", { username, agent: approval.agentId })}
+  </p>`;
+}
 
 function toCardRequest(approval: GovernanceApproval): ExecApprovalRequest {
   return {
@@ -46,15 +68,16 @@ export function renderWaitingApprovals(props: ApprovalSlice) {
         ? html`<div class="governance-approvals__heading">${t("governance.approvals.title")}</div>
             <p class="governance-approvals__hint">${t("governance.approvals.hint")}</p>`
         : nothing}
-      ${props.approvals.map((approval) =>
-        renderExecApprovalCard({
-          approval: toCardRequest(approval),
-          busy: props.answering.has(approval.id),
-          error: props.errors.get(approval.id) ?? null,
-          nowMs: props.nowMs,
-          variant: "inline",
-          onDecision: (id, decision) => props.decide(id, decision),
-        }),
+      ${props.approvals.map(
+        (approval) =>
+          html`${renderAskedBy(approval, props.viewer)}${renderExecApprovalCard({
+            approval: toCardRequest(approval),
+            busy: props.answering.has(approval.id),
+            error: props.errors.get(approval.id) ?? null,
+            nowMs: props.nowMs,
+            variant: "inline",
+            onDecision: (id, decision) => props.decide(id, decision),
+          })}`,
       )}
       ${props.notices.map(
         (notice) => html`

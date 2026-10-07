@@ -25,7 +25,7 @@ export function renderAnswersToControl(
   return html`<select
     class="input"
     style="max-width:12rem"
-    aria-label=${t("governance.users.answersToLabel")}
+    aria-label=${t("governance.users.answersToLabelFor", { username: user.username })}
     title=${t("governance.users.answersToLabel")}
     ?disabled=${props.busy}
     @change=${(event: Event) => {

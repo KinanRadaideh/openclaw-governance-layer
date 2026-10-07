@@ -13,38 +13,12 @@ import {
 } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
 import { renderPostureToggle, type ActiveSessionsProps } from "./agent-panels.ts";
-import { formatDuration } from "./format.ts";
+import { formatDuration, startedByFromSessionKey } from "./format.ts";
 import {
   renderPromptRunControl,
   renderPromptRunNotices,
   renderPromptRunRows,
 } from "./prompt-run-controls.ts";
-
-/**
- * The account a governance session key belongs to, or `undefined`.
- *
- * `governanceSessionKey` mints `agent:<agentId>:governance:<account>`, with the
- * account percent-encoded for anything outside `[a-z0-9_-]`. This decodes that
- * one segment and nothing else: it is the documented inverse of the wire
- * format, not a second copy of the folding rule (finding 215's distinction) —
- * the canonical name is what the server put there, and this only makes it
- * readable.
- *
- * Returns `undefined` for a host run, whose key names no account, and for
- * anything it cannot decode. Both render as "no account shown", which is the
- * honest answer and never a guess.
- */
-function startedByFromSessionKey(sessionKey: string): string | undefined {
-  const parts = sessionKey.split(":");
-  if (parts.length !== 4 || parts[0] !== "agent" || parts[2] !== "governance") {
-    return undefined;
-  }
-  try {
-    return decodeURIComponent(parts[3] ?? "") || undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 export function renderActiveSessionsSection(
   props: ActiveSessionsProps,
