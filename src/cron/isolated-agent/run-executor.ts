@@ -21,6 +21,7 @@ import type { ThinkLevel, VerboseLevel } from "../../auto-reply/thinking.js";
 import type { CliSessionBinding } from "../../config/sessions.js";
 import type { AgentDefaultsConfig } from "../../config/types.agent-defaults.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import { recordHostPrompt } from "../../governance/host-prompt-audit.js";
 import type { SourceDeliveryPlan } from "../../infra/outbound/source-delivery-plan.js";
 import type { PluginRegistry } from "../../plugins/registry-types.js";
 import {
@@ -843,6 +844,18 @@ export async function executeCronRun(params: {
     onExecutionStarted: params.onExecutionStarted,
     onExecutionPhase: params.onExecutionPhase,
     onLaneWait: params.onLaneWait,
+  });
+
+  // Finding 418: an isolated scheduled job starts its turn here, not through
+  // `agentCommandInternal`, so the ledger never learned what started it. Once per run,
+  // before the model-switch retries; the message was written by whoever created the job,
+  // so it is kept in full and the job is named.
+  await recordHostPrompt({
+    agentId: params.agentId,
+    message: params.commandBody,
+    runId: params.cronSession.sessionEntry.sessionId,
+    sessionKey: params.runSessionKey,
+    origin: { kind: "scheduled-job", jobId: params.job.id, jobName: params.job.name },
   });
 
   const runStartedAt = params.runStartedAt ?? Date.now();

@@ -49,6 +49,7 @@ import { selectSessionTranscriptLeafControlledPath } from "../../config/sessions
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { readSessionMessagesAsync } from "../../gateway/session-transcript-readers.js";
 import { logVerbose } from "../../globals.js";
+import { recordHostPrompt } from "../../governance/host-prompt-audit.js";
 import { isAbortError } from "../../infra/abort-signal.js";
 import { emitAgentEvent } from "../../infra/agent-events.js";
 import { registerAgentRunContext } from "../../infra/agent-run-registry.js";
@@ -1305,6 +1306,15 @@ export async function runMemoryFlushIfNeeded(params: {
   ]
     .filter(Boolean)
     .join("\n\n");
+  // Finding 418: the memory flush is its own agent run, with tools, that no turn entry
+  // records. A prompt the host writes for itself, so a described fact (T75).
+  await recordHostPrompt({
+    agentId: params.followupRun.run.agentId,
+    message: activeMemoryFlushPlan.prompt,
+    runId: flushRunId,
+    sessionKey: params.sessionKey,
+    origin: { kind: "background", source: { type: "memory-flush" } },
+  });
   let postCompactionSessionId: string | undefined;
   try {
     const selection = resolveMemoryFlushModelFallbackOptions(

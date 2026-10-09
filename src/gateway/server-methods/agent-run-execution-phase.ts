@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
 import { ErrorCodes, errorShape } from "../../../packages/gateway-protocol/src/index.js";
 import type { AgentRunTerminalOutcome } from "../../agents/agent-run-terminal-outcome.js";
 import {
@@ -329,6 +330,17 @@ export function startAgentRunExecution(params: {
           params.client.internal.runtimePluginToolGrant?.pluginId
           ? params.client.internal.runtimePluginToolGrant
           : undefined;
+      // T75: a plugin's own background run (memory dreaming, workboard) is a prompt the
+      // host wrote for itself, so the governance ledger records it as a described fact,
+      // not its text. Read from the same in-process marker as the grant above; public
+      // agent params cannot supply it.
+      const pluginRuntimeOwnerId = normalizeOptionalString(
+        params.client?.internal?.pluginRuntimeOwnerId,
+      );
+      const backgroundPromptSource =
+        params.client?.internal?.agentRunTracking === "plugin_subagent" && pluginRuntimeOwnerId
+          ? ({ type: "plugin", pluginId: pluginRuntimeOwnerId } as const)
+          : undefined;
       const executionIdentityAdmission = resolveAgentRestartRecoveryExecutionIdentityAdmission({
         collectionEnabled: isExecutionIdentityCollectionEnabled(params.cfg),
         isRestartRecoveryResumeRun: params.isRestartRecoveryResumeRun,
@@ -405,6 +417,7 @@ export function startAgentRunExecution(params: {
           bootstrapContextRunKind: params.effectiveBootstrapContextRunKind,
           toolsAllow: params.restoredCronContinuation?.toolsAllow,
           runtimePluginToolGrant,
+          ...(backgroundPromptSource ? { backgroundPromptSource } : {}),
           trustedInternalHandoff: prepared.trustedInternalHandoff,
           toolsAllowIsDefault: params.restoredCronContinuation?.toolsAllowIsDefault,
           scheduledToolPolicy: params.restoredCronContinuation

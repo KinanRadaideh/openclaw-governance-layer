@@ -92,6 +92,17 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
 
     const timeoutMs = resolveSlugGeneratorTimeoutMs(params.cfg);
 
+    const slugRunId = `slug-gen-${Date.now()}`;
+    // Finding 418: a helper run the host makes for itself, with tools available, that no
+    // turn entry records. Its prompt quotes the conversation, so a described fact (T75).
+    const { recordHostPrompt } = await import("../governance/host-prompt-audit.js");
+    await recordHostPrompt({
+      agentId,
+      message: prompt,
+      runId: slugRunId,
+      sessionKey,
+      origin: { kind: "background", source: { type: "session-name" } },
+    });
     const result = await runEmbeddedAgent({
       sessionId,
       sessionKey,
@@ -103,7 +114,7 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
       prompt,
       model: params.model,
       timeoutMs,
-      runId: `slug-gen-${Date.now()}`,
+      runId: slugRunId,
       disableTrajectory: true,
       cleanupBundleMcpOnRunEnd: true,
       // Internal helper run: route failures lane-local so an upstream 400/billing

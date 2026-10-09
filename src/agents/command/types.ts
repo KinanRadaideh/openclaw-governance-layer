@@ -8,6 +8,7 @@ import type { PromptMode } from "../../agents/system-prompt.types.js";
 import type { ExecutionIdentityAdmissionToken } from "../../audit/execution-identity-admission.js";
 import type { SourceReplyDeliveryMode } from "../../auto-reply/get-reply-options.types.js";
 import type { ChannelOutboundTargetMode } from "../../channels/plugins/types.public.js";
+import type { BackgroundPromptSource } from "../../governance/background-prompt.js";
 import type { MediaFact } from "../../media/media-facts.js";
 import type { PromptImageOrderEntry } from "../../media/prompt-image-order.js";
 import type { PluginHookChannelContext } from "../../plugins/hook-types.js";
@@ -193,6 +194,13 @@ export type AgentCommandOpts = {
   mainRestartRecoveryOwnerLease?: MainSessionRecoveryOwnerLease;
   /** Gateway already consumed this automatic recovery run's durable reservation. */
   mainRestartRecoveryAdmitted?: boolean;
+  /**
+   * Private: the host part that wrote this prompt for itself (T75). Set only by the
+   * gateway from `client.internal` (a plugin's in-process run), so the governance ledger
+   * records a described fact instead of text that can quote earlier conversations.
+   * Public ingress callers cannot set it, or a plugin could hide its own instructions.
+   */
+  backgroundPromptSource?: BackgroundPromptSource;
   /** Private recovery correlation; public ingress callers cannot author identity evidence. */
   executionIdentityAdmission?: {
     token: ExecutionIdentityAdmissionToken;
@@ -221,7 +229,7 @@ export type AgentCommandOpts = {
 /** Restricted option surface for external ingress callsites. */
 export type AgentCommandIngressOpts = Omit<
   AgentCommandOpts,
-  "senderIsOwner" | "allowModelOverride" | "executionIdentityAdmission"
+  "senderIsOwner" | "allowModelOverride" | "executionIdentityAdmission" | "backgroundPromptSource"
 > & {
   /** Trusted sender identity bit for command/channel-action auth; defaults false for ingress. */
   senderIsOwner?: boolean;
@@ -231,4 +239,4 @@ export type AgentCommandIngressOpts = Omit<
 
 /** Gateway-only ingress extends the public Plugin SDK surface with private recovery correlation. */
 export type AgentCommandGatewayIngressOpts = AgentCommandIngressOpts &
-  Pick<AgentCommandOpts, "executionIdentityAdmission">;
+  Pick<AgentCommandOpts, "executionIdentityAdmission" | "backgroundPromptSource">;

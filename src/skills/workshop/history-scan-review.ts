@@ -62,6 +62,20 @@ export async function runSkillHistoryScanReview(params: {
     const sessionId = randomUUID();
     const sessionKey = `agent:${params.agentId}:${HISTORY_SCAN_SESSION_SEGMENT}:incognito-${sessionId}`;
     const { runEmbeddedAgent } = await import("../../agents/embedded-agent.js");
+    const scanPrompt = buildSkillHistoryScanPrompt({
+      sessions: params.sessions,
+      requireCompletion: proposalReviewCompletion !== undefined,
+    });
+    // Finding 418: a background review the host runs for itself, with a tool, that no turn
+    // entry records. Its prompt quotes past sessions, so a described fact (T75).
+    const { recordHostPrompt } = await import("../../governance/host-prompt-audit.js");
+    await recordHostPrompt({
+      agentId: params.agentId,
+      message: scanPrompt,
+      runId,
+      sessionKey,
+      origin: { kind: "background", source: { type: "skill-workshop" } },
+    });
     const result = await runEmbeddedAgent({
       sessionId,
       sessionKey,
@@ -74,10 +88,7 @@ export async function runSkillHistoryScanReview(params: {
       agentHarnessRuntimeOverride: "openclaw",
       workspaceDir: params.workspaceDir,
       config: params.config,
-      prompt: buildSkillHistoryScanPrompt({
-        sessions: params.sessions,
-        requireCompletion: proposalReviewCompletion !== undefined,
-      }),
+      prompt: scanPrompt,
       provider: modelRef.provider,
       model: modelRef.model,
       // A smaller configured fallback must not receive a prompt sized for the primary model.

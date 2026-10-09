@@ -32,6 +32,7 @@ import { join } from "node:path";
 import { redactToolPayloadText } from "../logging/redact.js";
 import { MAX_INTENT_LENGTH } from "./agent-intent.js";
 import { withFileLock } from "./file-lock.js";
+import { redactFreeFormSecrets } from "./free-form-redaction.js";
 import { forgetLedgerFileProtection, protectLedgerFile } from "./ledger-append-only.js";
 import {
   describeFinding,
@@ -176,6 +177,16 @@ export const MAX_LEDGER_RESOURCE_LENGTH = 4096;
  */
 function clampIntent(intent: string): string {
   return intent.length <= MAX_INTENT_LENGTH ? intent : `${intent.slice(0, MAX_INTENT_LENGTH - 1)}…`;
+}
+
+/**
+ * The ledger's two scrubbing passes, in order: the host's maintained redactor
+ * (secrets recognised by shape or position), then the governance pass for secrets
+ * written as prose (T75, decision D, `free-form-redaction.ts`). One function so that
+ * no write site can apply the first and forget the second.
+ */
+function redactLedgerText(text: string): string {
+  return redactFreeFormSecrets(redactToolPayloadText(text));
 }
 
 function clampResource(resource: string): string {
@@ -771,7 +782,7 @@ function integrityEntry(
     sessionKey: "-",
     toolName: fields.toolName,
     resourceKind: "administration",
-    resource: clampResource(redactToolPayloadText(fields.resource)),
+    resource: clampResource(redactLedgerText(fields.resource)),
     ruleId: fields.ruleId,
     // Nothing was permitted or refused; the ledger is recording something about
     // itself that no policy evaluated. The value the policy engine already uses
@@ -942,7 +953,7 @@ export async function appendLedgerEntry(
       resourceKind: input.resourceKind,
       // Tool payloads never skip redaction, even if some caller wanted it off
       // (see redactToolPayloadText's contract in src/logging/redact.ts).
-      resource: clampResource(redactToolPayloadText(input.resource)),
+      resource: clampResource(redactLedgerText(input.resource)),
       ruleId: input.ruleId,
       decision: input.decision,
       prevHash: prior.hash,
@@ -958,7 +969,7 @@ export async function appendLedgerEntry(
       // Conditional for the same reason, and redacted and clamped like the
       // resource beside it: this is model-authored text, and model narration
       // quotes whatever the model was working with.
-      ...(input.intent ? { intent: clampIntent(redactToolPayloadText(input.intent)) } : {}),
+      ...(input.intent ? { intent: clampIntent(redactLedgerText(input.intent)) } : {}),
       // Everything written from now on is keyed.
       keyed: true as const,
     };

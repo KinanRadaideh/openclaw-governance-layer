@@ -526,6 +526,18 @@ async function runSkillExperienceReviewInner(
     skill.description ? { name: skill.name, description: skill.description } : { name: skill.name },
   );
   const { runEmbeddedAgent } = await import("../../agents/embedded-agent.js");
+  const reviewPrompt = buildSkillExperienceReviewPrompt({ ...candidate, existingSkills });
+  const reviewRunId = `skill-workshop-review:${randomUUID()}`;
+  // Finding 418: a background review the host runs for itself, with a tool, that no turn
+  // entry records. Its prompt quotes past sessions, so a described fact (T75).
+  const { recordHostPrompt } = await import("../../governance/host-prompt-audit.js");
+  await recordHostPrompt({
+    agentId: candidate.ctx.agentId ?? "main",
+    message: reviewPrompt,
+    runId: reviewRunId,
+    sessionKey: reviewSessionKey,
+    origin: { kind: "background", source: { type: "skill-workshop" } },
+  });
   await runEmbeddedAgent({
     sessionId,
     sessionKey: reviewSessionKey,
@@ -553,7 +565,7 @@ async function runSkillExperienceReviewInner(
     agentHarnessRuntimeOverride: "openclaw",
     workspaceDir,
     ...(candidate.config ? { config: candidate.config } : {}),
-    prompt: buildSkillExperienceReviewPrompt({ ...candidate, existingSkills }),
+    prompt: reviewPrompt,
     provider: modelProviderId,
     model: modelId,
     modelSelectionLocked: true,
@@ -562,7 +574,7 @@ async function runSkillExperienceReviewInner(
       ? { authProfileId: candidate.ctx.authProfileId, authProfileIdSource: "user" as const }
       : {}),
     timeoutMs: EXPERIENCE_REVIEW_TIMEOUT_MS,
-    runId: `skill-workshop-review:${randomUUID()}`,
+    runId: reviewRunId,
     toolsAllow: ["skill_workshop"],
     disableMessageTool: true,
     disableTrajectory: true,

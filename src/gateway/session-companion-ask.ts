@@ -11,6 +11,7 @@ import { extractAssistantText, stripToolMessages } from "../agents/tools/chat-hi
 import { resolveUtilityModelRefForAgent } from "../agents/utility-model.js";
 import { resolveStorePath } from "../config/sessions.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { recordHostPrompt } from "../governance/host-prompt-audit.js";
 import type { Message, Usage } from "../llm/types.js";
 import { redactToolPayloadText } from "../logging/redact.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -266,6 +267,15 @@ async function defaultRun(params: SessionCompanionRunParams): Promise<string> {
     for (const message of params.messages.slice(0, -1)) {
       sessionManager.appendMessage(toRunnerHistoryMessage(message, selection));
     }
+    // Finding 418: a person's side question about a session, run with tools, that no turn
+    // entry records. Their words, so kept in full.
+    await recordHostPrompt({
+      agentId: params.agentId,
+      message: current.content,
+      channel: "session companion",
+      runId,
+      sessionKey: target.sessionKey,
+    });
     const result = await runEmbeddedAgent({
       sessionId: target.sessionId,
       sessionKey: target.sessionKey,

@@ -21,11 +21,16 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ADMIN_ACTIONS, FabricatedActorError, recordAdminAction } from "./admin-audit.js";
 import { resetAgentGroupCacheForTests } from "./agent-group.js";
 import { tailLedger } from "./audit-ledger.js";
-import { HOST_PROMPT_ACTOR, recordHostPrompt } from "./host-prompt-audit.js";
+import { BACKGROUND_TEXT_WITHHELD, backgroundPromptFingerprint } from "./background-prompt.js";
+import {
+  HOST_PROMPT_ACTOR,
+  recordHostPrompt,
+  resetHostPromptDuplicateGuardForTests,
+} from "./host-prompt-audit.js";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import { savePolicy } from "./policy-store.js";
@@ -41,6 +46,7 @@ beforeEach(async () => {
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
   resetLedgerKeyCacheForTests();
   resetAgentGroupCacheForTests();
+  resetHostPromptDuplicateGuardForTests();
   group = await seedGroupWithAgents([AGENT]);
   await savePolicy(group, { ...defaultPolicyDocument(), mode: "enforce" });
 });
@@ -154,6 +160,147 @@ describe("recording a prompt that arrived outside the dashboard (T57)", () => {
 
     const entry = (await promptEntries())[0];
     expect(entry?.resource).not.toContain("sk-live-abcdef1234567890abcdef");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T75, decision B: a prompt the host writes for itself is recorded as a fact.
+//
+// The dream diary prompt below is built the way memory-core's `buildNarrativePrompt`
+// builds it, with the shape of the fragment that leaked on the 2026-10-03 QA fixture:
+// an earlier reply quoting a file an agent read. Synthetic values only.
+// ---------------------------------------------------------------------------
+
+const QUOTED_FILE_CONTENT = "GAMMA-PRIVATE: deployment notes, value QA-GAMMA-SECRET-7731";
+const DREAM_PROMPT = [
+  "Write a dream diary entry from these memory fragments:\n",
+  "- User: Please read `gamma/secret-notes.txt` and tell me what it says.",
+  `- Assistant: Evidence snippet: ${QUOTED_FILE_CONTENT}`,
+  "- User: thanks",
+  "\nRecurring themes:",
+  "- deployment notes",
+  "- file reviews",
+  "\nDiary continuity context:",
+  "- Current sweep: 2026-10-08",
+].join("\n");
+
+describe("a background prompt is recorded as a described fact (T75, decision B)", () => {
+  it("records the dream diary's source, purpose, phase and shape, and none of its words", async () => {
+    await recordHostPrompt({
+      agentId: AGENT,
+      message: DREAM_PROMPT,
+      channel: "webchat",
+      origin: { kind: "background", source: { type: "plugin", pluginId: "memory-core" } },
+      sessionKey: `agent:${AGENT}:dreaming-narrative-memory-core-v2-light-3f9a2c1d`,
+    });
+
+    const resource = (await promptEntries())[0]?.resource ?? "";
+    expect(resource).toContain('background prompt from plugin "memory-core"');
+    expect(resource).toContain("dream diary entry, light phase");
+    expect(resource).toContain("3 memory fragments, 2 recurring themes, 0 promoted memories");
+    expect(resource).toContain(`${DREAM_PROMPT.length.toLocaleString("en-US")} characters`);
+    expect(resource).toContain(`SHA-256 ${backgroundPromptFingerprint(DREAM_PROMPT)}`);
+    expect(resource).toContain(BACKGROUND_TEXT_WITHHELD);
+    // The whole point: nothing the fragments quoted reaches the sealed entry.
+    expect(resource).not.toContain("QA-GAMMA-SECRET-7731");
+    expect(resource).not.toContain("GAMMA-PRIVATE");
+    expect(resource).not.toContain("secret-notes.txt");
+    expect(resource, "and it no longer reads as typed in OpenClaw's chat").not.toContain("webchat");
+  });
+
+  it("describes the deep-phase rewrite of MEMORY.md without its contents", async () => {
+    const rewrite = JSON.stringify({
+      currentMemory: "- Kinan's staging password is hunter2\n- prefers short answers",
+      candidates: [
+        { key: "a", text: QUOTED_FILE_CONTENT },
+        { key: "b", text: "x" },
+      ],
+    });
+    await recordHostPrompt({
+      agentId: AGENT,
+      message: rewrite,
+      origin: { kind: "background", source: { type: "plugin", pluginId: "memory-core" } },
+    });
+
+    const resource = (await promptEntries())[0]?.resource ?? "";
+    expect(resource).toContain("long-term memory rewrite (deep phase): 2 candidate memories");
+    expect(resource).not.toContain("hunter2");
+    expect(resource).not.toContain("QA-GAMMA-SECRET-7731");
+  });
+
+  it.each([
+    [{ type: "heartbeat" } as const, "background prompt from the heartbeat"],
+    [
+      { type: "memory-flush" } as const,
+      "background prompt from the memory flush before compaction",
+    ],
+    [{ type: "skill-workshop" } as const, "background prompt from the skill workshop"],
+    [{ type: "session-name" } as const, "background prompt from the session-name helper"],
+  ])("names the source of a %o prompt and withholds the text", async (source, label) => {
+    await recordHostPrompt({
+      agentId: AGENT,
+      message: `System: exec finished, output ${QUOTED_FILE_CONTENT}`,
+      origin: { kind: "background", source },
+    });
+    const resource = (await promptEntries())[0]?.resource ?? "";
+    expect(resource).toContain(label);
+    expect(resource).not.toContain("QA-GAMMA-SECRET-7731");
+  });
+
+  it("keeps a scheduled job's message in full and names the job", async () => {
+    await recordHostPrompt({
+      agentId: AGENT,
+      message: "summarise yesterday's tickets",
+      origin: { kind: "scheduled-job", jobId: "job-7", jobName: "Morning summary" },
+    });
+    const resource = (await promptEntries())[0]?.resource ?? "";
+    expect(resource).toContain('prompt from scheduled job "Morning summary" (job-7)');
+    expect(resource).toContain("summarise yesterday's tickets");
+  });
+
+  it("records one turn once when two entry points see it (voice consult through a plugin)", async () => {
+    await recordHostPrompt({ agentId: AGENT, message: "what's on my calendar", runId: "run-v" });
+    await recordHostPrompt({
+      agentId: AGENT,
+      message: "what's on my calendar",
+      runId: "run-v",
+      origin: { kind: "background", source: { type: "plugin", pluginId: "voice-call" } },
+    });
+    const entries = await promptEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.resource, "the first record, the person's words, wins").toContain(
+      "what's on my calendar",
+    );
+  });
+
+  it("still records a scheduled job's next run, which reuses its run id", async () => {
+    const now = vi.spyOn(Date, "now");
+    try {
+      now.mockReturnValue(1_000_000);
+      const job = { kind: "scheduled-job", jobId: "job-7" } as const;
+      await recordHostPrompt({
+        agentId: AGENT,
+        message: "summarise",
+        runId: "sess-1",
+        origin: job,
+      });
+      now.mockReturnValue(1_000_000 + 60_000);
+      await recordHostPrompt({
+        agentId: AGENT,
+        message: "summarise",
+        runId: "sess-1",
+        origin: job,
+      });
+    } finally {
+      now.mockRestore();
+    }
+    expect(await promptEntries()).toHaveLength(2);
+  });
+
+  it("keeps a person's message in full, as before", async () => {
+    await recordHostPrompt({ agentId: AGENT, message: "list the files", channel: "telegram" });
+    const resource = (await promptEntries())[0]?.resource ?? "";
+    expect(resource).toBe("prompt via telegram (no governance account): list the files");
   });
 });
 

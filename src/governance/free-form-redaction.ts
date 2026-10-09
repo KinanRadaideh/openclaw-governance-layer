@@ -1,0 +1,305 @@
+// The ledger's second scrubbing pass: secrets written as ordinary text (T75, decision D).
+//
+// ## Why a second pass
+//
+// The first pass is OpenClaw's maintained redactor (`redactToolPayloadText`,
+// `src/logging/redact.ts`). It recognises a secret by its **shape or position**: a
+// provider token prefix, a `password=` assignment, an `Authorization:` header, a PEM
+// block, a credential in a URL. It cannot recognise a value whose only clue is the
+// prose around it. On the 2026-10-03 QA fixture a memory "dreaming" prompt quoted an
+// agent's reply containing `token-like value QA-GAMMA-SECRET-7731`, and that value went
+// into four sealed ledger entries, where it can never be removed (T75).
+//
+// ## What this pass recognises
+//
+// Three kinds, each aimed at a way a secret is written in prose rather than in config:
+//
+//  1. **A labelled value**: a credential word followed by its value, as a person writes
+//     it ("the password is hunter2", "API key: Zk81…", "token-like value QA-…-7731").
+//     After a strong word (password, passphrase, PIN, one-time code, recovery code) and
+//     an explicit connector ("is", ":", "="), any value is masked unless it is an
+//     ordinary English word ("password is required"). After a common word that also has
+//     a non-secret meaning (token, key, secret, credential), the value must look like a
+//     code: letters with digits, or mixed case with digits or symbols, or quoted.
+//  2. **A credential-named code**: one hyphen- or underscore-joined token that names
+//     itself a secret and carries a number (`QA-GAMMA-SECRET-7731`, `DB_PASSWORD_2024`),
+//     wherever it appears. File names (`secret-notes-2.txt`) and paths are left alone.
+//  3. **A random-looking string**: 20 or more characters of letters and digits mixing
+//     upper case, lower case and digits, switching between them often, with high
+//     character entropy. This is the entropy check Chapter 2 asked for, bounded so that
+//     words in camelCase, lower-case identifiers (every id this layer mints), hexadecimal
+//     digests and UUIDs are not caught.
+//
+// Every match becomes `***`, never a partial value: a free-form secret is often short and
+// guessable, so the upstream form that keeps the first six and last four characters
+// would give most of it away.
+//
+// ## What it does not do
+//
+// It cannot know a secret that looks like an ordinary word and has no label ("the door
+// code is in the drawer, it's swordfish"), and it masks only the first word of a
+// multi-word passphrase. Report 3.5.3.4 Data Sanitization states the boundary; this
+// pass narrows it, it does not close it. It only ever removes text, so a false positive
+// costs readability of one ledger value and never integrity: the HMAC covers the masked
+// text, exactly as it covers the first pass's output.
+
+/** What every match is replaced with. The upstream redactor's short-value mask. */
+export const FREE_FORM_MASK = "***";
+
+/** Words whose value is a secret whatever it looks like, once a connector says so. */
+const STRONG_WORDS = String.raw`pass(?:word|wd|phrase|code)|pin(?:\s+code)?|otp|one[-\s]time\s+(?:code|password)|(?:recovery|security|backup|2fa|mfa)\s+codes?`;
+
+/** Words with an everyday meaning too, so the value must also look like a code. */
+const WEAK_WORDS = String.raw`(?:api|access|secret|private|license|signing|encryption)[-_\s]?key|client[-_\s]?secret|auth(?:orization)?\s+code|secret|token|credentials?|key`;
+
+const CONNECTOR = String.raw`(?:\s+(?:is|was|are|were|reads|equals|becomes|set\s+to)\s+|\s*[:=]\s*|\s+-\s+|\s*->\s*)`;
+
+/** A value as prose writes it: up to the next space, bracket, comma or quote. */
+const VALUE = String.raw`(?<quote>["'\x60]?)(?<value>[^\s"'\x60<>()\[\]{},;]{3,})\k<quote>`;
+
+// `(?<![\w-])` rather than `\b`: a word inside a hyphenated token (`QA-GAMMA-SECRET-7731`)
+// is the second kind's business, and treating it as a label would mask the wrong part.
+const LABELLED_VALUE = new RegExp(
+  String.raw`(?<![\w-])(${STRONG_WORDS}|${WEAK_WORDS})(?:[-\s]like)?(?:\s+(?:value|string|number))?(${CONNECTOR}|\s+)${VALUE}`,
+  "giu",
+);
+const STRONG_WORD = new RegExp(String.raw`^(?:${STRONG_WORDS})$`, "iu");
+
+/**
+ * Words that follow "password is" and friends in ordinary sentences. A value in this list
+ * is left alone; anything else after a strong word and a connector is masked.
+ */
+const ORDINARY_WORDS = new Set(
+  [
+    "a",
+    "an",
+    "the",
+    "not",
+    "no",
+    "now",
+    "still",
+    "also",
+    "being",
+    "been",
+    "be",
+    "to",
+    "too",
+    "for",
+    "of",
+    "on",
+    "in",
+    "and",
+    "or",
+    "required",
+    "optional",
+    "incorrect",
+    "correct",
+    "wrong",
+    "invalid",
+    "valid",
+    "missing",
+    "empty",
+    "blank",
+    "unset",
+    "set",
+    "reset",
+    "changed",
+    "expired",
+    "stored",
+    "saved",
+    "hashed",
+    "encrypted",
+    "hidden",
+    "redacted",
+    "masked",
+    "protected",
+    "needed",
+    "accepted",
+    "rejected",
+    "weak",
+    "strong",
+    "short",
+    "long",
+    "too",
+    "unknown",
+    "none",
+    "null",
+    "undefined",
+    "true",
+    "false",
+    "yes",
+    "here",
+    "there",
+    "below",
+    "above",
+    "attached",
+    "provided",
+    "configured",
+    "same",
+    "different",
+    "used",
+    "unused",
+  ].map((word) => word.toLowerCase()),
+);
+
+/** True when a value has the look of a code rather than a word. */
+function looksLikeCode(value: string, quoted: boolean): boolean {
+  if (looksLikePathOrUrl(value)) {
+    return false;
+  }
+  if (quoted && value.length >= 4) {
+    return true;
+  }
+  if (value.length < 6) {
+    return false;
+  }
+  const hasDigit = /\p{Nd}/u.test(value);
+  const hasLetter = /\p{L}/u.test(value);
+  const hasUpperAfterFirst = /\p{Lu}/u.test(value.slice(1));
+  const hasLower = /\p{Ll}/u.test(value);
+  const hasSymbol = /[^\p{L}\p{Nd}]/u.test(value);
+  return (hasDigit && hasLetter) || (hasUpperAfterFirst && hasLower && hasSymbol);
+}
+
+function looksLikePathOrUrl(value: string): boolean {
+  return (
+    /^[a-z][a-z0-9+.-]*:\/\//iu.test(value) ||
+    /^(?:~|\.{1,2})?[\\/]/u.test(value) ||
+    /[\\/].*\.[a-z0-9]{1,6}$/iu.test(value) ||
+    /^[^\\/\s]+\.(?:txt|md|json|jsonl|ya?ml|toml|ts|js|mjs|cjs|py|sh|log|csv|env|ini|conf|cfg|pem|key|crt)$/iu.test(
+      value,
+    )
+  );
+}
+
+function redactLabelledValues(text: string): string {
+  return text.replace(LABELLED_VALUE, (...args: unknown[]) => {
+    const match = args[0] as string;
+    const word = args[1] as string;
+    const connector = args[2] as string;
+    const { quote, value } = args.at(-1) as { quote: string; value: string };
+    if (value === FREE_FORM_MASK) {
+      return match;
+    }
+    const strong = STRONG_WORD.test(word.trim());
+    const explicit = connector.trim().length > 0;
+    const quoted = quote.length > 0;
+    const secret =
+      strong && explicit
+        ? !ORDINARY_WORDS.has(value.toLowerCase()) && !looksLikePathOrUrl(value)
+        : looksLikeCode(value, quoted);
+    if (!secret) {
+      return match;
+    }
+    // Keep the label and connector, so the entry still says what was there.
+    return match.slice(0, match.length - (value.length + quote.length * 2)) + FREE_FORM_MASK;
+  });
+}
+
+const CREDENTIAL_SEGMENT =
+  /^(?:secret|secrets|token|password|passwd|pwd|pass|apikey|privkey|credential|credentials)$/iu;
+
+/** A hyphen- or underscore-joined token, not part of a path or a file name. */
+const JOINED_TOKEN =
+  /(?<![\w\\/.-])[\p{L}\p{Nd}]+(?:[-_][\p{L}\p{Nd}]+)+(?![\w-]|\.[\p{L}\p{Nd}])/gu;
+
+function redactCredentialNamedCodes(text: string): string {
+  return text.replace(JOINED_TOKEN, (token) => {
+    const segments = token.split(/[-_]/u);
+    if (!segments.some((segment) => CREDENTIAL_SEGMENT.test(segment))) {
+      return token;
+    }
+    const hasNumber = segments.some((segment) => /\p{Nd}/u.test(segment));
+    // A machine id this layer mints is lower case with a number (`run-…-4cf78bca`); a
+    // person-written secret label tends to be upper case or carry a long number.
+    const hasUpper = /\p{Lu}/u.test(token);
+    const hasLongNumber = segments.some((segment) => /^\p{Nd}{3,}$/u.test(segment));
+    return hasNumber && (hasUpper || hasLongNumber) ? FREE_FORM_MASK : token;
+  });
+}
+
+/** A run of letters and digits (plus the base64 and URL-safe symbols), at least 20 long. */
+const DENSE_RUN = /(?<![\p{L}\p{Nd}+=_-])[A-Za-z0-9+=_-]{20,}(?![\p{L}\p{Nd}+=_-])/gu;
+
+/** Bits per character below which a run reads as words, not randomness. */
+const MIN_ENTROPY_BITS = 3.5;
+/**
+ * How often a run must switch between upper case, lower case and digits. A random
+ * base-62 string switches at about 0.62 of adjacent pairs; camelCase code names such
+ * as `parseHttp2RequestV3Handler` switch at about 0.3, which is what this bound keeps out.
+ */
+const MIN_CLASS_SWITCH_RATE = 0.45;
+
+function characterClass(char: string): "upper" | "lower" | "digit" | "other" {
+  if (char >= "A" && char <= "Z") {
+    return "upper";
+  }
+  if (char >= "a" && char <= "z") {
+    return "lower";
+  }
+  if (char >= "0" && char <= "9") {
+    return "digit";
+  }
+  return "other";
+}
+
+function shannonEntropy(value: string): number {
+  const counts = new Map<string, number>();
+  for (const char of value) {
+    counts.set(char, (counts.get(char) ?? 0) + 1);
+  }
+  let entropy = 0;
+  for (const count of counts.values()) {
+    const p = count / value.length;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy;
+}
+
+/** True for a string that reads as random: the entropy check, bounded. */
+export function looksRandom(run: string): boolean {
+  let upper = 0;
+  let lower = 0;
+  let digit = 0;
+  let switches = 0;
+  let previous: ReturnType<typeof characterClass> | undefined;
+  for (const char of run) {
+    const kind = characterClass(char);
+    if (kind === "upper") {
+      upper += 1;
+    } else if (kind === "lower") {
+      lower += 1;
+    } else if (kind === "digit") {
+      digit += 1;
+    }
+    if (previous !== undefined && kind !== previous) {
+      switches += 1;
+    }
+    previous = kind;
+  }
+  // Every id this layer mints, every hex digest and every UUID lacks one of the three.
+  if (upper < 2 || lower < 2 || digit < 2) {
+    return false;
+  }
+  if (switches / (run.length - 1) < MIN_CLASS_SWITCH_RATE) {
+    return false;
+  }
+  return shannonEntropy(run) >= MIN_ENTROPY_BITS;
+}
+
+function redactRandomLookingStrings(text: string): string {
+  return text.replace(DENSE_RUN, (run) => (looksRandom(run) ? FREE_FORM_MASK : run));
+}
+
+/**
+ * Masks secrets written as ordinary text. Applied after the upstream redactor, at the
+ * ledger's one write boundary, to every resource and intent value.
+ *
+ * Idempotent: the mask matches none of the three kinds, so a second pass changes nothing.
+ */
+export function redactFreeFormSecrets(text: string): string {
+  if (!text) {
+    return text;
+  }
+  return redactRandomLookingStrings(redactCredentialNamedCodes(redactLabelledValues(text)));
+}

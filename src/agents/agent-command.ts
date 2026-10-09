@@ -110,6 +110,11 @@ async function agentCommandInternal(
       message: initialOpts.message ?? "",
       channel: initialOpts.messageChannel ?? initialOpts.channel,
       runId: prepared.runId,
+      sessionKey: prepared.sessionKey,
+      // T75: a plugin's own background run is a described fact, not its text.
+      ...(initialOpts.backgroundPromptSource
+        ? { origin: { kind: "background", source: initialOpts.backgroundPromptSource } }
+        : {}),
     });
   }
   const suppressVisibleSessionEffects = initialOpts.sessionEffects === "internal";
@@ -711,8 +716,10 @@ export async function agentCommandFromIngress(
 ) {
   // Plugin SDK callers may be plain JavaScript. Enforce the private recovery
   // boundary at runtime so extra or inherited properties cannot author audit identity.
+  // The same holds for `backgroundPromptSource` (T75): a plugin claiming it would have its
+  // own instructions recorded as a described fact instead of their text.
   return await agentCommandFromIngressInternal(
-    { ...opts, executionIdentityAdmission: undefined },
+    { ...opts, executionIdentityAdmission: undefined, backgroundPromptSource: undefined },
     runtime,
     deps,
   );

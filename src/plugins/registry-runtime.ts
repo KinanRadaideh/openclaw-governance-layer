@@ -25,6 +25,7 @@ import {
   type PluginStateKeyedStore,
   type PluginStateSyncKeyedStore,
 } from "../plugin-state/plugin-state-store.js";
+import { parseAgentSessionKey } from "../routing/session-key.js";
 import {
   isAgentHarnessSessionKey,
   isAgentHarnessSessionKeyOwnedBy,
@@ -839,9 +840,22 @@ export function createPluginRuntimeResolver(state: PluginRegistryState) {
           const runEmbeddedAgent: PluginRuntime["agent"]["runEmbeddedAgent"] = async (params) =>
             await runWithPluginScope(async () => {
               const ownerPluginId = resolveRunSessionExecutionOwner(params);
-              return ownerPluginId
-                ? await resolvePluginRuntime(ownerPluginId).agent.runEmbeddedAgent(params)
-                : await agent.runEmbeddedAgent(params);
+              if (ownerPluginId) {
+                return await resolvePluginRuntime(ownerPluginId).agent.runEmbeddedAgent(params);
+              }
+              // Finding 418: a plugin's own embedded agent run, with tools, that no turn
+              // entry records. A prompt the host writes for itself, so a described fact
+              // (T75). Recorded here, where the run actually starts, not in the delegating
+              // branch above, so a delegated run is recorded once.
+              const { recordHostPrompt } = await import("../governance/host-prompt-audit.js");
+              await recordHostPrompt({
+                agentId: params.agentId ?? parseAgentSessionKey(params.sessionKey)?.agentId,
+                message: params.prompt,
+                runId: params.runId,
+                sessionKey: params.sessionKey,
+                origin: { kind: "background", source: { type: "plugin", pluginId } },
+              });
+              return await agent.runEmbeddedAgent(params);
             });
           const scopedAgent = Object.create(
             Object.getPrototypeOf(agent),

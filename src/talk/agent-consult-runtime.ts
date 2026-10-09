@@ -8,6 +8,7 @@ import { buildSessionCreationStamp } from "../config/sessions/session-entry-prov
 import { parseSessionThreadInfoFast } from "../config/sessions/thread-info.js";
 import type { SessionEntry } from "../config/sessions/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { recordHostPrompt } from "../governance/host-prompt-audit.js";
 import type { RuntimeLogger, PluginRuntimeCore } from "../plugins/runtime/types-core.js";
 import { parseAgentSessionKey } from "../routing/session-key.js";
 import { isModelSelectionLocked, ModelSelectionLockedError } from "../sessions/model-overrides.js";
@@ -370,6 +371,23 @@ export async function consultRealtimeVoiceAgent(params: {
       assertRealtimeVoiceAgentConsultModelSelectionUnlocked(modelLockParams);
 
       const runId = `${params.runIdPrefix}:${Date.now()}:${randomUUID()}`;
+      const consultPrompt = buildRealtimeVoiceAgentConsultPrompt({
+        args: params.args,
+        transcript: params.transcript,
+        surface: params.surface,
+        userLabel: params.userLabel,
+        assistantLabel: params.assistantLabel,
+        questionSourceLabel: params.questionSourceLabel,
+      });
+      // Finding 418: a person's spoken question, run with tools, that no turn entry
+      // records. Their words, so kept in full.
+      await recordHostPrompt({
+        agentId,
+        message: consultPrompt,
+        channel: `voice (${params.surface ?? "talk"})`,
+        runId,
+        sessionKey: params.sessionKey,
+      });
       const timeoutMs =
         params.timeoutMs ?? params.agentRuntime.resolveAgentTimeoutMs({ cfg: params.cfg });
       const runRegistration = params.onRunStarted?.({ runId, sessionId, timeoutMs });
@@ -404,14 +422,7 @@ export async function consultRealtimeVoiceAgent(params: {
             : undefined,
         workspaceDir,
         config: params.cfg,
-        prompt: buildRealtimeVoiceAgentConsultPrompt({
-          args: params.args,
-          transcript: params.transcript,
-          surface: params.surface,
-          userLabel: params.userLabel,
-          assistantLabel: params.assistantLabel,
-          questionSourceLabel: params.questionSourceLabel,
-        }),
+        prompt: consultPrompt,
         provider: params.provider,
         model: params.model,
         thinkLevel: params.thinkLevel ?? "high",

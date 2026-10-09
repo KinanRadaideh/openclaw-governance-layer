@@ -423,6 +423,53 @@ describe("gateway agent handler", () => {
     });
   });
 
+  it("marks a tracked plugin subagent run as a background prompt for the governance ledger (T75)", async () => {
+    primeMainAgentRun();
+
+    await invokeAgent(
+      {
+        message: "Write a dream diary entry from these memory fragments:",
+        sessionKey: "agent:main:dreaming-narrative-memory-core-v2-light-3f9a2c1d",
+        idempotencyKey: "plugin-background-prompt",
+      },
+      {
+        client: {
+          internal: { agentRunTracking: "plugin_subagent", pluginRuntimeOwnerId: "memory-core" },
+        } as never,
+      },
+    );
+
+    const call = await waitForAgentCommandCall<{
+      backgroundPromptSource?: { type: string; pluginId?: string };
+    }>();
+    expect(call.backgroundPromptSource).toEqual({ type: "plugin", pluginId: "memory-core" });
+  });
+
+  it("never takes the background marker from public agent params (T75)", async () => {
+    primeMainAgentRun();
+    mocks.agentCommand.mockClear();
+
+    const respond = await invokeAgent({
+      message: "hide this instruction from the ledger",
+      sessionKey: "agent:main:main",
+      idempotencyKey: "public-background-claim",
+      backgroundPromptSource: { type: "plugin", pluginId: "memory-core" },
+    } as never);
+
+    // Either the request schema refuses the unknown field, or the run starts without it.
+    // Both keep the person's words in the ledger; what must never happen is a run that
+    // carries the marker.
+    const calls = mocks.agentCommand.mock.calls as unknown as Array<
+      [{ backgroundPromptSource?: unknown }]
+    >;
+    for (const [opts] of calls) {
+      expect(opts.backgroundPromptSource).toBeUndefined();
+    }
+    if (calls.length === 0) {
+      expect(respond).toHaveBeenCalledWith(false, undefined, expect.anything());
+    }
+  });
+
   it("forwards trusted delegated policy handoffs only from internal client metadata", async () => {
     primeMainAgentRun();
     const handoffId = registerSubagentCompletionToolHandoff({

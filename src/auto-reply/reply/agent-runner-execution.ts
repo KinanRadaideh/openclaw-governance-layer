@@ -21,6 +21,7 @@ import { isAgentRunRestartAbortReason } from "../../agents/run-termination.js";
 import { createAgentPatchedSessionModelRunGuard } from "../../agents/session-model-auto-revert.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import { logVerbose } from "../../globals.js";
+import { recordHostPrompt } from "../../governance/host-prompt-audit.js";
 import {
   captureAgentRunLifecycleGeneration,
   withAgentRunLifecycleGeneration,
@@ -498,6 +499,22 @@ export async function executeAgentTurn(params: AgentTurnParams): Promise<AgentTu
   const runId = params.opts?.runId ?? crypto.randomUUID();
   const executionParams =
     params.opts?.runId === runId ? params : { ...params, opts: { ...params.opts, runId } };
+  // Finding 418: OpenClaw's own chat, every messaging channel and the heartbeat start
+  // their turns here, not through `agentCommandInternal`, so before this call the ledger
+  // never learned what started them. Once per turn, before retries and model fallback,
+  // and awaited for the same reason as there: a turn the trail cannot record does not run.
+  await recordHostPrompt({
+    agentId: executionParams.followupRun.run.agentId,
+    message: executionParams.commandBody,
+    channel:
+      executionParams.followupRun.run.messageProvider ??
+      executionParams.followupRun.originatingChannel,
+    runId,
+    sessionKey: executionParams.sessionKey ?? executionParams.followupRun.run.sessionKey,
+    ...(executionParams.isHeartbeat
+      ? { origin: { kind: "background", source: { type: "heartbeat" } } }
+      : {}),
+  });
   // Gateway writes require exact view identity against this bare session runtime;
   // requester-scoped and combined runtimes cannot cross the App view boundary.
   const runtime = executionParams.isHeartbeat

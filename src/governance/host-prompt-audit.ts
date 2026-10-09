@@ -31,9 +31,23 @@
 // The **channel** is named in the entry, so an auditor still learns which
 // surface it came from — `discord`, `cli`, an HTTP client — without that being
 // dressed up as an identity.
+//
+// ## Who wrote the words (T75, finding 418)
+//
+// Not every prompt on a host surface was typed by a person. OpenClaw writes some for
+// itself (memory dreaming, heartbeats, the memory flush, plugin background runs), and
+// those quote earlier conversations and file contents. Their entries carry a described
+// fact and a fingerprint instead of the text (`background-prompt.ts`). A person's
+// words, and a scheduled job's, are kept in full.
+//
+// Until finding 418 this function had one caller, `agentCommandInternal`, and OpenClaw's
+// own chat, every messaging channel, heartbeats and scheduled jobs reached the agent
+// through other entry points that never called it. Each entry point now calls it once
+// per turn; `host-prompt-callsites.test.ts` lists them and fails on a new one.
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { sanitizePromptForAudit } from "./agent-conversation.js";
 import { resolveAgentGroup } from "./agent-group.js";
+import { type BackgroundPromptSource, describeBackgroundPrompt } from "./background-prompt.js";
 import { INSTALLATION_LEDGER_GROUP, isUnconfiguredTestRun } from "./paths.js";
 
 /**
@@ -47,6 +61,62 @@ export const HOST_PROMPT_ACTOR = "host-prompt";
 /** Recorded when the caller gave no channel, rather than guessing at one. */
 const UNKNOWN_CHANNEL = "unknown";
 
+/**
+ * One turn, one entry (finding 418). Two entry points can see the same run: a voice consult
+ * records the caller's words and then runs through a plugin's runtime, whose wrapper would
+ * record the same run again as a plugin background prompt. The first record wins.
+ *
+ * Bounded in time, not only by id, because a scheduled job reuses its durable session id as
+ * the run id on every run (`executeCronRun`): a later run of the same job is a new prompt.
+ * Two records of one turn arrive milliseconds apart; two runs of one job, minutes apart.
+ */
+const DUPLICATE_WINDOW_MS = 10_000;
+const MAX_TRACKED_RUNS = 500;
+const recentRuns = new Map<string, number>();
+
+function runKey(agentId: string, runId: string): string {
+  return `${agentId}\u0000${runId}`;
+}
+
+function alreadyRecorded(agentId: string, runId: string): boolean {
+  const seen = recentRuns.get(runKey(agentId, runId));
+  return seen !== undefined && Date.now() - seen < DUPLICATE_WINDOW_MS;
+}
+
+/** Marked only after the entry is written, so a failed write never suppresses a retry. */
+function markRecorded(agentId: string, runId: string): void {
+  const now = Date.now();
+  recentRuns.set(runKey(agentId, runId), now);
+  if (recentRuns.size <= MAX_TRACKED_RUNS) {
+    return;
+  }
+  for (const [tracked, at] of recentRuns) {
+    if (now - at >= DUPLICATE_WINDOW_MS || recentRuns.size > MAX_TRACKED_RUNS) {
+      recentRuns.delete(tracked);
+    }
+  }
+}
+
+/** Forgets the duplicate guard's memory, for tests. */
+export function resetHostPromptDuplicateGuardForTests(): void {
+  recentRuns.clear();
+}
+
+/**
+ * Who wrote the words (T75).
+ *
+ * - `person` (the default): typed on a host surface. Recorded in full, redacted.
+ * - `scheduled-job`: an isolated scheduled job's message, written by whoever created the
+ *   job. Recorded in full, redacted, naming the job.
+ * - `background`: assembled by the host for itself (`background-prompt.ts`). Recorded as
+ *   a described fact with a fingerprint, never the words, because such prompts quote
+ *   earlier conversations and file contents into a store that cannot be cleaned.
+ */
+export type HostPromptOrigin =
+  | { kind: "person" }
+  | { kind: "scheduled-job"; jobId: string; jobName?: string | undefined }
+  | { kind: "background"; source: BackgroundPromptSource };
+
 export type HostPromptRecord = {
   /** The resolved agent id. Nothing is recorded when this is absent. */
   agentId: string | undefined;
@@ -56,7 +126,34 @@ export type HostPromptRecord = {
   channel?: string | undefined;
   /** Correlates this entry with the run it started, as the dashboard route does. */
   runId?: string | undefined;
+  /** Who wrote the words; a person when omitted. */
+  origin?: HostPromptOrigin | undefined;
+  /** The session the prompt runs in, read only to name a background prompt's phase. */
+  sessionKey?: string | undefined;
 };
+
+/** What the entry says about the prompt, after "prompt …" and before any agent clause. */
+function describePrompt(input: HostPromptRecord, channel: string): string {
+  const origin = input.origin ?? { kind: "person" };
+  switch (origin.kind) {
+    case "background":
+      return describeBackgroundPrompt({
+        source: origin.source,
+        message: input.message,
+        sessionKey: input.sessionKey,
+      });
+    case "scheduled-job": {
+      const name = origin.jobName?.trim();
+      return (
+        `prompt from scheduled job ${name ? `"${name}" ` : ""}(${origin.jobId}) ` +
+        `(no governance account): ${sanitizePromptForAudit(input.message)}`
+      );
+    }
+    case "person":
+      return `prompt via ${channel} (no governance account): ${sanitizePromptForAudit(input.message)}`;
+  }
+  return `prompt via ${channel} (no governance account): ${sanitizePromptForAudit(input.message)}`;
+}
 
 /**
  * Records one prompt that arrived outside the governance dashboard.
@@ -103,9 +200,12 @@ export async function recordHostPrompt(input: HostPromptRecord): Promise<void> {
   if (isUnconfiguredTestRun()) {
     return;
   }
+  if (input.runId && alreadyRecorded(agentId, input.runId)) {
+    return;
+  }
   const groupId = await resolveAgentGroup(agentId);
   const channel = input.channel?.trim() || UNKNOWN_CHANNEL;
-  const prompt = sanitizePromptForAudit(input.message);
+  const prompt = describePrompt(input, channel);
   await recordAdminAction(groupId ?? INSTALLATION_LEDGER_GROUP, {
     actor: HOST_PROMPT_ACTOR,
     action: ADMIN_ACTIONS.agentPrompt,
@@ -117,8 +217,10 @@ export async function recordHostPrompt(input: HostPromptRecord): Promise<void> {
     // because the operator reading this entry needs to know that nothing the
     // agent goes on to attempt will be allowed.
     target: groupId
-      ? `prompt via ${channel} (no governance account): ${prompt}`
-      : `prompt via ${channel} to unregistered agent "${agentId}" (no governance account, ` +
-        `every tool call it makes will be refused): ${prompt}`,
+      ? prompt
+      : `${prompt} [sent to unregistered agent "${agentId}": every tool call it makes will be refused]`,
   });
+  if (input.runId) {
+    markRecorded(agentId, input.runId);
+  }
 }
