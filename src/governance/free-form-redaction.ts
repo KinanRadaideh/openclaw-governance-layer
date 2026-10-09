@@ -47,10 +47,14 @@
 export const FREE_FORM_MASK = "***";
 
 /** Words whose value is a secret whatever it looks like, once a connector says so. */
-const STRONG_WORDS = String.raw`pass(?:word|wd|phrase|code)|pin(?:\s+code)?|otp|one[-\s]time\s+(?:code|password)|(?:recovery|security|backup|2fa|mfa)\s+codes?`;
+const STRONG_WORDS = String.raw`pass(?:word|wd|phrase|code)|otp|one[-\s]time\s+(?:code|password)|(?:recovery|security|backup|2fa|mfa)\s+codes?`;
 
-/** Words with an everyday meaning too, so the value must also look like a code. */
-const WEAK_WORDS = String.raw`(?:api|access|secret|private|license|signing|encryption)[-_\s]?key|client[-_\s]?secret|auth(?:orization)?\s+code|secret|token|credentials?|key`;
+/**
+ * Words with an everyday meaning too, so the value must also look like a code. "PIN" is
+ * here, not among the strong words, because in this codebase a pin is more often a model or
+ * posture pin ("an incompatible pin is cleared") than a number (finding 419).
+ */
+const WEAK_WORDS = String.raw`(?:api|access|secret|private|license|signing|encryption)[-_\s]?key|client[-_\s]?secret|auth(?:orization)?\s+code|pin(?:\s+code)?|secret|token|credentials?|key`;
 
 const CONNECTOR = String.raw`(?:\s+(?:is|was|are|were|reads|equals|becomes|set\s+to)\s+|\s*[:=]\s*|\s+-\s+|\s*->\s*)`;
 
@@ -59,8 +63,9 @@ const VALUE = String.raw`(?<quote>["'\x60]?)(?<value>[^\s"'\x60<>()\[\]{},;]{3,}
 
 // `(?<![\w-])` rather than `\b`: a word inside a hyphenated token (`QA-GAMMA-SECRET-7731`)
 // is the second kind's business, and treating it as a label would mask the wrong part.
+// "token-like value X": the noun ("value") counts as saying what follows, like a connector.
 const LABELLED_VALUE = new RegExp(
-  String.raw`(?<![\w-])(${STRONG_WORDS}|${WEAK_WORDS})(?:[-\s]like)?(?:\s+(?:value|string|number))?(${CONNECTOR}|\s+)${VALUE}`,
+  String.raw`(?<![\w-])(?<word>${STRONG_WORDS}|${WEAK_WORDS})(?:[-\s]like)?(?<noun>\s+(?:value|string|number))?(?<connector>${CONNECTOR}|\s+)${VALUE}`,
   "giu",
 );
 const STRONG_WORD = new RegExp(String.raw`^(?:${STRONG_WORDS})$`, "iu");
@@ -142,23 +147,62 @@ const ORDINARY_WORDS = new Set(
   ].map((word) => word.toLowerCase()),
 );
 
-/** True when a value has the look of a code rather than a word. */
-function looksLikeCode(value: string, quoted: boolean): boolean {
-  if (looksLikePathOrUrl(value)) {
-    return false;
-  }
-  if (quoted && value.length >= 4) {
-    return true;
-  }
-  if (value.length < 6) {
+/**
+ * A value that names where a secret is kept rather than being one: an environment or shell
+ * reference, a dotted configuration path, a command-line flag, a type, or a path of names
+ * with no number in it (finding 419: `os.environ/ANTHROPIC_API_KEY`, `$OPENROUTER_API_KEY`,
+ * `channels.telegram.botToken`, `--db-password=`, `providers/openai/apiKey`).
+ */
+function isReference(value: string): boolean {
+  return (
+    /^[$%]|^\{\{|process\.env|os\.environ|\benv\b/iu.test(value) ||
+    value.startsWith("--") ||
+    // An environment variable's name (`OPENCLAW_GATEWAY_PASSWORD`), not its value.
+    /^[A-Z]+(?:_[A-Z]+)+$/u.test(value) ||
+    // A session or store key (`agent:main:my-plugin:task-1`): three or more colon parts.
+    /^[\w.-]+(?::[\w.-]+){2,}$/u.test(value) ||
+    (!/\p{Nd}/u.test(value) &&
+      /^[\p{L}_$][\p{L}\p{Nd}_$-]*(?:[./:][\p{L}_$][\p{L}\p{Nd}_$-]*)+$/u.test(value))
+  );
+}
+
+/**
+ * True when a value has the look of a code rather than a word, for a word with an everyday
+ * meaning. After an explicit connector ("is", ":", "=") or a noun ("value"), the value needs a
+ * digit, with letters or as a number of four or more digits (a PIN). With no connector it
+ * needs upper case, lower case and digits, at least eight long, because a bare "token X" or
+ * "API-key GPT-5.5" is far more often a name than a secret.
+ */
+function looksLikeCode(value: string, explicit: boolean): boolean {
+  if (looksLikePathOrUrl(value) || isReference(value)) {
     return false;
   }
   const hasDigit = /\p{Nd}/u.test(value);
   const hasLetter = /\p{L}/u.test(value);
-  const hasUpperAfterFirst = /\p{Lu}/u.test(value.slice(1));
-  const hasLower = /\p{Ll}/u.test(value);
-  const hasSymbol = /[^\p{L}\p{Nd}]/u.test(value);
-  return (hasDigit && hasLetter) || (hasUpperAfterFirst && hasLower && hasSymbol);
+  if (explicit) {
+    return (hasDigit && hasLetter && value.length >= 6) || /^\p{Nd}{4,}$/u.test(value);
+  }
+  return value.length >= 8 && hasDigit && /\p{Lu}/u.test(value) && /\p{Ll}/u.test(value);
+}
+
+/** English endings that mark a description, not a chosen password ("compromised", "reported"). */
+const DESCRIPTIVE_ENDING =
+  /(?:ed|ing|ly|able|ible|ive|ous|ful|less|ness|ment|tion|sion|ance|ence|ity)$/u;
+
+/**
+ * Whether a plain lower-case word after "password is" is the password. Masked only when it
+ * ends its clause ("the password is swordfish.", "password: swordfish") and does not read as
+ * a description: not an ordinary word, not a descriptive English ending, not a hyphenated
+ * compound ("low-entropy"). "a mistyped password is reported as …" goes on, so it is prose.
+ */
+function isPlainWordPassword(word: string, endsClause: boolean): boolean {
+  return (
+    endsClause &&
+    word.length >= 4 &&
+    !ORDINARY_WORDS.has(word) &&
+    !DESCRIPTIVE_ENDING.test(word) &&
+    !word.includes("-")
+  );
 }
 
 function looksLikePathOrUrl(value: string): boolean {
@@ -172,27 +216,59 @@ function looksLikePathOrUrl(value: string): boolean {
   );
 }
 
+type LabelledGroups = {
+  word: string;
+  noun?: string;
+  connector: string;
+  quote: string;
+  value: string;
+};
+
+function isLabelledSecret(groups: LabelledGroups, endsClause: boolean): boolean {
+  const { word, noun, connector, quote } = groups;
+  // A backtick marks code formatting in prose, not a quoted value (finding 419).
+  const quoted = quote === '"' || quote === "'";
+  // Markdown emphasis and trailing punctuation are not part of the value.
+  const value = groups.value.replace(/^[*_]+|[*_]+$/gu, "").replace(/[.!?:]+$/u, "");
+  if (!value || value === FREE_FORM_MASK || value.includes(FREE_FORM_MASK)) {
+    return false;
+  }
+  const explicit = connector.trim().length > 0 || noun !== undefined;
+  if (!STRONG_WORD.test(word.trim()) || !explicit) {
+    return looksLikeCode(value, explicit);
+  }
+  // After "password is" and friends: anything with a digit, a symbol or upper case past the
+  // first letter is masked, a plain word only when it reads as the password itself.
+  if (looksLikePathOrUrl(value) || isReference(value)) {
+    return false;
+  }
+  // A plain word: letters, lower case after the first, hyphens only between words.
+  if (!/^\p{L}\p{Ll}*(?:-\p{Ll}+)*$/u.test(value)) {
+    return !ORDINARY_WORDS.has(value.toLowerCase());
+  }
+  return quoted
+    ? !ORDINARY_WORDS.has(value.toLowerCase())
+    : isPlainWordPassword(value.toLowerCase(), endsClause);
+}
+
 function redactLabelledValues(text: string): string {
   return text.replace(LABELLED_VALUE, (...args: unknown[]) => {
     const match = args[0] as string;
-    const word = args[1] as string;
-    const connector = args[2] as string;
-    const { quote, value } = args.at(-1) as { quote: string; value: string };
-    if (value === FREE_FORM_MASK) {
+    const groups = args.at(-1) as LabelledGroups;
+    const offset = args.at(-3) as number;
+    const after = text.slice(offset + match.length);
+    const endsClause = /^\s*(?:$|[.,;:)!?\]"'\n])/u.test(after) || /[.!?:]$/u.test(groups.value);
+    if (!isLabelledSecret(groups, endsClause)) {
       return match;
     }
-    const strong = STRONG_WORD.test(word.trim());
-    const explicit = connector.trim().length > 0;
-    const quoted = quote.length > 0;
-    const secret =
-      strong && explicit
-        ? !ORDINARY_WORDS.has(value.toLowerCase()) && !looksLikePathOrUrl(value)
-        : looksLikeCode(value, quoted);
-    if (!secret) {
-      return match;
-    }
-    // Keep the label and connector, so the entry still says what was there.
-    return match.slice(0, match.length - (value.length + quote.length * 2)) + FREE_FORM_MASK;
+    // Keep the label and connector, so the entry still says what was there, and any
+    // punctuation that closed the sentence.
+    const trailing = groups.quote ? "" : (groups.value.match(/[.!?:]+$/u)?.[0] ?? "");
+    return (
+      match.slice(0, match.length - (groups.value.length + groups.quote.length * 2)) +
+      FREE_FORM_MASK +
+      trailing
+    );
   });
 }
 
@@ -209,12 +285,15 @@ function redactCredentialNamedCodes(text: string): string {
     if (!segments.some((segment) => CREDENTIAL_SEGMENT.test(segment))) {
       return token;
     }
-    const hasNumber = segments.some((segment) => /\p{Nd}/u.test(segment));
-    // A machine id this layer mints is lower case with a number (`run-…-4cf78bca`); a
-    // person-written secret label tends to be upper case or carry a long number.
-    const hasUpper = /\p{Lu}/u.test(token);
-    const hasLongNumber = segments.some((segment) => /^\p{Nd}{3,}$/u.test(segment));
-    return hasNumber && (hasUpper || hasLongNumber) ? FREE_FORM_MASK : token;
+    // The secret's number comes after its label: `QA-GAMMA-SECRET-7731`, `DB_PASSWORD_2024`.
+    // A number before the word is a quantity ("128,000-token context"), and a short
+    // alphanumeric part is a name (`MANTIS_ARTIFACT_R2_SECRET_ACCESS_KEY`), finding 419. Every
+    // id this layer mints is lower case with no credential word, so it never gets this far.
+    const label = segments.findIndex((segment) => CREDENTIAL_SEGMENT.test(segment));
+    const numberAfterLabel = segments
+      .slice(label + 1)
+      .some((segment) => /^\p{Nd}{3,}$/u.test(segment));
+    return numberAfterLabel ? FREE_FORM_MASK : token;
   });
 }
 
@@ -287,8 +366,42 @@ export function looksRandom(run: string): boolean {
   return shannonEntropy(run) >= MIN_ENTROPY_BITS;
 }
 
+/**
+ * True when a run is base64 for readable text, such as `echo Y2F0IH4vLnNzaC9pZF9yc2E= | base64
+ * -d` ("cat ~/.ssh/id_rsa"). Such a run is evidence an investigator must be able to read, an
+ * obfuscated command, not a key: a random key decodes to bytes, not to text (finding 419).
+ */
+function isBase64OfText(run: string): boolean {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/u.test(run) || run.replace(/=+$/u, "").length % 4 === 1) {
+    return false;
+  }
+  const bytes = Buffer.from(run, "base64");
+  if (bytes.length < 6) {
+    return false;
+  }
+  let printable = 0;
+  for (const byte of bytes) {
+    if ((byte >= 0x20 && byte <= 0x7e) || byte === 0x09 || byte === 0x0a || byte === 0x0d) {
+      printable += 1;
+    }
+  }
+  // Base64 of "user:password" is an HTTP Basic credential, not a command: it stays masked
+  // (QA of 2026-10-09).
+  return printable / bytes.length >= 0.95 && !/^[^\s:]{1,128}:\S+$/u.test(bytes.toString("utf8"));
+}
+
+/**
+ * A run is masked when one unbroken piece of it is random: model names, size suffixes and
+ * timestamps (`Llama-3.3-70B-Instruct-Turbo`, `…-2026-05-22T09-00-00-000Z-…`) are made of short
+ * pieces joined by hyphens, while a key is one long piece (finding 419).
+ */
 function redactRandomLookingStrings(text: string): string {
-  return text.replace(DENSE_RUN, (run) => (looksRandom(run) ? FREE_FORM_MASK : run));
+  return text.replace(DENSE_RUN, (run) => {
+    const randomPiece = run
+      .split(/[-_]/u)
+      .some((piece) => piece.length >= 20 && looksRandom(piece) && !isBase64OfText(piece));
+    return randomPiece ? FREE_FORM_MASK : run;
+  });
 }
 
 /**

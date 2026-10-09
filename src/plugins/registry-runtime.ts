@@ -8,6 +8,7 @@ import {
   sqliteSessionFileMarkerMatchesTarget,
 } from "../config/sessions/legacy-sqlite-marker.js";
 import type { SessionEntry } from "../config/sessions/types.js";
+import { recordHostPrompt } from "../governance/host-prompt-audit.js";
 import {
   createPluginBlobStore,
   type OpenBlobStoreOptions,
@@ -847,7 +848,6 @@ export function createPluginRuntimeResolver(state: PluginRegistryState) {
               // entry records. A prompt the host writes for itself, so a described fact
               // (T75). Recorded here, where the run actually starts, not in the delegating
               // branch above, so a delegated run is recorded once.
-              const { recordHostPrompt } = await import("../governance/host-prompt-audit.js");
               await recordHostPrompt({
                 agentId: params.agentId ?? parseAgentSessionKey(params.sessionKey)?.agentId,
                 message: params.prompt,

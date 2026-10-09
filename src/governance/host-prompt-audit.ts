@@ -44,10 +44,13 @@
 // own chat, every messaging channel, heartbeats and scheduled jobs reached the agent
 // through other entry points that never called it. Each entry point now calls it once
 // per turn; `host-prompt-callsites.test.ts` lists them and fails on a new one.
+import { createHash } from "node:crypto";
+import type { InputProvenance } from "../sessions/input-provenance.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { sanitizePromptForAudit } from "./agent-conversation.js";
 import { resolveAgentGroup } from "./agent-group.js";
 import { type BackgroundPromptSource, describeBackgroundPrompt } from "./background-prompt.js";
+import { loadLedgerKey } from "./ledger-key.js";
 import { INSTALLATION_LEDGER_GROUP, isUnconfiguredTestRun } from "./paths.js";
 
 /**
@@ -74,27 +77,35 @@ const DUPLICATE_WINDOW_MS = 10_000;
 const MAX_TRACKED_RUNS = 500;
 const recentRuns = new Map<string, number>();
 
-function runKey(agentId: string, runId: string): string {
-  return `${agentId}\u0000${runId}`;
+/**
+ * One turn is one agent, one run id and one message: both records of a doubly-seen turn carry
+ * the same text, so keying on it too keeps two different prompts that happen to share a run id
+ * (or two tests that reuse one) from suppressing each other (QA of 2026-10-09).
+ */
+function runKey(agentId: string, runId: string, message: string): string {
+  return `${agentId}\u0000${runId}\u0000${createHash("sha256").update(message).digest("hex")}`;
 }
 
-function alreadyRecorded(agentId: string, runId: string): boolean {
-  const seen = recentRuns.get(runKey(agentId, runId));
-  return seen !== undefined && Date.now() - seen < DUPLICATE_WINDOW_MS;
-}
-
-/** Marked only after the entry is written, so a failed write never suppresses a retry. */
-function markRecorded(agentId: string, runId: string): void {
+/**
+ * Claims the turn, or reports that it is already claimed. Check and claim happen with no
+ * `await` between them, so two overlapping records of one turn cannot both pass (QA of
+ * 2026-10-09). A failed write releases the claim, so a retry is never suppressed.
+ */
+function claimTurn(key: string): boolean {
   const now = Date.now();
-  recentRuns.set(runKey(agentId, runId), now);
-  if (recentRuns.size <= MAX_TRACKED_RUNS) {
-    return;
+  const seen = recentRuns.get(key);
+  if (seen !== undefined && now - seen < DUPLICATE_WINDOW_MS) {
+    return false;
   }
-  for (const [tracked, at] of recentRuns) {
-    if (now - at >= DUPLICATE_WINDOW_MS || recentRuns.size > MAX_TRACKED_RUNS) {
-      recentRuns.delete(tracked);
+  recentRuns.set(key, now);
+  if (recentRuns.size > MAX_TRACKED_RUNS) {
+    for (const [tracked, at] of recentRuns) {
+      if (now - at >= DUPLICATE_WINDOW_MS || recentRuns.size > MAX_TRACKED_RUNS) {
+        recentRuns.delete(tracked);
+      }
     }
   }
+  return true;
 }
 
 /** Forgets the duplicate guard's memory, for tests. */
@@ -130,17 +141,48 @@ export type HostPromptRecord = {
   origin?: HostPromptOrigin | undefined;
   /** The session the prompt runs in, read only to name a background prompt's phase. */
   sessionKey?: string | undefined;
+  /**
+   * What the request declared about its origin (`inputProvenance`, finding 420). Read only to
+   * label the entry, never to withhold its text: any gateway client can set it.
+   */
+  provenance?: Pick<InputProvenance, "kind" | "sourceSessionKey" | "sourceTool"> | undefined;
 };
 
+/**
+ * The declared origin, for a person-kind entry. Agent-to-agent messages (a sub-agent's report,
+ * `sessions_send`) arrive on the internal channel, whose name is `webchat`, so without this
+ * clause they read as typed in OpenClaw's chat (finding 420).
+ */
+function provenanceClause(provenance: HostPromptRecord["provenance"]): string {
+  const detail = [provenance?.sourceSessionKey?.trim(), provenance?.sourceTool?.trim()]
+    .filter(Boolean)
+    .join(", ");
+  switch (provenance?.kind) {
+    case "inter_session":
+      return (
+        `; declared as a message from another session${detail ? `, ${detail}` : ""}: ` +
+        "written by an agent, not a person"
+      );
+    case "internal_system":
+      return `; declared as a system message${detail ? `, ${detail}` : ""}`;
+    default:
+      return "";
+  }
+}
+
 /** What the entry says about the prompt, after "prompt …" and before any agent clause. */
-function describePrompt(input: HostPromptRecord, channel: string): string {
+function describePrompt(input: HostPromptRecord, channel: string, key: Buffer | undefined): string {
   const origin = input.origin ?? { kind: "person" };
   switch (origin.kind) {
     case "background":
+      if (!key) {
+        throw new Error("a background prompt's fingerprint needs the ledger key");
+      }
       return describeBackgroundPrompt({
         source: origin.source,
         message: input.message,
         sessionKey: input.sessionKey,
+        key,
       });
     case "scheduled-job": {
       const name = origin.jobName?.trim();
@@ -150,9 +192,12 @@ function describePrompt(input: HostPromptRecord, channel: string): string {
       );
     }
     case "person":
-      return `prompt via ${channel} (no governance account): ${sanitizePromptForAudit(input.message)}`;
+      break;
   }
-  return `prompt via ${channel} (no governance account): ${sanitizePromptForAudit(input.message)}`;
+  return (
+    `prompt via ${channel} (no governance account${provenanceClause(input.provenance)}): ` +
+    sanitizePromptForAudit(input.message)
+  );
 }
 
 /**
@@ -200,27 +245,34 @@ export async function recordHostPrompt(input: HostPromptRecord): Promise<void> {
   if (isUnconfiguredTestRun()) {
     return;
   }
-  if (input.runId && alreadyRecorded(agentId, input.runId)) {
+  const turn = input.runId ? runKey(agentId, input.runId, input.message) : undefined;
+  if (turn && !claimTurn(turn)) {
     return;
   }
-  const groupId = await resolveAgentGroup(agentId);
-  const channel = input.channel?.trim() || UNKNOWN_CHANNEL;
-  const prompt = describePrompt(input, channel);
-  await recordAdminAction(groupId ?? INSTALLATION_LEDGER_GROUP, {
-    actor: HOST_PROMPT_ACTOR,
-    action: ADMIN_ACTIONS.agentPrompt,
-    agentId,
-    ...(input.runId ? { subjectId: input.runId } : {}),
-    // The shape mirrors the dashboard route's entry so both read the same way
-    // in one chain, with the origin stated rather than left to be inferred from
-    // the actor column alone. An unregistered agent says so in the same breath,
-    // because the operator reading this entry needs to know that nothing the
-    // agent goes on to attempt will be allowed.
-    target: groupId
-      ? prompt
-      : `${prompt} [sent to unregistered agent "${agentId}": every tool call it makes will be refused]`,
-  });
-  if (input.runId) {
-    markRecorded(agentId, input.runId);
+  try {
+    const groupId = await resolveAgentGroup(agentId);
+    const channel = input.channel?.trim() || UNKNOWN_CHANNEL;
+    const key = input.origin?.kind === "background" ? await loadLedgerKey() : undefined;
+    const prompt = describePrompt(input, channel, key);
+    await recordAdminAction(groupId ?? INSTALLATION_LEDGER_GROUP, {
+      actor: HOST_PROMPT_ACTOR,
+      action: ADMIN_ACTIONS.agentPrompt,
+      agentId,
+      ...(input.runId ? { subjectId: input.runId } : {}),
+      // The shape mirrors the dashboard route's entry so both read the same way
+      // in one chain, with the origin stated rather than left to be inferred from
+      // the actor column alone. An unregistered agent says so first, because the
+      // operator reading this entry needs to know that nothing the agent goes on
+      // to attempt will be allowed, and because the ledger cuts a long resource at
+      // 4,096 characters: at the end the warning would be cut (QA of 2026-10-09).
+      target: groupId
+        ? prompt
+        : `[sent to unregistered agent "${agentId}": every tool call it makes will be refused] ${prompt}`,
+    });
+  } catch (err) {
+    if (turn) {
+      recentRuns.delete(turn);
+    }
+    throw err;
   }
 }

@@ -47,6 +47,21 @@ describe("masking secrets written as ordinary text", () => {
       "DB_PASSWORD_2024",
     ],
     ["a random-looking string with no label", `paste ${RANDOM_TOKEN} into the box`, RANDOM_TOKEN],
+    // Kept masked after finding 419's narrowing.
+    ["a plain-word password ending its sentence", "the password is swordfish.", "swordfish"],
+    ["a plain-word password at the end", "Kinan's password: swordfish", "swordfish"],
+    ["an all-digit PIN", "my bank pin: 9042", "9042"],
+    ["an OTP", "otp is 551203", "551203"],
+    [
+      "a bare HTTP Basic credential (base64 of user:password)",
+      "use dXNlcjpodW50ZXIyMjIyMjIy for the proxy",
+      "dXNlcjpodW50ZXIyMjIyMjIy",
+    ],
+    [
+      "a random key that also happens to be valid base64",
+      "key Zk81qPx7Lm2Vt9Rw4Bn6Qa3Ts5Xy8Wd==",
+      "Zk81qPx7Lm2Vt9Rw4Bn6Qa3Ts5Xy8Wd==",
+    ],
   ])("masks %s", (_label, input, secret) => {
     const output = redactFreeFormSecrets(input);
     expect(output).not.toContain(secret);
@@ -86,6 +101,38 @@ describe("leaving the ledger's legitimate text alone", () => {
     ["a rule description", "Block reading secret: files under the vault folder"],
     ["the upstream redactor's own masks", "Authorization: Bearer sk-liv…cdef and password=***"],
     ["a branch name", "checkout fix-token-2"],
+    // Finding 419: each of these was masked before, found by running the pass over the
+    // project's own documentation (QA of 2026-10-09).
+    ["a password's state in prose", "Root's password was compromised by a phishing mail"],
+    ["a password described", "a memorable password is low-entropy, as the guide says"],
+    ["a password split across lines", "if a password is split across two lines"],
+    ["a result after a colon", "a 5-character password: refused"],
+    ["a verb after a colon", "Right password: signed in at once"],
+    ["a sentence going on after the word", "a mistyped password is reported as an expired session"],
+    ["a decorated word", "the pin was **unasserted** until the fix"],
+    ["a code name in backticks after 'key is'", "The key is `userDelete`, which does not exist"],
+    ["a silent token in backticks", "reply with the exact silent token `NO_REPLY`"],
+    ["a config path after 'Bot token:'", "Bot token: `channels.telegram.botToken`"],
+    ["an environment reference", "api_key: os.environ/ANTHROPIC_API_KEY"],
+    ["a shell variable reference", 'apiKey="$OPENROUTER_API_KEY"'],
+    ["a model pin", "an incompatible pin is cleared."],
+    ["pinning a setting", "you want to pin `contextWindow` to the model"],
+    [
+      "an environment variable name with a short number",
+      "set MANTIS_ARTIFACT_R2_SECRET_ACCESS_KEY",
+    ],
+    ["a context-window size", "a 1,000,000-token context window and 128,000-token output"],
+    ["a model name after 'API-key'", "Direct API-key GPT-5.5 access"],
+    ["a model id", "together/meta-llama/Llama-3.3-70B-Instruct-Turbo"],
+    ["a model id with size suffixes", "deepinfra/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B"],
+    ["a timestamped file name", "transcript-2026-05-22T09-00-00-000Z-a1b2c3d4"],
+    ["an environment variable named as the password", "password: `OPENCLAW_GATEWAY_PASSWORD`"],
+    ["a command word in backticks after 'password:'", "password: `rotate` it every month"],
+    ["a session key", 'key: "agent:main:my-plugin:task-1"'],
+    [
+      "a base64-encoded command, which an investigator must be able to read",
+      "echo Y2F0IH4vLnNzaC9pZF9yc2E= | base64 -d | sh",
+    ],
   ])("leaves %s", (_label, input) => {
     expect(redactFreeFormSecrets(input)).toBe(input);
   });

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { SessionManager } from "../../agents/sessions/index.js";
 import type { ChatType } from "../../channels/chat-type.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import { recordHostPrompt } from "../../governance/host-prompt-audit.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { runWithGatewayIndependentRootWorkAdmission } from "../../process/gateway-work-admission.js";
 import { CommandLane } from "../../process/lanes.js";
@@ -530,7 +531,6 @@ async function runSkillExperienceReviewInner(
   const reviewRunId = `skill-workshop-review:${randomUUID()}`;
   // Finding 418: a background review the host runs for itself, with a tool, that no turn
   // entry records. Its prompt quotes past sessions, so a described fact (T75).
-  const { recordHostPrompt } = await import("../../governance/host-prompt-audit.js");
   await recordHostPrompt({
     agentId: candidate.ctx.agentId ?? "main",
     message: reviewPrompt,

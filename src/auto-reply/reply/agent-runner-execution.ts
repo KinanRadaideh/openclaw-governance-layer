@@ -511,6 +511,7 @@ export async function executeAgentTurn(params: AgentTurnParams): Promise<AgentTu
       executionParams.followupRun.originatingChannel,
     runId,
     sessionKey: executionParams.sessionKey ?? executionParams.followupRun.run.sessionKey,
+    provenance: executionParams.followupRun.run.inputProvenance,
     ...(executionParams.isHeartbeat
       ? { origin: { kind: "background", source: { type: "heartbeat" } } }
       : {}),

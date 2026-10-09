@@ -15,14 +15,14 @@
 //
 // The fact, described closely enough to answer "why did the agent wake up and act?":
 // which part of the host sent it, what it was for, its size and shape (how many memory
-// fragments, themes, candidates), and a SHA-256 fingerprint of the exact text. The
-// fingerprint proves which message it was to anyone holding a copy (OpenClaw keeps the
-// session transcript), and the text cannot be rebuilt from it. What the agent then
-// does is recorded by the gate as before.
+// fragments, themes, candidates), and a fingerprint of the exact text keyed with the ledger
+// key. The fingerprint proves which message it was to a key holder with a copy (OpenClaw
+// keeps the session transcript), and the text cannot be rebuilt from it. What the agent
+// then does is recorded by the gate as before.
 //
 // A prompt a **person** wrote keeps its full text (`host-prompt-audit.ts`): that is the
 // instruction an audit trail exists to show.
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
 
 /** Where a background prompt came from. Set only by host code, never by a request. */
 export type BackgroundPromptSource =
@@ -124,9 +124,23 @@ function describeKnownShape(message: string, sessionKey: string | undefined): st
   return undefined;
 }
 
-/** The fingerprint of the exact text the agent received. */
-export function backgroundPromptFingerprint(message: string): string {
-  return createHash("sha256").update(message, "utf8").digest("hex");
+/** Separates these fingerprints from every other use of the ledger key. */
+const FINGERPRINT_DOMAIN = "openclaw-governance/background-prompt/v1\u0000";
+
+/**
+ * The fingerprint of the exact text the agent received: HMAC-SHA256 under the ledger key.
+ *
+ * **Keyed, not a plain hash** (QA of 2026-10-09). A background prompt is mostly a known
+ * template (the heartbeat prompt, the dream diary's headings), so with a plain SHA-256 anyone
+ * who can read the ledger could recover a short secret inside it by hashing guesses until one
+ * matched. Under the key, only a holder of the key (Root, the standalone verifier) can test a
+ * candidate copy against the entry, which is the one use the fingerprint is for.
+ */
+export function backgroundPromptFingerprint(message: string, key: Buffer): string {
+  return createHmac("sha256", key)
+    .update(FINGERPRINT_DOMAIN, "utf8")
+    .update(message, "utf8")
+    .digest("hex");
 }
 
 /**
@@ -137,12 +151,14 @@ export function describeBackgroundPrompt(params: {
   source: BackgroundPromptSource;
   message: string;
   sessionKey?: string | undefined;
+  /** The ledger key, for the fingerprint. */
+  key: Buffer;
 }): string {
-  const { source, message, sessionKey } = params;
+  const { source, message, sessionKey, key } = params;
   const shape = describeKnownShape(message, sessionKey);
   const size = `${plural(message.length, "character")}, ${plural(message.split("\n").length, "line")}`;
   return (
     `background prompt from ${sourceLabel(source)}${shape ? ` (${shape})` : ""}; ` +
-    `${size}; SHA-256 ${backgroundPromptFingerprint(message)}; ${BACKGROUND_TEXT_WITHHELD}`
+    `${size}; HMAC-SHA256 ${backgroundPromptFingerprint(message, key)}; ${BACKGROUND_TEXT_WITHHELD}`
   );
 }

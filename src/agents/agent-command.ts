@@ -111,6 +111,8 @@ async function agentCommandInternal(
       channel: initialOpts.messageChannel ?? initialOpts.channel,
       runId: prepared.runId,
       sessionKey: prepared.sessionKey,
+      // Finding 420: an agent's message to another agent is labelled as one.
+      provenance: initialOpts.inputProvenance,
       // T75: a plugin's own background run is a described fact, not its text.
       ...(initialOpts.backgroundPromptSource
         ? { origin: { kind: "background", source: initialOpts.backgroundPromptSource } }

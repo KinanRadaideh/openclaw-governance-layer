@@ -14,6 +14,7 @@ import { runEmbeddedAgent } from "../agents/embedded-agent.js";
 import { SessionManager } from "../agents/sessions/index.js";
 import { resolveAgentTimeoutMs } from "../agents/timeout.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { recordHostPrompt } from "../governance/host-prompt-audit.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
   extractLeadingHttpStatus,
@@ -95,7 +96,6 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
     const slugRunId = `slug-gen-${Date.now()}`;
     // Finding 418: a helper run the host makes for itself, with tools available, that no
     // turn entry records. Its prompt quotes the conversation, so a described fact (T75).
-    const { recordHostPrompt } = await import("../governance/host-prompt-audit.js");
     await recordHostPrompt({
       agentId,
       message: prompt,

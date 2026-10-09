@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { resolveDefaultModelForAgent } from "../../agents/model-selection-config.js";
 import { SessionManager } from "../../agents/sessions/index.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import { recordHostPrompt } from "../../governance/host-prompt-audit.js";
 import { CommandLane } from "../../process/lanes.js";
 import {
   buildSkillHistoryScanPrompt,
@@ -68,7 +69,6 @@ export async function runSkillHistoryScanReview(params: {
     });
     // Finding 418: a background review the host runs for itself, with a tool, that no turn
     // entry records. Its prompt quotes past sessions, so a described fact (T75).
-    const { recordHostPrompt } = await import("../../governance/host-prompt-audit.js");
     await recordHostPrompt({
       agentId: params.agentId,
       message: scanPrompt,

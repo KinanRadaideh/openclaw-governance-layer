@@ -18,6 +18,7 @@
 //   4. The prompt text is redacted on the way in, because these entries are
 //      prose written by whoever was at the keyboard and requirement 8 binds
 //      them exactly as it binds the dashboard's.
+import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -31,7 +32,7 @@ import {
   recordHostPrompt,
   resetHostPromptDuplicateGuardForTests,
 } from "./host-prompt-audit.js";
-import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
+import { loadLedgerKey, resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import { savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
@@ -142,6 +143,20 @@ describe("recording a prompt that arrived outside the dashboard (T57)", () => {
     ).toContain("unregistered");
   });
 
+  it("keeps the unregistered warning when the prompt is longer than the ledger keeps", async () => {
+    // QA of 2026-10-09: the warning had moved to the end of the entry, where the ledger's
+    // 4,096-character cut removes it from a long prompt.
+    await recordHostPrompt({
+      agentId: "not-registered-anywhere",
+      message: "x".repeat(6_000),
+      channel: "discord",
+    });
+    const entry = (await tailLedger(INSTALLATION_LEDGER_GROUP, 50)).find(
+      (e) => e.toolName === ADMIN_ACTIONS.agentPrompt,
+    );
+    expect(entry?.resource).toContain("every tool call it makes will be refused");
+  });
+
   it("records nothing when there is no agent to name", async () => {
     await recordHostPrompt({ agentId: undefined, message: "hello" });
     expect(await promptEntries()).toHaveLength(0);
@@ -199,7 +214,12 @@ describe("a background prompt is recorded as a described fact (T75, decision B)"
     expect(resource).toContain("dream diary entry, light phase");
     expect(resource).toContain("3 memory fragments, 2 recurring themes, 0 promoted memories");
     expect(resource).toContain(`${DREAM_PROMPT.length.toLocaleString("en-US")} characters`);
-    expect(resource).toContain(`SHA-256 ${backgroundPromptFingerprint(DREAM_PROMPT)}`);
+    expect(resource).toContain(
+      `HMAC-SHA256 ${backgroundPromptFingerprint(DREAM_PROMPT, await loadLedgerKey())}`,
+    );
+    // Keyed (QA of 2026-10-09): a reader without the key cannot test a guessed text, so a
+    // plain hash of the exact prompt must not appear.
+    expect(resource).not.toContain(createHash("sha256").update(DREAM_PROMPT).digest("hex"));
     expect(resource).toContain(BACKGROUND_TEXT_WITHHELD);
     // The whole point: nothing the fragments quoted reaches the sealed entry.
     expect(resource).not.toContain("QA-GAMMA-SECRET-7731");
@@ -273,6 +293,13 @@ describe("a background prompt is recorded as a described fact (T75, decision B)"
     );
   });
 
+  it("records two different prompts that share a run id", async () => {
+    // QA of 2026-10-09: the guard is for one turn seen twice, and one turn has one text.
+    await recordHostPrompt({ agentId: AGENT, message: "first", runId: "run-shared" });
+    await recordHostPrompt({ agentId: AGENT, message: "second", runId: "run-shared" });
+    expect(await promptEntries()).toHaveLength(2);
+  });
+
   it("still records a scheduled job's next run, which reuses its run id", async () => {
     const now = vi.spyOn(Date, "now");
     try {
@@ -295,6 +322,42 @@ describe("a background prompt is recorded as a described fact (T75, decision B)"
       now.mockRestore();
     }
     expect(await promptEntries()).toHaveLength(2);
+  });
+
+  it("says when a prompt declares it came from another agent's session (finding 420)", async () => {
+    // A sub-agent's report to its parent arrives on the internal channel, whose name is
+    // "webchat", so without this the entry read exactly like a person typing in OpenClaw's
+    // chat. The text is kept (an agent's words, like its narration); only the label changes,
+    // and it says "declared" because any gateway client can set the field.
+    await recordHostPrompt({
+      agentId: AGENT,
+      message: "[Inter-session message] child finished: 3 files reviewed",
+      channel: "webchat",
+      provenance: {
+        kind: "inter_session",
+        sourceSessionKey: "agent:andrew:subagent:child-1",
+        sourceTool: "subagent_announce",
+      },
+    });
+    const resource = (await promptEntries())[0]?.resource ?? "";
+    expect(resource).toContain(
+      "prompt via webchat (no governance account; declared as a message from another session, " +
+        "agent:andrew:subagent:child-1, subagent_announce: written by an agent, not a person)",
+    );
+    expect(resource).toContain("child finished: 3 files reviewed");
+  });
+
+  it("says when a prompt declares it is a system message", async () => {
+    await recordHostPrompt({
+      agentId: AGENT,
+      message: "resume the interrupted task",
+      channel: "webchat",
+      provenance: { kind: "internal_system", sourceTool: "main_session_restart_recovery" },
+    });
+    const resource = (await promptEntries())[0]?.resource ?? "";
+    expect(resource).toContain(
+      "(no governance account; declared as a system message, main_session_restart_recovery)",
+    );
   });
 
   it("keeps a person's message in full, as before", async () => {
