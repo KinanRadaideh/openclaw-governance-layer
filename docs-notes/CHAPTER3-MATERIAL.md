@@ -11286,3 +11286,114 @@ like the other per-agent overrides and the range is checked in the form; a promp
 (a locked-down agent) is reported in the conversation with the typed text kept, where the
 streamed refusal had been discarded silently. A decision on a rule request may carry a note to
 the requester, stored on the request and written into the ledger entry.
+
+### 3.5.100 One posture for every reader (2026-10-08; finding 417)
+
+Engineering record: `mg/WORK-LOG-2026-10-08.md`; row: `GOVERNANCE.md`; plain account:
+`QA-IN-PLAIN-TERMS.md` §5.127. Found by reading the code during the report check, not live.
+
+**The posture that governs an agent (§3.5.2.2 Evaluation Order; §3.5.3 Audit Ledger).** The
+engine reads an agent's own posture override before the installation posture, and an override
+can only be `enforce` or `monitor`, so a pinned agent stays governed while the installation is
+`off`. `recordLoopDetectorBlock`, which writes the ledger entry for a call the host's tool-loop
+detector refused above the gate (rule `loop-detector`), read the installation posture alone, so
+for a pinned agent under an `off` installation those refusals went unrecorded. One helper,
+`effectivePosture` in `policy-engine.ts`, now answers the question for the record and for both
+of the gate's posture checks. The same lesson as 412: a rule written out at each call site
+drifts; one function cannot disagree with itself.
+
+### 3.5.101 Other agents' folders: the owner decides, and deletion asks about the folder (2026-10-08; Kinan's decisions (ii) and C)
+
+Engineering record: `mg/WORK-LOG-2026-10-08.md`; plain account: `QA-IN-PLAIN-TERMS.md`
+§5.128. Follows findings 385, 408 and 416.
+
+**Who may allow a read into another agent's folder (decision (ii); §3.5.7.1 Escalation
+Routing).** OpenClaw nests every later agent's workspace inside the default agent's, and the gate
+fences those nested workspaces, so a read there is never covered by a workspace rule and becomes
+a question. The question went to every account managing the reading agent, its User included,
+and the first answer was used. Every Administrator already saw every question, so "also ask the
+owner" would have changed nothing; the decision was built as "only the owner decides to allow".
+The question is still shown to everyone who manages the reading agent; only the Administrator who
+owns the other agent, or Root, may allow it, and anyone else may deny it. The route reads the
+other agent's id back out of the question's own text, which the engine writes with one shared
+function (`foreign-folder-approval.ts`; agent ids cannot contain a quote, and the text before the
+id is the engine's), and the held list under _Awaiting your decision_ works it out from the
+stored path. The design point for the chapter: authority over an action that touches another
+party's resource follows that resource's owner, not the actor's manager. The limits: rule
+writing is separate (a rule for the reading agent can still allow the path), and a chat-started
+run's question is answered on OpenClaw's own surfaces.
+
+**What happens to a deleted agent's folder (decision C; §3.5.10 Agent Lifecycle).** Neither
+deletion removed a nested folder: the roster-only delete keeps every file by design, and
+OpenClaw's own delete will not move a folder that overlaps a surviving agent's workspace. Once
+the agent was gone the fence went with it, because the fence is built from configured agents.
+Deleting such an agent now asks whether its folder goes to the same `.Trash` OpenClaw's own delete
+uses, or stays. Refusals (agent working, another agent inside the folder, governance directory
+inside it) come before anything is deleted; the move comes after, restricted to the enclosing
+workspace, and a failed move is reported beside the completed deletion (finding 229's rule).
+Permanent deletion is not offered: the trash is reversible and is what OpenClaw itself does.
+
+**Communication.** A control the account may see but not use is shown disabled with the reason as
+its tooltip, a deliberate exception to "show only controls that can succeed", because hiding the
+allow buttons would leave a User not knowing the request can be allowed, or by whom.
+
+### 3.5.102 Who wrote the words: background prompts as facts, every entry point recorded, and a second scrubbing pass (2026-10-08; T75 decided B and D; finding 418)
+
+**The problem.** The ledger keeps every prompt's text (Requirement 5) and can never be cleaned (the
+chain). OpenClaw writes some prompts for itself from earlier conversations and files: memory
+dreaming's diary prompt and its deep-phase rewrite of `MEMORY.md`, heartbeat check-ins, the memory
+flush, skill-workshop reviews, the session-name helper, plugins' background runs. On the QA fixture
+of 2026-10-03 a test secret an agent read reached four sealed dream entries; the pattern redactor
+could not see it, because it was written as prose (`token-like value QA-GAMMA-SECRET-7731`).
+
+**Decision B, a background prompt is recorded as a fact.** `background-prompt.ts`: the source
+(`plugin "memory-core"`, the heartbeat, the memory flush, the skill workshop, the session-name
+helper), the purpose and shape where the host's form is known (dream diary: phase, fragment,
+theme and promoted-memory counts; memory rewrite: candidate count and the current `MEMORY.md`'s
+length), the length in characters and lines, a SHA-256 fingerprint of the exact text, and a clause
+saying why the words are absent. Options weighed with Kinan: keep the text (today), keep it but
+mask it in every view (the secret stays in the file for good), better scrubbing alone (cannot see
+an unlabelled secret), or the fact. The fact keeps Requirement 5's "it happened, to whom, when,
+why the agent woke" and gives up only the words, which OpenClaw keeps in its own session store.
+The fingerprint is plain SHA-256 so anyone holding that copy can prove it is the same message;
+live, both dream prompts' stored copies hashed to the ledger's fingerprints. A person's prompt and
+a scheduled job's message (written by whoever created the job) keep their text. **Who is "the
+system"** is decided by the entry point, never by the text: the plugin marker is read from
+`client.internal` (`agentRunTracking: "plugin_subagent"`, `pluginRuntimeOwnerId`), set only by the
+in-process plugin runtime, carried on a gateway-only option (`backgroundPromptSource`) that the
+public plugin-SDK ingress strips at runtime, the precedent being `executionIdentityAdmission`.
+
+**Finding 418, found doing B.** `recordHostPrompt` had one caller, so chat, channels, heartbeats,
+scheduled jobs and several helper runs were never recorded. A single funnel does not exist:
+`runEmbeddedAgent` is bypassed by CLI backends and called once per fallback model. So each entry
+records once per turn, and `host-prompt-callsites.test.ts` lists every non-test caller of
+`runEmbeddedAgent`/`runCliAgent` in `src/` and `extensions/` as recording, covered by a recording
+caller, unable to act (`disableTools: true`), or the runner itself, failing on any other. A
+10-second duplicate guard (agent and run id, marked only after a successful write) records a turn
+seen by two entries once (a voice consult run through a plugin's runtime) while a scheduled job,
+which reuses its run id, is recorded on every run.
+
+**Decision D, the second scrubbing pass.** `free-form-redaction.ts`, applied by the ledger's one
+write function (`redactLedgerText` in `audit-ledger.ts`) after `redactToolPayloadText`, to every
+resource and intent: labelled values (strong words mask any non-ordinary value after a connector;
+everyday words need a code-like value), credential-named codes, and random-looking strings
+(at least 20 characters, two each of upper, lower and digits, a class switch rate of at least 0.45
+and entropy of at least 3.5 bits; camelCase code names switch at about 0.3, random base-62 at about
+0.62). Every match becomes `***`. A false positive costs one value's readability, never integrity,
+since the HMAC covers the masked text.
+
+**Side questions, decided as Kinan asked.** Model narration keeps its text and passes the second
+pass. No new ledger filter: each entry is one labelled line.
+
+**Evidence.** Unit and boundary tests (`free-form-redaction.test.ts` 35, `host-prompt-audit.test.ts`
++10, `host-prompt-callsites.test.ts`, two gateway tests in `agent.media-and-routing.test-utils.ts`);
+mutations in `mg/WORK-LOG-2026-10-08.md` part 5; live run on the rebuilt Gateway: chat (#24, #26
+with four secrets masked), a scheduled job (#27), a heartbeat (#28), the managed dreaming job
+(#29) and its two diary prompts (#30, #31), none of five synthetic secrets anywhere after #23,
+chain intact by the standalone verifier.
+
+**Limits, for Chapter 5.** An unlabelled secret that reads as a word, and the later words of a
+passphrase, can still reach the ledger through a person's prompt or narration; a plugin that
+forwards a person's words through its own background run (voice-call) is recorded as a fact, its
+words kept by the plugin; a User sees a background entry as the peer-prompt placeholder; entries
+written before 2026-10-08 keep what they hold.

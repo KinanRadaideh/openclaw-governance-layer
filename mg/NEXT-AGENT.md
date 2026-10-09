@@ -1,5 +1,10 @@
 # Prompt for the next agent
 
+> **Superseded 2026-10-08: start at `mg/HANDOFF-2026-10-08.md`.** Everything below is as of
+> 2026-09-29: Chapter 3 is now fully written, Chapters 1 and 2 are frozen, findings stand at
+> 417 / 417 / 0, and the 2026-10-08 work is uncommitted. The report-writing rules further down
+> still apply.
+
 > **Start at `mg/HANDOFF-2026-09-28.md`** (updated 2026-09-29). It summarises 2026-09-27 to 29
 > in one place: the report's state, what changed in it, what each Chapter 3 heading still owes,
 > and what is open. The engineering side of the last day is `mg/SESSION-SUMMARY-2026-09-29.md`.

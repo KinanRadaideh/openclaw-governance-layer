@@ -1,5 +1,9 @@
 # Handoff: read this first
 
+> **2026-10-08: the current entry point is `mg/HANDOFF-2026-10-08.md`.** This file remains the
+> long engineering history (the snapshot below is as of 2026-09-27; §6's counts are superseded
+> by `mg/REMAINING-WORK.md` §"Where this file stands").
+
 **Written 2026-08-19. Current through 2026-09-29.** The single entry point
 for whoever picks this project up next, whether a teammate, a supervisor, or the
 same person after a break. Everything else in `mg/` is detail beneath this.

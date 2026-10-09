@@ -1,0 +1,889 @@
+% =====================================================================
+% Chapter 3, Sections 3.5.6 to 3.6, rewritten to the section formula
+% (2026-10-04). Replaces everything from \subsection{Session Control}
+% up to, and not including, \printbibliography.
+%
+% THE SECTION FORMULA
+%
+% \section (for example 3.6 Summary)
+%   - One opening paragraph: what the section covers and how it connects
+%     to the requirements or to the previous section.
+%   - No mechanism detail at this level. A summary may use one mapping
+%     table in place of long prose.
+%
+% \subsection (one component; 0.5 to 1.5 pages)
+%   1. Role: one paragraph, in plain language, on what the component
+%      does for the operator and which requirement it serves.
+%   2. Mechanism: one to three paragraphs on how it works. Name the main
+%      function or file once, where a presenter would look for it.
+%   3. Decision: one paragraph on the consequential design choice and
+%      its reason.
+%   4. Limit or divergence: only when it changes what the reader may
+%      claim. A divergence from Chapter 1 is always stated.
+%   5. At most one figure or table, when a relationship or mapping is
+%      clearer drawn than written.
+%   When the subsection has subsubsections, it keeps only the role and a
+%   short overview (at most two paragraphs, or one comparison table),
+%   and the mechanisms move below it.
+%
+% \subsubsection (one mechanism; 0.5 to 1 page)
+%   1. The first sentence states what the mechanism does.
+%   2. One or two paragraphs on how it works.
+%   3. One paragraph on why, or on the edge case that matters.
+%   4. An optional table or figure. No code figure unless it serves as a
+%      presentation anchor for the defense.
+%
+% Throughout: numbers that come from measurement belong in Chapter 4;
+% QA history and finding numbers do not appear; identifiers appear when
+% a reader needs them to find the code, and each is explained once.
+%
+% New labels: tab:gov-session-controls, sec:gov-kill-switch,
+% fig:gov-killswitch, sec:gov-escalation-routing,
+% tab:gov-escalation-settings, sec:gov-persistent-approvals,
+% fig:gov-alwaysallow, sec:gov-task-slot, fig:gov-taskslot,
+% sec:gov-secondary-runtime, fig:gov-codexgates, fig:gov-tenant,
+% tab:gov-agent-lifecycle, tab:gov-dashboard-sections,
+% tab:gov-security-limits, fig:gov-toctou, tab:gov-requirement-map.
+% =====================================================================
+
+\FloatBarrier
+\subsection{Session Control}
+\label{sec:gov-killswitch}
+
+Session control lets an operator stop work that an agent has already
+started. It serves Requirement~7, which asks that an agent session can be
+suspended or terminated within one second. The dashboard offers two
+controls with different reach, compared in
+Table~\ref{tab:gov-session-controls}. \textit{Cancel} ends one prompt sent
+from the dashboard. The emergency kill switch stops an entire agent and
+keeps it stopped.
+
+\begin{table}[htbp]
+\centering
+\caption{The two session controls.}
+\label{tab:gov-session-controls}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+ & \textbf{Cancel} & \textbf{Emergency kill switch} \\
+\midrule
+What it stops & One dashboard prompt & Every running task of one agent,
+and any further action by the agent or its child sessions \\
+Who may use it & The account that sent the prompt, or an Administrator
+or Root in the organization & A User for an assigned agent, or an
+Administrator or Root for any agent in the organization \\
+Later work & Unaffected. The agent can receive the next prompt & Blocked
+until an operator releases the lockdown \\
+Ledger & The cancellation and the account that requested it & The
+lockdown, both stop times, and whether the stop was confirmed \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Cancel is the ordinary control, used for a mistaken request or one that is
+taking too long. The server checks it against its own record of the run,
+which stores the account that started the prompt, so a caller cannot
+widen its reach by naming a different agent. Canceling signals the run's
+\texttt{AbortController} and marks its ending as \texttt{cancelled}. The
+task then shows as \textit{Stopping} until the run has actually ended, as
+Section~\ref{sec:gov-task-slot} explains. The same mechanism ends a prompt
+that reaches its five-minute limit, with the ending \texttt{timeout}, so
+the conversation shows whether a person or the time limit stopped it.
+
+The kill switch is the emergency control, found in the \textit{Emergency
+kill switch} section of the dashboard. It acts in two steps, lockdown and
+then termination, described in the next two subsections. Viewers cannot
+use either control, because both change what an agent does.
+
+\subsubsection{Agent Lockdown}
+\label{sec:gov-agent-lockdown}
+
+Lockdown blocks every further governed action of an agent until an
+operator releases it. The kill switch adds the agent's identifier to the
+\texttt{lockedAgents} list in the organization's \texttt{policy.json}.
+Because the list is part of the stored policy, the lockdown stays in force
+after the current request ends and after the Gateway restarts.
+
+The policy engine checks this list before it evaluates any rule, directly
+after confirming that the agent is registered
+(Section~\ref{sec:gov-evaluation-order}). An allow rule cannot override a
+lockdown, and the check does not depend on recognizing the tool or
+extracting its resource. Lockdown also blocks in the \texttt{monitor}
+posture. Monitor posture relaxes ordinary rule decisions, and a lockdown is
+an operator's instruction to stop. When the installation posture is
+\texttt{off}, the tool-call gate does not run. The dashboard's prompt route
+still checks the list in that posture and rejects a prompt to a locked
+agent.
+
+Lockdown also covers work that the agent has already handed on. A child
+session can run under a different agent identifier, so the engine follows
+the host's \texttt{spawnedBy} lineage for up to sixteen levels and blocks a
+call whose ancestor is locked. If the lineage cannot be read while an agent
+is locked, the call is blocked, because the engine cannot establish that it
+is unrelated to the locked agent. The ledger records a direct lockdown, a
+locked ancestor, and unreadable lineage under different rule identifiers,
+so an investigation can tell them apart.
+
+An action that was waiting for approval when the lockdown began can no
+longer be allowed. Before the approval route accepts \textit{Allow once} or
+\textit{Always allow}, it reads the agent's current policy and returns a
+conflict response if the agent is locked. \textit{Deny} is still accepted,
+so the operator can close the request.
+
+Releasing the lockdown removes the identifier from the list and records
+the operator in the ledger. Work stopped during the incident does not
+restart, and held approvals are not granted. An operator starts that work
+again if it is still needed.
+
+\subsubsection{Kill Switch}
+\label{sec:gov-kill-switch}
+
+The kill switch combines lockdown with termination of the agent's running
+work, in that order. \texttt{lockDownAgent} in
+\texttt{src/governance/kill-switch.ts} first stores the lockdown and then
+calls \texttt{terminateAgentRuns}, as Figure~\ref{fig:gov-killswitch}
+shows. The order closes a gap. If running work were stopped first, the
+agent could begin a new action in the interval before the lockdown was
+stored.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=6mm and 6mm]
+  \tikzset{ksstep/.style={gbox, text width=27mm, minimum height=17mm}}
+  \node[gbox, text width=21mm, minimum height=17mm] (press)
+    {Operator presses\\\textit{Lock down}};
+  \node[ksstep, right=of press, draw=orange!70!black, fill=orange!11] (lock)
+    {\textbf{1. Lockdown}\\\scriptsize agent added to\\\texttt{lockedAgents}};
+  \node[ksstep, right=of lock, draw=red!60!black, fill=red!8] (abort)
+    {\textbf{2. Termination}\\\scriptsize abort signal to every running task};
+  \node[ksstep, right=of abort, draw=violet!65!black, fill=violet!9] (watch)
+    {\textbf{3. Confirmation}\\\scriptsize registries checked every 10\,ms
+     for up to 2\,s};
+  \draw[gflow] (press) -- (lock);
+  \draw[gflow] (lock) -- (abort);
+  \draw[gflow] (abort) -- (watch);
+  % The two measured times.
+  \draw[decorate, decoration={brace, amplitude=4pt}]
+    ([yshift=2mm]abort.north west) -- ([yshift=2mm]abort.north east)
+    node[midway, above=3pt, font=\scriptsize] {dispatch time};
+  \draw[decorate, decoration={brace, amplitude=4pt}]
+    ([yshift=9mm]lock.north west) -- ([yshift=9mm]watch.north east)
+    node[midway, above=3pt, font=\scriptsize] {confirmed-stop time};
+  % Where the result goes.
+  \node[gstore, below=9mm of abort, text width=58mm] (out)
+    {Dashboard result and ledger entry \texttt{governance.agent.lock}:\\
+     both times, the runs aborted, and whether the stop was confirmed};
+  \draw[gflow] (watch.south) |- (out.east);
+\end{tikzpicture}
+\caption{The kill switch. Lockdown is stored before any running task is
+signaled, and the stop is reported as confirmed only when every signaled
+run has left the run registries.}
+\label{fig:gov-killswitch}
+\end{figure}
+
+Termination sends an abort signal to every running task of the agent. It
+reaches the prompts started from the dashboard and the host's own chat
+runs, which the Gateway registers with the layer through a terminator
+function. Tools that started operating-system processes end those
+processes when their run is aborted, where the tool supports it.
+
+The kill switch then reports two separate times. The dispatch time is how
+long it took to send the abort signals. The confirmed-stop time runs from
+the start of the operation until every signaled run has left the run
+registries, which are checked every 10 milliseconds for up to two seconds.
+A run still present after two seconds is reported as not confirmed
+stopped. When nothing was running, the stop is reported as complete at
+once. Both times, the runs aborted, and the confirmation are shown on the
+dashboard and written to the ledger entry \texttt{governance.agent.lock}.
+
+This reporting departs from the way Chapter~1 stated the target.
+Requirement~7 names a one-second response, and sending the abort signal
+meets it with a wide margin. The design reports the confirmed stop as
+well, because a sent signal does not show that a model call or a tool has
+finished. Chapter~4 gives the measured times, including runs whose
+confirmed stop took longer than one second.
+
+If the ledger entry cannot be written, the lockdown and termination still
+take effect. The dashboard then shows the completed stop together with a
+notice that its ledger entry is missing, so a failed audit write is not
+reported as a failed emergency stop.
+
+The dashboard keeps the kill switch available while other operations on
+the page are in progress. Creating an agent is the one operation that
+delays it. During creation the Gateway does not respond to any request for
+about six seconds, and a stop pressed in that interval takes effect when
+the Gateway responds again (Section~\ref{sec:gov-security}).
+
+\FloatBarrier
+\subsection{Human-in-the-Loop Approvals}
+\label{sec:gov-approvals}
+
+When no rule covers an action, the policy engine can ask a person before
+denying it. This is the human approval that Requirement~5 records. The
+engine returns an approval request, OpenClaw's approval machinery holds the
+tool call, and the call continues only if an operator allows it. Only an
+action that matched no rule can be escalated. An action blocked by a deny
+rule or a core rule is never offered to a person.
+
+The approval card offers three answers. \textit{Allow once} lets the
+action run this time. \textit{Always allow} lets it run this time and asks
+an Administrator to make the permission permanent. \textit{Deny} blocks
+it. The ledger records each answer and the action's final outcome. The
+following subsections describe who receives a request, and what
+\textit{Always allow} leads to.
+
+\subsubsection{Escalation Routing}
+\label{sec:gov-escalation-routing}
+
+The place where an approval request appears depends on where the run
+started. A prompt sent from the governance dashboard produces a request in
+the dashboard's \textit{Waiting for your answer} section, shown to the
+accounts that manage the agent. These are a User assigned the agent, and
+any Administrator or Root in the organization. A run started from a chat
+channel produces a request on OpenClaw's own approval surfaces, the Control
+UI and the channel. There, anyone holding the Gateway credential or access
+to the channel can answer, as Section~\ref{sec:gov-security} notes.
+
+When several accounts can answer one request, the first answer is used. A
+later answer is rejected, and the dashboard displays a notice that it was
+not used. The ledger records the answer together with the account that
+gave it.
+
+Four settings control escalation, listed in
+Table~\ref{tab:gov-escalation-settings}. Where the agent setting and an
+account setting both apply, the stricter one is used, so either can switch
+escalation off. For a dashboard prompt the account setting is that of the
+account that sent it. For a run that nobody started by name, such as a chat
+message, the settings of every account assigned the agent are considered.
+
+\begin{table}[htbp]
+\centering
+\caption{Escalation settings and who may change them.}
+\label{tab:gov-escalation-settings}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.27\textwidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{0.27\textwidth}@{}}
+\toprule
+\textbf{Setting} & \textbf{Effect} & \textbf{Changed by} \\
+\midrule
+Escalation for an agent (\texttt{agentAsk}) & Ask a person when no rule
+matches, or deny at once & Administrator or Root \\
+Escalation for an account (\texttt{userAsk}) & The same choice, for runs
+on that account's behalf & Root \\
+Waiting time, installation (\texttt{hitlTimeoutSeconds}) & How long a
+request waits; 300 seconds by default & Administrator or Root \\
+Waiting time, one agent (\texttt{agentHitlTimeout}) & Replaces the
+installation value for that agent & A User for an assigned agent,
+Administrator, or Root \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Chapter~1 gave the installation waiting time to Root. The built system lets
+Administrators set it as well, because it sits with the other
+installation-wide policy settings that Administrators control, and
+Administrators are the tier that answers escalations. Every waiting time is
+bounded between 5 seconds and 24 hours.
+
+If nobody answers within the waiting time, the action is denied. The
+request is kept in the \textit{Awaiting your decision} section, with how
+long it waited and whether it timed out or was canceled. An operator who
+manages the agent can allow or deny it there later. Allowing it does not
+run the original action, which has already ended. It files the same rule
+request as \textit{Always allow}, so the action can succeed when it is next
+attempted. An unanswered request always ends in a denial, so an
+installation with nobody watching does not fall back to allowing actions.
+
+\subsubsection{Persistent Approvals}
+\label{sec:gov-persistent-approvals}
+
+\textit{Always allow} lets the current action run once and files a rule
+request. It does not write a rule. This differs from Chapter~1, where the
+answer granted permanent permission directly. A chat approval can be
+answered by a person with no governance account, and a permanent change to
+the policy needs an approver who is signed in and named in the ledger. The
+approval card states this before the button is pressed:
+``\textit{Always allow} allows this action once and requests permission for
+future attempts. An Administrator must approve the request before
+permission becomes permanent.''
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=5mm and 5mm, every node/.append style={execute at begin node={\hyphenpenalty=10000\relax}}]
+  \tikzset{
+    aaAgent/.style={gbox, text width=29mm, minimum height=15mm,
+      draw=teal!65!black, fill=teal!9},
+    aaOperator/.style={gbox, text width=29mm, minimum height=15mm,
+      draw=orange!70!black, fill=orange!11},
+    aaAdmin/.style={gbox, text width=29mm, minimum height=15mm,
+      draw=blue!65!black, fill=blue!8}
+  }
+  \node[aaAgent] (miss) {\scriptsize Tool call matches no rule; policy
+    returns an approval request};
+  \node[aaOperator, right=of miss] (card) {\scriptsize Card shows
+    \textit{Allow once}, \textit{Always allow}, \textit{Deny}};
+  \node[aaOperator, right=of card] (press) {\scriptsize Operator presses
+    \textit{Always allow}};
+  \node[aaAgent, right=of press] (once) {\scriptsize Action runs once};
+  \node[aaAgent, below=10mm of once] (file) {\scriptsize Callback files a
+    pending rule request for this resource};
+  \node[aaAdmin, left=of file] (review) {\scriptsize Administrator or Root
+    reviews it in \textit{Rule requests}};
+  \node[aaAdmin, left=of review] (rule) {\scriptsize Approved: rule added,
+    described as ``Requested by \ldots''};
+  \node[aaAgent, left=of rule] (later) {\scriptsize Later calls allowed by
+    the rule};
+  \draw[gflow] (miss) -- (card);
+  \draw[gflow] (card) -- (press);
+  \draw[gflow] (press) -- (once);
+  \draw[gflow] (once) -- (file);
+  \draw[gflow] (file) -- (review);
+  \draw[gflow] (review) -- (rule);
+  \draw[gflow] (rule) -- (later);
+  \node[gnote, below=2mm of file, text width=34mm] {queue full: the action
+    still runs once, and a warning says the request was not saved};
+  \node[gnote, below=2mm of review, text width=27mm] {rejected: no rule is
+    written};
+\end{tikzpicture}
+\caption{\textit{Always allow}. The action is allowed once at the moment of
+the answer. A permanent rule exists only after an Administrator or Root
+approves the request that the answer filed. Teal marks the agent's run,
+orange the operator who answered, and blue the approver.}
+\label{fig:gov-alwaysallow}
+\end{figure}
+
+Figure~\ref{fig:gov-alwaysallow} shows the sequence. The rule request is
+filed after the answer, by the policy's \texttt{onResolution} callback in
+the agent's run. The requested rule allows exactly the resource that was
+asked about, for that agent only, with the same access direction. The
+request's reason is generated from the escalation, for example ``Agent
+`scout' asked to run `exec' against command `uname -a'.'' When an account
+answered from the dashboard, the request names that account. A request
+answered on a chat surface is labeled \texttt{hitl-approval}, because no
+governance account authored it.
+
+An Administrator or Root approves or rejects the request in the
+\textit{Rule requests} section. Approval writes the rule with a
+description that names who asked and why, for example ``Requested by user1,
+answering an escalation: Agent `scout' asked to run `exec' against command
+`uname -a'.'' The rule's description then explains its origin wherever
+the rule is listed. A request is decided once, and approval is rejected if the agent it
+names has been deleted or replaced since the request was filed.
+
+Requests filed by escalations share one queue per organization, sized at 40
+plus 20 for every account, and an identical pending request is not filed
+twice. When the queue is full, the action is still allowed once, because
+the operator already granted it, and a warning states that the request was
+not saved. The warning appears in the dashboard and the Control UI. Chat
+channels show only the original answer.
+
+\FloatBarrier
+\subsection{Runtime Management}
+\label{sec:gov-runs}
+
+Runtime management keeps running work bounded and governed wherever the
+agent executes. Prompts sent from the dashboard run as tasks with time and
+concurrency limits, described in Section~\ref{sec:gov-task-slot}. OpenClaw
+can also run an agent inside a separate helper process, and
+Section~\ref{sec:gov-secondary-runtime} describes how the gate reaches that
+runtime and who may permit it.
+
+\subsubsection{Task and Slot Model}
+\label{sec:gov-task-slot}
+
+The run registry in \texttt{src/governance/prompt-runs.ts} tracks every
+dashboard prompt as a task. A task has two parts that end at
+different moments. One is the row an operator sees, and the other is the
+slot the task occupies under the concurrency limits. An account may have two prompts running at once,
+the installation six, and each prompt may run for five minutes. A prompt
+beyond either concurrency limit is rejected with a message that names the
+limit.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=6mm and 13mm]
+  \tikzset{tsState/.style={gbox, text width=24mm, minimum height=16mm}}
+  \node[tsState, draw=teal!65!black, fill=teal!9] (run)
+    {\textbf{Running}\\\scriptsize listed, holds a slot,\\Cancel available};
+  \node[tsState, right=of run, draw=orange!70!black, fill=orange!11] (stop)
+    {\textbf{Stopping}\\\scriptsize listed, holds a slot,\\Cancel disabled};
+  \node[tsState, right=of stop, draw=blue!65!black, fill=blue!8] (save)
+    {\textbf{Saving reply}\\\scriptsize listed,\\slot released};
+  \node[tsState, right=of save] (done)
+    {\textbf{Finished}\\\scriptsize no longer listed};
+  \draw[gflow] (run) -- node[above, font=\scriptsize] {stop} (stop);
+  \draw[gflow] (stop) -- node[above, font=\scriptsize] {ends} (save);
+  \draw[gflow] (save) -- node[above, font=\scriptsize] {saved} (done);
+  \draw[gflow] (run.south) -- ++(0,-6mm) -| node[glab, pos=0.25]
+    {model returns} (save.south);
+  \draw[decorate, decoration={brace, amplitude=4pt}]
+    ([yshift=2mm]run.north west) -- ([yshift=2mm]stop.north east)
+    node[midway, above=3pt, font=\scriptsize]
+    {counts toward 2 per account and 6 per installation};
+\end{tikzpicture}
+\caption{The states of a dashboard task. A stop can come from Cancel, the
+five-minute limit, or the kill switch. The slot is released when the run
+stops executing, and the row is removed only when the reply and its ledger
+entry have been saved.}
+\label{fig:gov-taskslot}
+\end{figure}
+
+Figure~\ref{fig:gov-taskslot} shows the states. A task appears in its
+conversation and in the \textit{Active agent sessions} section, where its
+owner, an Administrator, or Root can cancel it. A request to stop moves it
+to \textit{Stopping}. It keeps its slot in that state, because an abort
+signal does not show that the model call or the tool has finished. When
+the run ends, the task moves to \textit{Saving reply} and releases its
+slot. Its row stays until the reply and the ledger entry are saved, so a
+task that leaves the list has finished and has been recorded.
+
+The two parts are released separately for a reason. A slot held while the
+reply was being saved would count work that had already stopped executing,
+and a quick series of prompts from one account would be rejected for
+capacity that was not in use. The limits count only work that is
+executing.
+
+\subsubsection{Secondary Runtime Governance}
+\label{sec:gov-secondary-runtime}
+
+OpenClaw can run an agent in two arrangements, introduced in
+Figure~\ref{fig:gov-twopaths}. In the in-process arrangement, every tool
+call passes through \texttt{runBeforeToolCallHook} inside the Gateway. In
+the native-harness arrangement, used by the Codex app-server backend, a
+separate helper process executes the tools itself. The host then reaches
+the gate through a relay hook that it writes into the helper's
+configuration when the session starts. Before each tool call the helper
+runs the relay command, which calls back into the host, and the host runs
+the same hook and returns its result.
+
+The layer makes this relay a requirement. \texttt{governanceRequiresNativeToolRelay}
+in \texttt{src/governance/native-relay-requirement.ts} makes the host
+install the relay for every tool on a governed installation. If the relay
+cannot reach the host, the helper receives a block response. A governed
+installation has no configuration in which the helper runs a tool without
+consulting the gate.
+
+The native harness has one weakness the gate cannot remove. A recursive
+search runs inside the helper and returns its results directly to the
+model, so a result naming a denied file is recorded in the ledger and still
+reaches the model. On the in-process runtime the layer removes such
+results. Because of this gap, two permissions control whether an agent may
+use the native harness, as Figure~\ref{fig:gov-codexgates} shows.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=6mm and 8mm]
+  \node[gbox, text width=22mm] (session) {Agent session on the Codex
+    backend};
+  \node[gbox, right=of session, text width=30mm, draw=violet!65!black,
+    fill=violet!9] (backend) {Backend enabled for the installation?\\
+    \scriptsize set by Root};
+  \node[gbox, right=of backend, text width=30mm, draw=blue!65!black,
+    fill=blue!8] (agent) {Agent permitted?\\\scriptsize set by its owner
+    or Root};
+  \node[gbox, right=of agent, text width=24mm, draw=green!55!black,
+    fill=green!10] (relay) {Tool calls relayed to the gate};
+  \node[gbox, below=8mm of backend, text width=30mm] (noBackend)
+    {\scriptsize Backend unavailable; agents run in-process};
+  \node[gbox, below=8mm of agent, text width=40mm, draw=red!60!black,
+    fill=red!8] (noAgent) {\scriptsize Each tool call blocked and recorded
+    as \texttt{agent-not-permitted-on-codex}};
+  \draw[gflow] (session) -- (backend);
+  \draw[gflow] (backend) -- node[glab, above=1mm] {yes} (agent);
+  \draw[gflow] (agent) -- node[glab, above=1mm] {yes} (relay);
+  \draw[gflow] (backend) -- node[glab, right] {no} (noBackend);
+  \draw[gflow] (agent) -- node[glab, right] {no} (noAgent);
+\end{tikzpicture}
+\caption{The two permissions for the native Codex harness. Both are off
+until someone turns them on, and an agent needs both. The in-process
+runtime needs neither.}
+\label{fig:gov-codexgates}
+\end{figure}
+
+Root enables or disables the Codex backend for the whole installation,
+because the switch changes OpenClaw's own configuration and affects model
+access for every agent. The Administrator who owns an agent, or Root,
+decides whether that agent may use the backend, which is stored as
+\texttt{codexAllowed} in its registry record. When a tool call arrives
+through the native relay from an agent without that permission, the policy
+engine blocks it and records \texttt{agent-not-permitted-on-codex}. The
+block also applies in the \texttt{monitor} posture, because it concerns
+where the agent may run at all. The check comes after the lockdown check,
+so a locked agent's calls are recorded as a lockdown.
+
+\FloatBarrier
+\subsection{Tenancy and Agent Registry}
+\label{sec:gov-tenant}
+
+An organization is the top-level governance boundary. It groups the
+installation's accounts, registered agents, policy, and audit records under
+one Root account. Every account and agent record carries the
+organization's identifier, \texttt{groupId}, and the organization's own
+files are stored in a folder named after it, as
+Figure~\ref{fig:gov-tenant} shows.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=6mm and 9mm]
+  \node[gstore, align=left, font=\scriptsize] (home)
+    {\textbf{Governance directory} (installation-wide)\\[3pt]
+     \begin{tabular}{@{}ll@{}}
+     \texttt{users.json} & accounts, each with \texttt{groupId}\\
+     \texttt{agents.json} & agents, each with \texttt{groupId}\\
+     \texttt{sessions.json} & dashboard sessions\\
+     \texttt{ledger.key} & installation key\\
+     \texttt{ledger-checkpoint.json} & ledger checkpoints
+     \end{tabular}};
+  \node[gstore, right=of home, align=left, font=\scriptsize] (org)
+    {\textbf{\texttt{groups/}\textit{groupId}\texttt{/}} (one organization)\\[3pt]
+     \begin{tabular}{@{}ll@{}}
+     \texttt{policy.json} & rules, postures, lockdowns\\
+     \texttt{audit-ledger.jsonl} & the audit ledger\\
+     \texttt{rule-requests.json} & rule requests\\
+     \texttt{pending-decisions.json} & unanswered escalations\\
+     \texttt{conversations.json} & conversations and attachments
+     \end{tabular}};
+  \draw[gflow] (home.east) -- (org.west);
+\end{tikzpicture}
+\caption{Where governance state is stored. Records in the installation-wide
+files carry the organization's identifier, which selects the folder holding
+that organization's policy, ledger, and requests.}
+\label{fig:gov-tenant}
+\end{figure}
+
+One installation holds one organization, as decided in
+Section~\ref{sec:gov-tenancy-model}. Creating a second Root on a claimed
+installation is rejected, and a second organization needs a second
+installation. The organization identifier still does work within that one
+organization. Each route that acts on an agent checks that the agent is
+registered to the caller's organization, and the same check rejects an
+identifier that was never registered or has been deleted. When an
+organization is deleted, its audit ledger is kept in its own folder, apart
+from the organization created after it. Separation between two
+organizations that exist at the same time is outside the supported
+deployment.
+
+The agent registry, \texttt{agents.json}, gives the layer its own record
+of each agent. A record holds the host's agent identifier, a display name,
+the organization, the owning Administrator, the creation time, and the
+Codex permission. Registration is required for an agent to act. The policy
+engine blocks every tool call from an agent with no registry record,
+because the engine cannot tell which organization's policy applies to it.
+The same requirement keeps the ownership rules complete, since an agent
+nobody registered can neither act nor be assigned to an account.
+
+The registry also separates agents' workspaces. OpenClaw places each later
+agent's workspace inside the default agent's workspace folder.
+\texttt{nestedAgentWorkspaceRoots} in
+\texttt{src/governance/agent-workspace-roots.ts} lists those nested
+workspaces, and the policy engine treats a path inside one as outside the
+current agent's workspace. The comparison uses fully resolved paths, so a
+link or another spelling of the path leads to the same result. A read
+there is escalated or denied, and in-process searches remove results from
+it. This keeps a User from reading, through the default agent, the files
+of an agent assigned to someone else.
+
+\subsection{Agent Lifecycle}
+\label{sec:gov-lifecycle}
+
+An agent passes through registration, changes of ownership, and finally
+removal or deletion. Table~\ref{tab:gov-agent-lifecycle} lists each
+operation, who may perform it, and what it changes. Every operation is
+recorded in the ledger, and none of them alters the ledger's existing
+entries.
+
+\begin{table}[htbp]
+\centering
+\caption{Agent lifecycle operations.}
+\label{tab:gov-agent-lifecycle}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}p{0.18\textwidth}>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Operation} & \textbf{Who} & \textbf{Effect} \\
+\midrule
+Create an agent & Administrator or Root & Adds the agent to OpenClaw's
+configuration and registers it, with an owner \\
+Register an existing agent & Administrator or Root & Registers an agent
+that OpenClaw already has \\
+Rename & Owner or Root & Changes the display name. The identifier is
+fixed because rules and ledger entries use it \\
+Change owner & Owner or Root & Moves the agent to another Administrator or Root.
+Users and Viewers of the previous owner lose the agent \\
+Remove from governance & Owner or Root & Deletes the registry record and
+all assignments. The agent stays in OpenClaw and can no longer act \\
+Delete from OpenClaw's agent list & Owner or Root & Also deletes the
+agent's configuration entry and clears its governance policy. Its files,
+jobs, and sessions stay on the host \\
+Delete as OpenClaw does & Owner or Root & Runs OpenClaw's own deletion,
+which moves the agent's files to the trash, and clears its governance
+policy and conversations \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+An agent is created or registered by an Administrator or Root. The
+dashboard offers registration for the agents that OpenClaw has.
+Identifiers that appear only in policy rules are listed as named in the
+policy, with no control to register them. If the identifier already carries rules or
+settings in the policy, the registration result lists them, so the
+operator sees what the new agent inherits.
+
+Ownership determines who administers an agent. The dashboard offers the
+change of owner to Root, which can list every Administrator, and the
+confirmation states before the change that the previous owner's Users and
+Viewers will lose the agent. An Administrator that
+still owns agents cannot be demoted or deleted until each of its agents has
+a new owner, so an agent is never left with an owner who cannot manage it.
+
+Removing an agent from governance deletes only the governance record. The
+agent stays in OpenClaw, and because registration is required, its tool
+calls are blocked from then on. Its rules stay in the policy and apply
+again if it is registered later.
+
+Deleting an agent offers two choices, and neither is preselected. Deleting
+it from OpenClaw's agent list removes its configuration entry, and the
+host keeps its scheduled jobs, approvals, session records, and files. A new
+agent created under the same name inherits them, and its creation result
+lists what it inherited. Deleting it as OpenClaw does runs OpenClaw's own
+\texttt{agents.delete}, which removes those items and moves the agent's
+files to the trash folder in the Gateway account's home directory. The
+layer also removes the agent's dashboard conversations and unsent
+attachments in that case, keeping any attachment that a ledger entry names.
+The layer runs OpenClaw's operation through a registered function and does
+not reimplement it, so the host's own safety checks apply. If OpenClaw's
+deletion returns an error, for example because the agent is the default
+agent or is busy, the error is returned before the layer changes anything, and the
+agent stays registered and governed.
+
+Deleting the organization asks the same two-way question once, for every
+agent. The organization's audit ledger is kept.
+
+\subsection{Management Interface}
+\label{sec:gov-dashboard}
+
+Operators manage the layer through two surfaces. The first is the set of
+governance HTTP routes served by the Gateway. The second is the governance
+dashboard in the Control UI, which calls only those routes. Every action has a single server-side
+permission check, in its route. The dashboard is built to show a section or
+a control only to an account that the matching route accepts, so that a
+visible control is one that can succeed. Table~\ref{tab:gov-dashboard-sections}
+groups the sections by purpose.
+
+\begin{table}[htbp]
+\centering
+\caption{Dashboard sections, grouped by purpose.}
+\label{tab:gov-dashboard-sections}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.17\textwidth}>{\raggedright\arraybackslash}p{0.33\textwidth}>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Purpose} & \textbf{Sections} & \textbf{What an operator does
+there} \\
+\midrule
+Working with agents & \textit{Your agents}; the organization's agent
+registry & Prompt an agent and read its conversation. Administrators and
+Root create, register, edit, and delete agents \\
+Oversight & \textit{Waiting for your answer}; \textit{Awaiting your
+decision}; \textit{Active agent sessions}; \textit{Emergency kill switch} &
+Answer escalations, cancel tasks, and lock down agents \\
+Policy & \textit{Policy}; \textit{Agent permissions}; \textit{Rule
+requests} & Read and write rules, grant folders, set postures and
+escalation, and propose or decide rule requests \\
+Audit & \textit{Audit ledger} & Filter entries and verify the chain \\
+Accounts & \textit{Identity}; \textit{Accounts} (Root); \textit{Your
+accounts} (Administrator) & Sign in, and manage accounts and their
+assigned agents \\
+Installation & \textit{Deployment and network posture}; the organization
+settings (Root) & Check the deployment and delete the organization \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The policy views title every rule by its description and show its
+regular expression underneath. Adding a rule requires a description of up
+to 500 characters, and a folder grant requires a purpose. When a new rule
+is broader than it looks, for example a pattern that matches every command
+or one that lets the agent run an interpreter with code of its own
+choosing, a warning is shown when the rule is added and when an
+Administrator previews a rule request that would create it. The warning
+does not block the rule.
+
+The deployment report is Root's checklist of the installation's security
+state. Its first row states the posture in force. ``Governance is
+enforcing'' fails when governance is off, warns when the installation or
+any agent is in \texttt{monitor} and names them, and passes only when every
+agent enforces. Further rows report whether the ledger file is protected
+from rewriting in place and whether any ledger integrity alert is still
+unacknowledged. Administrators and Root also see each such alert at the
+top of the dashboard until Root acknowledges it with a written reason.
+
+On an oversight surface the displayed text is part of the control,
+because an operator acts on what the page shows. A rejected action shows
+its reason and the next step to take. A section that could not be
+refreshed is marked as possibly out of date. The \textit{Audit ledger}
+section loads the latest 200 entries and shows 50 at first, and
+verification always reads the whole chain. The browser stores no
+governance data. The Control UI's service worker caches only build files,
+and every governance response is sent with \texttt{Cache-Control:
+no-store}.
+
+\subsection{System Security}
+\label{sec:gov-security}
+
+This subsection collects the security boundaries of the design and the
+limits that apply within them. Table~\ref{tab:gov-security-limits}
+summarizes them, and the two that need more explanation follow the table.
+
+\begin{table}[htbp]
+\centering
+\caption{Security boundaries and their limits.}
+\label{tab:gov-security-limits}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.16\textwidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Area} & \textbf{Protection} & \textbf{Limit} \\
+\midrule
+Reaching the dashboard & The Gateway listens on the local machine and is
+reached through an SSH tunnel. A claimed installation rejects a second
+Root & An unclaimed installation is claimed by whoever creates Root first,
+so Root is created immediately after deployment \\
+File paths & The tool opens the exact path the gate evaluated
+(Figure~\ref{fig:gov-toctou}) & A target replaced after the check, or a
+link created at a path that did not yet exist, is not detected \\
+Search results & In-process searches remove results the policy denies &
+On the native Codex harness such results are recorded and still reach the
+model (Section~\ref{sec:gov-secondary-runtime}) \\
+Prompt injection & Every action a persuaded agent attempts is checked and
+recorded & The layer limits what an agent does. It does not stop the
+agent from being persuaded \\
+Interpreter rules & A warning when a rule allows running arbitrary code &
+Such a rule can be used to edit the policy file, as explained below \\
+Audit ledger & Keyed hash chain, checkpoint, integrity alerts, and the
+dashboard witness (Section~\ref{sec:gov-ledger-verification}) & The key,
+checkpoint, and ledger are on one host. A holder of the key can forge
+entries and alerts. In-place append-only protection exists only on Windows
+for a Gateway without administrator rights \\
+Chat approvals & \textit{Always allow} only files a rule request & Anyone
+with the Gateway credential or channel access can answer a chat run's
+approval \\
+Kill switch & Available during every other dashboard operation & While an
+agent is being created, the Gateway does not respond for about six seconds
+\\
+Tool coverage & Every host tool is either governed or listed with a reason
+(Table~\ref{tab:gov-ungoverned}) & Ungoverned tools run without a policy
+check \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The first explained limit concerns the time between a check and the use
+of a file. The gate resolves the path that the agent named, following any
+symbolic links, evaluates the resolved file, and passes that resolved path
+to the tool in place of the original string. Repointing a link after the
+check has no effect, because the tool does not resolve the link
+again. Figure~\ref{fig:gov-toctou} shows this case and the case that is
+still open. If the resolved file itself is replaced by a link after the
+check, the tool opens the new link. The same applies when the path did not
+exist at the time of the check and a link is created there before the tool
+writes.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=4mm and 5mm]
+  \tikzset{
+    tStep/.style={gbox, text width=33mm, minimum height=14mm, font=\scriptsize},
+    tRow/.style={font=\small\bfseries, align=right, text width=22mm}
+  }
+  % Row 1: the closed case.
+  \node[tRow] (r1) {Link\\repointed\\\normalfont\scriptsize(closed)};
+  \node[tStep, right=of r1] (a1) {Gate resolves \texttt{notes} to
+    \texttt{report.txt} and allows it};
+  \node[tStep, right=of a1] (a2) {Link \texttt{notes} repointed to a
+    secret file};
+  \node[tStep, right=of a2, draw=green!55!black, fill=green!10] (a3) {Tool
+    opens \texttt{report.txt}, the path the gate evaluated};
+  % Row 2: the open case.
+  \node[tRow, below=8mm of r1] (r2) {Target\\replaced\\\normalfont\scriptsize(open)};
+  \node[tStep, right=of r2] (b1) {Gate resolves \texttt{notes} to
+    \texttt{report.txt} and allows it};
+  \node[tStep, right=of b1] (b2) {\texttt{report.txt} replaced by a link
+    to a secret file};
+  \node[tStep, right=of b2, draw=red!60!black, fill=red!8] (b3) {Tool opens
+    \texttt{report.txt} and follows the new link};
+  \foreach \x/\y in {a1/a2, a2/a3, b1/b2, b2/b3} { \draw[gflow] (\x) -- (\y); }
+  \draw[gflow, black!45] ([yshift=-6mm]b1.south west) --
+    node[below, font=\scriptsize] {time} ([yshift=-6mm]b3.south east);
+\end{tikzpicture}
+\caption{The time between checking a path and opening it. Passing the
+evaluated path to the tool closes the first case. The second case is still
+open.}
+\label{fig:gov-toctou}
+\end{figure}
+
+The second explained limit concerns rules that allow an interpreter. The
+command denials that protect the governance directory match the text of a
+command, so they cannot recognize a path that the command assembles while
+it runs. An allowance such as \texttt{\textasciicircum python3 .*\$} lets the agent pass
+its own code to an interpreter, and that code can build the location of
+\texttt{policy.json} from fragments that match no denial. Tools run under
+the same operating-system account as the Gateway, so the code can then set
+its own agent to \texttt{monitor} or the installation to \texttt{off}. The
+ledger records the interpreter command and no posture change, because the
+edit does not pass through the governance functions that record
+administrative actions. \texttt{describeRuleRisks} in
+\texttt{src/governance/rule-validation.ts} returns the
+\texttt{runs-arbitrary-code} warning for such a rule. The warning does not
+block the rule, because some agents need to run code for their work.
+Closing the exposure fully would require running tools under a separate
+operating-system account that cannot reach the governance directory. That
+arrangement has not been evaluated with the layer and is left as future
+work in Chapter~5.
+
+\FloatBarrier
+\section{Summary}
+\label{sec:gov-designsummary}
+
+This chapter described the design of the governance layer, from the
+requirements in Section~\ref{sec:gov-requirements} through the
+alternatives considered to the components that were built. Every tool call
+passes one gate, which applies the organization's rules in a fixed order
+and denies by default. Every decision and administrative action is written
+to a keyed, hash-chained ledger. Four account tiers determine who may change
+the policy and who may act on each agent, and operators intervene through
+cancellation, lockdown, approvals, and the dashboard.
+Table~\ref{tab:gov-requirement-map} maps each requirement to the part of
+the design that addresses it.
+
+\begin{table}[htbp]
+\centering
+\caption{Where the design addresses each requirement.}
+\label{tab:gov-requirement-map}
+\small
+\begin{tabularx}{\textwidth}{@{}p{0.06\textwidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{0.3\textwidth}@{}}
+\toprule
+\textbf{No.} & \textbf{Requirement, in brief} & \textbf{Addressed in} \\
+\midrule
+1 & Node.js and TypeScript with static type checking &
+Section~\ref{sec:gov-arch} \\
+2 & Secure dashboard with role-based access control &
+Sections~\ref{sec:gov-rbac} and~\ref{sec:gov-dashboard} \\
+3 & Default-deny, policy-based restriction of agent access &
+Section~\ref{sec:gov-gate} \\
+4 & Fine-grained and time-limited privileges & Section~\ref{sec:gov-gate}
+\\
+5 & Recording of every action, decision, and approval &
+Sections~\ref{sec:gov-ledger} and~\ref{sec:gov-approvals} \\
+6 & Tamper-evident audit logging &
+Section~\ref{sec:gov-ledger-verification} \\
+7 & Suspending or terminating an agent within one second &
+Section~\ref{sec:gov-killswitch} \\
+8 & No plaintext secrets in log files &
+Section~\ref{sec:gov-ledger-sanitization} \\
+9 & Deployment on Linux with open-source components &
+Section~\ref{sec:gov-constraints} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The design states its limits alongside its protections, as
+Section~\ref{sec:gov-security} sets out. Chapter~4 tests the completed
+design against each requirement and reports the measurements, including
+the kill-switch timings and the ledger's tamper detection.

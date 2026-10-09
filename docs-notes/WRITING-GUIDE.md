@@ -214,6 +214,23 @@ of`, `rather than`, and paired positive-negative claims can make every
 > inflated background, or line-by-line narration of ordinary code. A section
 > does not need a code figure merely to satisfy this standard.
 
+> **Section formula, and the length it sets (Kinan, 2026-10-04; supersedes the depth
+> standard above wherever the two conflict):** the full report should be about 100 pages,
+> and Chapter 3 had reached page 99 with 60% written, so every section is now written
+> shorter, to a fixed formula. A `\section` has one opening paragraph and no mechanism
+> detail (a summary may use one mapping table). A `\subsection` (one component, 0.5 to 1.5
+> pages) gives its role in plain language and the requirement it serves, then the
+> mechanism in one to three paragraphs naming the main function or file once, then the
+> one consequential design decision and its reason, then a limit or a Chapter 1
+> divergence only when it changes what may be claimed, with at most one figure or table;
+> if it has subsubsections it keeps only the role and a short overview. A
+> `\subsubsection` (one mechanism, 0.5 to 1 page) opens with what the mechanism does,
+> explains how in one or two paragraphs and why in one, with an optional table or figure.
+> Measured numbers go to Chapter 4; QA history and finding numbers do not appear;
+> identifiers appear when a reader needs them to find the code. Every other rule in this
+> guide still applies. The first sections written this way are 3.5.6 to 3.6, in
+> `docs-notes/report/ch3-3.5.6-to-3.6.tex`, whose header repeats the formula.
+
 > **Baseline Policy section note (Section 3.5.2.4):** List every baseline rule
 > supplied by the current installation. For each rule, retain the exact regular
 > expression from `src/governance/baseline-policy.ts`, retain its stored

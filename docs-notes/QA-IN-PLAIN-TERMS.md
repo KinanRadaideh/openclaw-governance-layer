@@ -8659,3 +8659,62 @@ warning (the testing tool refused to weaken a protection, even on test data); me
 system writes for itself (its "dreaming") are recorded like every other message an agent
 receives, which is the design; and the files sent with a message are listed in the audit
 record but not yet next to the message in the conversation.
+
+## 5.127 A missing record, found while checking the report (finding 417)
+
+On 8 October the report was read side by side with the code. One small gap turned up in the
+code itself. An Administrator can keep one agent under governance even when governance has been
+switched off for the whole installation. For such an agent, one kind of refusal was not being
+written down: the refusals made by the underlying system's own "you keep repeating yourself"
+check, which acts before governance does. Everything else that agent did was recorded. The
+record now asks the same question the gate asks ("is governance on for this agent?") instead of
+"is governance on for the installation?", so those refusals are recorded too. A test that failed
+before the change shows it.
+
+## 5.128 Whose files are they? (Kinan's decisions of 8 October)
+
+OpenClaw keeps each new agent's folder inside the main agent's folder, like keeping each new
+employee's filing cabinet inside the manager's office. Governance already stopped the main agent
+from opening those inner cabinets without asking. Two gaps were left, and Kinan chose how to
+close them.
+
+**Who may say yes.** When the main agent asked to open another agent's cabinet, the question went
+to the people who look after the main agent, and the first answer counted, so a User could let
+the main agent read another team's files. Now only the Administrator who owns the other agent, or
+Root, can say yes. Everyone else still sees the question, is told who decides, and can say no.
+The "yes" buttons they cannot use are greyed out, and hovering over them says why.
+
+**What happens when an agent is deleted.** Deleting an agent used to leave its cabinet behind in
+the manager's office, where the main agent could then read it freely. Now the deletion asks:
+move the folder to the trash (it can still be recovered on the server), or leave it where it is.
+Each choice is explained in the dialog, and the audit record says which was chosen.
+
+## 5.129 The record of who asked, and the agent's dreams (finding 418 and T75, 8 October)
+
+Think of the audit record as a security camera at the agent's desk that also keeps a copy of every
+written instruction the agent is handed. It is sealed: nothing in it can be changed or removed
+later without the seal showing it.
+
+**Most instructions were never copied.** The copier stood at only one of the doors instructions
+come through: the command line and a few technical connections. Messages typed into OpenClaw's own
+chat, messages from Discord, Telegram and the other channels, scheduled jobs and the agent's
+regular check-ins all came through other doors. The camera still filmed everything the agent then
+did, but the record could not say what it had been asked to do, although the report said it could.
+Now there is a copier at every door, each instruction is copied once, and a test fails if a new
+door appears without one.
+
+**Some instructions are written by OpenClaw itself.** At night OpenClaw "dreams": it reads back
+through the agent's recent conversations and notes, picks out what seemed important, and asks the
+agent to write a diary entry from those fragments. The fragments can include the contents of a file
+the agent read, so copying the dream message into the sealed record copied the file's secrets in
+with it, for good. Now, for a message OpenClaw writes for itself (dreams, check-ins, the clean-up
+before a long conversation is shortened, plugin jobs), the record keeps a description instead of
+the words: who sent it, what it was for, how big it was, and a fingerprint, a short code that proves
+which message it was without containing it. Messages a person wrote are still copied in full.
+
+**A better eraser for secrets.** Before anything is sealed, an eraser removes things that look
+like passwords and keys. It only knew secrets by their shape, so "the password is hunter2" got
+through. A second eraser now also catches a secret introduced in words ("the password is …",
+"token-like value …"), a name that calls itself a secret and has a number in it, and long
+random-looking strings. It does not catch a secret that looks like an ordinary word and has no
+label.
