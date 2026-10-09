@@ -90,21 +90,23 @@ registry).
 
 ### Root: manages people
 
-| Capability                                                             | Enforced by                                 |
-| ---------------------------------------------------------------------- | ------------------------------------------- |
-| Create accounts, set initial role, answerable Administrator and agents | `users`, floor Root                         |
-| Change any account's role                                              | `users/role`, floor Root, `guardRoleChange` |
-| Reset any account's password (every session it holds is signed out)    | `users/password`, floor Root                |
-| Delete accounts (revoking live sessions immediately)                   | `users/delete`, floor Root, `guardDeletion` |
-| Withhold or restore a User's ability to write policy (T27)             | `users/policy-authoring`, floor Root        |
-| Set the per-**account** escalation override                            | `policy/user-ask`, floor Root               |
-| Switch a shipped core rule off, or back on (T24)                       | `policy/core-rules`, floor Root             |
-| Offer or withdraw the Codex backend installation-wide                  | `backend/codex`, `canManageBackends`        |
-| Read the deployment and network posture report                         | `deployment`, `canReadDeploymentReport`     |
-| Register or provision an agent **owned by another Administrator**      | `agents/register`, `agents/provision`       |
-| Administer any agent, whoever owns it                                  | ownership check (`mayAdministerAgent`)      |
-| Delete the whole organisation, Root's own account included             | `organisation/delete`, floor Root           |
-| Everything an Administrator can do                                     | inheritance                                 |
+| Capability                                                                                                                                                          | Enforced by                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Create accounts, set initial role, answerable Administrator and agents                                                                                              | `users`, floor Root                         |
+| Change any account's role                                                                                                                                           | `users/role`, floor Root, `guardRoleChange` |
+| Reset any account's password (every session it holds is signed out, and its login failures cleared, finding 414)                                                    | `users/password`, floor Root                |
+| Delete accounts (revoking live sessions inside the deletion; 503 `sessions_unavailable` when that cannot be done, T76); refused while the account owns agents (381) | `users/delete`, floor Root, `guardDeletion` |
+| Finish a deletion that left work undone (T76)                                                                                                                       | `users/delete/finish`, floor Root           |
+| Acknowledge an integrity alert, with a reason (T73)                                                                                                                 | `integrity/acknowledge`, floor Root         |
+| Withhold or restore a User's ability to write policy (T27)                                                                                                          | `users/policy-authoring`, floor Root        |
+| Set the per-**account** escalation override                                                                                                                         | `policy/user-ask`, floor Root               |
+| Switch a shipped core rule off, or back on (T24)                                                                                                                    | `policy/core-rules`, floor Root             |
+| Offer or withdraw the Codex backend installation-wide                                                                                                               | `backend/codex`, `canManageBackends`        |
+| Read the deployment and network posture report                                                                                                                      | `deployment`, `canReadDeploymentReport`     |
+| Register or provision an agent **owned by another Administrator**                                                                                                   | `agents/register`, `agents/provision`       |
+| Administer any agent, whoever owns it                                                                                                                               | ownership check (`mayAdministerAgent`)      |
+| Delete the whole organisation, Root's own account included                                                                                                          | `organisation/delete`, floor Root           |
+| Everything an Administrator can do                                                                                                                                  | inheritance                                 |
 
 Constrained by lockout guards (`account-guards.ts`): cannot delete the account
 it is signed in with, and cannot demote or delete the Root account **on its
@@ -241,12 +243,21 @@ outright, left every account they managed pointing at somebody who is no longer
 an Administrator, or at no account at all, silently, with nothing refusing it
 and nothing repairing it.
 
-| Attempt                                              | Result                                                     |
-| ---------------------------------------------------- | ---------------------------------------------------------- |
-| Demote an Administrator who manages nobody           | permitted                                                  |
-| Delete an Administrator who manages nobody           | permitted                                                  |
-| Demote or delete one who still has people under them | **refused**, and the refusal names the accounts to re-home |
-| Delete the whole organisation                        | permitted. Manager and managed go in one write             |
+| Attempt                                              | Result                                                                              |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Demote an Administrator who manages nobody           | permitted                                                                           |
+| Delete an Administrator who manages nobody           | permitted                                                                           |
+| Demote or delete one who still has people under them | **refused**, and the refusal names the accounts to re-home                          |
+| Demote or delete one who still **owns agents**       | **refused**, naming the agents: re-own them with _Change owner_ first (finding 381) |
+| Move a User or Viewer to another Administrator       | **refused** while it holds agents the new Administrator does not own (382)          |
+| Delete the whole organisation                        | permitted. Manager and managed go in one write                                      |
+
+**The remedy is on each User and Viewer row** (finding 383): the _Administrator this
+account answers to_ picker moves the account, and the ledger records "account X now
+answers to Y". A tier change across User/Viewer and Administrator/Root **releases the
+assignment list**, recorded as "(assigned agents released: …)", because above User it is
+inert and below it it would name the previous Administrator's agents (382). The rule
+lives in `src/governance/account-ownership.ts`.
 
 **Refused rather than re-homed automatically**, because there is no successor to
 pick without inventing one. The agent registry reaches the opposite answer for
@@ -367,26 +378,27 @@ somewhere they would think to look.
 
 ### Administrator: manages all agents
 
-| Capability                                                                               | Enforced by                                           |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Change posture (enforce / monitor / off), installation-wide                              | `policy/mode`, `canManageGlobalPolicy`                |
-| Change ask mode (ask-on-miss vs. strict deny), installation-wide                         | `policy/ask`, `canManageGlobalPolicy`                 |
-| Set the approval timeout, installation-wide                                              | `policy/hitl-timeout`, floor Administrator            |
-| Switch **one agent** to `monitor` or back to `enforce` (T4)                              | `policy/agent-mode`, floor Administrator              |
-| Switch **one agent** off entirely                                                        | **nobody, at any tier**. See below                    |
-| Set **one agent's** escalation override (T4)                                             | `policy/agent-ask`, floor Administrator               |
-| Create and remove **global** rules and folder grants (bind every agent)                  | `canManageGlobalPolicy`                               |
-| Create and remove rules and folder grants for **any** agent                              | `canAuthorPolicyForAgent` (unlimited scope)           |
-| Lock / release **any** agent in the organisation                                         | `kill`, `canManageAgent`                              |
-| Prompt any agent, attach files, read that account's conversation                         | `agent/prompt`, `agent/attachment`, `canManageAgent`  |
-| See and cancel **any** running prompt in the organisation                                | `agent/runs`, `agent/cancel`, `canManageGlobalPolicy` |
-| Answer an escalation from a dashboard prompt, for any agent (T68)                        | `approvals/decide`, `canManageAgent`                  |
-| Answer a held decision in _Awaiting your decision_, for any agent                        | `pending-decisions/decide`, `canManageAgent`          |
-| Assign agents to User and Viewer accounts                                                | `users/agents`, `canAssignAgents`                     |
-| Approve or reject rule requests and agent-setting requests                               | `rule-requests/decide`, floor Administrator           |
-| Register or provision an agent **owned by themselves**                                   | `agents/register`, `agents/provision`                 |
-| Rename, re-own, unregister, delete from the host, or set Codex for an agent they **own** | ownership check                                       |
-| Read the full unmasked audit ledger for every agent, every prompt's text                 | `requiresSanitizedAudit` false                        |
+| Capability                                                                                                                                                                                                                | Enforced by                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Change posture (enforce / monitor / off), installation-wide                                                                                                                                                               | `policy/mode`, `canManageGlobalPolicy`                        |
+| Change ask mode (ask-on-miss vs. strict deny), installation-wide                                                                                                                                                          | `policy/ask`, `canManageGlobalPolicy`                         |
+| Set the approval timeout, installation-wide                                                                                                                                                                               | `policy/hitl-timeout`, floor Administrator                    |
+| Switch **one agent** to `monitor` or back to `enforce` (T4)                                                                                                                                                               | `policy/agent-mode`, floor Administrator                      |
+| Switch **one agent** off entirely                                                                                                                                                                                         | **nobody, at any tier**. See below                            |
+| Set **one agent's** escalation override (T4)                                                                                                                                                                              | `policy/agent-ask`, floor Administrator                       |
+| Create and remove **global** rules and folder grants (bind every agent)                                                                                                                                                   | `canManageGlobalPolicy`                                       |
+| Create and remove rules and folder grants for **any** agent                                                                                                                                                               | `canAuthorPolicyForAgent` (unlimited scope)                   |
+| Lock / release **any** agent in the organisation                                                                                                                                                                          | `kill`, `canManageAgent`                                      |
+| Prompt any agent, attach files, read that account's conversation                                                                                                                                                          | `agent/prompt`, `agent/attachment`, `canManageAgent`          |
+| See and cancel **any** running prompt in the organisation                                                                                                                                                                 | `agent/runs`, `agent/cancel`, `canManageGlobalPolicy`         |
+| Answer an escalation from a dashboard prompt, for any agent (T68); an **allow** into another agent's folder only for agents they own (decision (ii))                                                                      | `approvals/decide`, `canManageAgent`, `mayAllowForeignFolder` |
+| Answer a held decision in _Awaiting your decision_, for any agent; the same folder rule                                                                                                                                   | `pending-decisions/decide`, `canManageAgent`                  |
+| Assign agents to the Users and Viewers that answer to them, from _Your accounts_ (397)                                                                                                                                    | `users/agents`, `canAssignAgents`                             |
+| Approve or reject rule requests and agent-setting requests                                                                                                                                                                | `rule-requests/decide`, floor Administrator                   |
+| Register or provision an agent **owned by themselves**                                                                                                                                                                    | `agents/register`, `agents/provision`                         |
+| Rename, re-own, unregister, delete from the host, or set Codex for an agent they **own**; deleting one whose folder sits inside another agent's workspace asks whether the folder goes to the trash or stays (decision C) | ownership check                                               |
+| Read the full unmasked audit ledger for every agent, every prompt's text                                                                                                                                                  | `requiresSanitizedAudit` false                                |
+| Read the integrity alerts Root has not acknowledged (T73)                                                                                                                                                                 | `integrity/alerts`, floor Administrator                       |
 
 > **Answering an escalation (T68, 2026-09-13).** An escalation raised from a
 > dashboard prompt is answered on the governance page by the accounts that manage
@@ -399,6 +411,15 @@ somewhere they would think to look.
 > from chat runs are still outside this table**: they are answered in the Control
 > UI, which connects to the Gateway as an operator rather than as a governance
 > account, so any browser holding the Gateway credential can answer them.
+
+> **Ownership also decides who may allow a read into an agent's folder** (Kinan's
+> decision (ii), 2026-10-08). OpenClaw nests every later agent's workspace inside the
+> default agent's. A read from the default agent into a nested agent's folder becomes a
+> question; everyone who manages the reading agent sees it, but only the Administrator
+> who **owns the folder's agent**, or Root, may allow it. A User holding the reading
+> agent, and an Administrator who does not own the folder's agent, may only deny. The
+> page shows the allow buttons disabled with the reason. Before this, the User the
+> default agent was assigned to could hand it another team's files.
 
 **From the paper** (§1.6): "configure customized privilege policies (including
 command matrices and network allowlisting) for specific agents", "real-time
@@ -432,21 +453,22 @@ for one agent_, which is indistinguishable from an attack.
 
 ### User: manages the agent(s) assigned to them
 
-| Capability                                                                               | Enforced by                                          |
-| ---------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| **Prompt an assigned agent, attach files, and read that conversation back**              | `agent/prompt`, `agent/transcript`, `canManageAgent` |
-| Cancel their **own** running prompts                                                     | `agent/cancel`, ownership of the run                 |
-| Create rules and folder grants **scoped to an assigned agent**, allowing _or forbidding_ | `canAuthorPolicyForAgent` (T27)                      |
-| Remove rules belonging to an assigned agent                                              | `canAuthorPolicyForAgent` (T27)                      |
-| Lock / release an assigned agent                                                         | `kill`, `canManageAgent`                             |
-| Answer an escalation from a dashboard prompt, for an assigned agent (T68)                | `approvals/decide`, `canManageAgent`                 |
-| Answer a held decision for an assigned agent                                             | `pending-decisions/decide`, `canManageAgent`         |
-| Set the approval timeout for an assigned agent                                           | `policy/agent-hitl-timeout`, `canManageAgent`        |
-| Read unmasked audit detail for assigned agents                                           | `requiresSanitizedAudit` false                       |
-| Request a global rule, a rule for another agent, or an agent setting                     | `rule-requests`, floor User                          |
-| **Cannot** switch an assigned agent's posture or escalation. May _request_ it            | floor Administrator (T4)                             |
-| **Cannot** touch installation-wide posture, ask mode, or global rules                    | `canManageGlobalPolicy` false                        |
-| **Cannot** see or touch an agent they were not assigned                                  | `canViewAgent` false                                 |
+| Capability                                                                                                                                           | Enforced by                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **Prompt an assigned agent, attach files, and read that conversation back**                                                                          | `agent/prompt`, `agent/transcript`, `canManageAgent` |
+| Cancel their **own** running prompts                                                                                                                 | `agent/cancel`, ownership of the run                 |
+| Create rules and folder grants **scoped to an assigned agent**, allowing _or forbidding_                                                             | `canAuthorPolicyForAgent` (T27)                      |
+| Remove rules belonging to an assigned agent                                                                                                          | `canAuthorPolicyForAgent` (T27)                      |
+| Lock / release an assigned agent                                                                                                                     | `kill`, `canManageAgent`                             |
+| Answer an escalation from a dashboard prompt, for an assigned agent (T68); a read into another agent's folder may only be **denied** (decision (ii)) | `approvals/decide`, `canManageAgent`                 |
+| Answer a held decision for an assigned agent; the same folder rule                                                                                   | `pending-decisions/decide`, `canManageAgent`         |
+| Set the approval timeout for an assigned agent                                                                                                       | `policy/agent-hitl-timeout`, `canManageAgent`        |
+| Read unmasked audit detail for assigned agents                                                                                                       | `requiresSanitizedAudit` false                       |
+| Request a global rule, a rule for another agent, or an agent setting                                                                                 | `rule-requests`, floor User                          |
+| **Cannot** switch an assigned agent's posture or escalation. May _request_ it                                                                        | floor Administrator (T4)                             |
+| **Cannot** touch installation-wide posture, ask mode, or global rules                                                                                | `canManageGlobalPolicy` false                        |
+| **Cannot** see or touch an agent they were not assigned                                                                                              | `canViewAgent` false                                 |
+| See their own Administrator's name (`whoami` returns `answersTo`)                                                                                    | `whoami`                                             |
 
 **From the paper** (§1.6): "Granted targeted access to interact with specific,
 pre-configured agents… may strictly prompt the agents for task execution or be
@@ -849,38 +871,43 @@ the evaluation chapter.
 ✔ = allowed · **scoped** = only for assigned agents · **owned** = only for agents
 this Administrator owns (M4) · ✘ = refused
 
-| Capability                                                        |                   Viewer                   |             User              | Administrator | Root |
-| ----------------------------------------------------------------- | :----------------------------------------: | :---------------------------: | :-----------: | :--: |
-| View policy rules and one agent's effective permissions           |                   scoped                   |            scoped             |       ✔       |  ✔   |
-| View audit ledger                                                 | scoped, **masked** (resource _and_ intent) | scoped, peers' prompts masked |       ✔       |  ✔   |
-| Verify chain integrity                                            |                     ✔                      |               ✔               |       ✔       |  ✔   |
-| View system resource states                                       |                     ✔                      |               ✔               |       ✔       |  ✔   |
-| Watch active agent sessions                                       |                   scoped                   |            scoped             |       ✔       |  ✔   |
-| View the agent registry                                           |                   scoped                   |            scoped             |       ✔       |  ✔   |
-| View the rule-request queue                                       |                   scoped                   |            scoped             |       ✔       |  ✔   |
-| Submit a rule request or an agent-setting request                 |                     ✘                      |               ✔               |       ✔       |  ✔   |
-| Prompt an agent, attach files, read the conversation              |                     ✘                      |            scoped             |       ✔       |  ✔   |
-| Cancel a running prompt                                           |                     ✘                      |           own only            |       ✔       |  ✔   |
-| Lock / release an agent (kill switch)                             |                     ✘                      |            scoped             |       ✔       |  ✔   |
-| Answer an escalation from a dashboard prompt (T68)                |                     ✘                      |            scoped             |       ✔       |  ✔   |
-| Answer a held decision (_Awaiting your decision_)                 |                     ✘                      |            scoped             |       ✔       |  ✔   |
-| Set the approval timeout for **one agent**                        |                     ✘                      |            scoped             |       ✔       |  ✔   |
-| Create/remove agent-scoped rules and folder grants                |                     ✘                      |    scoped, unless withheld    |       ✔       |  ✔   |
-| Create/remove **global** rules and folder grants                  |                     ✘                      |               ✘               |       ✔       |  ✔   |
-| Change posture, ask mode or approval timeout, installation-wide   |                     ✘                      |               ✘               |       ✔       |  ✔   |
-| Set one agent's posture (never `off`) or escalation override      |                     ✘                      |               ✘               |       ✔       |  ✔   |
-| Approve/reject rule requests and agent-setting requests           |                     ✘                      |               ✘               |       ✔       |  ✔   |
-| Assign agents to accounts                                         |                     ✘                      |               ✘               |       ✔       |  ✔   |
-| Register or **provision** an agent owned by yourself              |                     ✘                      |               ✘               |       ✔       |  ✔   |
-| Rename, re-own, unregister, set Codex for, or **delete** an agent |                     ✘                      |               ✘               |   **owned**   |  ✔   |
-| Register or provision an agent for another Administrator          |                     ✘                      |               ✘               |       ✘       |  ✔   |
-| Set the per-account escalation override                           |                     ✘                      |               ✘               |       ✘       |  ✔   |
-| Withhold or restore a User's policy authoring                     |                     ✘                      |               ✘               |       ✘       |  ✔   |
-| Create/delete accounts, change roles, reset passwords             |                     ✘                      |               ✘               |       ✘       |  ✔   |
-| Switch a shipped core rule off or on                              |                     ✘                      |               ✘               |       ✘       |  ✔   |
-| Offer or withdraw the Codex backend installation-wide             |                     ✘                      |               ✘               |       ✘       |  ✔   |
-| View deployment and network posture                               |                     ✘                      |               ✘               |       ✘       |  ✔   |
-| Delete the organisation                                           |                     ✘                      |               ✘               |       ✘       |  ✔   |
+| Capability                                                         |                   Viewer                   |             User              |  Administrator  | Root |
+| ------------------------------------------------------------------ | :----------------------------------------: | :---------------------------: | :-------------: | :--: |
+| View policy rules and one agent's effective permissions            |                   scoped                   |            scoped             |        ✔        |  ✔   |
+| View audit ledger                                                  | scoped, **masked** (resource _and_ intent) | scoped, peers' prompts masked |        ✔        |  ✔   |
+| Verify chain integrity                                             |                     ✔                      |               ✔               |        ✔        |  ✔   |
+| View system resource states                                        |                     ✔                      |               ✔               |        ✔        |  ✔   |
+| Watch active agent sessions                                        |                   scoped                   |            scoped             |        ✔        |  ✔   |
+| View the agent registry                                            |                   scoped                   |            scoped             |        ✔        |  ✔   |
+| View the rule-request queue                                        |                   scoped                   |            scoped             |        ✔        |  ✔   |
+| Submit a rule request or an agent-setting request                  |                     ✘                      |               ✔               |        ✔        |  ✔   |
+| Prompt an agent, attach files, read the conversation               |                     ✘                      |            scoped             |        ✔        |  ✔   |
+| Cancel a running prompt                                            |                     ✘                      |           own only            |        ✔        |  ✔   |
+| Lock / release an agent (kill switch)                              |                     ✘                      |            scoped             |        ✔        |  ✔   |
+| Answer an escalation from a dashboard prompt (T68)                 |                     ✘                      |            scoped             |        ✔        |  ✔   |
+| Answer a held decision (_Awaiting your decision_)                  |                     ✘                      |            scoped             |        ✔        |  ✔   |
+| **Allow** a read into another agent's folder (decision (ii))       |                     ✘                      |         ✘ (may deny)          |    **owned**    |  ✔   |
+| Set the approval timeout for **one agent**                         |                     ✘                      |            scoped             |        ✔        |  ✔   |
+| Create/remove agent-scoped rules and folder grants                 |                     ✘                      |    scoped, unless withheld    |        ✔        |  ✔   |
+| Create/remove **global** rules and folder grants                   |                     ✘                      |               ✘               |        ✔        |  ✔   |
+| Change posture, ask mode or approval timeout, installation-wide    |                     ✘                      |               ✘               |        ✔        |  ✔   |
+| Set one agent's posture (never `off`) or escalation override       |                     ✘                      |               ✘               |        ✔        |  ✔   |
+| Approve/reject rule requests and agent-setting requests            |                     ✘                      |               ✘               |        ✔        |  ✔   |
+| Assign agents to accounts                                          |                     ✘                      |               ✘               | own staff (397) |  ✔   |
+| Register or **provision** an agent owned by yourself               |                     ✘                      |               ✘               |        ✔        |  ✔   |
+| Rename, re-own, unregister, set Codex for, or **delete** an agent  |                     ✘                      |               ✘               |    **owned**    |  ✔   |
+| Register or provision an agent for another Administrator           |                     ✘                      |               ✘               |        ✘        |  ✔   |
+| Set the per-account escalation override                            |                     ✘                      |               ✘               |        ✘        |  ✔   |
+| Withhold or restore a User's policy authoring                      |                     ✘                      |               ✘               |        ✘        |  ✔   |
+| Create/delete accounts, change roles, reset passwords              |                     ✘                      |               ✘               |        ✘        |  ✔   |
+| Switch a shipped core rule off or on                               |                     ✘                      |               ✘               |        ✘        |  ✔   |
+| Offer or withdraw the Codex backend installation-wide              |                     ✘                      |               ✘               |        ✘        |  ✔   |
+| View deployment and network posture                                |                     ✘                      |               ✘               |        ✘        |  ✔   |
+| Hand back a ledger receipt (the dashboard does it at sign-in, T73) |                     ✔                      |               ✔               |        ✔        |  ✔   |
+| Read unacknowledged integrity alerts (T73)                         |                     ✘                      |               ✘               |        ✔        |  ✔   |
+| Acknowledge an integrity alert (T73)                               |                     ✘                      |               ✘               |        ✘        |  ✔   |
+| Finish an account deletion that left work undone (T76)             |                     ✘                      |               ✘               |        ✘        |  ✔   |
+| Delete the organisation                                            |                     ✘                      |               ✘               |        ✘        |  ✔   |
 
 > **The ownership rows are the first place a tier is not enough.** Every other
 > row in this table is answered by tier plus assignment. Ownership (M4) is a
@@ -888,7 +915,24 @@ this Administrator owns (M4) · ✘ = refused
 > may rename an agent the other may not. Root is exempt, because Root manages the
 > people who own agents; without that, an agent whose owner leaves the
 > organisation could never be re-homed. Assignment follows ownership too: a User
-> or Viewer may only be given agents their own Administrator owns.
+> or Viewer may only be given agents their own Administrator owns, and only by that
+> Administrator (finding 397): an Administrator assigns from _Your accounts_, to the
+> Users and Viewers that answer to it, and `users/agents` refuses an account another
+> Administrator manages.
+
+> **What a policy read or write answers each tier with** (finding 412). Every route
+> that answers with the policy, reads and the seven writes alike, goes through one
+> projection, `policyViewFor`: a User or Viewer receives the global rules (they bind
+> its agents too) plus its assigned agents' rules and per-agent settings, never
+> another agent's, and `userAsk` (Root's per-account setting) is withheld below Root.
+> Before 412 a User setting its own agent's timeout received every agent's rules.
+
+> **Two gates, two credentials** (finding 396). The dashboard's requests pass the
+> governance session and, where a route reaches the Gateway, the Gateway's own gate,
+> which takes the device token from the dashboard's live connection. While that
+> connection is re-established the page says "The dashboard is reconnecting to the
+> Gateway…" instead of signing anyone out, and a Gateway restart no longer ends
+> operators' sessions.
 
 > **Provisioning and deletion are the only capabilities in this document that
 > change OpenClaw itself** (M6, 2026-08-27). Everything else decides what an agent

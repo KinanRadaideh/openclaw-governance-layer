@@ -442,17 +442,36 @@ the server. Then register an agent (`docs-notes/FIRST-RUN.md`).
 Installing is not the same as governing, and the difference is silent. Open the
 dashboard through the tunnel (§5), signed in as Root, and read three sections:
 
-| Section                            | Answers                                                                                                                                                                                                                                                                         |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Deployment and network posture** | Root only. Linux target, the 8 GB floor, disk space, a loopback listener, the tunnel requirement, Gateway authentication, the governance directory and file permissions, the ledger key and checkpoint, that the gate has not been switched off, and that every core rule is on |
-| **Policy**                         | The core denials and the baseline allowances in force                                                                                                                                                                                                                           |
-| **Audit ledger**                   | Entries appearing as things happen                                                                                                                                                                                                                                              |
+| Section                            | Answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deployment and network posture** | Root only. Linux target, the 8 GB floor, disk space, a loopback listener, the tunnel requirement, Gateway authentication, the governance directory and file permissions, the ledger key and checkpoint, that the gate has not been switched off, that every core rule is on, **"Governance is enforcing"** (fails on Off, warns on Monitor, finding 390), and three ledger rows (T73): **"Ledger cannot be rewritten in place"**, **"No unacknowledged ledger integrity alerts"** and **"Ledger rotates"** |
+| **Policy**                         | The core denials and the baseline allowances in force                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Audit ledger**                   | Entries appearing as things happen                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 Until 2026-09-07 all three could be read from a plain SSH session with a terminal
 command, before any tunnel existed. That surface was removed
 (`old-docs/removed-cli-surface/README.md`), and **that is a real cost of the
 removal**: set the tunnel up first, because there is no longer a way to answer
 the first two questions without it.
+
+### Making the ledger harder to shorten on Linux (T73)
+
+"Ledger cannot be rewritten in place" **warns on Linux by design**: an unprivileged
+process cannot make its own file append-only there, so the Gateway's user (and every
+agent command it runs) can still truncate the active ledger. Truncation is still
+**detected**: the ledger compares itself with its checkpoint on every append and seals
+a gap line, and each dashboard hands back a receipt of the last entry it saw, so a cut
+raises an alert Root must acknowledge. To make truncation fail instead of only being
+detected, two options, each with a cost:
+
+- **Run the Gateway as a dedicated user** that agents' commands do not share (the row's
+  own recommendation).
+- **`sudo chattr +a` the active ledger file.** The kernel then refuses everything but
+  appends, but the ledger can no longer rotate: "Ledger rotates" warns once it passes its
+  size limit, nothing is lost, and root must lift the attribute briefly for rotation.
+
+On Windows the Gateway applies an append-only ACL itself; run it **non-elevated**,
+because an elevated process overrides the ACL.
 
 ### The one check that still needs no tunnel, no build and no sign-in
 

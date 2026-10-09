@@ -250,11 +250,11 @@ openclaw models status
 **Installing and governing are different, and the difference is silent.** Open
 the dashboard through the tunnel and read three panels:
 
-| Panel                 | Answers                                                                           |
-| --------------------- | --------------------------------------------------------------------------------- |
-| **Deployment report** | Does the live install match the design? Listener, permissions, memory, ledger key |
-| **Policy**            | The core denials and the baseline allowances actually in force                    |
-| **Audit ledger**      | Entries appearing as things happen                                                |
+| Panel                 | Answers                                                                                                                                                                                                                                                                                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deployment report** | Does the live install match the design? Listener, permissions, memory, ledger key, **"Governance is enforcing"** (fails on Off, warns on Monitor, finding 390), and the ledger rows (T73): rewritable in place, unacknowledged integrity alerts, rotation. On Windows run the Gateway non-elevated, or its append-only protection is overridden |
+| **Policy**            | The core denials and the baseline allowances actually in force                                                                                                                                                                                                                                                                                  |
+| **Audit ledger**      | Entries appearing as things happen                                                                                                                                                                                                                                                                                                              |
 
 **The deployment report is Root's, on the dashboard**, which means you see it
 through the tunnel. _(Until 2026-09-07 there was a `governance deployment` command

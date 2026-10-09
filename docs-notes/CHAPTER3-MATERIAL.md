@@ -11430,3 +11430,109 @@ gateway client, so it may label but never withhold.
 
 **Accepted:** a random-looking identifier (a voice id, a spreadsheet id in a link) is masked, since
 shape cannot tell it from a key.
+
+### 3.5.104 OpenClaw's own logs held what the ledger masked (finding 421)
+
+**Requirement 8 is about every log file, not only the governance one.** Asked whether the
+server's owner can read secrets, the check went to the requirement's wording ("written in
+plaintext to log files") and then to the files: OpenClaw's rolling log of 2026-10-08 held, twice,
+an agent's reply quoting a file it had read ("The password is hunter2. token-like value
+QA-DELTA-SECRET-4410"), while the governance ledger of the same run held neither. The ledger had
+the second scrubbing pass; the log had only the pattern redactor, which cannot see a secret
+written as a sentence. Trajectory capture, which is on by default, held the same values in 24
+database rows on that fixture.
+
+**Decisions (by precedent, as Kinan asked).**
+
+- **D21. Apply the pass where text is written as a log, not inside the shared redactors.**
+  `redactSensitiveText` and `redactSecrets` also clean stored transcripts and the tool results a
+  model is given; masking prose there would hide from an agent a password it was asked to use,
+  and change what a conversation says. A log is a record of what happened, so it gets both passes:
+  the file log and the diagnostic log records exported over OpenTelemetry (`logger.ts`), console
+  output, which is a service's log under systemd, launchd or the Windows task (`console.ts`,
+  `subsystem.ts`, `json-console-line.ts`), the log tail and `openclaw logs` (journal included),
+  the payload log, the cache trace, trajectory capture and its export, the raw stream log,
+  which had no redaction at all, OpenTelemetry's opt-in content capture, and the host's two audit
+  stores (configuration writes, `config/io.audit.ts`, and approved local-state changes,
+  `system-agent/audit.ts`, with their legacy-file migration). One module says where:
+  `src/logging/redact-log.ts`.
+- **D22. The pass moves into OpenClaw's logging module** (`src/logging/redact-free-form.ts`); the
+  ledger imports it from there. The lower layer owns the mechanism, the governance layer uses it.
+  Its tests split the same way: the scrubber's own in `src/logging/`, the ledger's boundary tests
+  in `src/governance/audit-ledger-free-form.test.ts`.
+- **D23. Console output is scrubbed too, including a reply the command line prints.** Precedent:
+  upstream already passes console output through the pattern redactor, so a provider key in a
+  printed reply was masked before; a password in a sentence now is as well.
+- **D24. Text written before the fix is not rewritten.** Rolling logs are pruned after 24 hours;
+  the journal keeps what the system's retention says; old trajectory rows stay with their session.
+  Every reader the product offers scrubs on the way out (the log tail, `openclaw logs`, the
+  trajectory export; `sessions tail` shows no content at all), so what remains is readable only by
+  opening the files or the database directly, the same class as the conversation store.
+- **D25. Not changed:** the file-transfer audit log (an extension; it records operation metadata,
+  and adding to the plugin SDK changes its checked surface), the support bundle (it already keeps
+  only allow-listed fields and drops message, prompt and text), the diagnostics timeline (timings
+  and names).
+
+**Measure on the text it will meet (the rule from §3.5.103).** Over this machine's real logs and
+the trajectory rows of eleven QA databases (365 lines, 1,040 rows), the first run found one false
+positive: a health line's `eventLoopDelayP99Ms=42.8`, where `=` glued a camelCase name to its
+number into one 22-character "random" run. Base64 only ever ends with `=`, so the pass now judges
+the pieces between `=` signs as well; afterwards every masked span is a real test secret. Cost:
+about 15 µs for a typical record and 130 µs for a 2,000-character reply, against about 1.7 ms the
+pattern redactor already spends per record.
+
+**What it does not change.** The server's owner can still read secrets: the conversation store,
+model credentials, the configuration and the ledger key are plaintext to whoever controls the
+machine, by necessity (the Gateway must use them). Requirement 8 is about log files, and those
+are now covered; the rest is a Chapter 5 limit, beside T74.
+
+### 3.5.105 A shortened ledger is recorded, not erased; deletion signs out at its point of no return (2026-10-04; T73, T76, T78; findings 403–405)
+
+Written on 2026-10-10 (T81) from `mg/WORK-LOG-2026-10-04.md`, where the decisions D1–D22 and the
+measurements are; the report wording is in `docs-notes/report/DOCUMENTATION-UPDATES.md` §3.4,
+§3.8 and §11.
+
+**T73: the evidence of a cut must survive the next append.** Before T73 a ledger shortened below
+its checkpoint was detected only until the next ordinary append, which extended the shortened
+chain and wrote a new checkpoint over the evidence. Kinan chose four ideas from a brainstorm,
+each covering what the others cannot:
+
+- **The gap line (idea 12).** Inside the append lock, before anything is written, the chain head
+  is compared with the checkpoint. Ahead, replaced, vanished or missing, the ledger first seals a
+  `governance.ledger.gap` entry (actor `ledger-integrity`) saying what it expected and what it
+  found, numbering on from the checkpoint so no number is reused; then the requested entry. The
+  normal crash state (checkpoint one behind) stays silent. Verification accepts a numbering jump
+  only on a sealed gap line and reports it as an alert.
+- **Append-only where the operating system allows it (idea 2).** On Windows each new ledger file
+  gets an OWNER RIGHTS ACL that allows append but not rewrite, measured to refuse a non-elevated
+  process's truncate and overwrite and its attempt to grant itself the right back; an elevated
+  process overrides it (backup semantics), and deleting the file and writing a shortened copy
+  stays possible. On Linux an unprivileged process cannot do it; `chattr +a` (root) can, at the
+  cost of rotation. The deployment report measures the property instead of reading configuration.
+- **Every dashboard as a witness (idea 4).** A browser keeps a receipt (sequence, fingerprint and
+  an HMAC under the ledger key with its own label) and hands it back at sign-in; a receipt for an
+  entry the ledger no longer holds as it was seals a `witness-contradiction` alert naming whose
+  dashboard held it. A forged or foreign receipt is dropped as unverifiable.
+- **An alert a person sees (idea 14).** Alerts and their acknowledgements are entries in the chain,
+  both sealed, so a line appended without the key can neither raise nor clear one. Administrators
+  and Root see a banner; only Root acknowledges, with a reason; the deployment report fails while
+  any is open.
+
+**What it does not do**, stated as the limit: someone holding the key and the files can still
+rewrite history and its checkpoint consistently; that is T74's off-host witness. Findings 403
+(the standalone verifier ignored rotated archives), 404 (a failed rotation reported a recorded
+action as unrecorded) and 405 (a test asserted the truncation defect as behaviour) were found on
+the way and fixed. 31 of 31 mutations killed after three test gaps were closed.
+
+**T76: deletion revokes sessions at its point of no return (option B).** `deleteAccount` revokes
+the account's sessions inside the users-file lock, after every refusal and before the record is
+removed; if revocation fails nothing is deleted (503 `sessions_unavailable`). What follows the
+point of no return (a second session sweep, purging what the name held, the ledger entry) is
+reported when it fails, never thrown, and Root finishes it with `users/delete/finish`
+(**Finish deleting** on the page), recorded as `governance.account.delete-finish`. The sign-in
+route re-checks the account after issuing a session, closing the window between authenticating
+and writing the session.
+
+**T78: a malformed session cookie is "not signed in".** A cookie value that cannot be
+percent-decoded is treated as absent, so the page receives the typed
+`governance_login_required` 401 and offers sign-in instead of a server error.

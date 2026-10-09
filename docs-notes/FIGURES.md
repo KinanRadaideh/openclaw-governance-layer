@@ -381,7 +381,7 @@ the text block, and nothing else overflowed.
 
 ## F1: Governance layer within the OpenClaw Gateway
 
-**Source:** §3.5.1 · **Final placement:** Figure 3.2
+**Source:** §3.5.1 · **Final placement:** `fig:gov-architecture`, 3.5.1 System Architecture
 
 **Recommendation: KEEP.** This is the one figure the chapter cannot do without.
 It is the only place a reader sees the whole system at once, and it establishes
@@ -603,7 +603,7 @@ audit writer and the same installation-wide and organization-scoped state.}
 
 ## F2: RBAC hierarchy with inherited permissions
 
-**Source:** §3.5.4 · **Final placement:** Figure 3.12
+**Source:** §3.5.4 · **Final placement:** `fig:gov-rbac`, 3.5.4 Access Control Model
 
 **Recommendation: CUT the figure, keep the table.** The hierarchy is four boxes
 in a straight line, and the permission matrix immediately below it in your
@@ -712,7 +712,7 @@ flowchart BT
 
 ## F3: Policy decision sequence
 
-**Source:** §3.5.2.2 · **Final placement:** Figure 3.6
+**Source:** §3.5.2.2 · **Final placement:** `fig:gov-decision`, 3.5.2.2 Evaluation Order
 
 **Recommendation: KEEP.** This is the central mechanism of the whole project and
 it is a sequence, which is precisely what prose handles worst. A reader following
@@ -920,9 +920,9 @@ not write a permanent rule directly.}
 
 ## F4: Two-gate authentication
 
-**Source:** §3.5.6 · **Final placement:** merged into Figure 3.2
+**Source:** §3.5.6 · **Final placement:** merged into `fig:gov-architecture`
 
-**Recommendation: MERGE into F1.** Figure 3.2 already draws both gates in
+**Recommendation: MERGE into F1.** `fig:gov-architecture` already draws both gates in
 sequence. What this candidate adds is the detail of the login exchange, which is
 a linear list of steps and reads perfectly well as a sentence. Drawing it twice
 invites the reader to hunt for a difference between the two pictures.
@@ -1004,7 +1004,7 @@ exists only until the installation is claimed.}
 
 ## F5: Path normalisation pipeline
 
-**Source:** §3.5.2.3 · **Final placement:** Figure 3.8
+**Source:** §3.5.2.3 · **Final placement:** `fig:gov-pathnorm`, 3.5.2.3 Path Canonicalization
 
 **Recommendation: KEEP.** A short linear pipeline with a concrete example
 travelling through it, ending in a rule that no longer matches. It supports one
@@ -1090,7 +1090,7 @@ both its short and its absolute form.}
 
 ## F6: The governed prompt path
 
-**Source:** §3.5.5 · **Final placement:** Figure 3.13
+**Source:** §3.5.5 · **Final placement:** `fig:gov-promptpath`, 3.5.5 Prompt Execution Path
 
 **Recommendation: KEEP, simplified.** This carries a real design argument, that
 prompting reuses the host's ordinary ingress rather than opening a second way in
@@ -1272,7 +1272,7 @@ and everything else the verdict reads is passed in, so a test can replace it.}
 
 ## F8: Two paths through the host to the gate
 
-**Source:** §3.5.8.2 · **Final placement:** Figure 3.1, placed in 3.4.2 Host Interception (3.5.8.2 cites it)
+**Source:** §3.5.8.2 · **Final placement:** `fig:gov-twopaths`, placed in 3.4.2 Host Interception (3.5.8.2 cites it)
 
 **Recommendation: KEEP, and it has become more important twice over.** When this
 was marked it illustrated finding B1. As of 2026-08-30 it also explains the T7
@@ -1544,7 +1544,7 @@ the emergency kill switch (finding 364); closing the browser tab does not end it
 
 ## F11: The check-then-open window
 
-**Source:** §3.5.12 (T23) · **Final placement:** Figure 3.18
+**Source:** §3.5.12 (T23) · **Final placement:** `fig:gov-toctou`, 3.5.12 System Security
 
 **Recommendation: KEEP, and it is the best candidate on the list after F1 and
 F3.** A time-of-check-to-time-of-use race is genuinely hard to explain in prose,
@@ -2217,7 +2217,7 @@ here to draw that F19 does not draw.
 
 ## F19: The tenant model
 
-**Source:** §3.5.9 · **Final placement:** Figure 3.17
+**Source:** §3.5.9 · **Final placement:** `fig:gov-tenant`, 3.5.9 Tenancy and Agent Registry
 
 > **Still KEEP after T49 (2026-09-15), with its framing changed.** The figure draws one
 > organisation's chain of records, not two organisations, so it stays true under option
@@ -2360,43 +2360,50 @@ flowchart LR
 
 # Summary table
 
-| #   | Figure                         | Recommendation                             | Prints as, and the section it goes in                            |
-| --- | ------------------------------ | ------------------------------------------ | ---------------------------------------------------------------- |
-| F1  | Governance layer in Gateway    | **Keep** (absorb F4)                       | **Fig 3.2**, 3.5.1 System Architecture                           |
-| F2  | RBAC hierarchy                 | **Keep**, small, beside the table          | **Fig 3.12**, 3.5.4 Access Control Model                         |
-| F3  | Policy decision sequence       | **Keep**                                   | **Fig 3.6**, 3.5.2.2 Evaluation Order                            |
-| F4  | Two-gate authentication        | Merge into F1                              | -                                                                |
-| F5  | Path normalisation             | **Keep**                                   | **Fig 3.8**, 3.5.2.3 Path Canonicalization                       |
-| F6  | Governed prompt path           | **Keep** (absorb F10)                      | **Fig 3.13**, 3.5.5 Prompt Execution Path                        |
-| F7  | Deployment-status seam         | Cut                                        | -                                                                |
-| F8  | Two paths to the gate          | **Keep** (absorb F13, both funnels)        | **Fig 3.1**, placed in 3.4.2 Host Interception; 3.5.8.2 cites it |
-| F9  | Four modules, one definition   | Cut                                        | -                                                                |
-| F10 | Prompt lifecycle               | Merge into F6                              | -                                                                |
-| F11 | Check-then-open window         | **Keep**                                   | **Fig 3.18**, 3.5.12 System Security                             |
-| F12 | Two groups on one installation | Cut (T49, 2026-09-15)                      | -                                                                |
-| F13 | Two entry points, one gate     | Merge into F8                              | -                                                                |
-| F14 | Tool coverage before/after     | **Keep** (absorb F15)                      | Fig 4.1                                                          |
-| F15 | Tool catalogue highlighted     | Merge into F14                             | -                                                                |
-| F16 | Rule row before/after          | Cut, use screenshots                       | Fig 4.x (photo)                                                  |
-| F17 | Defects by age of code         | Cut; draw findings over time, compile last | Fig 4.2 (replacement)                                            |
-| F18 | M-series cross-reference       | Cut, not a figure                          | -                                                                |
-| F19 | The tenant model               | **Keep**                                   | **Fig 3.17**, 3.5.9 Tenancy and Agent Registry                   |
-| F20 | Same secret, several spellings | Cut, keep the table                        | -                                                                |
-| F21 | Two-layer Codex permission     | **Keep**                                   | **Fig 3.16**, 3.5.8.2 Secondary Runtime Governance               |
-| F22 | Grant a folder, except…        | **Keep**                                   | **Fig 3.9**, 3.5.2.5 Folder Grants                               |
-| F23 | "Always allow" after the card  | **Keep**                                   | **Fig 3.14**, 3.5.7.2 Persistent Approvals                       |
-| F24 | A task's row and its slot      | **Keep**, small                            | **Fig 3.15**, 3.5.8.1 Task and Slot Model                        |
-| F25 | Appending to the HMAC chain    | **Keep**                                   | **Fig 3.10**, 3.5.3.1 Entry Structure                            |
-| F26 | Ledger verification            | **Keep**                                   | **Fig 3.11**, 3.5.3.2 Hash Chaining and Verification             |
+| #   | Figure                         | Recommendation                             | Label in the report, and the section it goes in                                    |
+| --- | ------------------------------ | ------------------------------------------ | ---------------------------------------------------------------------------------- |
+| F1  | Governance layer in Gateway    | **Keep** (absorb F4)                       | `fig:gov-architecture`, 3.5.1 System Architecture                                  |
+| F2  | RBAC hierarchy                 | **Keep**, small, beside the table          | `fig:gov-rbac`, 3.5.4 Access Control Model                                         |
+| F3  | Policy decision sequence       | **Keep**                                   | `fig:gov-decision`, 3.5.2.2 Evaluation Order                                       |
+| F4  | Two-gate authentication        | Merge into F1                              | -                                                                                  |
+| F5  | Path normalisation             | **Keep**                                   | `fig:gov-pathnorm`, 3.5.2.3 Path Canonicalization                                  |
+| F6  | Governed prompt path           | **Keep** (absorb F10)                      | `fig:gov-promptpath`, 3.5.5 Prompt Execution Path                                  |
+| F7  | Deployment-status seam         | Cut                                        | -                                                                                  |
+| F8  | Two paths to the gate          | **Keep** (absorb F13, both funnels)        | `fig:gov-twopaths`, in 3.4.2 Host Interception; 3.5.8.2 cites it                   |
+| F9  | Four modules, one definition   | Cut                                        | -                                                                                  |
+| F10 | Prompt lifecycle               | Merge into F6                              | -                                                                                  |
+| F11 | Check-then-open window         | **Keep**                                   | `fig:gov-toctou`, 3.5.12 System Security                                           |
+| F12 | Two groups on one installation | Cut (T49, 2026-09-15)                      | -                                                                                  |
+| F13 | Two entry points, one gate     | Merge into F8                              | -                                                                                  |
+| F14 | Tool coverage before/after     | **Keep** (absorb F15)                      | Fig 4.1                                                                            |
+| F15 | Tool catalogue highlighted     | Merge into F14                             | -                                                                                  |
+| F16 | Rule row before/after          | Cut, use screenshots                       | Fig 4.x (photo)                                                                    |
+| F17 | Defects by age of code         | Cut; draw findings over time, compile last | Fig 4.2 (replacement)                                                              |
+| F18 | M-series cross-reference       | Cut, not a figure                          | -                                                                                  |
+| F19 | The tenant model               | **Keep**                                   | `fig:gov-tenant`, 3.5.9 Tenancy and Agent Registry                                 |
+| F20 | Same secret, several spellings | Cut, keep the table                        | -                                                                                  |
+| F21 | Two-layer Codex permission     | **Keep**                                   | `fig:gov-codexgates`, 3.5.8.2 Secondary Runtime Governance                         |
+| F22 | Grant a folder, except…        | **Keep**                                   | `fig:gov-foldergrant`, 3.5.2.5 Folder Grants                                       |
+| F23 | "Always allow" after the card  | **Keep**                                   | `fig:gov-alwaysallow`, 3.5.7.2 Persistent Approvals                                |
+| F24 | A task's row and its slot      | **Keep**, small                            | `fig:gov-taskslot`, 3.5.8.1 Task and Slot Model                                    |
+| F25 | Appending to the HMAC chain    | **Keep**                                   | `fig:gov-ledger-append`, 3.5.3.1 Entry Structure (change owed, T73)                |
+| F26 | Ledger verification            | **Keep**                                   | `fig:gov-ledger-verify`, 3.5.3.2 Hash Chaining and Verification (change owed, T73) |
 
-**Sixteen design figures: fourteen in Chapter 3 and two in Chapter 4.** The
-report also contains four source-code figures from `docs-notes/CODE-SNIPPETS.md`
-(C1 in 3.5.1, C2 and C3 in 3.5.2.1, C4 in 3.5.2.2), giving Chapter 3 eighteen numbered
-figures in its current form (corrected 2026-09-28 from the map in `chapter3.tex`, renumbered
-2026-09-27; the report compiled that day prints the eight placed ones as 3.1 to 3.8). The original design figures compiled clean on 2026-09-20, and F25
-and F26 were added and compiled on 2026-09-23. F17's replacement still carries
-placeholder counts. The numbers in the last column include the code figures' positions, and
-each retained design figure repeats its placement under its heading.
+**Sixteen design figures from this file: fourteen in Chapter 3 and two in Chapter 4.**
+**Cite them by label, not number** (since 2026-10-10): the printed numbers of 2026-09-27
+moved as Kinan added sections and figures in Overleaf, and the last column now gives each
+figure's `\label`, read from his export of 2026-10-08 (`complete_report.txt`). That export
+also holds figures this file does not list, drawn in Overleaf: `fig:gov-killswitch` (3.5.6.2
+Kill Switch), `fig:gov-administrative-logging-system` (3.5.3.3 Administrative Logging),
+`fig:gov-sanitization-write-path` (3.5.3.4 Data Sanitization) and `fig:gov-ledger-projection`
+(3.5.3.4), and **seven** source-code figures, not the four `docs-notes/CODE-SNIPPETS.md` first
+proposed: `fig:gov-code-central-interception`, `fig:gov-code-rule-model`,
+`fig:gov-code-rule-examples`, `fig:gov-code-evaluation-order`,
+`fig:gov-code-folder-rule-creation`, `fig:gov-code-ledger-projection` and
+`fig:gov-code-agent-policy-authoring`. The original design figures compiled clean on
+2026-09-20, and F25 and F26 were added and compiled on 2026-09-23; both now owe the T73
+change written under their headings. F17's replacement still carries placeholder counts. Each
+retained design figure repeats its label under its heading.
 
 **Renumbered 2026-09-21, and the reason is worth keeping.** This column read
 Fig 3.1 to Fig 3.12 in _this file's_ order (F1, F2, F3, F5, ...), and so did the
@@ -2430,7 +2437,7 @@ keep earns its page by explaining something a paragraph explains worse.
 
 ## F21: The two-layer Codex permission
 
-**Source:** §3.5.8.2 · **Final placement:** Figure 3.16
+**Source:** §3.5.8.2 · **Final placement:** `fig:gov-codexgates`, 3.5.8.2 Secondary Runtime Governance
 
 **Recommendation: KEEP.** Added 2026-08-30. Two gates in series is a shape prose
 handles badly and a picture handles in one glance, and the claim it carries,
@@ -2502,7 +2509,7 @@ agent, or by Root.}
 
 ## F22: Grant a folder, except… (added 2026-09-01)
 
-**Source:** §3.5.2.5 · **Final placement:** Figure 3.9
+**Source:** §3.5.2.5 · **Final placement:** `fig:gov-foldergrant`, 3.5.2.5 Folder Grants
 
 **New figure, not a revision.** T32 shipped on 2026-08-31 and this document was
 last touched the same day without gaining a candidate for it, so the newest
@@ -2605,7 +2612,7 @@ independently of order.}
 
 ## F23: "Always allow", an approval that finishes after its card has closed (added 2026-09-11)
 
-**Source:** §3.5.7.2 · **Final placement:** Figure 3.14
+**Source:** §3.5.7.2 · **Final placement:** `fig:gov-alwaysallow`, 3.5.7.2 Persistent Approvals
 
 **Recommendation: KEEP.** The order of events is the thing a reader gets wrong,
 and it is the whole design. The operator presses the button **before** the rule
@@ -2697,7 +2704,7 @@ in local styles.)_
 
 ## F24: A task's row and its slot (added 2026-09-11)
 
-**Source:** §3.5.8.1 · **Final placement:** Figure 3.15
+**Source:** §3.5.8.1 · **Final placement:** `fig:gov-taskslot`, 3.5.8.1 Task and Slot Model
 
 **Recommendation: KEEP, and keep it small.** It draws the invariant a defect came
 from. T63 keeps a task **listed** until its reply is saved, so that "it vanished"
@@ -2764,7 +2771,12 @@ name (finding 364), and had no caption or label.)_
 
 ## F25: Appending an entry to the HMAC chain
 
-**Source:** §3.5.3.1 · **Final placement:** Figure 3.10
+**Source:** §3.5.3.1 · **Final placement:** `fig:gov-ledger-append`, 3.5.3.1 Entry Structure
+
+> **Change owed (T73, 2026-10-04; `DOCUMENTATION-UPDATES.md` §3.8).** Add a step between
+> "Find the current chain head" and "Build the canonical payload": "compare with the
+> checkpoint, and on disagreement append a gap line first". Caption addition: "If the
+> checkpoint disagrees with the chain head, a gap line is appended before the entry."
 
 **Recommendation: KEEP.** The ledger's integrity mechanism is a sequence, and
 the security claim depends on the order of that sequence. This figure shows the
@@ -2875,7 +2887,13 @@ continuous across every segment.}
 
 ## F26: Verifying the ledger and locating tampering
 
-**Source:** §3.5.3.2 · **Final placement:** Figure 3.11
+**Source:** §3.5.3.2 · **Final placement:** `fig:gov-ledger-verify`, 3.5.3.2 Hash Chaining and Verification
+
+> **Change owed (T73 and T79; `DOCUMENTATION-UPDATES.md` §3.8).** The diamond "Sequence
+> consecutive?" becomes "Sequence consecutive, or a sealed gap line?"; the INTACT box's second
+> line becomes "count, head, checkpoint, keyed status, and integrity alerts"; the store
+> "Independent checkpoint" becomes "Local checkpoint" (it shares the host with the ledger and
+> the key); "Sequence gap" in the failure note means an undeclared one.
 
 **Recommendation: KEEP.** F25 explains how the evidence is created; this figure
 explains what verification proves. Keeping the two concerns separate prevents

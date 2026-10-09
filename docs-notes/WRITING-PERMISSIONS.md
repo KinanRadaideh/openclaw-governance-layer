@@ -38,21 +38,32 @@ saying yes.
 
 Every permission answers these questions:
 
-| Question                 | Field     | Example                                   |
-| ------------------------ | --------- | ----------------------------------------- |
-| What **kind** of thing?  | `kind`    | a command, a file path, a network host    |
-| Which **specific** ones? | `pattern` | commands that are exactly `ls`            |
-| **Allow** or **forbid**? | `effect`  | allow (the default), or forbid. See §4b   |
-| For **how long**?        | lifetime  | 30 minutes, or blank for "never expires"  |
-| For **which agent**?     | agent     | one agent, or every agent (Administrator) |
+| Question                 | Field       | Example                                   |
+| ------------------------ | ----------- | ----------------------------------------- |
+| What **kind** of thing?  | `kind`      | a command, a file path, a network host    |
+| Which **specific** ones? | `pattern`   | commands that are exactly `ls`            |
+| **Allow** or **forbid**? | `effect`    | allow (the default), or forbid. See §4b   |
+| For **how long**?        | lifetime    | 30 minutes, or blank for "never expires"  |
+| For **which agent**?     | agent       | one agent, or every agent (Administrator) |
+| **Why** does it exist?   | description | "Lets the build agent list its folder"    |
 
 For path rules there is one more: **which direction**, read, write, or both
 (§4c).
 
-The add-rule form has no description field. Rules written for you carry one:
-a folder grant describes itself ("Grant on src, except src/secrets"), and a rule
-created by approving a request says who asked and why. Everything else is shown
-by its pattern.
+**Every rule needs a description** (since 2026-09-27, T70). Say in a sentence why the
+rule exists; up to 500 characters, trimmed, never cut (a longer one is refused and you
+are told). The description is the rule's title in the Policy section, with the exact
+pattern underneath, and it is written into the ledger with the rule. Rules written for
+you carry one built from yours: a folder grant is "<your purpose> (grant on src, except
+src/secrets)" and each of its exceptions "<your purpose> (exception to the grant on src:
+src/secrets)"; a rule created by approving a request says who asked and why. The shipped
+core and baseline rules have descriptions of their own.
+
+After you add a rule the form **keeps the kind, effect, direction and agent** you chose,
+so a second rule for the same agent is one pattern and one description away (finding
+389). The agent must be a registered one: a rule, posture or request for a name nobody
+owns is refused, because a later agent given that name would otherwise inherit it
+(finding 399).
 
 > **Agent names are not case-sensitive.** They are folded to lower case before
 > they are stored or compared, so `Scout`, `scout` and `SCOUT` are the same agent
@@ -419,7 +430,17 @@ worked out against the rules as they stand. So the person deciding sees that
 `ls` is unanchored, or that it would make somebody's temporary rule permanent,
 before the rule exists rather than after. Approving creates exactly what was
 requested, from the stored request, and the new rule's description says who
-asked and why.
+asked and why. The Administrator may add a **note** to either answer (up to 500
+characters), which the person who asked sees beside the decision: "rejected: write it
+for the scratch folder only" says what a bare rejection did not (2026-10-07).
+
+> **Another agent's folder.** OpenClaw puts every later agent's working folder inside the
+> default agent's. A read from one into the other is never covered by "its own folder",
+> so it is asked about, and only the Administrator who owns the folder's agent, or Root,
+> may allow it; everyone else may deny it (decision (ii), 2026-10-08). **A rule written
+> for the reading agent can still allow such a path**, and it is the one way around the
+> owner's say. Before writing or approving a rule whose pattern reaches into another
+> agent's folder, check with that agent's owner.
 
 If the agent a request names has been **deleted** since the request was made, the row
 says so and only **Reject** is offered. Deleting an agent clears everything its name
@@ -485,8 +506,8 @@ Things worth knowing:
 | **Forgetting anchors**           | `ls`                                                | any command containing "ls", including `rm -rf /; ls`                                       |
 | **Unescaped dots**               | `^api.example.com$`                                 | `apiXexampleYcom` as well as the real host                                                  |
 | **A catch-all**                  | `^.*$`                                              | _everything_ of that kind. This disables governance for that kind. The system will warn you |
-| **Whole URL in a network rule**  | `^https://api[.]example[.]com/v1$`                  | nothing, ever. Only the hostname is compared                                                |
-| **Capitals in a network rule**   | `^API[.]example[.]com$`                             | nothing, ever. Hostnames are folded to lower case first                                     |
+| **Whole URL in a network rule**  | `^https://api[.]example[.]com/v1$`                  | nothing, ever. Only the hostname is compared. Warned when you write it (finding 410)        |
+| **Capitals in a network rule**   | `^API[.]example[.]com$`                             | nothing, ever. Hostnames are folded to lower case first. Warned when you write it (410)     |
 | **Expecting a rule to restrict** | adding a 10-minute rule when a permanent one exists | nothing changes; remove the broader rule instead                                            |
 | **Forbidding one direction**     | forbid, read only, `^billing/.*$`                   | writing to billing is still not forbidden by this rule                                      |
 
@@ -498,13 +519,15 @@ warnings rather than refusals because each of these can be exactly what you
 mean. The wording depends on whether the rule allows or forbids, because a broad
 allow removes a protection and a broad forbid removes a capability.
 
-| The warning is about                    | When                                                                                                                    |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Matching everything                     | An allow rule whose pattern matches every resource of its kind (`.*`, `.+`, `^`, an empty pattern, and their spellings) |
-| Forbidding everything                   | The same, on a forbid rule                                                                                              |
-| Not being anchored                      | The pattern does not start with `^` and end with `$`                                                                    |
-| Being anchored but matching everything  | `^.*$`, `^.+$` and the like: anchors around nothing but wildcards                                                       |
-| A forbid rule narrowed to one direction | §4c                                                                                                                     |
+| The warning is about                    | When                                                                                                                                                                                                                                                 |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Matching everything                     | An allow rule whose pattern matches every resource of its kind (`.*`, `.+`, `^`, an empty pattern, and their spellings)                                                                                                                              |
+| Forbidding everything                   | The same, on a forbid rule                                                                                                                                                                                                                           |
+| Not being anchored                      | The pattern does not start with `^` and end with `$`                                                                                                                                                                                                 |
+| Being anchored but matching everything  | `^.*$`, `^.+$` and the like: anchors around nothing but wildcards                                                                                                                                                                                    |
+| A forbid rule narrowed to one direction | §4c                                                                                                                                                                                                                                                  |
+| A network rule that can never match     | A scheme, `://` or a path in it, or a capital letter: shown first, because nothing else matters for such a rule (410)                                                                                                                                |
+| A command that runs arbitrary code      | An allow that lets Python, Node, a shell, PowerShell and the like run code of the agent's choosing: that is every command, and it can reach the governance layer's own files. Allow one script with fixed arguments instead, with a short time limit |
 
 A path pattern that ends at a folder boundary, `^workspace(/|$)`, counts as
 anchored: it is the shape the folder form writes, and it means "this folder and

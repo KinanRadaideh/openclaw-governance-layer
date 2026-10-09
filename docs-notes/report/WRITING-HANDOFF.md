@@ -1,5 +1,17 @@
 # Handoff: continuing Chapter 3
 
+> **Status as of 2026-10-10 (supersedes the section counts and "next section" below).**
+> **Every Chapter 3 section is written** in Kinan's Overleaf (his full export of 2026-10-08,
+> `C:\Users\kinan\OneDrive\Desktop\Uni\GradProj\complete_report.txt`, has no stubs).
+> **Chapters 1 and 2 are frozen** (Kinan, 2026-10-08): anything they get wrong is said in
+> Chapter 3. The work now is revision, not drafting: apply
+> `docs-notes/report/DOCUMENTATION-UPDATES.md` section by section (backlog T72, T79, T82),
+> keep to the section formula in `docs-notes/WRITING-GUIDE.md`, and cite figures by label
+> (`docs-notes/FIGURES.md`, labels read from the 2026-10-08 export). `chapter3.tex` in this
+> repository is stale (last synced 2026-09-27), so `section-status.mjs`, which reads it,
+> reports an old count ("written 17 | stub 26"); do not quote that count. The project's entry
+> point is `mg/HANDOFF-2026-10-10.md`.
+
 **Current through 2026-09-28** (§1, §6, §7 and §9 brought up to date that day; the rest
 is as written on 2026-09-26). This handoff is for the next writer working on
 Chapter 3. It supersedes the earlier status that Chapter 3 stopped at Sections

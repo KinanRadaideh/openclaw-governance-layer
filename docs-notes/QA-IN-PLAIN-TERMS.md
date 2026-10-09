@@ -8734,3 +8734,42 @@ Two smaller fixes came with it. The fingerprint of a background message is now l
 ledger's own key, so nobody reading the record can guess a short secret and check the guess. And a
 message one agent sends another is now labelled as an agent's message: it had been written down as
 if a person had typed it into OpenClaw's chat.
+
+## 5.131 OpenClaw's own diary kept what the governance record rubbed out (finding 421, 9 October)
+
+Asked whether whoever runs the server can read secrets, we checked the requirement that no log
+file may hold a secret in plain text, and then looked at the files. The governance record was
+clean, but OpenClaw's own running diary, the log it writes for troubleshooting, still held an
+agent's reply that quoted a password from a file it had read. So did a second diary OpenClaw keeps
+by default about each conversation, its trajectory record. The governance record had a second
+eraser for secrets written as sentences; OpenClaw's diaries only had the first, which looks for
+secrets by their shape.
+
+The second eraser now runs on everything OpenClaw writes as a log: the diary, what it prints
+(which becomes a log when it runs as a service), the conversation record, the debugging files, and
+anything shown back from those logs. It is not applied to the conversation itself, because an
+agent asked to use a password must still be able to read it. Run over the real logs on this
+laptop, it rubbed out one thing it should not have, a health measurement written as
+`name=42.8`; that was fixed, and now it rubs out only the test passwords and codes.
+
+Whoever controls the server can still read the conversations and the keys the system uses. That
+is not a log, and no program on a machine can hide from the machine's owner what it needs to use.
+
+## 5.132 A torn-out page is noticed, and a deleted account is signed out at once (T73, T76, T78, 4 October)
+
+Written on 10 October from the record of 4 October. Think of the audit record as a numbered,
+sealed notebook with a bookmark kept beside it. Before this work, someone who could reach the
+notebook on the server could tear the last pages out, and the next ordinary entry would carry on
+from the torn edge and move the bookmark, erasing the only sign. Now, before every entry, the
+notebook checks the bookmark: if pages are missing, it first writes a sealed note saying which
+pages went missing, and numbering carries on from the bookmark, so the gap shows for good. On
+Windows the notebook file is also set so the program can add pages but not rewrite them, and
+every dashboard remembers the last page it saw and checks it at the next sign-in. Any of these
+raises a red alert that only Root can clear, with a written reason. What it cannot stop is
+someone who holds the seal's key rewriting everything consistently; that needs a copy kept off
+the server (T74).
+
+Deleting an account now signs it out at the exact moment the deletion becomes final, and if the
+tidying-up afterwards fails, Root is told what is left and gets a **Finish deleting** button
+instead of a false "done". And a damaged sign-in cookie now simply asks you to sign in again,
+instead of showing an error page.

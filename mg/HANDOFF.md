@@ -4572,6 +4572,17 @@ that is done.
 
 ## 4. How to verify nothing is broken
 
+> **Two additions, 2026-10-10 (T81, from findings 396 and 406).**
+>
+> - **A script driving the dashboard must wait for its Gateway connection, not just
+>   `/healthz`** (finding 396). The governance routes that reach the Gateway take the device
+>   token from the dashboard's live connection; a request sent while it is still connecting is
+>   refused by the Gateway's gate and the page says "The dashboard is reconnecting to the
+>   Gateway…". Wait until the page shows the connection, then act.
+> - **Page timings quoted before 2026-10-07 include finding 406's authentication penalty**
+>   (about 5 s per request, an auth throttle, not the browser pane). Re-measure at the Gateway
+>   before quoting a dashboard timing (`mg/QA-SESSION-2026-10-07.md`, finding 406).
+
 > **Four additions, 2026-09-19, from driving a QA Gateway live with a mock model.**
 >
 > - **A model for a QA Gateway exists in the repository.** qa-lab's mock OpenAI server

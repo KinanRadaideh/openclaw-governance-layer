@@ -60,6 +60,13 @@ rules' reassertion, which exists precisely so that hand-editing cannot remove th
 core tier. Switching the gate off is an installation-wide `mode` change, which is
 Administrator-level and audited.
 
+The deployment report's check **"Governance is enforcing"**
+(`deployment.posture_enforce`, finding 390) reads the posture: `off` **fails** (nothing is
+checked, blocked or recorded, the core denials and the kill switch included); `monitor`
+installation-wide, or any agent in `monitor`, **warns** (forbid rules and the kill switch
+still apply, but an action no rule covers is allowed and only recorded); `enforce` for every
+agent passes. Before 390 the report said "0 failed" while the gate was off.
+
 Every per-entry value in `agentMode`, `agentAsk`, `agentHitlTimeout` and `userAsk`
 is validated on load and a value that does not parse is **dropped**, so the agent
 or account inherits the installation default. Validating only the container let
@@ -188,6 +195,15 @@ path resource passes through all of it:
 3. **Project**: `formatPathRelativeToCwdOrAbsolute` renders the result
    workspace-relative when it is inside the workspace root, absolute otherwise.
    Separators are POSIX (`/`) on every platform. Capped at 2048 characters.
+   **Except inside another agent's workspace nested in this one** (finding 385):
+   onboarding writes `agents.defaults.workspace`, and every non-default agent's
+   workspace is then `<that workspace>/<id>`, inside the default agent's. A path
+   under such a nested root is rendered, and matched, in its absolute form only,
+   so the baseline's "read any workspace-relative path" does not reach another
+   agent's files. The roots come from the runtime configuration snapshot
+   (`nestedAgentWorkspaceRoots`, `src/governance/agent-workspace-roots.ts`) and
+   only roots strictly inside the agent's own workspace count, so a nested agent
+   is never fenced out of its own files.
 
 The workspace root is itself dereferenced before the comparison in step 3, so a
 workspace reached through a symlinked path does not make every file inside it
@@ -432,13 +448,19 @@ A rule that is valid but likely to grant or forbid far more than it appears to i
 (`describeRuleRisks`, `src/governance/rule-validation.ts`). Warnings are advisory
 by design: each pattern below can be exactly what an operator means.
 
-| Code                     | When                                                                   |
-| ------------------------ | ---------------------------------------------------------------------- |
-| `matches-everything`     | An allowance whose pattern matches every resource of its kind          |
-| `denies-everything`      | A denial whose pattern matches every resource of its kind              |
-| `unanchored`             | The pattern is not anchored with both `^` and `$`                      |
-| `anchored-but-universal` | Anchored, but the body is only wildcards (`^.*$` and its spellings)    |
-| `narrowed-denial`        | A denial carrying `access`, which leaves the other direction permitted |
+| Code                     | When                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `matches-everything`     | An allowance whose pattern matches every resource of its kind                                                                                                                                                                                                                                                                                                      |
+| `denies-everything`      | A denial whose pattern matches every resource of its kind                                                                                                                                                                                                                                                                                                          |
+| `unanchored`             | The pattern is not anchored with both `^` and `$`                                                                                                                                                                                                                                                                                                                  |
+| `anchored-but-universal` | Anchored, but the body is only wildcards (`^.*$` and its spellings)                                                                                                                                                                                                                                                                                                |
+| `narrowed-denial`        | A denial carrying `access`, which leaves the other direction permitted                                                                                                                                                                                                                                                                                             |
+| `network-not-a-hostname` | A `network` pattern holding `://` or a path: the hostname alone is compared, so it never matches (finding 410)                                                                                                                                                                                                                                                     |
+| `network-capitals`       | A `network` pattern with a capital letter: hostnames are folded to lower case before matching, so it never matches (410)                                                                                                                                                                                                                                           |
+| `runs-arbitrary-code`    | A `command` allowance whose pattern lets a program that runs code handed to it (`CODE_RUNNERS`: Python, Node, the shells, PowerShell, `cmd`, Perl, Ruby, PHP, Deno, Bun, `npx`/`npm`/`pnpm`, `env`, `awk`, `find`, `git`) take code of the agent's choosing, which amounts to allowing every command and lets a path be built where the core denials cannot see it |
+
+The two `network-*` warnings are reported before the others, because no other advice
+matters for a rule that cannot match.
 
 For `path` rules a trailing folder boundary `(/|$)` is read as the end anchor
 before both anchoring checks, so `^src(/|$)`, the shape a folder grant writes
@@ -602,6 +624,24 @@ shed, and 500 in all.
   governance answer route refuses an allow for a locked agent while still taking a
   deny (finding 364). A chat run is in the Gateway's own registry, so the kill
   switch aborts it and its approval is withdrawn or cancelled.
+- **A read into another agent's folder may be allowed only by that folder's owner or
+  Root** (Kinan's decision (ii), 2026-10-08). Every account that manages the reading
+  agent sees the question and may deny it; only the Administrator who owns the agent
+  whose folder it is, or Root, may allow it, live (`approvals/decide`) or later
+  (`pending-decisions/decide`); anyone else's allow is refused with 403 naming who may.
+  Both listings carry `folderOf`, `allowedBy` and `mayAllow` so the page can disable
+  the allow buttons with the reason. The question names the folder's agent before
+  the path ("… against a path inside the workspace of another agent, "<id>": …",
+  finding 408), where the length cap cannot cut it, and the route reads it back from
+  there (`src/governance/foreign-folder-approval.ts`). Limits: a rule written for the
+  reading agent can still allow such a path, and a held question's owner is
+  recomputed against the current configuration.
+
+**What an `allow-always` request says** (finding 393). The proposal's reason, which
+becomes the approved rule's description (T70), states the fact and nothing addressed to
+the approver: `Agent "<id>" asked to run "<tool>" against <kind> "<resource>" (<access>).`
+(`escalationRequestReason`), the quoted resource shortened with `…` to fit the 500-character
+limit while the rule's pattern keeps it exactly.
 
 ## 6. Expiry
 
@@ -668,37 +708,40 @@ visible to whoever reviews the trail, not only to whoever saw the notice.
 Enforced by the route, never by the panel. `docs-notes/ROLE-MODEL.md` is the
 tier model in prose; this is the contract.
 
-| Operation                                                                      | Minimum tier    | Scope requirement                                                                                                                                                                                                                                    |
-| ------------------------------------------------------------------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read policy, ledger, sessions, system status, rule requests, registry          | `viewer`        | Filtered to visible agents; `userAsk` withheld below `root`                                                                                                                                                                                          |
-| Look up one agent's effective permissions, and who can reach it                | `viewer`        | Must be able to _view_ that agent                                                                                                                                                                                                                    |
-| Verify the ledger                                                              | `viewer`        | The verdict only                                                                                                                                                                                                                                     |
-| Create/remove an agent-scoped rule or folder grant                             | `user`          | `canAuthorPolicyForAgent`; Root may withhold authoring per account (T27)                                                                                                                                                                             |
-| Create/remove a global rule or folder grant                                    | `administrator` | -                                                                                                                                                                                                                                                    |
-| Submit a rule request or an agent-setting request                              | `user`          | Setting: `canManageAgent`, never a `mode` of `off` (365); rule: `access` only on `path`                                                                                                                                                              |
-| Decide a rule request or an agent-setting request                              | `administrator` | The request's agent must be in the caller's organisation, and registered before the request was filed to approve it (366, 370)                                                                                                                       |
-| Prompt an agent, attach a file, read that transcript                           | `user`          | `canManageAgent`, **and the agent must be in the caller's organisation**                                                                                                                                                                             |
-| Cancel a running prompt                                                        | `user`          | The caller's own run; Administrator and above, any run in the organisation                                                                                                                                                                           |
-| Lock/release an agent                                                          | `user`          | `canManageAgent`                                                                                                                                                                                                                                     |
-| Answer a dashboard escalation (T68)                                            | `user`          | `canManageAgent` on the agent in the Gateway's record; an allow is refused while locked (364); one raised before its agent's current registration is not listed and answers 404 (370)                                                                |
-| Read / answer held decisions                                                   | `user`          | `canViewAgent` to read, `canManageAgent` to answer; an allow is refused when the agent was deleted or registered again since the question (370)                                                                                                      |
-| Set one agent's approval timeout                                               | `user`          | `canManageAgent`                                                                                                                                                                                                                                     |
-| **Set per-agent `ask`** (T4)                                                   | `administrator` | Must manage that agent. A User _requests_ it                                                                                                                                                                                                         |
-| **Set per-agent `mode`** (`enforce`/`monitor`) (T4)                            | `administrator` | Must manage that agent. A User _requests_ it. `off` refused at every tier                                                                                                                                                                            |
-| Set `mode`, `ask`, `hitlTimeoutSeconds`                                        | `administrator` | -                                                                                                                                                                                                                                                    |
-| Set per-account `ask`                                                          | `root`          | -                                                                                                                                                                                                                                                    |
-| Switch a non-self-protecting `core` rule off or on (T24)                       | `root`          | -                                                                                                                                                                                                                                                    |
-| Remove a `core` rule, or disable a self-protecting one                         | **nobody**      | Refused at every tier                                                                                                                                                                                                                                |
-| Create or delete accounts, change roles, reset passwords                       | `root`          | Inside the caller's organisation only                                                                                                                                                                                                                |
-| Withhold or restore a User's policy authoring                                  | `root`          | Inside the caller's organisation only                                                                                                                                                                                                                |
-| Assign an agent to a User or Viewer (M4)                                       | `administrator` | The agent must be owned by the account's own Administrator                                                                                                                                                                                           |
-| Register or provision an agent, owned by yourself (M4, M6)                     | `administrator` | Organisation taken from the session; never from the request                                                                                                                                                                                          |
-| Register or provision an agent owned by another Administrator                  | `root`          | Naming who answers for a workload is people management                                                                                                                                                                                               |
-| Rename, re-own, unregister, delete from the host, or permit Codex for an agent | `administrator` | **Must own that agent.** Root is exempt. Deleting from the host names which deletion, `hostDeletion` `roster` or `full`, never defaulted (C13); the full delete is refused while the agent is working or when it would move the governance directory |
-| Offer or withdraw the Codex backend installation-wide                          | `root`          | -                                                                                                                                                                                                                                                    |
-| Read the deployment and network report                                         | `root`          | -                                                                                                                                                                                                                                                    |
-| Delete the organisation                                                        | `root`          | The Root username, typed, and `hostDeletion` for every agent (C13)                                                                                                                                                                                   |
-| Create a second Root, or delete or demote the only Root                        | **nobody**      | Refused at every tier                                                                                                                                                                                                                                |
+| Operation                                                                      | Minimum tier    | Scope requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Read policy, ledger, sessions, system status, rule requests, registry          | `viewer`        | Filtered to visible agents; `userAsk` withheld below `root`                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Look up one agent's effective permissions, and who can reach it                | `viewer`        | Must be able to _view_ that agent                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Verify the ledger                                                              | `viewer`        | The verdict only                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Create/remove an agent-scoped rule or folder grant                             | `user`          | `canAuthorPolicyForAgent`; Root may withhold authoring per account (T27)                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Create/remove a global rule or folder grant                                    | `administrator` | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Submit a rule request or an agent-setting request                              | `user`          | Setting: `canManageAgent`, never a `mode` of `off` (365); rule: `access` only on `path`                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Decide a rule request or an agent-setting request                              | `administrator` | The request's agent must be in the caller's organisation, and registered before the request was filed to approve it (366, 370). An optional `note` back to the requester, at most 500 characters, refused past that                                                                                                                                                                                                                                                                                                                  |
+| Prompt an agent, attach a file, read that transcript                           | `user`          | `canManageAgent`, **and the agent must be in the caller's organisation**                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Cancel a running prompt                                                        | `user`          | The caller's own run; Administrator and above, any run in the organisation                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Lock/release an agent                                                          | `user`          | `canManageAgent`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Answer a dashboard escalation (T68)                                            | `user`          | `canManageAgent` on the agent in the Gateway's record; an allow is refused while locked (364); one raised before its agent's current registration is not listed and answers 404 (370); an allow into another agent's folder only by that folder's owner or Root, 403 otherwise (decision (ii))                                                                                                                                                                                                                                       |
+| Read / answer held decisions                                                   | `user`          | `canViewAgent` to read, `canManageAgent` to answer; an allow is refused when the agent was deleted or registered again since the question (370), and, into another agent's folder, from anyone but that folder's owner or Root (decision (ii))                                                                                                                                                                                                                                                                                       |
+| Set one agent's approval timeout                                               | `user`          | `canManageAgent`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Set per-agent `ask`** (T4)                                                   | `administrator` | Must manage that agent. A User _requests_ it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Set per-agent `mode`** (`enforce`/`monitor`) (T4)                            | `administrator` | Must manage that agent. A User _requests_ it. `off` refused at every tier                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Set `mode`, `ask`, `hitlTimeoutSeconds`                                        | `administrator` | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Set per-account `ask`                                                          | `root`          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Switch a non-self-protecting `core` rule off or on (T24)                       | `root`          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Remove a `core` rule, or disable a self-protecting one                         | **nobody**      | Refused at every tier                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Create or delete accounts, change roles, reset passwords                       | `root`          | Inside the caller's organisation only. Deleting or demoting an account that still owns agents is refused, naming them (381); a User or Viewer may not be moved to an Administrator who does not own the agents it holds (382); a tier crossing releases its assignment list. Deletion revokes the account's sessions inside the deletion and answers 503 `sessions_unavailable` when it cannot (T76); `users/delete/finish` (Root) completes one that left work undone. Setting a password clears the account's login failures (414) |
+| Withhold or restore a User's policy authoring                                  | `root`          | Inside the caller's organisation only                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Assign an agent to a User or Viewer (M4)                                       | `administrator` | The agent must be owned by the account's own Administrator, and an Administrator assigns only to the Users and Viewers that answer to it (397)                                                                                                                                                                                                                                                                                                                                                                                       |
+| Register or provision an agent, owned by yourself (M4, M6)                     | `administrator` | Organisation taken from the session; never from the request                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Register or provision an agent owned by another Administrator                  | `root`          | Naming who answers for a workload is people management. The owner is sent as `adminId` (407)                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Rename, re-own, unregister, delete from the host, or permit Codex for an agent | `administrator` | **Must own that agent.** Root is exempt. Deleting from the host names which deletion, `hostDeletion` `roster` or `full`, never defaulted (C13); the full delete is refused while the agent is working or when it would move the governance directory; an agent whose folder sits inside another agent's workspace also needs `nestedFolder`, `trash` or `keep` (decision C)                                                                                                                                                          |
+| Offer or withdraw the Codex backend installation-wide                          | `root`          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Read the deployment and network report                                         | `root`          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Hand back a dashboard's ledger receipt (`integrity/witness`, T73)              | `viewer`        | A receipt is a sequence number and a fingerprint under the ledger key; one that no longer matches writes a sealed alert                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Read integrity alerts Root has not acknowledged (`integrity/alerts`, T73)      | `administrator` | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Acknowledge an integrity alert, with a reason (`integrity/acknowledge`, T73)   | `root`          | Recorded in the chain                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Delete the organisation                                                        | `root`          | The Root username, typed, and `hostDeletion` for every agent (C13)                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Create a second Root, or delete or demote the only Root                        | **nobody**      | Refused at every tier                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 > **This table was the one that stayed right (finding 218, 2026-09-02).** The
 > two per-agent rows have said `administrator` since T4, and so has
@@ -735,6 +778,18 @@ caller may view, and `userAsk`, keyed by account rather than by agent, so agent
 scope says nothing about it, is withheld below `root`. A collection added later
 and not added to that list is an enumeration leak, which is how `agentMode`
 came to disclose every agent id in the installation to a caller scoped to one.
+Since finding 412 one function, `policyViewFor` (`src/gateway/governance-policy-view.ts`),
+is that list: `GET policy` and every route that writes the policy answer through it, so a
+User setting its own agent's timeout no longer gets every agent's rules back, and a new
+collection is scoped in one place or not at all (`agentHitlTimeout` had been missed).
+
+**Two gates, one credential each** (finding 396). A dashboard request passes the
+governance session check and, for a route that reaches the Gateway, the Gateway's own
+gate, which takes the device token from the dashboard's live connection. A request sent
+while that connection is re-established is refused by the Gateway's gate, and the page
+says "The dashboard is reconnecting to the Gateway…"; a Gateway restart no longer signs
+operators out. `whoami` returns `answersTo` (the Administrator's name) for a User or
+Viewer.
 
 ## 9. Constraints
 
@@ -781,6 +836,11 @@ scope, and a TTL in minutes. Normatively:
 4. Authorization is unchanged by `effect`. A denial narrows rather than widens,
    so it binds under the same pair as an allowance: `canAuthorPolicyForAgent` for
    an agent-scoped rule, `canManageGlobalPolicy` for a global one (§8).
+5. An agent-scoped write MUST name an agent registered to the caller's organisation:
+   an unknown id is refused with **409 `agent_not_registered`** (finding 399), on the
+   rule, folder-grant, per-agent `ask` and `mode`, and rule-request routes alike
+   (`requireRegisteredAgentForPolicy`), so no rule or setting is stored for a
+   name nobody owns (a later agent of that name would inherit it, the C13 problem).
 
 **Warnings are advisory and MUST reflect the rule's direction** (§4.2). The same
 pattern is a different mistake in each: a catch-all allowance removes a
@@ -865,6 +925,38 @@ Prompt text is redacted (requirement #8) and clamped before it reaches either
 the ledger or the transcript store. An attachment is recorded by its hash, type,
 size and declared name, never its content.
 
+**Prompts that arrive without a governance account** (finding 418, T75; 420). Every
+host entry point that starts an agent turn records the instruction once, before the
+turn, under `actor: "host-prompt"`: OpenClaw's own chat and every channel, the
+command line and HTTP surfaces, the heartbeat, isolated scheduled jobs, the memory
+flush, the session companion, the voice consult, the skill workshop, the
+session-name helper and plugins' own runs. The `resource` takes one of three forms:
+
+- a person's or a channel's message: `prompt via <channel> (no governance account): <text>`;
+  a message another agent's session sent is labelled `; declared as a message from
+another session, <source>: written by an agent, not a person` inside the parenthesis
+  (the label comes from the declared `inputProvenance`, which any gateway client can
+  set, so it labels and never withholds);
+- a scheduled job's message: `prompt from scheduled job "<name>" (<id>) (no governance account): <text>`;
+- a prompt the host writes for itself (heartbeat, memory dreaming and flush, plugin
+  background runs, skill workshop reviews, the session-name helper):
+  `background prompt from <source> (<purpose and shape>); <n> characters, <n> lines;
+HMAC-SHA256 <hex>; text not recorded, …`. The fingerprint is keyed with the ledger
+  key, so only a key holder can show a stored copy is the message recorded.
+
+A guard test (`src/governance/host-prompt-callsites.test.ts`) lists every caller of
+the agent runners as covered or exempt (exempt: runs with tools disabled, compaction
+summaries), so a new upstream entry point fails until someone decides.
+
+**Two scrubbing passes at the ledger's one write boundary.** Every `resource` and
+`intent` passes OpenClaw's pattern redactor (`redactToolPayloadText`) and then a
+second pass for secrets written as prose (`redactFreeFormSecrets`,
+`src/logging/redact-free-form.ts`; T75, findings 419 and 421) before the entry is
+hashed. A match of the second pass becomes `***`. Since finding 421 OpenClaw's own
+logs (file log, console output, exported telemetry, trajectory capture, the debug
+files, the audit stores) pass both as well (`src/logging/redact-log.ts`); the
+conversation itself does not, so an agent can still use a value it was given.
+
 ## 10. Ledger entry kinds
 
 An entry is either **agent activity** or an **administrative action**, in one
@@ -877,6 +969,15 @@ chain.
 | `toolName`     | the tool invoked               | the action, e.g. `governance.policy.rule.add`                                                                                                                     |
 | `resourceKind` | `command` / `path` / `network` | `administration`                                                                                                                                                  |
 | `agentId`      | the acting agent               | the affected agent, or `-` when installation-wide                                                                                                                 |
+
+**Entries the ledger writes about itself** (T73). When an append finds the chain behind
+its checkpoint, the ledger seals a `governance.ledger.gap` line naming the missing range
+before it continues; when a dashboard hands back a receipt for a head the ledger no longer
+holds, it seals `governance.ledger.witness-contradiction`, naming the account whose browser
+held it; Root's acknowledgement of either, with a reason, is
+`governance.ledger.alert-acknowledge`. Each is an administrative entry like any other, so the
+evidence is inside the chain it describes. Completing an account deletion that left work
+undone is `governance.account.delete-finish` (T76).
 
 Administrative entries MUST carry both fields; agent entries MUST carry neither.
 The hashed field list is selected by their presence, so an entry that carries

@@ -2,16 +2,24 @@
 
 **The one file** for what the documentation must still change: the report (Kinan's Overleaf
 master) and the repository's own documents. **Chapters 1 and 2 are frozen (Kinan, 2026-10-08):
-anything they need is said in Chapter 3.** **Chapters 1 to 3 were last checked on 2026-10-08**
-against `complete_report.txt` (Kinan's full export saved that day; every Chapter 3 section
-written, none a stub), and against the code at `43e926d7e53` plus finding 417 (fixed
-2026-10-08, uncommitted). That code includes the 2026-10-07 QA
-(findings 406 to 416, whose report items had been left in `mg/QA-SESSION-2026-10-07.md` §11 and
-`mg/QA-SESSION-2026-10-07-PART2.md` §7; both are now folded in here). Items added on 2026-10-08
-are marked **NEW 10-08**; the log of that check is `mg/WORK-LOG-2026-10-08.md`. Every older item
-was re-read against the 2026-10-08 export and is still owed. **Anything already done in an export
-has been deleted from this file.** When an item is done, delete it; when something new is owed,
-add it here and nowhere else.
+anything they need is said in Chapter 3.**
+
+**Brought up to date on 2026-10-10.** Every item was re-read against Kinan's latest full export,
+`complete_report.txt` of 2026-10-08 (no newer export exists; every Chapter 3 section written,
+none a stub), and against the code as it stands: committed and pushed through `e3a61a8645a`
+(2026-10-09: finding 417, decisions (ii) and C, T75's B and D, findings 418–420), plus finding
+421 (OpenClaw's own logs; uncommitted on 2026-10-10). Items added on 2026-10-08, 10-09 and 10-10
+are marked **NEW 10-08**, **NEW 10-09** and **NEW 10-10**; the logs are
+`mg/WORK-LOG-2026-10-08.md`, `mg/QA-SESSION-2026-10-09.md` and `mg/WORK-LOG-2026-10-09.md`.
+The repository documents of §8 and §11.11 were applied on 2026-10-10 (backlog T81) and their
+items deleted. **Anything already done in an export has been deleted from this file.** When an
+item is done, delete it; when something new is owed, add it here and nowhere else.
+
+**What is left, in one view (2026-10-10):** §1, a probable compile error and the front matter;
+§3, the Chapter 3 corrections, section by section (T72, T79), including T82's scrubber table
+(§3.8) and finding 421's Requirement 8 paragraph (§3.2); §7, material for Chapters 4 and 5;
+§9, the questions only Kinan can answer. Waiting on open tasks: T74 (an off-host witness) and
+T77 (one consistency owner for authorization changes); T84 decides one Chapter 5 sentence.
 
 It replaces six files, deleted on 2026-10-03 (all but the last are in git at `0b477ce46db`):
 `CH3-EDIT-COMMENTS-2026-09-28.md`, `QA-2026-09-27-FOR-THE-REPORT.md`, `T70-FOR-THE-REPORT.md`,
@@ -26,8 +34,9 @@ Contents: §1 compile and front matter; §2 Chapters 1 and 2 (frozen on 2026-10-
 with a map of where each went); §3 Chapter 3, section by section (rebuilt 2026-10-07 against
 Kinan's paste of that day, absorbing the former §4, §5, §6 and §11.1–§11.8, so §4 to §6 are retired
 numbers; §3.3a and §3.3b were inserted on 2026-10-08 for 3.4.1 Gate Placement and 3.4.3 Path
-Representation so that no existing number moved); §7 Chapters 4 and 5; §8 repository documents;
-§9 open questions for Kinan; §10 counts; §11 what T73, T76 and T78 (built 2026-10-04) owe outside
+Representation so that no existing number moved); §7 Chapters 4 and 5; §8 repository documents
+(applied 2026-10-10, T81; kept as a heading for new items); §9 open questions for Kinan; §10
+counts; §11 what T73, T76 and T78 (built 2026-10-04, committed in `8c266e44ee4`) owe outside
 Chapter 3.
 
 **Numbering.** A number with **§** names a part of this file (§3.10). A number without it names a
@@ -89,7 +98,7 @@ went, so nothing is lost silently. "Moved" items are in §3 under the named Chap
 | Ch1 or Ch2: agents isolated from one another's files                                                          | Moved: §3.10, 3.5.9 Tenancy and Agent Registry (findings 408, 416)                                                          |
 | §3.1 item "typed section numbers": add `\label{sec:requirements-ch1}` to Chapter 1                            | Dropped: Chapter 1 will not change, so the typed "Section~1.3" and "Section~1.4" in the chapter introduction stay correct |
 
-## 3. Chapter 3, section by section (checked against Kinan's 2026-10-07 paste)
+## 3. Chapter 3, section by section (rebuilt against the 2026-10-07 paste; re-checked against the 2026-10-08 export on 2026-10-10)
 
 **Rebuilt 2026-10-07.** This section replaces the former §3 (reviewed sections), §4 (3.5.4 Access Control Model to
 3.5.6.1 Agent Lockdown), §5 (stub material), §6 (figures) and §11.1 to §11.8 (what T73, T76 and T78 owe the
@@ -98,8 +107,9 @@ shortened and 3.5.6 Session Control to 3.6 Summary taken from `docs-notes/report
 present in that paste were deleted rather than listed. New items found on 2026-10-07 are marked
 **NEW** and were checked against the code that day.
 
-Markers: **NOW** means the code supports the change today. **WAIT T74 / T75 / T77** means the
-task is open and the text owed depends on how it closes. **OPTIONAL** means the report is correct
+Markers: **NOW** means the code supports the change today. **WAIT T74 / T77** means the
+task is open and the text owed depends on how it closes (T75 closed on 2026-10-08, so its items
+are NOW). **OPTIONAL** means the report is correct
 without it. Suggested wording follows `docs-notes/WRITING-GUIDE.md`.
 
 Two things run alongside this list:
@@ -137,8 +147,10 @@ Two things run alongside this list:
 
 ### 3.2 Section 3.2, Analysis of Design Requirements
 
-- **NOW. Requirement 1.** Add: "The fork requires Node.js 22.22.3 or later, inherited from
-  OpenClaw, which satisfies the version requirement." (`package.json` `engines`.) Chapter 2
+- **NOW. Requirement 1.** Add: "The fork requires Node.js 22.22.3 or later on the 22 line, 24.15
+  or later on the 24 line, or 25.9 or later, inherited from OpenClaw, which satisfies the
+  version requirement." (`package.json` `engines`, re-read 2026-10-10:
+  `>=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0`.) Chapter 2
   (2.1.1 The OpenClaw Framework) says OpenClaw runs on "version 18+"; this sentence is where the
   report gives the true figure.
 - **NOW, NEW 10-08 (moved from Chapter 2, 2.1.3 Core Development Technologies). Requirement 1,
@@ -181,6 +193,23 @@ Two things run alongside this list:
   and administrative actions, not operating-system calls. Say so once here: "The ledger records
   each tool call an agent makes and each administrative action. It does not trace the
   operating-system calls a permitted tool then makes."
+- **NOW, NEW 10-09. Requirement 8, every log file (finding 421).** The paragraph ("Requirement 8
+  prevents secrets and credentials from being recorded in plaintext. The ledger uses the host
+  framework's existing redaction component …") speaks only of the ledger, and names only the
+  host redactor. Requirement 8 says "log files": OpenClaw's own logs are log files too, and on
+  2026-10-08 the rolling log held an agent's reply quoting a password from a file while the
+  ledger held none of it. Replace the paragraph with: "Requirement 8 prevents secrets and
+  credentials from being written in plaintext to log files. Two passes run wherever the system
+  writes a log: the host framework's maintained redactor, which recognises a credential by its
+  format or position, and a second pass for secrets written as prose (Section~\ref{sec:gov-ledger-sanitization}).
+  They run at the ledger's single entry-writing boundary, before an entry is hashed, and at the
+  host's own log outputs: the log file, console output, which becomes a log when the Gateway
+  runs as a service, exported telemetry, and the diagnostic files. The conversation itself is
+  not a log and is not masked, so that an agent can still use a value it was given; a
+  conversation stored on the host remains readable to whoever controls that host
+  (Section~\ref{sec:gov-security})." Both labels are in the 2026-10-08 export
+  (`sec:gov-ledger-sanitization` for 3.5.3.4 Data Sanitization, `sec:gov-security` for 3.5.12
+  System Security).
 - **NOW. Requirement 9 (test counts).** Date the Linux sentence ("on 21 September 2026"), move
   the current totals to Chapter 4 (§10), and drop "the same total of 3,227", which no longer
   holds.
@@ -510,8 +539,8 @@ Two things run alongside this list:
 - **NOW, NEW 10-08 (T75 decided and built: B and D; replaces the "boundary only" and "WAIT T75"
   items).** Two changes to what the section describes.
   - **A second scrubbing pass (D).** After the paragraphs on `redactToolPayloadText`, add: "The
-    ledger applies a second pass of its own, \texttt{redactFreeFormSecrets}
-    (\texttt{src/governance/free-form-redaction.ts}), to every resource and intent value after the
+    ledger applies a second pass, \texttt{redactFreeFormSecrets}
+    (\texttt{src/logging/redact-free-form.ts}), to every resource and intent value after the
     host redactor and before the entry is hashed. It is aimed at secrets written as ordinary
     text rather than in a recognised format. It masks a value introduced by a credential word,
     such as `the password is hunter2' or `token-like value QA-GAMMA-SECRET-7731'. After a word
@@ -522,21 +551,27 @@ Two things run alongside this list:
     contains a digit. It never masks a value that names where a secret is kept, such as an
     environment variable or a configuration path. It masks a hyphen- or underscore-joined token
     that names itself a secret and carries a number after the name, such as
-    \texttt{DB\_PASSWORD\_2024}, and an unbroken string of twenty or more letters and digits that
-    mixes upper case, lower case and digits, switches between them at least 45 percent of the
-    time and has a character entropy of at least 3.5 bits, unless it is base64 for readable
-    text, which is left visible so that an encoded command stays readable. Every match becomes
+    \texttt{DB\_PASSWORD\_2024}, and a string in which one unbroken piece (between hyphens,
+    underscores or equals signs) is twenty or more letters and digits that mix upper case,
+    lower case and digits, switch between them at least 45 percent of the time and have a
+    character entropy of at least 3.5 bits, unless the piece is base64 for readable text, which
+    is left visible so that an encoded command stays readable. Every match becomes
     \texttt{***}, never a partial value." Then correct
     the sentence "Entropy is not used as an independent classification rule" to "Entropy is one
     of the second pass's three tests, bounded so that identifiers the layer mints, hexadecimal
     digests, UUIDs and camelCase names are not taken for secrets", and narrow the detection
     boundary paragraph: "A secret that reads as an ordinary word and has no label, or the
     second and later words of a multi-word passphrase, can still reach the ledger."
-    Measured 2026-10-08 and, after the QA of 2026-10-09 (finding 419), again: 64 tests (17
-    secret forms masked, 40 legitimate forms left alone, idempotence, three driving
-    `appendLedgerEntry`); over the project's own 802 documentation files the pass changes 34
-    lines, each a real or example secret, a configuration placeholder in a credential field,
-    or a random-looking identifier (`mg/QA-SESSION-2026-10-09.md`); and live, a chat message carrying a
+    Measured 2026-10-08, after the QA of 2026-10-09 (finding 419), and again after finding 421
+    (re-derived 2026-10-09 from the test names): 69 tests, 66 in
+    `src/logging/redact-free-form.test.ts` (19 secret forms masked, 43 legitimate forms left
+    alone, the label kept, no partial value, the randomness bounds, idempotence) and 3 in
+    `src/governance/audit-ledger-free-form.test.ts` driving `appendLedgerEntry` (the earlier
+    "64" was one short: the file held 65 before 421 added four cases); over the project's own
+    805 documentation files the pass changes 45 lines, each a real or example secret, a
+    configuration placeholder in a credential field, or a random-looking identifier (34 on
+    2026-10-09 before the T82 table and the day's logs quoted the synthetic secrets again;
+    `mg/QA-SESSION-2026-10-09.md`, `mg/WORK-LOG-2026-10-09.md`); and live, a chat message carrying a
     password, a PIN, a random token and a labelled code was sealed as "the staging password is
     \*\*\*, the backup PIN is \*\*\*, and paste \*\*\* into the token box. Also note token-like value
     \*\*\*" (live ledger #26).
@@ -552,9 +587,104 @@ Two things run alongside this list:
     contents do not enter the ledger; it must still not say that no ledger entry ever contains
     file contents, because a person's own prompt, and model narration, can quote them, and only
     the two scrubbing passes stand between those and the chain.
-  - **T82 (Kinan, 2026-10-08):** this section should also show a few real patterns with an example
-    input and its masked output (`mg/REMAINING-WORK.md` T82); the measurements in the masked-form
-    item below and the examples above are the material.
+- **NOW, NEW 10-09. T82: show the scrubber's real patterns (Kinan, 2026-10-08; `mg/REMAINING-WORK.md`
+  T82).** The section names the redactor and lists the kinds of value it recognises, but shows no
+  pattern, no example and no count. Measured on 2026-10-09 at `e3a61a8645a` by passing each input
+  through the ledger's own path, `redactLedgerText` in `src/governance/audit-ledger.ts`
+  (`redactFreeFormSecrets(redactToolPayloadText(text))`), with the default configuration. Every
+  value below is synthetic.
+  - **The count.** `DEFAULT_REDACT_PATTERNS` in `src/logging/redact-patterns.ts` holds **122**
+    patterns (re-derived 2026-10-09 with the command in `docs-notes/CHAPTER3-MATERIAL.md`
+    "Requirement 8", which still works; a script that also imports `redact.ts` needs
+    `node --import tsx` and a `.mts` file, because `redact.ts` imports the workspace package
+    `@openclaw/acp-core`). The second pass has three tests (labelled values,
+    credential-named codes, random-looking strings), each with the exclusions described in the
+    item above.
+  - **Where.** After the paragraph that begins "The maintained redactor recognizes structured
+    credential fields …" and its paragraph on component-prefixed flags, add one sentence and the
+    table: "Table~\ref{tab:gov-redaction-examples} shows one example of each kind, as the ledger
+    records it."
+  - **The table** (ten rows; if space is short, keep rows 1, 3, 4, 7, 9 and 10). It uses
+    `tabularx` and `booktabs`, which the report already loads:
+
+    ```latex
+    \begin{table}[htbp]
+    \centering
+    \caption{Examples of what the ledger's two scrubbing passes record. Every value is synthetic.}
+    \label{tab:gov-redaction-examples}
+    \small
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+    \toprule
+    Kind & Input & Recorded in the ledger \\
+    \midrule
+    \multicolumn{3}{@{}l}{\textit{Host redactor, \texttt{redactToolPayloadText} (122 patterns)}} \\
+    Environment assignment & \texttt{export DB\_PASSWORD=Tr0ub4dorXyz2024} & \texttt{export DB\_PASSWORD=***} \\
+    Command-line flag & \texttt{mysql -u app --password=hunter2hunter2} & \texttt{mysql -u app --password=***} \\
+    Authorization header & \texttt{Authorization: Bearer EXAMPLEtokenabcdef0123456789} & \texttt{Authorization: Bearer EXAMPL\ldots{}6789} \\
+    Connection string & \texttt{postgres://app:S3cretPass99@db.internal:5432/prod} & \texttt{postgres://app:***@db.internal:5432/prod} \\
+    Provider token & \texttt{ghp\_EXAMPLE0123456789abcd} & \texttt{ghp\_EX\ldots{}abcd} \\
+    PEM private key & \texttt{-----BEGIN RSA PRIVATE KEY-----} and its body & body replaced by \texttt{\ldots{}redacted\ldots{}} \\
+    \midrule
+    \multicolumn{3}{@{}l}{\textit{Second pass, \texttt{redactFreeFormSecrets}}} \\
+    Labelled password & \texttt{the staging password is Sunrise-42} & \texttt{the staging password is ***} \\
+    Labelled PIN & \texttt{the backup PIN is 4417} & \texttt{the backup PIN is ***} \\
+    Credential-named code & \texttt{token-like value QA-GAMMA-SECRET-7731} & \texttt{token-like value ***} \\
+    Random-looking string & \texttt{paste Xk9qLm2RtV8wNz4PbH7sJd3F into the box} & \texttt{paste *** into the box} \\
+    \bottomrule
+    \end{tabularx}
+    \end{table}
+    ```
+
+    The `--` in the flag and PEM rows prints as two hyphens in `\texttt` (typewriter fonts have no
+    dash ligature); check this once in the compiled PDF.
+  - **Optional, the patterns themselves.** If the section should show real regular expressions,
+    two short ones from `redact-patterns.ts` read well (quoted exactly; the first masks the
+    password in a database URL, the second a GitHub personal access token):
+
+    ```latex
+    \begin{lstlisting}[style=reportcode]
+    \b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?|amqps?):\/\/[^:\s/@]*:([^@\s]+)@
+    (ghp_[A-Za-z0-9]{10,})
+    \end{lstlisting}
+    ```
+
+  - **What stays visible, for the detection-boundary paragraph** (measured the same way, all
+    unchanged by both passes): "Root's password was compromised, so it was rotated" (a
+    description, not a value); "the password is in \$DB\_PASSWORD" and "the token is read from
+    process.env.GITHUB\_TOKEN" (references to where a secret is kept); "echo
+    Y2F0IH4vLnNzaC9pZF9yc2E= | base64 -d | sh" (base64 that decodes to a readable command, left so
+    an investigator can read it); "echo correcthorsebatterystaple" (an unlabelled ordinary word:
+    the boundary). Base64 that decodes to `user:password` is masked
+    (`dXNlcjpodW50ZXIyaHVudGVyMg==` became `***`).
+  - **Replace the detection-boundary paragraph** ("Pattern-based redaction has a defined detection
+    boundary …") as a whole, because its sentence "High apparent entropy does not trigger masking"
+    is now false as well as the earlier "Entropy is not used …": "Redaction has a defined
+    detection boundary. The host redactor masks exact values registered with the host and
+    credentials that match a recognised format or sit in a structured credential position. The
+    second pass masks a value introduced by a credential word, a code whose name says it is a
+    secret, and a long string that mixes letters and digits at random. A secret that reads as an
+    ordinary word and carries no label, such as a passphrase typed on its own, can still reach the
+    ledger, as can the second and later words of a multi-word passphrase. A long identifier that
+    looks random, such as a voice or document id, is masked although it is not a secret. Both
+    passes run on every resource and intent field at the storage boundary." This supersedes the
+    narrower boundary sentence suggested in the item above.
+  - **CHECK when writing:** the item above says the second pass "never masks a value that names
+    where a secret is kept". True of that pass, but the host redactor runs first and does mask some
+    configuration-syntax references: `api_key: os.environ/ANTHROPIC_API_KEY` became
+    `api_key: os.env…_KEY`. Keep the sentence scoped to the second pass, and do not use that line
+    as an example of a reference left visible.
+- **NOW, NEW 10-09. The second pass also protects OpenClaw's own logs (finding 421).** The
+  section describes sanitization as the ledger's. Since finding 421 the second pass lives in the
+  host's logging module (`src/logging/redact-free-form.ts`) and runs, after the host redactor,
+  wherever the host writes a log (`src/logging/redact-log.ts`). After the paragraph on the second
+  pass, add: "The same two passes protect the host's own logs. They are applied to every string a
+  log record carries before the record is serialised, to console output, which becomes a log
+  when the Gateway runs as a service, to exported telemetry, to the per-session trajectory record
+  and the debugging files, and to lines read back from older logs. They are not applied to the
+  conversation itself or to the tool results a model reads: masking a password there would hide
+  it from the agent asked to use it." Evidence for Chapter 4 is in §7. The description of the
+  random-string test stays true; it now judges the pieces between hyphens, underscores and equals
+  signs, after a health line's `eventLoopDelayP99Ms=42.8` was taken for a key.
 - **NOW, NEW 10-08 (moved from Chapter 1, 1.2 Objectives and 1.6 Preliminary Design, and
   Chapter 2, 2.1.5 Auditability and System Telemetry; T79 item 3). How far the build meets the
   earlier chapters.** Chapter 1 asks for a log "strictly preventing the leakage of sensitive
@@ -577,11 +707,14 @@ Two things run alongside this list:
   where the redactor treats the field as hinted, and with `***` otherwise. Observed:
   `Authorization: Bearer sk-proj-…0123456789` → `Bearer sk-pro…6789`;
   `OPENAI_API_KEY=sk-proj-…` → `OPENAI_API_KEY=sk-pro…6789`; `ghp_…` → `ghp_ab…89AB`;
-  `--password=hunter2hunter2` → `--password=***`; `echo correcthorsebatterystaple` unchanged.
+  `--password=hunter2hunter2` → `--password=***`; `echo correcthorsebatterystaple` unchanged; a PEM
+  private-key block keeps its BEGIN and END lines and its body becomes `…redacted…` (measured
+  2026-10-09).
   Suggested sentence after the paragraph listing what the redactor recognises: "A masked value
   of 18 or more characters keeps its first six and last four characters, so an investigator can
   tell two credentials apart without the ledger holding either, and a shorter value is replaced
-  by \texttt{***}." For Requirement 8 this means a long secret leaves ten characters in the
+  by \texttt{***}. A private-key block keeps its first and last lines, and its body is replaced
+  by \texttt{\ldots{}redacted\ldots{}}." For Requirement 8 this means a long secret leaves ten characters in the
   ledger; state it, rather than let "no plaintext secret" imply none.
 
 ### 3.9 Section 3.5.4, Access Control Model and its subsections
@@ -929,6 +1062,14 @@ older open and optional ones).
   paragraph on the audit ledger's confidentiality, add "Background prompts the host writes for
   itself are recorded as described facts with a fingerprint, not their text, and a second
   scrubbing pass masks secrets written as prose (Section~\ref{sec:gov-ledger-sanitization})."
+- **NOW, NEW 10-10 (finding 421). 3.5.12 System Security, `tab:gov-security-limits`, a row for
+  logs and stored secrets.** Suggested row: Area "Secrets in logs and on the host"; Protection
+  "Every log the host writes (the log file, console output when the Gateway runs as a service,
+  exported telemetry, diagnostic files and the audit stores) passes the same two scrubbing passes
+  as the ledger"; Limit "A secret that reads as an ordinary word with no label can still pass.
+  The conversation itself, the model credentials, the configuration and the ledger key are
+  readable by whoever controls the host, because the Gateway must use them. Diagnostics written
+  before the fix keep what they hold until they age out (T84)". Chapter 5 sentence in §7.
 - **WAIT T74.** 3.5.12 System Security's audit-ledger row once an off-host witness exists.
 - **OPTIONAL. 3.5.8.1 Task and Slot Model.** If the code names are wanted as presentation anchors: "In the code,
   \texttt{settlePromptRun} marks the run as saving and frees its slot, and
@@ -946,7 +1087,11 @@ older open and optional ones).
 
 All design figures planned for Chapter 3 are now placed, and `fig:gov-killswitch` was added. The
 only figure changes owed are the two ledger figures (§3.8: F25 and F26) and the optional folder
-grant line (§3.7). Delete the stale map (§3.1) instead of renumbering it.
+grant line (§3.7). Delete the stale map (§3.1) instead of renumbering it. `docs-notes/FIGURES.md`
+cites every figure by label since 2026-10-10 (T81) and repeats the F25 and F26 changes under
+their headings. **NEW 10-10, optional:** finding 421's write path (log record → pattern pass →
+free-form pass → file, console, telemetry; the conversation store beside it, unmasked) would fit
+`fig:gov-sanitization-write-path` as a third lane, if the figure is touched for T82's table.
 
 ### 3.12 Keep these limitations (T79 item 8)
 
@@ -954,7 +1099,11 @@ Do not delete them during cleanup or shortening: the residual filesystem races a
 Codex search asymmetry; denial-first folder-grant partial writes; a checkpoint that legitimately
 lags a completed append; pattern redaction's detection boundary; the process-local login limiter;
 best-effort authentication auditing; the loopback and SSH cookie decision; the cross-store
-consistency limits in 3.5.4.3 Ownership and Assignment (until T77).
+consistency limits in 3.5.4.3 Ownership and Assignment (until T77). **Added 2026-10-10:** the
+host's owner can read the conversation and the secrets the Gateway uses (finding 421's
+boundary); a rule for the reading agent can still allow a path in another agent's folder
+(decision (ii)); a folder left in place after deletion is readable by the enclosing agent
+(decision C); key, checkpoint and ledger on one host (until T74).
 
 ## 7. Chapters 4 and 5
 
@@ -971,8 +1120,13 @@ consistency limits in 3.5.4.3 Ownership and Assignment (until T77).
   2026-09-19, 1,623 ms with dispatch 3.5 ms on 2026-09-27, both on the laptop; not yet timed on the
   VPS) and the about-6-second window while an agent is created (finding 395); the current suite totals
   (§10) in place of Requirement 9's.
-- **Chapter 5 (future work):** T73 append refusing a contradicting checkpoint; T74 key separation;
-  the agent-creation window off the event loop; search withholding on the Codex harness; T75.
+- **Chapter 5 (future work), updated 2026-10-10:** T74 (an off-host witness and key separation;
+  options A–F in `mg/REMAINING-WORK.md` §"T74"); T77 (one consistency owner for authorization
+  changes); the agent-creation window off the event loop (finding 395); search withholding on the
+  Codex harness; T84 (diagnostics written before finding 421). No longer future work: T73 was
+  built on 2026-10-04 as a recording design (the append records a disagreement and continues,
+  rather than refusing), and T75 closed on 2026-10-08; their remaining limits are in the items
+  below.
 - **NEW 10-08. Chapter 4 timings: use only numbers measured after finding 406.** Every dashboard
   response or kill-switch figure taken through the page before the 2026-10-07 fix includes up to
   5 s of the Gateway's brute-force penalty per read (406), including the 2026-09-27 figures above
@@ -1046,9 +1200,9 @@ consistency limits in 3.5.4.3 Ownership and Assignment (until T77).
   report, not by a test or a live run, and it is the same class as 412 (one rule written out at
   several call sites, one copy drifting).
 - **NEW 10-08. Chapter 4 evidence for T75 (B and D) and finding 418.** Tests:
-  `src/governance/free-form-redaction.test.ts` (64 after the QA of 2026-10-09: seventeen secret
-  forms masked, forty legitimate forms left alone, idempotence, three driving
-  `appendLedgerEntry`), `host-prompt-audit.test.ts` (23, fourteen new), `host-prompt-callsites.test.ts` (walks `src/` and
+  the scrubber's tests (since finding 421 split between `src/logging/redact-free-form.test.ts`,
+  66, and `src/governance/audit-ledger-free-form.test.ts`, 3 driving `appendLedgerEntry`; see the
+  3.5.3.4 Data Sanitization item in §3.8 for the breakdown), `host-prompt-audit.test.ts` (23, fourteen new), `host-prompt-callsites.test.ts` (walks `src/` and
   `extensions/` for every caller of the agent runners), two gateway tests (the plugin marker for a
   tracked run; never from public parameters). 17 of 17 mutations caught, and 13 more for the
   QA's fixes (`mg/QA-SESSION-2026-10-09.md`). Live on the rebuilt
@@ -1074,146 +1228,115 @@ consistency limits in 3.5.4.3 Ownership and Assignment (until T77).
   with no label, and the later words of a multi-word passphrase, can still reach the ledger
   through a person's prompt or model narration. A plugin that forwards a person's words through its
   own background run (voice-call) is recorded as a fact. Entries written before 2026-10-08 keep
-  what they hold (the chain cannot be cleaned). Replace "T75" in the future-work line above with
-  these.
+  what they hold (the chain cannot be cleaned). (The future-work line above no longer lists T75;
+  these limits replace it.)
+- **NEW 10-09. Chapter 4 evidence for finding 421 (secrets in OpenClaw's own logs).** How it was
+  found: checking Requirement 8's wording against the files on the development machine, after the
+  question "can the server's owner read secrets?" The rolling log of 2026-10-08 held, twice, an
+  agent's reply quoting a password and a code from a file; the ledger of the same run held
+  neither. Trajectory capture held the test secrets in 24 database rows of that fixture.
+  Measured after the fix: a corpus of this machine's real logs and the trajectory rows of eleven
+  QA databases (365 log lines, 1,040 rows): one false positive on the first run (a health
+  metric, `eventLoopDelayP99Ms=42.8`), none after the fix, every masked span a test secret.
+  Cost: about 15 µs per typical log record and 130 µs for a 2,000-character reply, against about
+  1.7 ms the pattern redactor already spends. Tests: 15 in `src/logging/log-free-form-redaction.test.ts`
+  (eleven red before the fix: file log, structured fields, stdout, stderr, subsystem console, JSON
+  console line, diagnostic records, log tail, payload log and cache trace, trajectory, raw stream),
+  the journal path of `openclaw logs`, prose secrets in the trajectory export test, one OTEL
+  content case (red first), two scrubber cases (the metric line red first). 24 of 26 mutations
+  caught; the two that survive each remove one of two layered passes over the same content. A
+  Chapter 4 point, if wanted: the scrubber was measured on the ledger's text on 2026-10-09 and
+  found sound, but a new kind of text (health metrics) found a new false positive, which is the
+  reason to re-measure whenever a redactor meets a new source. **NEW 10-10:** the host's two
+  audit stores (configuration writes, approved state changes) joined the same passes, one case red
+  first; their SQLite tests cannot run on the Windows laptop with the committed code either, so a
+  Linux run is owed (backlog T83). **Live, 2026-10-10 (rebuilt Gateway, mock model):** through the
+  command line the agent read a file of synthetic secrets and repeated them; in everything written
+  since a baseline, the log file (30 new lines), trajectory capture (17 rows) and the ledger (3
+  entries) held neither value, the log line reading "… The password is \*\*\*. token-like value
+  \*\*\*", while the conversation transcript kept both, as designed. Gates: governance suite 3,669 /
+  22 / 0; four typechecks 0; the full lint gate exit 0; the build exit 0.
+- **NEW 10-09. Chapter 5, what the server's owner can still read.** Whoever controls the host can
+  read the conversations OpenClaw stores, the model credentials, the configuration and the ledger
+  key: the Gateway must use them, so no software on the same machine can hide them from that
+  machine's owner. Requirement 8 is about log files, and those are covered; this is the boundary
+  of what it can promise, beside T74's (the same owner can rewrite the ledger). Also stated:
+  text written to logs before the fix is not rewritten (rolling logs are pruned after a day, the
+  service journal keeps what its retention says, old trajectory rows stay with their session), but
+  every reader the product offers masks it on the way out; the file-transfer audit log, which
+  holds operation metadata, is not passed through the second pass. Suggested sentence: "Secrets
+  that the Gateway itself must use, such as model credentials, and the conversations it stores
+  remain readable to whoever controls the host; the requirement on log files is met, but no
+  component on a machine can withhold from that machine's administrator what it needs to run."
 
 ## 8. Repository documents (not the report)
 
-None of these has been applied.
-
-- **NEW 10-08 (finding 418, T75).** `docs-notes/CHAT-DEPLOYMENTS.md` line 220's table ("Audit
-  ledger: every decision, attributed to the agent") gains: "and, since 2026-10-08, the prompt that
-  started each turn, under `host-prompt` with the channel (before finding 418 a channel message was
-  never recorded)". `docs-notes/PERMISSION-SPEC.md` line 876 (the `actor` row): `host-prompt` now
-  covers every host entry point, and its `resource` is either "prompt via <channel> (no governance
-  account): <text>", "prompt from scheduled job "<name>" (<id>) …: <text>" or "background prompt
-  from <source> (<purpose and shape>); <n> characters, <n> lines; HMAC-SHA256 <hex>; text not
-  recorded, …"; and the ledger boundary applies two scrubbing passes (`redactToolPayloadText`,
-  then `redactFreeFormSecrets`). `docs-notes/T47-TEST-PLAN.md`: rows to drive by hand: a message in
-  OpenClaw's chat appears in the ledger once; a dream or heartbeat appears as a background fact;
-  "the password is …" in a chat message is sealed as `***`.
-
-- **`docs-notes/WRITING-PERMISSIONS.md`.** Line 52 ("The add-rule form has no description field
-  …") is wrong since T70: the description is required (up to 500 characters typed, trimmed), is
-  the rule's title with the pattern beneath, and is recorded in the ledger; the folder-grant
-  example becomes "<purpose> (grant on src, except src/secrets)". The form keeps its agent after
-  a write (389). Policy writes must name a registered agent (399).
-- **`docs-notes/PERMISSION-SPEC.md`.** Add-rule form keeps effect, access and agent (389). §3.1
-  step 3 (line 189): nested agent workspaces get only the absolute form (385;
-  `nestedAgentWorkspaceRoots`, from the runtime config snapshot). The `mode` table (line 42):
-  the deployment report fails on `off`, warns on `monitor` (390). §9a/§11: an approved
-  escalation request's description format (393). Unregistered agent ids refused with 409
-  `agent_not_registered` (399).
-- **`docs-notes/BASELINE-RULES.md`.** Line 298 ("Reading any path inside the workspace"):
-  "inside" excludes another agent's nested workspace (385), with the reason
-  (`agents.defaults.workspace` places every non-default agent inside the default one's); same
-  case in the canonical-form description (line 320 on). Line 133, the command-line denial: quote
-  the new description (388); id unchanged.
-- **`docs-notes/ROLE-MODEL.md`.** Demotion/deletion table (line 246 on): "Demote or delete one who
-  still owns agents → refused, naming the agents; re-own them with Change owner first" (381).
-  Line 251: the remedy is "Administrator this account answers to" on each User and Viewer row
-  (383); a move is refused while the account holds agents the new Administrator does not own
-  (382). Assignment (line 275): a tier change across User/Viewer and Administrator/Root releases
-  the assignment list ("(assigned agents released: …)"); a same-role move is recorded as "account
-  X now answers to Y" (382). **397:** an Administrator assigns only to the Users and Viewers that
-  answer to it, from _Your accounts_; `users/agents` refuses an account managed by another
-  Administrator; Read policy for User and Viewer is assigned and global.
-- **Two-gate notes (396)** in `ROLE-MODEL.md` and `PERMISSION-SPEC.md`: the Gateway credential is
-  the device token from the dashboard's live connection; a request sent while it reconnects is
-  refused by the Gateway's gate and the page says "The dashboard is reconnecting to the Gateway…";
-  a restart no longer signs operators out. `mg/HANDOFF.md` §4: a script driving the page must
-  wait for the connection, not just `/healthz`.
-- **`docs-notes/FIRST-RUN.md`, `docs-notes/LINUX-INSTALL.md`.** Add "Governance is enforcing" to
-  the deployment report's checks (390); the "gate is armed" check no longer claims enforcement.
-- **`docs-notes/T47-TEST-PLAN.md`** (Kinan's acceptance script), rows beside §6f: 384 (Lock down
-  while Create agent runs); 385 (default agent reading another agent's folder escalates); 381–383
-  (demote an Administrator who owns an agent; move a User with the picker); 386 (second answer
-  "was not used"); 390 (Monitor and Off in the deployment report); 392 (sign out as Root, sign in
-  as Administrator, nothing of Root's shown); 397 (an Administrator assigns only to its own
-  staff); 399 (a rule for an unregistered agent is refused).
-- **`docs-notes/FIGURES.md`.** Its summary table and per-figure "Final placement" lines use the
-  2026-09-27 numbering (F25 "3.10" etc.). Drop the printed numbers there too (§3.11): cite by
-  label.
-- **`docs-notes/report/WRITING-HANDOFF.md`.** Section status still "written 17 | stub 26" and
-  "next 3.5.2.4 Baseline Policy"; Overleaf now has every Chapter 3 section written (2026-10-08 export).
-  `section-status.mjs` reads the stale `chapter3.tex`.
-- **NEW 10-08. Findings 406 to 416 in the specification documents.** The registers
-  (`GOVERNANCE.md` rows, `QA-IN-PLAIN-TERMS.md` §5.125–5.126, `CHAPTER3-MATERIAL.md`
-  §3.5.98–3.5.99) were written by the QA sessions; these were not:
-  - `docs-notes/WRITING-PERMISSIONS.md` §6: the two network mistakes it lists (whole URL,
-    capitals) are now warned about when written (410); a rule-request decision may carry a note
-    back to the requester (part 2 §1.1).
-  - `docs-notes/PERMISSION-SPEC.md`: `rule-requests/decide` takes an optional `note` (≤ 500,
-    refused past that); every policy response goes through `policyViewFor` (412); `whoami`
-    returns `answersTo` for a User or Viewer; Root's _Register_ sends `adminId` (407);
-    `agents` listing carries `insideWorkspaceOf` (416); the escalation description names
-    another agent's workspace (408).
-  - `docs-notes/ROLE-MODEL.md`: Root setting a password clears the account's login failures
-    (414); what each tier receives from a policy read or write (412).
-  - `docs-notes/T47-TEST-PLAN.md`: rows for registering an agent for another owner as Root
-    (407); asking the default agent to read a nested agent's file and seeing the agent named
-    (408); cancelling another account's task and reading "cancelled by" (411); cancel, then send
-    a new message and see the old request not return (part 2 §1.5); rejecting with a note;
-    locking an agent, prompting it and seeing the reason (415); a password reset on a locked-out
-    account (414); deleting a nested agent and reading the warning (416).
-  - `mg/HANDOFF.md` §4 (or wherever page timings are quoted): timings before 2026-10-07 include
-    406's penalty.
-- **NEW 10-08. Decisions (ii) and C in the specification documents.**
-  - `docs-notes/PERMISSION-SPEC.md`: `approvals` and `pending-decisions` rows carry `folderOf`,
-    `allowedBy`, `mayAllow`; `approvals/decide` and `pending-decisions/decide` refuse an allow
-    into another agent's folder from anyone but its owner and Root (403); `agents/deprovision`
-    takes `nestedFolder` (`"trash"` or `"keep"`), required for an agent whose folder is inside
-    another's (400), and answers with `nestedFolder` (what became of it).
-  - `docs-notes/ROLE-MODEL.md`: ownership also decides who may allow a read into the agent's
-    folder; a User and a non-owning Administrator may only deny such a read.
-  - `docs-notes/WRITING-PERMISSIONS.md`: a rule for the reading agent can still allow a path in
-    another agent's folder (the one way around the owner's say), so write such rules with care.
-  - `docs-notes/T47-TEST-PLAN.md`: rows for a User seeing the disabled allow buttons and their
-    tooltip, the folder's owner allowing, another Administrator refused, and deleting a nested
-    agent with each folder choice (trash: the folder is in `.Trash`; keep: the ledger says who
-    reads it; refused while the agent works).
-  - `docs-notes/CHAPTER3-MATERIAL.md`, `docs-notes/QA-IN-PLAIN-TERMS.md`: entries written on
-    2026-10-08 (§3.5.101, §5.128).
+**Nothing owed (2026-10-10).** Every item this section held (findings 381–421, T73, T76, T78,
+decisions (ii) and C, T75) was checked against the code and applied on 2026-10-10 (backlog T81):
+`PERMISSION-SPEC.md`, `ROLE-MODEL.md`, `WRITING-PERMISSIONS.md`, `BASELINE-RULES.md`,
+`CHAT-DEPLOYMENTS.md`, `FIRST-RUN.md`, `LINUX-INSTALL.md`, `T47-TEST-PLAN.md` (§6g),
+`FIGURES.md`, `docs-notes/report/WRITING-HANDOFF.md`, `mg/HANDOFF.md` §4, and the T73/T76/T78
+entries `CHAPTER3-MATERIAL.md` §3.5.105 and `QA-IN-PLAIN-TERMS.md` §5.132. The record is
+`mg/WORK-LOG-2026-10-09.md` §7. New repository-document items go here.
 
 ## 9. Open questions for Kinan
 
-1. **Nested-workspace search:** results are withheld like a forbidden path, while a direct read
+**Open (2026-10-10).**
+
+1. **Commit and push** finding 421, T82's material, T81's documents and the backlog and log
+   updates (gates green on 2026-10-10; `mg/REMAINING-WORK.md` §"Where this file stands").
+2. **T74, which off-host witness** (options A–F in `mg/REMAINING-WORK.md` §"T74"), with its
+   cadence, behaviour when the witness is down, retention, and whether a SQLite schema change is
+   acceptable. The report's System Security and Chapter 5 text waits on it.
+3. **T84, pre-421 diagnostics:** clean old trajectory rows with an `openclaw doctor` step
+   (precedent `doctor-config-audit-scrub.ts`), or state in Chapter 5 that they keep what they hold
+   (§7 has the sentence either way).
+4. **T85's reading of decision D21:** the QA of finding 421 will keep the conversation itself
+   unmasked, so an agent can still use a value it was given. If masking the conversation was
+   meant, that reverses D21 and is a decision of its own.
+5. **The §1 `reportcodebox` choice** (dark wrappers or light without them).
+6. **Nested-workspace search:** results are withheld like a forbidden path, while a direct read
    escalates to a person. Should search escalate instead? (It cannot today: a search result has no
    approval path.)
-2. **Observation not changed:** after a cancelled confirmation, a stale password banner remains.
-3. **Decided 2026-10-08 (T75).** Kinan chose B and D: a prompt the host writes for itself is
-   recorded as a described fact with a fingerprint, not its text, and the ledger gained a second
-   scrubbing pass for secrets written as prose. Built, tested and checked live the same day
-   (§3.8, §3.10, §7). The two side questions, decided by Claude as asked: **model narration**
-   keeps its text (it is what lets the trail read "it said X, then did Y") and now passes the
-   second scrubbing pass too; **a dashboard filter for background prompts** was not built,
-   because each entry is one short line that names its source, and a filter is a dashboard
-   change Kinan can ask for (OPTIONAL: a fifth ledger filter, "Background prompts", beside the
-   four in `ui/src/pages/governance/ledger-filter.ts`). Also open for Kinan if wanted: a User
-   sees a background entry as the peer-prompt placeholder, although it holds no private text.
-4. The §1 `reportcodebox` choice (dark wrappers or light without them).
-5. **Decided 2026-10-08.** Finding 416's question (what happens to a deleted agent's folder
-   left inside another agent's workspace) and finding 408's (who answers a read into another
-   agent's folder): Kinan chose C (offer to move the folder to the trash during the deletion)
-   and (ii). (ii) was built as "only the folder's owner and Root may allow", because "also ask
-   the owner" would have changed nothing: every Administrator already saw and could answer
-   every question in the organisation. Both built, tested and documented in §3 on 2026-10-08.
-   Kinan confirmed that interpretation the same day (T80 closed), so the report describes (ii) as
-   built: only the owner and Root may allow.
-   (Item 6 of 2026-10-08, the loop-detector record, was fixed the same day as finding 417; its
-   report text is in §3.8 under 3.5.3 Audit Ledger.)
+7. **OPTIONAL, T75's side questions:** a fifth ledger filter, "Background prompts", beside the
+   four in `ui/src/pages/governance/ledger-filter.ts`; and whether a User should see a background
+   entry in full rather than as the peer-prompt placeholder (it holds no private text).
+8. **Observation not changed:** after a cancelled confirmation, a stale password banner remains.
+9. **T58 and T83** need the VPS (Kinan returns to T58 later; T83 is four test files).
+
+**Decided, kept for the record.**
+
+- **2026-10-08, T75:** Kinan chose B and D (background prompts recorded as facts with a
+  fingerprint; a second scrubbing pass). Claude decided the side questions as asked: model
+  narration keeps its text and passes both scrubbing passes; no new ledger filter (item 7 above if
+  wanted). Built, tested and checked live (§3.8, §3.10, §7).
+- **2026-10-08, findings 408 and 416:** Kinan chose (ii) (only the folder's owner and Root may
+  allow a read into another agent's folder) and C (deleting a nested agent asks: trash or keep).
+  He confirmed the "only" interpretation the same day (T80 closed), so the report describes (ii)
+  as built.
+- **2026-10-08, the loop-detector record:** fixed as finding 417 (§3.8, 3.5.3 Audit Ledger).
+- **2026-10-09, finding 421:** decided by precedent (D21–D25, `docs-notes/CHAPTER3-MATERIAL.md`
+  §3.5.104): the second pass at every log sink and not in the shared redactors that feed the
+  conversation; console output scrubbed too; text written before the fix not rewritten (T84
+  asks whether to); three sinks left as they were.
 
 ## 10. Counts to quote (re-derive before use)
+
+**The figures to quote now (2026-10-10):** governance suite **3,669 / 22 / 0** (239 files);
+findings **421 / 421 / 0** (169 closed as not reproducible); the full lint gate and the build
+pass. Chapter 4 should quote the newest entry below and say how the suite is counted (the
+scrubber's 66 own tests and the 15 log tests run in their own shards since finding 421). The
+history follows.
 
 - Governance suite, Windows, 2026-10-07 (committed as `c09e1c9f7ab`, findings 406–416 included):
   **3,609 passed / 22 skipped / 0 failed** (237 files passed, 2 skipped); the full lint gate
   (`node scripts/run-lint.mjs`) passed after `2a9810cd03b`. Earlier: 3,549 / 22 / 0 (2026-10-07,
   part 1), 3,521 / 22 / 0 (2026-10-04), 3,385 / 21 / 0 (2026-10-03). Linux last run 2026-09-21.
-- After finding 417 (2026-10-08, uncommitted): the 32 posture-related test files, 1,079 passed;
+- After finding 417 (2026-10-08, committed 2026-10-09 in `9e87d0823d3`): the 32 posture-related test files, 1,079 passed;
   core and core-test typechecks exit 0. Backend governance suite (`src/governance/`,
   `src/gateway/governance-*.test.ts`, the 406 test and the two stopped-turn tests; the UI tests,
   untouched, not included): **3,210 passed / 6 skipped / 0 failed**, 199 files passed and 1 skipped.
-- After decisions (ii) and C (2026-10-08, uncommitted): backend governance suite **3,248 passed /
+- After decisions (ii) and C (2026-10-08, committed 2026-10-09 in `9e87d0823d3`): backend governance suite **3,248 passed /
   6 skipped / 0 failed** (203 files passed, 1 skipped); typechecks core, core-test, UI and UI-test 0. UI tests over `ui/src/pages/governance/` and `ui/src/components/`: 1,757 passed, 3 failed.
   One failure was ours to fix and was fixed: `governance-textbox-fit.browser.test.ts` (a browser
   test the documented command skips) still had a rule with no description, which T70 made
@@ -1234,14 +1357,22 @@ ui/src/pages/governance/`): **3,696 passed / 22 skipped / 1 failed, 239 files**;
 - After the QA of 2026-10-09 (findings 419 and 420, the keyed fingerprint and the other fixes,
   `mg/QA-SESSION-2026-10-09.md`): governance suite, documented command, **3,731 passed / 22
   skipped / 0 failed, 239 files** (237 passed, 2 skipped); 13 more mutations caught; core and
-  core-test typechecks 0.
-- Findings: **420 found, 420 closed, 0 open** (406–416 on 2026-10-07, 417 and 418 on 2026-10-08, 419 and 420 in the QA of 2026-10-09); 169 closed as not
+  core-test typechecks 0. Committed and pushed in `d83e876835e`.
+- After finding 421 (2026-10-09; re-run 2026-10-10, uncommitted): governance suite, documented command, **3,669 passed / 22
+  skipped / 0 failed, 239 files**: the 3,731 above less the 62 scrubber tests that moved to
+  `src/logging/` with the module (the three ledger boundary tests stay, in a file of their own).
+  The scrubber's own tests (66) run under `test/vitest/vitest.unit-fast.config.ts`; the log
+  tests (15) under `vitest.logging.config.ts`. Core, core-test, extensions and extensions-test
+  typechecks 0; plugin SDK API baseline regenerated and checked; the full lint gate exit 0 (run
+  alone: run beside test suites, its type-aware pass ran out of memory on the laptop); the build
+  exit 0. On Linux, owed: the audit-store tests this laptop cannot run (T83).
+- Findings: **421 found, 421 closed, 0 open** (406–416 on 2026-10-07, 417 and 418 on 2026-10-08, 419 and 420 in the QA of 2026-10-09, 421 later the same day); 169 closed as not
   reproducible, so never "all fixed".
 
 ## 11. 2026-10-04: T73, T76 and T78 built (what the report now owes)
 
 Checked against Kinan's full report paste of 2026-10-04 (`complete_report.txt`). The engineering
-record is `mg/WORK-LOG-2026-10-04.md`; the code is uncommitted. Wording below is suggested; verify
+record is `mg/WORK-LOG-2026-10-04.md`; the code was committed in `8c266e44ee4`. Wording below is suggested; verify
 against the code before writing, as everywhere in this file.
 
 ### 11.1 to 11.8 (moved)
@@ -1269,27 +1400,16 @@ The Chapter 3 wording T73, T76 and T78 owe (formerly §11.1 to §11.8) moved int
 
 ### 11.10 Chapter 5
 
-- **Remove** "T73 append refusing a contradicting checkpoint" from future work: built, as a
-  recording design rather than a refusing one.
-- **Keep** T74 (an independent off-host witness). **Add:** running the Gateway as a dedicated user
+- "T73 append refusing a contradicting checkpoint" is out of §7's future-work item (done
+  2026-10-10): built, as a recording design rather than a refusing one.
+- **Keep** T74 (an independent off-host witness). **Still owed in Chapter 5, add:** running the Gateway as a dedicated user
   that agents' commands do not share, which would give Linux, and elevated Windows deployments, the
   in-place protection idea 2 gives non-elevated Windows; and witnessing on every refresh rather
   than once per sign-in.
 
 ### 11.11 Repository documents
 
-- `docs-notes/CHAPTER3-MATERIAL.md`, `docs-notes/QA-IN-PLAIN-TERMS.md`: a design section and a
-  plain-language section for T73, T76, T78 (as earlier tasks have).
-- `docs-notes/PERMISSION-SPEC.md` and `docs-notes/ROLE-MODEL.md`: the three integrity routes and
-  their tiers; `users/delete` revokes inside the deletion and may answer 503
-  `sessions_unavailable`; `users/delete/finish` (Root).
-- `docs-notes/FIRST-RUN.md`, `docs-notes/LINUX-INSTALL.md`: the three deployment rows; on Linux,
-  `chattr +a` as an option with its cost (rotation stops), and on Windows "run the Gateway
-  non-elevated".
-- `docs-notes/T47-TEST-PLAN.md`: rows for cutting the ledger and seeing the alert, acknowledging
-  as Root (and not as an Administrator), a deletion that left work to finish, and signing in with
-  a corrupted cookie.
-- `docs-notes/FIGURES.md`: F25 and F26 changes (§3.8).
+Applied on 2026-10-10 (T81; §8).
 
 ### 11.12 The evidence, measured (for Chapter 4)
 
