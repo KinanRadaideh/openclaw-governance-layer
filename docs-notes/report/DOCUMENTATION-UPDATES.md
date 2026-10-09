@@ -87,7 +87,7 @@ went, so nothing is lost silently. "Moved" items are in §3 under the named Chap
 | Ch2 2.1.5 Auditability: "immediate detection", "exact timestamp of the breach", "perfect", "immutable"        | Moved: §3.8, 3.5.3.2 Hash Chaining and Verification                                                                         |
 | Ch2 2.1.5 Auditability: entropy analysis, `[REDACTED_SECRET]`, "strictly preventing"                          | Moved: §3.8, 3.5.3.4 Data Sanitization                                                                                      |
 | Ch1 or Ch2: agents isolated from one another's files                                                          | Moved: §3.10, 3.5.9 Tenancy and Agent Registry (findings 408, 416)                                                          |
-| §3.1 item "typed section numbers": add `\label{sec:requirements-ch1}` to Chapter 1                            | Dropped: Chapter 1 will not change, so the typed "Section~~1.3" and "Section~~1.4" in the chapter introduction stay correct |
+| §3.1 item "typed section numbers": add `\label{sec:requirements-ch1}` to Chapter 1                            | Dropped: Chapter 1 will not change, so the typed "Section~1.3" and "Section~1.4" in the chapter introduction stay correct |
 
 ## 3. Chapter 3, section by section (checked against Kinan's 2026-10-07 paste)
 
@@ -288,7 +288,7 @@ Two things run alongside this list:
   Design) gives the example `api.openweathermap.org:443`, and Chapter 2 (2.1.4 Linux OS and
   System Administration Principles) describes application-layer filtering that inspects "the
   actual URLs and payload content" of requests. Neither is what was built, so name the departure
-  in the same place: "Chapter~~1's example rule names a port, and Chapter~~2 describes filtering
+  in the same place: "Chapter~1's example rule names a port, and Chapter~2 describes filtering
   that inspects whole addresses and request contents. The developed design matches the hostname
   alone and does not inspect what is sent, so a rule written with a port never matches, and a
   command such as \texttt{curl} is governed by command rules." (Checked: `:443` contains no `/`,
@@ -458,12 +458,12 @@ Two things run alongside this list:
   the breach", a "perfect forensic timeline", and an "immutable record". Chapter 2 is frozen, so
   this section states what the developed design gives instead. Put it after the paragraph "A
   failure reports the first affected sequence when one is available and gives a concrete reason."
-  Suggested: "Chapter~~2 described tamper-evident logging in general terms, as detection that is
+  Suggested: "Chapter~2 described tamper-evident logging in general terms, as detection that is
   immediate and that dates the change. In this design a change is detected when the next append
   or a verification compares the chain with its evidence, and the result locates the first entry
   that fails rather than the time at which the change was made. The ledger is tamper-evident, not
   immutable: a change can be made, and it cannot be made without leaving that evidence, except by
-  someone who holds the ledger key (Section~~\ref{sec:gov-security})."
+  someone who holds the ledger key (Section~\ref{sec:gov-security})."
 - **NOW. "Successful server-side verification returns …".** Add "and every integrity alert found
   in the chain, with the sequence numbers a gap line declares missing. The dashboard reports such
   a chain as intact since those alerts."
@@ -552,7 +552,7 @@ Two things run alongside this list:
   "entropy analysis" that replaces a secret with `[REDACTED_SECRET]` and "strictly prevent[s]"
   plaintext from reaching the log. The section says entropy is not used ("Chapter 2
   proposed a separate preprocessing filter …"); **that is no longer true after T75's D (see the
-  item above)**, so that paragraph changes with it. After it, add: "Chapters~~1 and~~2
+  item above)**, so that paragraph changes with it. After it, add: "Chapters~1 and~2
   stated the goal in absolute terms. The developed ledger applies the host's maintained redactor
   and a second pass of its own that uses labels, naming and a bounded entropy test, as described
   below. Together they do not detect every sensitive value, and the host redactor masks a long
@@ -756,10 +756,10 @@ older open and optional ones).
   processes", and Chapter 2 says the backend "will utilize Node.js process management to send
   SIGKILL". The agent runs inside the Gateway process, so the kill switch aborts the agent's runs;
   3.5.6.2 Kill Switch already says tools end the processes they started "where the tool supports it" and
-  already names one departure ("This reporting departs from the way Chapter~~1 stated the
+  already names one departure ("This reporting departs from the way Chapter~1 stated the
   target."). If the signal departure should be named too, add before that sentence: "Because the
   agent runs inside the Gateway process, the kill switch aborts the agent's runs instead of
-  signalling a separate agent process as Chapter~~1 proposed. Ending the Gateway would also stop
+  signalling a separate agent process as Chapter~1 proposed. Ending the Gateway would also stop
   every other agent and the dashboard."
 
 **3.5.7 Human-in-the-Loop Approvals.**

@@ -30,6 +30,10 @@
     "CLAUDE.md",
     "docker-compose.yml",
     "dist/",
+    // Holds LaTeX for the report: oxfmt reads a non-breaking `Section~1.3` as the start of
+    // a strikethrough and writes `Section~~1.3`. The pre-commit hook formatted it on
+    // 2026-10-09 and damaged ten references.
+    "docs-notes/report/DOCUMENTATION-UPDATES.md",
     "docs/_layouts/",
     "extensions/diffs/assets/viewer-runtime.js",
     "extensions/browser/chrome-extension/modules/copilot-runtime.js",
