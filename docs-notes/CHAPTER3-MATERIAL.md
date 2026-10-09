@@ -11350,13 +11350,18 @@ could not see it, because it was written as prose (`token-like value QA-GAMMA-SE
 (`plugin "memory-core"`, the heartbeat, the memory flush, the skill workshop, the session-name
 helper), the purpose and shape where the host's form is known (dream diary: phase, fragment,
 theme and promoted-memory counts; memory rewrite: candidate count and the current `MEMORY.md`'s
-length), the length in characters and lines, a SHA-256 fingerprint of the exact text, and a clause
+length), the length in characters and lines, a fingerprint of the exact text (HMAC-SHA256 under
+the ledger key since the QA of 2026-10-09), and a clause
 saying why the words are absent. Options weighed with Kinan: keep the text (today), keep it but
 mask it in every view (the secret stays in the file for good), better scrubbing alone (cannot see
 an unlabelled secret), or the fact. The fact keeps Requirement 5's "it happened, to whom, when,
 why the agent woke" and gives up only the words, which OpenClaw keeps in its own session store.
-The fingerprint is plain SHA-256 so anyone holding that copy can prove it is the same message;
-live, both dream prompts' stored copies hashed to the ledger's fingerprints. A person's prompt and
+The fingerprint was first plain SHA-256, so that anyone holding that copy could prove it was the
+same message (live, both dream prompts' stored copies hashed to the ledger's fingerprints). **The
+QA of 2026-10-09 reversed that**: a background prompt is mostly a known template, so a plain hash
+lets any reader of the ledger recover a short secret inside it by hashing guesses. It is now
+HMAC-SHA256 under the ledger key with a domain tag, so only a key holder (Root, the standalone
+verifier) can test a copy. A person's prompt and
 a scheduled job's message (written by whoever created the job) keep their text. **Who is "the
 system"** is decided by the entry point, never by the text: the plugin marker is read from
 `client.internal` (`agentRunTracking: "plugin_subagent"`, `pluginRuntimeOwnerId`), set only by the
@@ -11369,7 +11374,8 @@ scheduled jobs and several helper runs were never recorded. A single funnel does
 records once per turn, and `host-prompt-callsites.test.ts` lists every non-test caller of
 `runEmbeddedAgent`/`runCliAgent` in `src/` and `extensions/` as recording, covered by a recording
 caller, unable to act (`disableTools: true`), or the runner itself, failing on any other. A
-10-second duplicate guard (agent and run id, marked only after a successful write) records a turn
+10-second duplicate guard (agent, run id and message; claimed before the write with no await
+between check and claim, released if the write fails, QA of 2026-10-09) records a turn
 seen by two entries once (a voice consult run through a plugin's runtime) while a scheduled job,
 which reuses its run id, is recorded on every run.
 
@@ -11397,3 +11403,30 @@ passphrase, can still reach the ledger through a person's prompt or narration; a
 forwards a person's words through its own background run (voice-call) is recorded as a fact, its
 words kept by the plugin; a User sees a background entry as the peer-prompt placeholder; entries
 written before 2026-10-08 keep what they hold.
+
+### 3.5.103 The QA of 2026-10-09: what the scrubber must leave alone, and who wrote an agent's words (findings 419, 420)
+
+**Measure a redactor on the text it will meet, not on its own examples.** The second pass had 35
+green tests and masked 248 lines of the project's own documentation, many wrongly. The cases its
+tests invented were secrets and obvious non-secrets; the prose a ledger holds is neither:
+"the password was compromised", "the key is `userDelete`", "1,000,000-token context", an encoded
+command. The fix narrowed each rule to the evidence a person gives that a value is a secret (a
+digit, a closing position in the sentence, a number after the label, one long random piece) and
+added a rule for what is never a secret (a reference to where one is kept). The corpus scan is now
+part of the evidence: 34 lines left, each one a real or example secret, a placeholder in a
+credential field, or a random-looking id.
+
+**Never hide what an investigator needs.** A base64-encoded command is the evidence of an
+obfuscation attempt; masking it as a random key would have been the scrubber working against the
+audit trail. Base64 of readable text is left visible, except `user:password`, which is a Basic
+credential.
+
+**Key the fingerprint.** A fingerprint of mostly known text is a guessing oracle; under the ledger
+key it is only a proof for a key holder (§3.5.102).
+
+**Finding 420.** Agent-to-agent messages are labelled from the declared provenance and keep their
+text: an agent's words are governed output like its narration, and the field is declared by any
+gateway client, so it may label but never withhold.
+
+**Accepted:** a random-looking identifier (a voice id, a spreadsheet id in a link) is masked, since
+shape cannot tell it from a key.

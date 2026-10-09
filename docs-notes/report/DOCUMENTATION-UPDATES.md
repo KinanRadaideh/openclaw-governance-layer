@@ -514,21 +514,29 @@ Two things run alongside this list:
     (\texttt{src/governance/free-form-redaction.ts}), to every resource and intent value after the
     host redactor and before the entry is hashed. It is aimed at secrets written as ordinary
     text rather than in a recognised format. It masks a value introduced by a credential word,
-    such as `the password is hunter2' or `token-like value QA-GAMMA-SECRET-7731', where a word
-    such as password, passphrase or PIN masks any value after an explicit connector except an
-    ordinary English word, and a word with an everyday meaning, such as token, key or secret,
-    masks the value only when it looks like a code. It masks a hyphen- or underscore-joined
-    token that names itself a secret and carries a number, such as \texttt{DB\_PASSWORD\_2024},
-    and a string of twenty or more letters and digits that mixes upper case, lower case and
-    digits, switches between them at least 45 percent of the time and has a character entropy
-    of at least 3.5 bits. Every match becomes \texttt{***}, never a partial value." Then correct
+    such as `the password is hunter2' or `token-like value QA-GAMMA-SECRET-7731'. After a word
+    that only ever names a secret (password, passphrase, passcode, one-time or recovery code)
+    and a connector, it masks a value containing a digit, a symbol or a capital, and a plain
+    word only when the word ends its clause and does not read as a description. After a word
+    with an everyday meaning (token, key, secret, credential, PIN), it masks only a value that
+    contains a digit. It never masks a value that names where a secret is kept, such as an
+    environment variable or a configuration path. It masks a hyphen- or underscore-joined token
+    that names itself a secret and carries a number after the name, such as
+    \texttt{DB\_PASSWORD\_2024}, and an unbroken string of twenty or more letters and digits that
+    mixes upper case, lower case and digits, switches between them at least 45 percent of the
+    time and has a character entropy of at least 3.5 bits, unless it is base64 for readable
+    text, which is left visible so that an encoded command stays readable. Every match becomes
+    \texttt{***}, never a partial value." Then correct
     the sentence "Entropy is not used as an independent classification rule" to "Entropy is one
     of the second pass's three tests, bounded so that identifiers the layer mints, hexadecimal
     digests, UUIDs and camelCase names are not taken for secrets", and narrow the detection
     boundary paragraph: "A secret that reads as an ordinary word and has no label, or the
     second and later words of a multi-word passphrase, can still reach the ledger."
-    Measured 2026-10-08: 35 tests (11 secret forms masked, 17 legitimate forms left alone,
-    idempotence, three driving `appendLedgerEntry`), and live, a chat message carrying a
+    Measured 2026-10-08 and, after the QA of 2026-10-09 (finding 419), again: 64 tests (17
+    secret forms masked, 40 legitimate forms left alone, idempotence, three driving
+    `appendLedgerEntry`); over the project's own 802 documentation files the pass changes 34
+    lines, each a real or example secret, a configuration placeholder in a credential field,
+    or a random-looking identifier (`mg/QA-SESSION-2026-10-09.md`); and live, a chat message carrying a
     password, a PIN, a random token and a labelled code was sealed as "the staging password is
     \*\*\*, the backup PIN is \*\*\*, and paste \*\*\* into the token box. Also note token-like value
     \*\*\*" (live ledger #26).
@@ -536,8 +544,10 @@ Two things run alongside this list:
     for itself, such as a memory dreaming prompt, a heartbeat check-in or a plugin's background
     run, is assembled from earlier conversations, memory files and pending events, and can quote
     file contents. The ledger records such a prompt as a described fact: which part of the host
-    sent it, its purpose and shape, its length and a SHA-256 fingerprint of the exact text, and
-    never the words themselves." Cross-reference 3.5.5 Prompt Execution Path, which states the
+    sent it, its purpose and shape, its length and a fingerprint of the exact text, an
+    HMAC-SHA256 under the ledger key, and never the words themselves. The fingerprint is keyed
+    so that a reader of the ledger cannot test guesses of a short secret inside a known
+    template; a holder of the key can show that a stored copy is the message recorded." Cross-reference 3.5.5 Prompt Execution Path, which states the
     full rule. With both in place the section may say that a background prompt's quoted file
     contents do not enter the ledger; it must still not say that no ledger entry ever contains
     file contents, because a person's own prompt, and model narration, can quote them, and only
@@ -714,12 +724,16 @@ older open and optional ones).
   companion question. A prompt a person or a job's creator wrote is recorded in full, after
   redaction, with its channel or the job's name. A prompt the host writes for itself, such as a
   memory dreaming prompt, a heartbeat check-in, the memory flush before compaction, a skill
-  review or a plugin's background run, is recorded as a described fact with a SHA-256
-  fingerprint of the text and without the words, because it is assembled from earlier
+  review or a plugin's background run, is recorded as a described fact with a fingerprint of
+  the text, keyed with the ledger key, and without the words, because it is assembled from earlier
   conversations and files. Every tool call in either kind of turn passes the same governance
-  checks." Optional example for a figure or listing (live ledger #31, 2026-10-08): "background
+  checks. A message one agent sends another, such as a sub-agent's report, keeps its text and
+  says that it declared itself a message from another session, written by an agent, not a
+  person." (Finding 420: those arrived on the internal channel, named \texttt{webchat}, and read
+  as typed in OpenClaw's chat.) Optional example for a figure or listing (live ledger #31,
+  2026-10-08, before the fingerprint was keyed on 2026-10-09): "background
   prompt from plugin "memory-core" (memory dreaming, dream diary entry, light phase: 7 memory
-  fragments, 6 recurring themes, 0 promoted memories); 1,371 characters, 21 lines; SHA-256 3e19…b76b;
+  fragments, 6 recurring themes, 0 promoted memories); 1,371 characters, 21 lines; HMAC-SHA256 …;
   text not recorded, because a background prompt is assembled by the host and can quote earlier
   conversations and file contents". Design reasons and the full list of entry points:
   `docs-notes/CHAPTER3-MATERIAL.md` §3.5.102; `mg/WORK-LOG-2026-10-08.md` part 5.
@@ -1032,11 +1046,12 @@ consistency limits in 3.5.4.3 Ownership and Assignment (until T77).
   report, not by a test or a live run, and it is the same class as 412 (one rule written out at
   several call sites, one copy drifting).
 - **NEW 10-08. Chapter 4 evidence for T75 (B and D) and finding 418.** Tests:
-  `src/governance/free-form-redaction.test.ts` (35: eleven secret forms masked, seventeen
-  legitimate forms left alone, idempotence, three driving `appendLedgerEntry`),
-  `host-prompt-audit.test.ts` (19, ten new), `host-prompt-callsites.test.ts` (walks `src/` and
+  `src/governance/free-form-redaction.test.ts` (64 after the QA of 2026-10-09: seventeen secret
+  forms masked, forty legitimate forms left alone, idempotence, three driving
+  `appendLedgerEntry`), `host-prompt-audit.test.ts` (23, fourteen new), `host-prompt-callsites.test.ts` (walks `src/` and
   `extensions/` for every caller of the agent runners), two gateway tests (the plugin marker for a
-  tracked run; never from public parameters). 17 of 17 mutations caught. Live on the rebuilt
+  tracked run; never from public parameters). 17 of 17 mutations caught, and 13 more for the
+  QA's fixes (`mg/QA-SESSION-2026-10-09.md`). Live on the rebuilt
   Gateway (`mg/WORK-LOG-2026-10-08.md` part 5): a chat message, a chat message with four secrets
   (all sealed as `***`), a scheduled job, a heartbeat and two dream diary prompts were each
   recorded once; OpenClaw's stored copies of the dream prompts contain the synthetic secret and
@@ -1045,6 +1060,16 @@ consistency limits in 3.5.4.3 Ownership and Assignment (until T77).
   following one feature's data path end to end, not by a test, and it is the class of 291 and 412:
   a guarantee stated in the documentation and implemented at one of several call sites. The fix
   added a test that enumerates the call sites, so a new one fails until someone decides.
+- **NEW 10-09. Chapter 5, observation from the QA of 2026-10-09: memory dreaming replays old
+  instructions.** Seconds after two dream diary prompts, the agent read a file twice, because a
+  fragment quoted an earlier user's "Please read `epsilon/secret.txt` …" (live ledger #44–#47,
+  `mg/QA-SESSION-2026-10-09.md` §5). A model can act on what a dream re-delivers without anyone
+  asking again. The governance layer does not prevent this; it governs the resulting tool calls
+  like any others and, since T75's B, records the dream prompt before them, so the trail shows why
+  the agent acted. Suggested sentence: "Memory consolidation re-presents fragments of earlier
+  conversations to the agent, and a fragment that quotes an instruction can lead the agent to act
+  on it again; each such action passes the gate and is recorded after the background prompt that
+  prompted it."
 - **NEW 10-08. Chapter 5, limits that stay after T75.** A secret that reads as an ordinary word
   with no label, and the later words of a multi-word passphrase, can still reach the ledger
   through a person's prompt or model narration. A plugin that forwards a person's words through its
@@ -1062,7 +1087,7 @@ None of these has been applied.
   never recorded)". `docs-notes/PERMISSION-SPEC.md` line 876 (the `actor` row): `host-prompt` now
   covers every host entry point, and its `resource` is either "prompt via <channel> (no governance
   account): <text>", "prompt from scheduled job "<name>" (<id>) …: <text>" or "background prompt
-  from <source> (<purpose and shape>); <n> characters, <n> lines; SHA-256 <hex>; text not
+  from <source> (<purpose and shape>); <n> characters, <n> lines; HMAC-SHA256 <hex>; text not
   recorded, …"; and the ledger boundary applies two scrubbing passes (`redactToolPayloadText`,
   then `redactFreeFormSecrets`). `docs-notes/T47-TEST-PLAN.md`: rows to drive by hand: a message in
   OpenClaw's chat appears in the ledger once; a dream or heartbeat appears as a background fact;
@@ -1206,7 +1231,11 @@ ui/src/pages/governance/`): **3,696 passed / 22 skipped / 1 failed, 239 files**;
   expectations, a Unix executable-bit check, plugin-subagent tests that time out at 120 s), so they
   are this machine's, not this work's. Typechecks and the full lint gate: `mg/WORK-LOG-2026-10-08.md`
   part 5.
-- Findings: **418 found, 418 closed, 0 open** (406–416 on 2026-10-07, 417 and 418 on 2026-10-08); 169 closed as not
+- After the QA of 2026-10-09 (findings 419 and 420, the keyed fingerprint and the other fixes,
+  `mg/QA-SESSION-2026-10-09.md`): governance suite, documented command, **3,731 passed / 22
+  skipped / 0 failed, 239 files** (237 passed, 2 skipped); 13 more mutations caught; core and
+  core-test typechecks 0.
+- Findings: **420 found, 420 closed, 0 open** (406–416 on 2026-10-07, 417 and 418 on 2026-10-08, 419 and 420 in the QA of 2026-10-09); 169 closed as not
   reproducible, so never "all fixed".
 
 ## 11. 2026-10-04: T73, T76 and T78 built (what the report now owes)

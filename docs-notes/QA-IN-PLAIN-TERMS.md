@@ -8718,3 +8718,19 @@ through. A second eraser now also catches a secret introduced in words ("the pas
 "token-like value …"), a name that calls itself a secret and has a number in it, and long
 random-looking strings. It does not catch a secret that looks like an ordinary word and has no
 label.
+
+## 5.130 Checking the new eraser on real writing (findings 419 and 420, 9 October)
+
+The new eraser was tested on made-up examples, and passed. Then it was run over the project's own
+notes, which talk about passwords and keys all the time, and it rubbed out ordinary words: "the
+password was **compromised**" lost "compromised", a code name lost its name, and an encoded command
+(the kind someone uses to hide what they are running) was rubbed out as if it were a key, which
+would have hidden exactly what an investigator needs to see. It now looks for the signs a person
+gives that something is a secret (a number in it, it ends the sentence, it follows the label), and
+it never rubs out a pointer to where a secret is kept. On the same notes it now changes only real
+or example secrets.
+
+Two smaller fixes came with it. The fingerprint of a background message is now locked with the
+ledger's own key, so nobody reading the record can guess a short secret and check the guess. And a
+message one agent sends another is now labelled as an agent's message: it had been written down as
+if a person had typed it into OpenClaw's chat.

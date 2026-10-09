@@ -13,7 +13,7 @@ here is speculative.
 
 ### Where this file stands (updated 2026-10-08)
 
-**Start at `mg/HANDOFF-2026-10-08.md`.** Counted from the rows of §"The numbered backlog" on
+**Start at `mg/HANDOFF-2026-10-09.md`.** Counted from the rows of §"The numbered backlog" on
 2026-10-08 (later): **thirteen unstruck, all actionable**: T13, T17, T18, T47, T58, T59, T70
 (built, open only for Kinan's acceptance QA), T72, T74, T77, T79, T82 (added later on
 2026-10-08: describe the scrubber in the report) and T81 (added earlier on 2026-10-08).
@@ -25,11 +25,11 @@ here is speculative.
 - **T81** (Claude): bring the repository's specification documents up to date with findings
   406–418, decisions (ii) and C, and T75 (`docs-notes/report/DOCUMENTATION-UPDATES.md` §8).
 
-**Also outstanding, not backlog rows:** the 2026-10-08 work is **uncommitted** (finding 417,
+**QA of 2026-10-09** (`mg/QA-SESSION-2026-10-09.md`): findings 419 and 420 found and fixed, with six more defects from the code review; **uncommitted** (the work before it is committed at `4aa2af5a4f4`). **Also outstanding, not backlog rows:** the 2026-10-08 work was **uncommitted** until 2026-10-09 (finding 417,
 decisions (ii) and C, T75's B and D, finding 418, the documentation). Run the full lint gate (`node scripts/run-lint.mjs`)
 before Kinan's word to commit. Upstream's `ui/src/components/board/board-widget-cell-plugin.test.ts`
 fails on its own (1 or 2 of 4 tests); it is not governance's and was not changed. Findings stand
-at **418 / 418 / 0** (169 closed as not reproducible). Chapter 3 of the report is fully written;
+at **420 / 420 / 0** (169 closed as not reproducible). Chapter 3 of the report is fully written;
 Chapters 1 and 2 are frozen; everything the report still owes is in
 `docs-notes/report/DOCUMENTATION-UPDATES.md`.
 
