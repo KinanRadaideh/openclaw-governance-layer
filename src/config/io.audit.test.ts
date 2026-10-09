@@ -110,6 +110,28 @@ describe("config io audit helpers", () => {
     expect(record).toHaveProperty("issues", ["gateway.port: expected number"]);
   });
 
+  it("masks secrets written as prose before the audit record is kept (finding 421)", () => {
+    // Synthetic values. The audit store is a log, so it gets the log passes.
+    const record = sanitizeConfigAuditRecord({
+      ts: "2026-10-09T00:00:00.000Z",
+      source: "config-io",
+      event: "config.external",
+      detectedBy: "watch",
+      configPath: "/tmp/openclaw.json",
+      previousHash: "previous",
+      nextHash: null,
+      valid: false,
+      issues: [
+        "agents.list.0.notes: the staging password is Sunrise-42, token-like value QA-DELTA-SECRET-4410",
+      ],
+    });
+
+    const serialized = JSON.stringify(record);
+    expect(serialized).not.toContain("Sunrise-42");
+    expect(serialized).not.toContain("QA-DELTA-SECRET-4410");
+    expect(serialized).toContain("agents.list.0.notes");
+  });
+
   afterAll(async () => {
     await suiteRootTracker.cleanup();
   });

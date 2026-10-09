@@ -6579,6 +6579,62 @@ describe("diagnostics-otel service", () => {
     );
   });
 
+  test("masks secrets written as prose in captured content (finding 421)", async () => {
+    await startOtelService({
+      traces: true,
+      captureContent: true,
+    });
+
+    // Synthetic values. A string, structured messages and a tool input: the three routes the
+    // content takes (plain text, serialised JSON, serialised JSON again).
+    emitTrustedModelCallCompletedWithContent(
+      {
+        runId: "run-421",
+        callId: "call-421",
+        provider: "openai",
+        model: "gpt-5.4",
+        durationMs: 80,
+      },
+      {
+        inputMessages: ["The password is hunter2. token-like value QA-DELTA-SECRET-4410"],
+        outputMessages: [
+          {
+            role: "assistant",
+            content: [{ type: "text", text: "the staging password is Sunrise-42, noted" }],
+          },
+        ],
+      },
+    );
+    emitTrustedToolExecutionCompletedWithContent(
+      {
+        runId: "run-421",
+        toolName: "write",
+        toolCallId: "tool-421",
+        durationMs: 20,
+      },
+      {
+        toolInput: { path: "notes.txt", text: "token-like value QA-GAMMA-SECRET-7731" },
+        toolOutput: "wrote notes.txt",
+      },
+    );
+    await flushDiagnosticEvents();
+
+    const exported = JSON.stringify([
+      startedSpanOptions("openclaw.model.call")?.attributes,
+      startedSpanOptions("openclaw.tool.execution")?.attributes,
+    ]);
+    for (const secret of [
+      "hunter2",
+      "QA-DELTA-SECRET-4410",
+      "Sunrise-42",
+      "QA-GAMMA-SECRET-7731",
+    ]) {
+      expect(exported).not.toContain(secret);
+    }
+    expect(exported).toContain("notes.txt");
+    expect(exported).toContain("wrote notes.txt");
+  });
+
   test("omits absent model content fields when capture is enabled", async () => {
     await startOtelService({
       traces: true,

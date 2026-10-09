@@ -8,7 +8,7 @@ import { resolveEnvLogLevelOverride } from "./env-log-level.js";
 import { formatJsonConsoleLine } from "./json-console-line.js";
 import { type LogLevel, normalizeLogLevel } from "./levels.js";
 import { getLogger } from "./logger.js";
-import { redactSensitiveText } from "./redact.js";
+import { redactLogText } from "./redact-log.js";
 import { loggingState } from "./state.js";
 import { formatTimestamp } from "./timestamps.js";
 import type { ConsoleStyle, LoggerSettings } from "./types.js";
@@ -302,7 +302,7 @@ export function enableConsoleCapture(): void {
       if (loggingState.forceConsoleToStderr) {
         // In --json mode, all console.* writes are diagnostics and should stay off stdout.
         try {
-          const redacted = redactSensitiveText(formatted);
+          const redacted = redactLogText(formatted);
           const line =
             consoleStyle === "json"
               ? formatJsonConsoleLine({ level, message: jsonMessage, meta: jsonMeta })
@@ -318,7 +318,7 @@ export function enableConsoleCapture(): void {
         }
       } else {
         try {
-          const redacted = redactSensitiveText(formatted);
+          const redacted = redactLogText(formatted);
           if (consoleStyle === "json") {
             const line = formatJsonConsoleLine({ level, message: jsonMessage, meta: jsonMeta });
             // Node and Bun implement console.trace() through this.error(). Use the raw error

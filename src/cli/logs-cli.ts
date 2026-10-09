@@ -25,7 +25,8 @@ import { formatErrorMessage } from "../infra/errors.js";
 import { parseStrictPositiveInteger } from "../infra/parse-finite-number.js";
 import { readConfiguredLogTail } from "../logging/log-tail.js";
 import { parseLogLine } from "../logging/parse-log-line.js";
-import { redactSensitiveLines, resolveRedactOptions } from "../logging/redact.js";
+import { redactLogLines } from "../logging/redact-log.js";
+import { resolveRedactOptions } from "../logging/redact.js";
 import { formatTimestamp } from "../logging/timestamps.js";
 import { defaultRuntime } from "../runtime.js";
 import { formatCliCommand } from "./command-format.js";
@@ -333,7 +334,7 @@ async function readSystemdJournalFallback(params: {
       unit: unitName,
     },
     cursor: parsed.cursor ?? params.cursor,
-    lines: redactSensitiveLines(lines, redaction),
+    lines: redactLogLines(lines, redaction),
     truncated: boundedOutput.truncated || parsed.lines.length > limit,
     localFallback: true,
   };

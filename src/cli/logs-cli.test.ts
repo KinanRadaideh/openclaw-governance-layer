@@ -451,9 +451,12 @@ describe("logs cli", () => {
       readSystemdServiceRuntime.mockResolvedValue({ status: "running", pid: 2557 });
       execFileUtf8Tail
         .mockResolvedValueOnce({
-          stdout: ["Authorization: Bearer sk-abcdefghijklmnopqrstuvwxyz", "-- cursor: s=abc"].join(
-            "\n",
-          ),
+          stdout: [
+            "Authorization: Bearer sk-abcdefghijklmnopqrstuvwxyz",
+            // Finding 421: a secret written as prose, which only the free-form pass recognises.
+            "agent reply: The password is hunter2. token-like value QA-DELTA-SECRET-4410",
+            "-- cursor: s=abc",
+          ].join("\n"),
           stderr: "",
           code: 0,
           truncated: false,
@@ -497,6 +500,9 @@ describe("logs cli", () => {
       expect(stdoutWrites.join("")).toContain("Service PID: 2557");
       expect(stdoutWrites.join("")).toContain("Service Unit: openclaw-gateway.service");
       expect(stdoutWrites.join("")).not.toContain("sk-abcdefghijklmnopqrstuvwxyz");
+      expect(stdoutWrites.join("")).not.toContain("hunter2");
+      expect(stdoutWrites.join("")).not.toContain("QA-DELTA-SECRET-4410");
+      expect(stdoutWrites.join("")).toContain("The password is ***.");
       expect(stdoutWrites.join("")).toContain("Authorization: Bearer");
       expect(stdoutWrites.join("")).toContain("second journal line");
       expect(exitSpy).toHaveBeenCalledWith(1);

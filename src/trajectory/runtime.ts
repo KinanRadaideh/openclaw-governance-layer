@@ -10,7 +10,7 @@ import { parseSqliteSessionFileMarker } from "../config/sessions/legacy-sqlite-m
 import { loadSessionEntry } from "../config/sessions/session-accessor.js";
 import type { SessionTranscriptRuntimeTarget } from "../config/sessions/session-accessor.types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { redactSecrets } from "../logging/redact.js";
+import { redactLogValue } from "../logging/redact-log.js";
 import { parseAgentSessionKey } from "../routing/session-key.js";
 import { parseBooleanValue } from "../utils/boolean.js";
 import { safeJsonStringify } from "../utils/safe-json.js";
@@ -222,7 +222,7 @@ function limitTrajectoryPayloadValue(
 function sanitizeTrajectoryPayload(data: Record<string, unknown>): Record<string, unknown> {
   const finalPromptText = data.finalPromptText;
   const redactedFinalPromptText =
-    typeof finalPromptText === "string" ? (redactSecrets(finalPromptText) as string) : undefined;
+    typeof finalPromptText === "string" ? redactLogValue(finalPromptText) : undefined;
   const boundedData =
     typeof finalPromptText === "string" &&
     typeof redactedFinalPromptText === "string" &&
@@ -240,7 +240,9 @@ function sanitizeTrajectoryPayload(data: Record<string, unknown>): Record<string
       : typeof redactedFinalPromptText === "string"
         ? { ...data, finalPromptText: redactedFinalPromptText }
         : data;
-  return redactSecrets(
+  // A diagnostic record, not the conversation: both passes, so a secret quoted in prose is
+  // masked as it is in the logs (finding 421).
+  return redactLogValue(
     sanitizeDiagnosticPayload(limitTrajectoryPayloadValue(boundedData)),
   ) as Record<string, unknown>;
 }

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { sanitizeConfigAuditRecord, type ConfigAuditRecord } from "../config/io.audit.js";
-import { redactSecrets } from "../logging/redact.js";
+import { redactLogValue } from "../logging/redact-log.js";
 import type { SystemAgentAuditEntry } from "../system-agent/audit.js";
 import type { LegacyAuditLogSource } from "./state-migrations.audit-logs.types.js";
 
@@ -70,7 +70,7 @@ export function prepareLegacyAuditRecords(
     const value =
       source.kind === "config"
         ? sanitizeConfigAuditRecord(parsed as ConfigAuditRecord)
-        : (redactSecrets(parsed) as SystemAgentAuditEntry);
+        : (redactLogValue(parsed) as SystemAgentAuditEntry);
     const digest = createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 16);
     const recordOrdinal = sourceOrdinalBase + records.length + 1;
     records.push({

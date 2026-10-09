@@ -32,7 +32,8 @@ import {
   redactSupportString,
   type SupportRedactionContext,
 } from "../logging/diagnostic-support-redaction.js";
-import { redactSecrets, redactToolPayloadText } from "../logging/redact.js";
+import { redactFreeFormLogLine, redactLogValue } from "../logging/redact-log.js";
+import { redactToolPayloadText } from "../logging/redact.js";
 import {
   hasMeaningfulRetiredMediaCarrier,
   PERSISTED_LEGACY_MEDIA_KEYS,
@@ -624,7 +625,7 @@ function extractAssistantToolCalls(
 }
 
 function sanitizeTrajectoryExportValue<T>(value: T): T {
-  return redactSecrets(sanitizeDiagnosticPayload(value)) as T;
+  return redactLogValue(sanitizeDiagnosticPayload(value)) as T;
 }
 
 function buildTranscriptEvents(params: {
@@ -799,7 +800,8 @@ function redactTrajectoryBundleFileContent(
 ): DiagnosticSupportBundleFile {
   return {
     ...file,
-    content: redactToolPayloadText(file.content),
+    // Both passes, line by line: a bundle is written to be shared (finding 421).
+    content: redactToolPayloadText(file.content).split("\n").map(redactFreeFormLogLine).join("\n"),
   };
 }
 

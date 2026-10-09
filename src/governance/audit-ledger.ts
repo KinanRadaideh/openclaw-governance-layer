@@ -29,10 +29,10 @@ import { createHash, createHmac } from "node:crypto";
 // as future work.
 import { appendFile, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { redactFreeFormSecrets } from "../logging/redact-free-form.js";
 import { redactToolPayloadText } from "../logging/redact.js";
 import { MAX_INTENT_LENGTH } from "./agent-intent.js";
 import { withFileLock } from "./file-lock.js";
-import { redactFreeFormSecrets } from "./free-form-redaction.js";
 import { forgetLedgerFileProtection, protectLedgerFile } from "./ledger-append-only.js";
 import {
   describeFinding,
@@ -182,8 +182,9 @@ function clampIntent(intent: string): string {
 /**
  * The ledger's two scrubbing passes, in order: the host's maintained redactor
  * (secrets recognised by shape or position), then the governance pass for secrets
- * written as prose (T75, decision D, `free-form-redaction.ts`). One function so that
- * no write site can apply the first and forget the second.
+ * written as prose (T75, decision D, `src/logging/redact-free-form.ts`, which OpenClaw's own
+ * logs also use since finding 421). One function so that no write site can apply the first
+ * and forget the second.
  */
 function redactLedgerText(text: string): string {
   return redactFreeFormSecrets(redactToolPayloadText(text));

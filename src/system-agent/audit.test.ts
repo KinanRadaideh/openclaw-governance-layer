@@ -42,4 +42,24 @@ describe("OpenClaw audit log", () => {
       expect(entry.configHashAfter).toBe("after");
     });
   });
+
+  it("masks secrets written as prose before the entry is kept (finding 421)", async () => {
+    await withTempDir({ prefix: "openclaw-audit-" }, async (tempDir) => {
+      vi.stubEnv("OPENCLAW_STATE_DIR", tempDir);
+
+      // Synthetic values.
+      await appendSystemAgentAuditEntry({
+        operation: "agents.update",
+        summary: "Updated agent notes",
+        details: {
+          notes: "the staging password is Sunrise-42, token-like value QA-DELTA-SECRET-4410",
+        },
+      });
+
+      const serialized = JSON.stringify(listSystemAgentAuditEntriesForTests());
+      expect(serialized).not.toContain("Sunrise-42");
+      expect(serialized).not.toContain("QA-DELTA-SECRET-4410");
+      expect(serialized).toContain("Updated agent notes");
+    });
+  });
 });

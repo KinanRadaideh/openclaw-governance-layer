@@ -20,3 +20,4 @@ export type {
   OpenClawPluginServiceContext,
 } from "openclaw/plugin-sdk/plugin-entry";
 export { redactSensitiveText } from "openclaw/plugin-sdk/security-runtime";
+export { redactFreeFormLeaves, redactLogText } from "openclaw/plugin-sdk/logging-core";

@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { createSqliteAuditRecordStore } from "../infra/sqlite-audit-record-store.js";
-import { redactSecrets } from "../logging/redact.js";
+import { redactLogValue } from "../logging/redact-log.js";
 import { resolveConfigAuditStoreEnv } from "./config-journal-snapshot.js";
 import type { ConfigWriteAuditOrigin } from "./io.types.js";
 import { resolveStateDir } from "./paths.js";
@@ -668,7 +668,8 @@ export function sanitizeConfigAuditRecord(record: ConfigAuditRecord): ConfigAudi
     sanitized.argv = redactConfigAuditArgv(capArgv(sanitized.argv));
     sanitized.execArgv = redactConfigAuditArgv(capArgv(sanitized.execArgv));
   }
-  return redactSecrets(sanitized);
+  // The audit store is a log: both passes, secrets written as prose included (finding 421).
+  return redactLogValue(sanitized);
 }
 
 export async function appendConfigAuditRecord(params: ConfigAuditAppendParams): Promise<void> {

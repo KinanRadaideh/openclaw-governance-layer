@@ -1,4 +1,9 @@
-// The ledger's second scrubbing pass: secrets written as ordinary text (T75, decision D).
+// The second scrubbing pass: secrets written as ordinary text (T75, decision D).
+//
+// Written for the governance ledger and moved here from `src/governance/` by finding 421, when
+// OpenClaw's own log file was found holding an agent's reply that quoted a file ("The password
+// is hunter2. token-like value QA-DELTA-SECRET-4410") in plaintext. The ledger still applies it
+// at its one write boundary; OpenClaw's logs apply it through `redact-log.ts`, which says where.
 //
 // ## Why a second pass
 //
@@ -375,19 +380,27 @@ function isBase64OfText(run: string): boolean {
   if (!/^[A-Za-z0-9+/]+={0,2}$/u.test(run) || run.replace(/=+$/u, "").length % 4 === 1) {
     return false;
   }
-  const bytes = Buffer.from(run, "base64");
-  if (bytes.length < 6) {
+  // `atob`, not `Buffer`: this module is part of the logger, which also loads where Node's
+  // built-ins are absent. Each character of the result is one decoded byte.
+  let decoded: string;
+  try {
+    decoded = atob(run);
+  } catch {
+    return false;
+  }
+  if (decoded.length < 6) {
     return false;
   }
   let printable = 0;
-  for (const byte of bytes) {
+  for (let index = 0; index < decoded.length; index += 1) {
+    const byte = decoded.charCodeAt(index);
     if ((byte >= 0x20 && byte <= 0x7e) || byte === 0x09 || byte === 0x0a || byte === 0x0d) {
       printable += 1;
     }
   }
   // Base64 of "user:password" is an HTTP Basic credential, not a command: it stays masked
   // (QA of 2026-10-09).
-  return printable / bytes.length >= 0.95 && !/^[^\s:]{1,128}:\S+$/u.test(bytes.toString("utf8"));
+  return printable / decoded.length >= 0.95 && !/^[^\s:]{1,128}:\S+$/u.test(decoded);
 }
 
 /**
@@ -397,16 +410,20 @@ function isBase64OfText(run: string): boolean {
  */
 function redactRandomLookingStrings(text: string): string {
   return text.replace(DENSE_RUN, (run) => {
+    // `=` separates pieces too: base64 only ever ends with it, while a name glued to its value
+    // by `=` (`eventLoopDelayP99Ms=42.8` in a health line) is two pieces (finding 421). A random
+    // value after `=` is still one long piece, and padding leaves the key whole.
     const randomPiece = run
-      .split(/[-_]/u)
+      .split(/[-_=]/u)
       .some((piece) => piece.length >= 20 && looksRandom(piece) && !isBase64OfText(piece));
     return randomPiece ? FREE_FORM_MASK : run;
   });
 }
 
 /**
- * Masks secrets written as ordinary text. Applied after the upstream redactor, at the
- * ledger's one write boundary, to every resource and intent value.
+ * Masks secrets written as ordinary text. Applied after the pattern redactor: at the ledger's
+ * one write boundary, to every resource and intent value, and to everything OpenClaw writes as a
+ * log (`redact-log.ts`, finding 421).
  *
  * Idempotent: the mask matches none of the three kinds, so a second pass changes nothing.
  */

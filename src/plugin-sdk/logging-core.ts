@@ -21,3 +21,6 @@ export {
   redactToolPayloadText,
 } from "../logging/redact.js";
 export { redactIdentifier } from "../logging/redact-identifier.js";
+// Finding 421: the pattern redactor plus the pass for secrets written as prose, for text a
+// plugin writes or exports as a log.
+export { redactFreeFormLeaves, redactLogText } from "../logging/redact-log.js";

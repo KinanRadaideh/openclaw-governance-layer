@@ -313,6 +313,17 @@ masked before the line or message is written to disk. Redaction is best-effort:
 it applies to text-bearing message content and log strings, not every
 identifier or binary payload field.
 
+Log output also passes a second scan for secrets written as prose rather than
+in a recognizable format, such as `the password is hunter2`, a code named as a
+secret with a number after the name (`DB_PASSWORD_2024`), or a long
+random-looking string. Each match becomes `***`. The scan covers console
+output, file logs, OTLP log records and captured OTLP content, `openclaw logs`
+and the log tail, trajectory capture and export, and the debug payload,
+cache-trace, and raw-stream files. It is not applied to session transcripts or
+to the tool results a model reads, so an agent can still use a value it was
+given. References to where a secret is kept (`$DB_PASSWORD`,
+`process.env.API_KEY`) and base64 that decodes to readable text stay visible.
+
 The built-in defaults cover common API credentials and payment-credential field
 names such as card number, CVC/CVV, shared payment token, and payment credential
 when they appear as JSON fields, URL parameters, CLI flags, or assignments.

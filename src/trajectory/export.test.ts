@@ -764,6 +764,8 @@ describe("exportTrajectoryBundle", () => {
       "ADMIN_PASSWORD=plain-text-password",
       "sk-top-level-export-secret",
     ];
+    // Finding 421: secrets written as prose, which only the free-form pass recognises.
+    const proseSecrets = ["Sunrise-42", "QA-DELTA-SECRET-4410"];
     const header = {
       type: "session",
       version: 3,
@@ -776,7 +778,9 @@ describe("exportTrajectoryBundle", () => {
       id: "entry-user",
       parentId: null,
       timestamp: "2026-04-01T05:46:40.000Z",
-      message: userMessage(`user pasted ${rawSecrets[0]} keep-visible-marker`),
+      message: userMessage(
+        `user pasted ${rawSecrets[0]} keep-visible-marker. The staging password is ${proseSecrets[0]}.`,
+      ),
     };
     const assistantEntry = {
       type: "message",
@@ -887,7 +891,7 @@ describe("exportTrajectoryBundle", () => {
           sessionId: "session-1",
           runId: rawSecrets[5],
           data: {
-            assistantTexts: [`assistant ${rawSecrets[2]}`],
+            assistantTexts: [`assistant ${rawSecrets[2]}`, `token-like value ${proseSecrets[1]}`],
             finalPromptText: `final ${rawSecrets[3]}`,
           },
         },
@@ -911,7 +915,7 @@ describe("exportTrajectoryBundle", () => {
       .map((file) => fs.readFileSync(path.join(outputDir, file), "utf8"))
       .join("\n");
     expect(exportedBundleText).toContain("keep-visible-marker");
-    for (const secret of rawSecrets) {
+    for (const secret of [...rawSecrets, ...proseSecrets]) {
       expect(exportedBundleText).not.toContain(secret);
     }
     expect(JSON.stringify(bundle.events)).not.toContain(rawSecrets[5]);

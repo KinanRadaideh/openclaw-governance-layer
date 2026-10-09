@@ -1,22 +1,18 @@
-// T75, decision D: the ledger's second scrubbing pass, for secrets written as prose.
+// T75, decision D: the second scrubbing pass, for secrets written as prose. Written for the
+// governance ledger and used, since finding 421, by OpenClaw's own logs as well.
 //
 // Three properties, in the order they matter:
 //
 //   1. The value that actually leaked on the 2026-10-03 QA fixture, and its kin, are
-//      masked before the entry is sealed (the boundary tests at the end drive the real
-//      `appendLedgerEntry`, resource and intent both).
-//   2. What the ledger legitimately holds is left alone: the ids this layer mints, paths,
-//      digests, commands, rule text, ordinary sentences that mention passwords.
+//      masked (the boundary tests that drive the real writers are
+//      `src/governance/audit-ledger-free-form.test.ts` for the ledger and
+//      `src/logging/log-free-form-redaction.test.ts` for the logs).
+//   2. What the ledger and the logs legitimately hold is left alone: the ids this layer
+//      mints, paths, digests, commands, rule text, ordinary sentences that mention passwords.
 //   3. The pass is idempotent, so a value redacted once by a caller and again at the
 //      boundary reads the same.
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { appendLedgerEntry, tailLedger, verifyLedgerChain } from "./audit-ledger.js";
-import { FREE_FORM_MASK, looksRandom, redactFreeFormSecrets } from "./free-form-redaction.js";
-import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
-import { seedGroupWithAgents } from "./test-group.js";
+import { describe, expect, it } from "vitest";
+import { FREE_FORM_MASK, looksRandom, redactFreeFormSecrets } from "./redact-free-form.js";
 
 // Synthetic values only. None of these is a real credential.
 const LEAKED_ON_FIXTURE = "QA-GAMMA-SECRET-7731";
@@ -62,6 +58,17 @@ describe("masking secrets written as ordinary text", () => {
       "key Zk81qPx7Lm2Vt9Rw4Bn6Qa3Ts5Xy8Wd==",
       "Zk81qPx7Lm2Vt9Rw4Bn6Qa3Ts5Xy8Wd==",
     ],
+    // Kept masked after finding 421 began judging the pieces between `=` signs.
+    [
+      "a random value after an equals sign",
+      "value=Zk81qPx7Lm2Vt9Rw4Bn6Qa",
+      "Zk81qPx7Lm2Vt9Rw4Bn6Qa",
+    ],
+    [
+      "a random key with base64 padding",
+      "paste Zk81qPx7Lm2Vt9Rw4Bn6Qa3Ts5Xy8Wd= here",
+      "Zk81qPx7Lm2Vt9Rw4Bn6Qa3Ts5Xy8Wd=",
+    ],
   ])("masks %s", (_label, input, secret) => {
     const output = redactFreeFormSecrets(input);
     expect(output).not.toContain(secret);
@@ -101,6 +108,13 @@ describe("leaving the ledger's legitimate text alone", () => {
     ["a rule description", "Block reading secret: files under the vault folder"],
     ["the upstream redactor's own masks", "Authorization: Bearer sk-liv…cdef and password=***"],
     ["a branch name", "checkout fix-token-2"],
+    // Finding 421: found by running the pass over this machine's real log files, once OpenClaw's
+    // own logs began to use it. An `=` glued a camelCase metric to its number.
+    [
+      "a health metric assignment",
+      "event_loop_delay interval=30s degradedFor=61s eventLoopDelayP99Ms=42.8 eventLoopDelayMaxMs=15",
+    ],
+    ["a metric with an integer value", "liveness eventLoopUtilizationP95Pct=97 heapUsedMb=412"],
     // Finding 419: each of these was masked before, found by running the pass over the
     // project's own documentation (QA of 2026-10-09).
     ["a password's state in prose", "Root's password was compromised by a phishing mail"],
@@ -151,72 +165,5 @@ describe("idempotence", () => {
       `password is hunter2, token-like value ${LEAKED_ON_FIXTURE}, paste ${RANDOM_TOKEN}`,
     );
     expect(redactFreeFormSecrets(once)).toBe(once);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// The boundary, not just the function: every test above would keep passing if the
-// ledger never called the pass. These drive the production writer.
-// ---------------------------------------------------------------------------
-
-let dir: string;
-let groupId: string;
-
-beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "governance-free-form-"));
-  process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  resetLedgerKeyCacheForTests();
-  groupId = await seedGroupWithAgents(["andrew"]);
-});
-
-afterEach(async () => {
-  delete process.env.OPENCLAW_GOVERNANCE_DIR;
-  resetLedgerKeyCacheForTests();
-  await rm(dir, { recursive: true, force: true });
-});
-
-describe("the ledger applies the pass before sealing an entry", () => {
-  it("masks a free-form secret in the resource", async () => {
-    await appendLedgerEntry(groupId, {
-      agentId: "andrew",
-      toolName: "agent.prompt",
-      resourceKind: "administration",
-      resource: `prompt via discord: token-like value ${LEAKED_ON_FIXTURE}`,
-      ruleId: "-",
-      decision: "ungoverned",
-    });
-    const entry = (await tailLedger(groupId, 5)).find((e) => e.toolName === "agent.prompt");
-    expect(entry?.resource).not.toContain(LEAKED_ON_FIXTURE);
-    expect(entry?.resource).toContain("token-like value ***");
-  });
-
-  it("masks a free-form secret in the model's narration", async () => {
-    await appendLedgerEntry(groupId, {
-      agentId: "andrew",
-      toolName: "read",
-      resourceKind: "path",
-      resource: "/home/kinan/gamma/secret-notes.txt",
-      ruleId: "baseline-allow",
-      decision: "allow",
-      intent: "The notes say the password is hunter2, so I will use it.",
-    });
-    const entry = (await tailLedger(groupId, 5)).find((e) => e.toolName === "read");
-    expect(entry?.intent).not.toContain("hunter2");
-    expect(entry?.resource, "the path itself is not a secret").toBe(
-      "/home/kinan/gamma/secret-notes.txt",
-    );
-  });
-
-  it("keeps the chain verifiable, because the seal covers the masked text", async () => {
-    await appendLedgerEntry(groupId, {
-      agentId: "andrew",
-      toolName: "agent.prompt",
-      resourceKind: "administration",
-      resource: `paste ${RANDOM_TOKEN}`,
-      ruleId: "-",
-      decision: "ungoverned",
-    });
-    const result = await verifyLedgerChain(groupId);
-    expect(result.ok).toBe(true);
   });
 });

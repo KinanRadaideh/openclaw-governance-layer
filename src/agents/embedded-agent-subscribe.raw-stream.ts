@@ -6,6 +6,7 @@ import path from "node:path";
 import { resolveStateDir } from "../config/paths.js";
 import { isTruthyEnvValue } from "../infra/env.js";
 import { appendRegularFile } from "../infra/fs-safe.js";
+import { redactLogValue } from "../logging/redact-log.js";
 
 let rawStreamReady = false;
 
@@ -36,7 +37,8 @@ export function appendRawStream(payload: Record<string, unknown>) {
   try {
     void appendRegularFile({
       filePath: rawStreamPath,
-      content: `${JSON.stringify(payload)}\n`,
+      // Raw, but not plaintext secrets: a diagnostic file is a log (finding 421).
+      content: `${JSON.stringify(redactLogValue(payload))}\n`,
       rejectSymlinkParents: true,
     }).catch(() => {
       // Raw diagnostics are best-effort; filesystem failures must not terminate agent runs.

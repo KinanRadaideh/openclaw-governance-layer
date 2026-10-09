@@ -38,7 +38,8 @@ import {
   setFileLogQueueMaxRecordsForTests,
 } from "./logger-file-transport.js";
 import { setLoggerFileTargetResolver } from "./logger-settings-internal.js";
-import { redactSecrets, redactSensitiveText } from "./redact.js";
+import { redactLogText, redactLogValue } from "./redact-log.js";
+import { redactSensitiveText } from "./redact.js";
 import { loggingState } from "./state.js";
 import { formatTimestamp } from "./timestamps.js";
 import type { LoggerSettings } from "./types.js";
@@ -106,10 +107,7 @@ function clampDiagnosticLogText(value: string, maxChars: number): string {
 }
 
 function sanitizeDiagnosticLogText(value: string, maxChars: number): string {
-  return clampDiagnosticLogText(
-    redactSensitiveText(clampDiagnosticLogText(value, maxChars)),
-    maxChars,
-  );
+  return clampDiagnosticLogText(redactLogText(clampDiagnosticLogText(value, maxChars)), maxChars);
 }
 
 function normalizeDiagnosticLogName(value: string | undefined): string | undefined {
@@ -482,8 +480,29 @@ function buildDiagnosticLogRecord(logObj: TsLogRecord) {
   };
 }
 
+/**
+ * The logger's own bookkeeping in a record: where the call came from, when, on which host, under
+ * which trace. Not logged content, so the free-form pass leaves it alone (a source path or a trace
+ * id must stay exact).
+ */
+const LOG_RECORD_BOOKKEEPING_KEYS: ReadonlySet<string> = new Set([
+  "_meta",
+  "date",
+  "time",
+  "hostname",
+  "traceId",
+  "spanId",
+  "parentSpanId",
+  "traceFlags",
+]);
+
+/**
+ * Credential-named fields and pattern matches (`redactSecrets`), then secrets written as prose
+ * (finding 421), for every string the record carries. Runs before serialisation, so the free-form
+ * pass sees each value on its own and never the JSON around it.
+ */
 function redactLogRecordForTransport<T extends LogObj>(record: T): T {
-  return redactSecrets(record);
+  return redactLogValue(record, LOG_RECORD_BOOKKEEPING_KEYS);
 }
 
 function attachDiagnosticEventTransport(logger: TsLogger<LogObj>): void {

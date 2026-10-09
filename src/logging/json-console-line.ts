@@ -2,6 +2,7 @@
 import { stripVTControlCharacters } from "node:util";
 import { readLoggingConfig } from "./config.js";
 import type { LogLevel } from "./levels.js";
+import { redactLogText } from "./redact-log.js";
 import { redactSensitiveText } from "./redact.js";
 import { loggingState } from "./state.js";
 import { formatTimestamp } from "./timestamps.js";
@@ -21,7 +22,8 @@ export function formatJsonConsoleLine(params: {
   };
   const serialized = JSON.stringify(envelope, function (this: unknown, key, value: unknown) {
     const isStructuralField = this === envelope && (key === "time" || key === "level");
-    return typeof value === "string" && !isStructuralField ? redactSensitiveText(value) : value;
+    // Each value on its own gets both passes (finding 421); the free-form pass never sees JSON.
+    return typeof value === "string" && !isStructuralField ? redactLogText(value) : value;
   });
   // Retain serialized-object redaction for secret-bearing field names and other structured forms.
   return redactSensitiveText(serialized);

@@ -1,7 +1,7 @@
 // OpenClaw audit helpers persist approved local-state changes.
 import { randomUUID } from "node:crypto";
 import { createSqliteAuditRecordStore } from "../infra/sqlite-audit-record-store.js";
-import { redactSecrets } from "../logging/redact.js";
+import { redactLogValue } from "../logging/redact-log.js";
 
 /**
  * Append-only audit log helpers for OpenClaw writes.
@@ -37,7 +37,8 @@ export async function appendSystemAgentAuditEntry(
   entry: Omit<SystemAgentAuditEntry, "timestamp">,
   opts: { env?: NodeJS.ProcessEnv } = {},
 ): Promise<string> {
-  const record = redactSecrets({
+  // An audit log: both passes, secrets written as prose included (finding 421).
+  const record = redactLogValue({
     timestamp: new Date().toISOString(),
     ...entry,
   } satisfies SystemAgentAuditEntry);

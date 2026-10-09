@@ -14,7 +14,7 @@ import {
 } from "./console.js";
 import { type LogLevel, levelToMinLevel } from "./levels.js";
 import { getChildLogger, isFileLogLevelEnabled } from "./logger.js";
-import { redactSensitiveText } from "./redact.js";
+import { redactLogText } from "./redact-log.js";
 import { loggingState } from "./state.js";
 
 type LogObj = { date?: Date } & Record<string, unknown>;
@@ -272,7 +272,7 @@ function formatConsoleLine(opts: {
         : opts.level === "debug" || opts.level === "trace"
           ? color.gray
           : color.cyan;
-  const redactedMessage = redactSensitiveText(opts.message);
+  const redactedMessage = redactLogText(opts.message);
   const displayMessage = stripRedundantSubsystemPrefixForConsole(redactedMessage, displaySubsystem);
   const time = (() => {
     if (opts.style === "pretty") {
@@ -298,7 +298,7 @@ function writeConsoleLine(level: LogLevel, line: string, opts: { redacted?: bool
   // ./console.ts to avoid recursion. Normal formatted messages are redacted
   // before colorization; keep this exit guard for raw writes and structured
   // lines that reach the sink already serialized (#73284).
-  const redacted = opts.redacted ? sanitized : redactSensitiveText(sanitized);
+  const redacted = opts.redacted ? sanitized : redactLogText(sanitized);
   const sink = loggingState.rawConsole ?? console;
   if (loggingState.forceConsoleToStderr || level === "error" || level === "fatal") {
     (sink.error ?? console.error)(redacted);

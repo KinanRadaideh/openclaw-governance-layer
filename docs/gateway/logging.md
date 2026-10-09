@@ -64,6 +64,8 @@ OpenClaw masks sensitive tokens before log or transcript output leaves the proce
   - Matches are masked keeping the first 6 + last 4 chars (values >= 18 chars); shorter values become `***`.
   - Defaults cover common key assignments, CLI flags, JSON fields, bearer headers, PEM blocks, popular vendor token prefixes, and payment credential field names (card number, CVC/CVV, shared payment token, payment credential).
 
+Log output (console, file logs, OTLP log records and captured content, the log tail, trajectory capture, and the debug payload files) also passes a second scan for secrets written as prose, such as `the password is hunter2`, a credential-named code with a number, or a long random-looking string; each match becomes `***`. Session transcripts and the tool results a model reads are not scanned this way, so an agent can still use a value it was given. See [Logging](/logging#redaction).
+
 Safety boundaries such as Control UI tool-call events, `sessions_history` output, diagnostics exports, provider errors, exec approval display, and Gateway WebSocket logs always redact. `logging.redactPatterns` adds deployment-specific patterns.
 
 ## Gateway WebSocket logs

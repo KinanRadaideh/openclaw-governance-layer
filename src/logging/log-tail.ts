@@ -6,7 +6,8 @@ import { clamp } from "../utils.js";
 import { isRollingLogFilePath, isSameRollingLogFileFamily } from "./log-file-path.js";
 import "./logger.js";
 import { getResolvedLoggerFileTarget } from "./logger-settings-internal.js";
-import { redactSensitiveLines, resolveRedactOptions } from "./redact.js";
+import { redactLogLines } from "./redact-log.js";
+import { resolveRedactOptions } from "./redact.js";
 
 // Tail reader for the active log file, with cursor reset and line redaction.
 const DEFAULT_LIMIT = 500;
@@ -173,6 +174,6 @@ export async function readConfiguredLogTail(params?: {
   return {
     file,
     ...result,
-    lines: redactSensitiveLines(result.lines, redaction),
+    lines: redactLogLines(result.lines, redaction),
   };
 }

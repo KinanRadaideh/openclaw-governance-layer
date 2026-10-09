@@ -1,5 +1,5 @@
 import { truncateUtf16Safe } from "openclaw/plugin-sdk/text-utility-runtime";
-import { redactSensitiveText } from "../api.js";
+import { redactFreeFormLeaves, redactLogText, redactSensitiveText } from "../api.js";
 
 export const MAX_OTEL_CONTENT_ATTRIBUTE_CHARS = 128 * 1024;
 export const MAX_OTEL_CONTENT_ARRAY_ITEMS = 200;
@@ -31,7 +31,8 @@ function clampOtelLogText(value: string, maxChars: number): string {
 }
 
 export function normalizeOtelLogString(value: string, maxChars: number): string {
-  return clampOtelLogText(redactSensitiveText(value), maxChars);
+  // Exported telemetry is a log kept elsewhere: both passes (finding 421).
+  return clampOtelLogText(redactLogText(value), maxChars);
 }
 
 export function normalizeOtelErrorMessage(value: string | undefined): string | undefined {
@@ -104,10 +105,13 @@ type JsonTruncationOptions = {
   seen: WeakSet<object>;
 };
 
-export function safeJsonString(value: unknown, maxChars: number): string | undefined {
-  if (value === undefined || typeof value === "function" || typeof value === "symbol") {
+export function safeJsonString(rawValue: unknown, maxChars: number): string | undefined {
+  if (rawValue === undefined || typeof rawValue === "function" || typeof rawValue === "symbol") {
     return undefined;
   }
+  // Secrets written as prose, in every string the value holds, before it is serialised: the
+  // pattern pass below sees only the JSON text and cannot read a sentence (finding 421).
+  const value = redactFreeFormLeaves(rawValue);
   const exact = stringifyJsonForOtelAttribute(value);
   if (exact && exact.length <= maxChars) {
     return exact;
