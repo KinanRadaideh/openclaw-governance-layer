@@ -799,10 +799,13 @@ export class GovernanceApi {
     agentId: string,
     deleteFromHost: boolean,
     hostDeletion?: GovernanceHostDeletionMode,
+    // `GovernanceNestedFolderChoice`, written out to keep this file within its line limit.
+    nestedFolder?: "trash" | "keep",
   ): Promise<GovernanceDeprovisionResult> {
     return this.request("agents/deprovision", {
       method: "POST",
-      body: { agentId, deleteFromHost, ...(hostDeletion ? { hostDeletion } : {}) },
+      // Undefined fields are dropped by JSON; `nestedFolder` is required for a nested agent.
+      body: { agentId, deleteFromHost, hostDeletion, nestedFolder },
     });
   }
 

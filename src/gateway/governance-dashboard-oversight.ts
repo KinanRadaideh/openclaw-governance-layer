@@ -26,12 +26,20 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { listActiveSessions } from "../governance/active-sessions.js";
 import { listAgents, registrationPredates } from "../governance/agent-registry.js";
+import { otherAgentHoldingPath } from "../governance/agent-workspace-roots.js";
 import { tailLedger, verifyLedgerChain } from "../governance/audit-ledger.js";
+import {
+  foreignFolderAllowers,
+  foreignFolderOwnership,
+  mayAllowForeignFolder,
+  type ForeignFolderOwnership,
+} from "../governance/foreign-folder-approval.js";
 import { projectLedgerForActor } from "../governance/ledger-view.js";
 import {
   decidePendingDecision,
   listPendingDecisions,
   readPendingDecisions,
+  type PendingDecision,
 } from "../governance/pending-decisions.js";
 import { canManageAgent, canViewAgent, type GovernanceActor } from "../governance/permissions.js";
 import { proposeRuleFromEscalation } from "../governance/policy-engine.js";
@@ -54,6 +62,22 @@ import { sendInvalidRequest, sendJson } from "./http-common.js";
  * Moved here with the route it bounds (T16).
  */
 const MAX_LEDGER_PAGE = 1000;
+
+/**
+ * Whose folder a held question was about, when it is another configured agent's (Kinan's
+ * decision of 2026-10-08): only that agent's owning Administrator and Root may say "would
+ * allow", which files a rule request for the read. The stored resource is the path itself.
+ */
+async function heldFolderOwnership(
+  entry: PendingDecision,
+  groupId: string,
+): Promise<ForeignFolderOwnership | undefined> {
+  if (entry.resourceKind !== "path") {
+    return undefined;
+  }
+  const holder = await otherAgentHoldingPath(entry.agentId, entry.resource);
+  return holder ? await foreignFolderOwnership(holder, groupId) : undefined;
+}
 
 function isResourceKind(value: unknown): value is ResourceKind {
   return value === "command" || value === "path" || value === "network";
@@ -215,10 +239,22 @@ export async function handleGovernanceOversightRoutes(
     // looking. Scaling it to what the caller may see would invent a number that
     // describes nothing.
     const { decisions, shedUndecided } = await readPendingDecisions(groupId);
-    sendJson(res, 200, {
-      decisions: decisions.filter((entry) => canViewAgent(actor, entry.agentId)),
-      shedUndecided,
-    });
+    const visible = [];
+    for (const entry of decisions.filter((row) => canViewAgent(actor, row.agentId))) {
+      const folder =
+        entry.status === "pending" ? await heldFolderOwnership(entry, groupId) : undefined;
+      visible.push(
+        folder
+          ? {
+              ...entry,
+              folderOf: folder.agentId,
+              allowedBy: foreignFolderAllowers(folder),
+              mayAllow: mayAllowForeignFolder(actor, folder),
+            }
+          : entry,
+      );
+    }
+    sendJson(res, 200, { decisions: visible, shedUndecided });
     return true;
   }
 
@@ -253,6 +289,21 @@ export async function handleGovernanceOversightRoutes(
         error: { message: `You do not manage agent "${target.agentId}"`, type: "forbidden" },
       });
       return true;
+    }
+    // Another agent's folder: only the people responsible for it may say "would allow".
+    if (allow) {
+      const folder = await heldFolderOwnership(target, groupId);
+      if (folder && !mayAllowForeignFolder(toActor(session), folder)) {
+        sendJson(res, 403, {
+          error: {
+            message:
+              `This asked to read inside ${folder.agentId}'s folder, so only ${foreignFolderAllowers(folder)} ` +
+              "can allow it. You can deny it.",
+            type: "forbidden",
+          },
+        });
+        return true;
+      }
     }
     // **A question about a deleted agent cannot be allowed** (QA of 2026-09-14). The
     // held-decision stack is keyed by agent id and deleting the agent left its rows, so

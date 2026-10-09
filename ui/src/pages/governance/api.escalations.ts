@@ -20,6 +20,15 @@ export type GovernanceApproval = {
   allowedDecisions: GovernanceApprovalDecision[];
   createdAtMs: number;
   expiresAtMs: number;
+  /**
+   * The agent whose folder this reads into, when it is another agent's (Kinan's decision of
+   * 2026-10-08). Only that agent's owning Administrator and Root may allow such a read.
+   */
+  folderOf?: string;
+  /** Who may allow it then, in words: "admin2, who owns scout, or Root". */
+  allowedBy?: string;
+  /** False when this account may only deny it. Absent or true: every answer is open. */
+  mayAllow?: boolean;
 };
 
 /** What followed an answer, when the agent's approval callback reported something (T60). */
@@ -52,6 +61,15 @@ export type GovernancePendingDecision = {
   status: "pending" | "allowed" | "denied";
   decidedBy?: string;
   decidedAt?: string;
+  /**
+   * The agent whose folder this reads into, when it is another agent's (Kinan's decision of
+   * 2026-10-08). Only that agent's owning Administrator and Root may allow such a read.
+   */
+  folderOf?: string;
+  /** Who may allow it then, in words: "admin2, who owns scout, or Root". */
+  allowedBy?: string;
+  /** False when this account may only deny it. Absent or true: every answer is open. */
+  mayAllow?: boolean;
 };
 
 /**

@@ -45,7 +45,12 @@ import type {
 } from "../api.ts";
 import { administersAgent } from "../identity.ts";
 import type { PanelEffects } from "./account-panels.ts";
-import { chooseHostDeletion, deletionNotice, leftoversClause } from "./agent-delete-choice.ts";
+import {
+  chooseHostDeletion,
+  chooseNestedFolder,
+  deletionNotice,
+  leftoversClause,
+} from "./agent-delete-choice.ts";
 import { renderAgentEditor, renderEditButton } from "./agent-edit-controls.ts";
 
 export type AgentRegistryDrafts = {
@@ -294,16 +299,24 @@ function renderRemoveChoice(
           // **Which deletion, chosen in a dialog** (decision C13). The two leave very
           // different things on the server, so each option says in words what it removes,
           // what it leaves and what the audit ledger keeps; neither is the default.
+          // A folder inside another agent's workspace gets its own question next (option C
+          // of finding 416): neither deletion removes it, and the agent around it reads it.
           void chooseHostDeletion(
             t("governance.agents.deleteChoiceMessage", { name }),
             agent.insideWorkspaceOf,
-          ).then((hostDeletion) =>
-            hostDeletion === null
+          ).then(async (hostDeletion) => {
+            const enclosedBy = agent.insideWorkspaceOf;
+            const nestedFolder =
+              hostDeletion !== null && enclosedBy
+                ? await chooseNestedFolder(name, enclosedBy)
+                : undefined;
+            return hostDeletion === null || nestedFolder === null
               ? undefined
               : props.run(async () => {
-                  const result = await props
-                    .api()
-                    .deprovisionAgent(agent.agentId, true, hostDeletion);
+                  // The folder choice is sent only when there was one to make.
+                  const result = await (nestedFolder
+                    ? props.api().deprovisionAgent(agent.agentId, true, hostDeletion, nestedFolder)
+                    : props.api().deprovisionAgent(agent.agentId, true, hostDeletion));
                   // What happened, then every problem, not the first: the ledger can
                   // refuse its entry while the rules clear cleanly, and the reverse.
                   const notice = deletionNotice(result);
@@ -313,8 +326,11 @@ function renderRemoveChoice(
                     rowNoticeWarning: notice.warning,
                   });
                   await props.refresh();
-                }),
-          )}
+                });
+          })}
+        title=${agent.insideWorkspaceOf
+          ? t("governance.agents.nestedFolderTip", { agent: agent.insideWorkspaceOf })
+          : nothing}
       >
         ${t("governance.agents.delete")}
       </button>

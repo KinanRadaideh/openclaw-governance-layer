@@ -248,6 +248,37 @@ describe("loop-detector blocks reach the ledger", () => {
     expect((await tailLedger(TEST_GROUP)).filter((e) => e.entryKind !== "admin")).toHaveLength(0);
   });
 
+  // Finding 417. The gate reads the agent's own posture before the installation's, so an
+  // agent pinned to `enforce` is governed while the installation is `off`. This record
+  // read only the installation posture, and dropped that agent's loop-detector blocks.
+  it("records a block for an agent whose own posture keeps it governed", async () => {
+    await savePolicy(TEST_GROUP, {
+      ...defaultPolicyDocument(),
+      mode: "off",
+      agentMode: { "agent-a": "enforce" },
+    });
+    await recordLoopDetectorBlock({
+      toolName: "exec",
+      params: { command: "ls" },
+      agentId: "agent-a",
+      reason: "repeated",
+    });
+    expect((await tailLedger(TEST_GROUP)).at(-1)?.ruleId).toBe("loop-detector");
+
+    // An agent with no override still follows the installation, which is off.
+    await recordLoopDetectorBlock({
+      toolName: "exec",
+      params: { command: "ls" },
+      agentId: "agent-b",
+      reason: "repeated",
+    });
+    expect(
+      (await tailLedger(TEST_GROUP)).filter(
+        (e) => e.entryKind !== "admin" && e.agentId === "agent-b",
+      ),
+    ).toHaveLength(0);
+  });
+
   it("redacts a secret in the refused payload", async () => {
     await recordLoopDetectorBlock({
       toolName: "exec",

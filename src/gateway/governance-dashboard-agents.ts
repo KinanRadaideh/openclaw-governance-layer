@@ -34,6 +34,7 @@ import {
   UnknownAgentError,
 } from "../governance/agent-registry.js";
 import { agentWorkspaceEnclosedBy } from "../governance/agent-workspace-roots.js";
+import { isNestedFolderChoice } from "../governance/nested-folder-retirement.js";
 import { canViewAgent, visibleAgents, type GovernanceActor } from "../governance/permissions.js";
 import { knownAgentIds } from "../governance/policy-projection.js";
 import { holdsNothing, loadPolicy, readAgentPolicyHoldings } from "../governance/policy-store.js";
@@ -501,10 +502,11 @@ export async function handleGovernanceAgentRoutes(
     if (body === undefined) {
       return true;
     }
-    const { agentId, deleteFromHost, hostDeletion } = body as {
+    const { agentId, deleteFromHost, hostDeletion, nestedFolder } = body as {
       agentId?: unknown;
       deleteFromHost?: unknown;
       hostDeletion?: unknown;
+      nestedFolder?: unknown;
     };
     if (typeof agentId !== "string" || !agentId.trim()) {
       sendInvalidRequest(res, "agentId is required");
@@ -538,12 +540,25 @@ export async function handleGovernanceAgentRoutes(
       });
       return true;
     }
+    // **What happens to a folder inside another agent's workspace, required as well**
+    // (finding 416, option C). Neither deletion takes it, and once the agent is gone the
+    // agent around it reads it unasked, so the caller says which: trash it or leave it.
+    const enclosedBy = deleteFromHost ? agentWorkspaceEnclosedBy(agentId.trim()) : undefined;
+    if (enclosedBy && !isNestedFolderChoice(nestedFolder)) {
+      sendInvalidRequest(
+        res,
+        `nestedFolder must be "trash" or "keep": this agent's folder is inside ${enclosedBy}'s workspace, ` +
+          `and once the agent is deleted ${enclosedBy} can read whatever is left there`,
+      );
+      return true;
+    }
     const result = await deprovisionAgent(
       {
         agentId: agentId.trim(),
         groupId,
         deleteFromHost,
         ...(deleteFromHost && isHostDeletionMode(hostDeletion) ? { hostDeletion } : {}),
+        ...(enclosedBy && isNestedFolderChoice(nestedFolder) ? { nestedFolder } : {}),
       },
       auditActor(session),
     );
@@ -575,6 +590,7 @@ export async function handleGovernanceAgentRoutes(
         : {}),
       ...(result.attachmentsKept !== undefined ? { attachmentsKept: result.attachmentsKept } : {}),
       ...(result.cleanupError ? { cleanupError: result.cleanupError } : {}),
+      ...(result.nestedFolder ? { nestedFolder: result.nestedFolder } : {}),
       // ------------------------------------------------------------------
       // **Both failures travel, and `auditError` had not been** (finding 325).
       //

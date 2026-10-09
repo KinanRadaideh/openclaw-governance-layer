@@ -30,12 +30,14 @@ import {
   MAX_LEDGER_RESOURCE_LENGTH,
   type LedgerDecision,
 } from "./audit-ledger.js";
+import { escalationQuestion, foreignFolderTarget } from "./foreign-folder-approval.js";
 import { resolveGovernedPath, resolveGovernedPathForms } from "./path-normalize.js";
 import { INSTALLATION_LEDGER_GROUP, isUnconfiguredTestRun } from "./paths.js";
 import { escapeRegExp, matchesPattern } from "./pattern-match.js";
 import { recordTimedOutEscalation } from "./pending-decisions.js";
 import { loadPolicy } from "./policy-store.js";
 import {
+  type GovernanceMode,
   isRuleExpired,
   type PolicyDocument,
   type ResourceKind,
@@ -197,6 +199,22 @@ function resolveEffectiveAgentId(ctx: ToolCallContext): string | undefined {
 }
 
 /**
+ * The posture that governs this agent: its own override when an Administrator set one,
+ * otherwise the installation's. An override is `enforce` or `monitor` only
+ * (`policy/agent-mode` refuses `off`), so a pinned agent stays governed while the
+ * installation is off.
+ *
+ * One function for every reader (finding 417): the loop-detector record read the
+ * installation posture alone, so it dropped the blocks of a pinned agent that the gate
+ * itself was governing. `Object.hasOwn`, so an inherited key never reads as a posture.
+ */
+function effectivePosture(doc: PolicyDocument, agentId: string | undefined): GovernanceMode {
+  return agentId !== undefined && Object.hasOwn(doc.agentMode, agentId)
+    ? (doc.agentMode[agentId] ?? doc.mode)
+    : doc.mode;
+}
+
+/**
  * Whose escalation setting applies to this call (A1 follow-up).
  *
  * The per-user axis is Root's judgement **about a person** (§1.6). Applying it
@@ -273,16 +291,15 @@ export async function recordLoopDetectorBlock(input: {
     // group in hand and has to resolve one the same way the gate does (M5).
     // Unresolvable means unregistered, and the gate has already refused it under
     // its own id, recording it twice would double-count one blocked call.
-    const groupId = await resolveAgentGroup(
-      input.agentId ?? parseAgentSessionKey(input.sessionKey)?.agentId,
-    );
+    const agentId = input.agentId ?? parseAgentSessionKey(input.sessionKey)?.agentId;
+    const groupId = await resolveAgentGroup(agentId);
     if (!groupId) {
       return;
     }
     const doc = await loadPolicy(groupId);
-    if (doc.mode === "off") {
-      // The gate is not running; recording would imply oversight that is not
-      // happening, exactly as in the main evaluation path.
+    if (effectivePosture(doc, agentId) === "off") {
+      // The gate is not running for this agent; recording would imply oversight that
+      // is not happening. The same posture the gate reads (finding 417).
       return;
     }
     const spec = resolveGovernedTool(input.toolName);
@@ -656,7 +673,7 @@ export async function evaluateGovernancePolicy(
     };
   }
   const doc = await loadPolicy(groupId);
-  if ((agentId ? (doc.agentMode[agentId] ?? doc.mode) : doc.mode) === "off") {
+  if (effectivePosture(doc, agentId) === "off") {
     // The gate is switched off entirely; recording would imply oversight that
     // is not happening.
     return undefined;
@@ -1033,7 +1050,7 @@ export async function evaluateGovernancePolicy(
   // The posture that applies to *this* agent: its own override when set,
   // otherwise the installation setting. Monitor reaching here suspends only
   // baseline and admin verdicts. Core denials already returned above.
-  const effectiveMode = agentId ? (doc.agentMode[agentId] ?? doc.mode) : doc.mode;
+  const effectiveMode = effectivePosture(doc, agentId);
   if (firstMiss === undefined || effectiveMode === "monitor") {
     // Allowed. `undefined` unless the path was redirected, so the overwhelmingly
     // common case returns exactly what it always returned (T23).
@@ -1087,10 +1104,12 @@ export async function evaluateGovernancePolicy(
     // path, so the truncation below can shorten the path but never drop this.
     const holder =
       spec.resourceKind === "path" ? await otherAgentHoldingPath(agentId, resource) : undefined;
+    // Written by the shared helpers because the approval route reads the holder back out of
+    // this text to decide who may allow it (`foreign-folder-approval.ts`).
     const target = holder
-      ? `a path inside the workspace of another agent, "${holder}": "${resource}"`
+      ? foreignFolderTarget(holder, resource)
       : `${spec.resourceKind} "${resource}"`;
-    const actionDescription = `Agent "${agentId ?? "unknown"}" wants to run "${event.toolName}" against ${target}, which no policy rule currently covers.`;
+    const actionDescription = escalationQuestion(agentId ?? "unknown", event.toolName, target);
     return {
       requireApproval: {
         title: `Governance: unlisted ${spec.resourceKind}`,

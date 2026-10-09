@@ -87,6 +87,14 @@ import {
   unregisterAgent,
 } from "./agent-registry.js";
 import {
+  describeNestedFolderOutcome,
+  moveNestedFolderToTrash,
+  nestedFolderOf,
+  refuseNestedFolderMove,
+  type NestedFolderChoice,
+  type NestedFolderOutcome,
+} from "./nested-folder-retirement.js";
+import {
   clearAgentPolicy,
   holdsNothing,
   describeAgentPolicyHoldings,
@@ -600,6 +608,12 @@ export type DeprovisionResult =
        * thrown, for `auditError`'s reason: the agent is already gone.
        */
       cleanupError?: string;
+      /**
+       * What became of the agent's folder when it sat inside another agent's workspace
+       * (finding 416, option C): moved to the trash, left in place, already gone, or not
+       * movable, with the reason. Absent for an agent whose folder is its own.
+       */
+      nestedFolder?: NestedFolderOutcome;
     }
   | {
       ok: false;
@@ -661,6 +675,13 @@ export async function deprovisionAgent(
      * that predate the choice; both routes require it.
      */
     hostDeletion?: HostDeletionMode;
+    /**
+     * For an agent whose folder sits inside another agent's workspace: move it to the trash
+     * or leave it (finding 416, option C). The dashboard route requires it for such an agent;
+     * a caller that predates it (organisation deletion) leaves the folder, and the ledger
+     * entry says where it stays and who can read it.
+     */
+    nestedFolder?: NestedFolderChoice;
   },
   actor: AuditActorInput,
 ): Promise<DeprovisionResult> {
@@ -677,6 +698,15 @@ export async function deprovisionAgent(
   }
 
   const hostDeletion: HostDeletionMode = input.hostDeletion ?? "roster";
+  // Read while the agent is still configured: once it is deleted, nothing says where its
+  // folder was or whose workspace held it. Its refusals come before anything changes.
+  const nested = input.deleteFromHost ? nestedFolderOf(agentId) : undefined;
+  if (nested && input.nestedFolder === "trash") {
+    const refusal = refuseNestedFolderMove(nested);
+    if (refusal) {
+      return { ...refusal, stage: "preflight" };
+    }
+  }
   let hostOutcome:
     | { movedToTrash: string[]; notMoved: string[]; residue?: HostLeftovers }
     | undefined;
@@ -774,6 +804,12 @@ export async function deprovisionAgent(
     hostDeletion === "full"
       ? await cleanUpGovernanceAfterFullDeletion(input.groupId, agentId)
       : undefined;
+  // The folder last: the agent is gone, so nothing works in it any more. Never throws.
+  const nestedFolder: NestedFolderOutcome | undefined = nested
+    ? input.nestedFolder === "trash"
+      ? await moveNestedFolderToTrash(nested)
+      : { choice: "keep", enclosedBy: nested.enclosedBy, folder: nested.folder }
+    : undefined;
 
   // Past the point of no return: the agent is gone from the host *and* from
   // governance, and neither can be put back by failing here (finding 229).
@@ -796,6 +832,7 @@ export async function deprovisionAgent(
       target:
         `agent ${agentId} ("${removed.displayName}") deleted from the host` +
         describeHostDeletion(hostDeletion, hostOutcome, cleanup) +
+        (nestedFolder ? describeNestedFolderOutcome(nestedFolder) : "") +
         // Named on the deletion entry as well as on its own, so a reader
         // following the deletion does not have to find the second entry to
         // learn that permissions went with it.
@@ -831,5 +868,6 @@ export async function deprovisionAgent(
     ...(cleared && !holdsNothing(cleared) ? { clearedPolicy: cleared } : {}),
     ...(clearError ? { clearError } : {}),
     ...(auditError ? { auditError } : {}),
+    ...(nestedFolder ? { nestedFolder } : {}),
   };
 }

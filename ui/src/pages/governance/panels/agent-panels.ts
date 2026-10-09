@@ -63,6 +63,7 @@ import {
 } from "../identity.ts";
 import type { KillNotice } from "../kill-notice.ts";
 import type { PanelEffects } from "./account-panels.ts";
+import { foreignFolderWithheldTip, foreignFolderWords } from "./foreign-folder.ts";
 import { formatAttachmentSize, formatTurnTime, unassignedAgentsHint } from "./format.ts";
 import {
   renderPromptRunNotices,
@@ -269,6 +270,12 @@ export function renderPostureToggle(agentId: string, props: PostureToggleProps):
   </div>`;
 }
 
+/** Another agent's folder, said on the held row (Kinan's decision of 2026-10-08). */
+const heldFolder = (entry: GovernancePendingDecision) => {
+  const words = foreignFolderWords(entry);
+  return words ? ` · ${words}` : "";
+};
+
 export function renderPendingDecisionsSection(
   props: PendingDecisionsProps,
 ): TemplateResult | typeof nothing {
@@ -317,12 +324,13 @@ export function renderPendingDecisionsSection(
           entry.endedBy === "cancelled"
             ? "governance.pending.cancelled"
             : "governance.pending.timedOut",
-        )} ${new Date(entry.lastTimedOutAt ?? entry.timedOutAt).toLocaleString()}`,
+        )} ${new Date(entry.lastTimedOutAt ?? entry.timedOutAt).toLocaleString()}${heldFolder(entry)}`,
         control: html`
           <div class="settings-row__control" style="gap:0.5rem">
             <button
               class="btn primary"
-              ?disabled=${props.busy}
+              ?disabled=${props.busy || entry.mayAllow === false}
+              title=${foreignFolderWithheldTip(entry) ?? nothing}
               @click=${() => decideAndReport(props, entry.id, true)}
             >
               ${t("governance.pending.allow")}

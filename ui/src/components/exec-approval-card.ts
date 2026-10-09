@@ -21,6 +21,13 @@ type ExecApprovalCardProps = {
   nowMs: number;
   variant: "inline" | "modal";
   queueCount?: number;
+  /**
+   * Answers this viewer may not give, shown disabled with the reason as their tooltip
+   * rather than hidden, so the person sees that the choice exists and who can make it.
+   * Governance uses it for a read into another agent's folder, which only that folder's
+   * owner may allow.
+   */
+  withheld?: { decisions: readonly ExecApprovalDecision[]; reason: string };
   onDecision: (approvalId: string, decision: ExecApprovalDecision) => void | Promise<void>;
 };
 
@@ -191,11 +198,16 @@ export function renderExecApprovalCard(props: ExecApprovalCardProps) {
     <div class="exec-approval-actions">
       ${decisions.map((decision) => {
         const label = decisionLabel(decision);
+        const withheldReason = props.withheld?.decisions.includes(decision)
+          ? props.withheld.reason
+          : undefined;
         return html`<button
           class=${decisionClass(decision)}
           type="button"
-          ?disabled=${props.busy}
-          title=${props.variant === "modal" ? `${label} (${decisionShortcut(decision)})` : label}
+          ?disabled=${props.busy || withheldReason !== undefined}
+          title=${withheldReason ??
+          (props.variant === "modal" ? `${label} (${decisionShortcut(decision)})` : label)}
+          aria-description=${withheldReason ?? nothing}
           @click=${() => props.onDecision(active.id, decision)}
         >
           <span>${label}</span>

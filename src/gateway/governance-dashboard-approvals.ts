@@ -9,6 +9,13 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ADMIN_ACTIONS, recordAdminAction } from "../governance/admin-audit.js";
 import { findAgent, registrationPredates } from "../governance/agent-registry.js";
 import { forgetApprovalAnswerer, noteApprovalAnswerer } from "../governance/approval-answerers.js";
+import {
+  foreignFolderAllowers,
+  foreignFolderHolder,
+  foreignFolderOwnership,
+  mayAllowForeignFolder,
+  type ForeignFolderOwnership,
+} from "../governance/foreign-folder-approval.js";
 import { canManageAgent, type GovernanceActor } from "../governance/permissions.js";
 import { readAgentPolicyHoldings } from "../governance/policy-store.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
@@ -47,18 +54,51 @@ async function isCurrentAgentApproval(approval: GovernanceApproval, groupId: str
   return registrationPredates(approval.agentId, groupId, approval.createdAtMs);
 }
 
+/**
+ * Whose folder a question reads into, when it is another agent's (Kinan's decision of
+ * 2026-10-08). Only that agent's owning Administrator and Root may allow such a read;
+ * anyone who manages the reading agent may still deny it.
+ */
+async function folderOwnershipOf(
+  approval: GovernanceApproval,
+  groupId: string,
+): Promise<ForeignFolderOwnership | undefined> {
+  const holder = foreignFolderHolder(approval.description);
+  return holder ? await foreignFolderOwnership(holder, groupId) : undefined;
+}
+
+/** One waiting escalation as this account sees it: who else's folder, and whether it may allow. */
+export type GovernanceApprovalView = GovernanceApproval & {
+  /** The agent whose folder the request reads into, when it is another agent's. */
+  folderOf?: string;
+  /** Who may allow it then, in words ("ada, who owns scout, or Root"). */
+  allowedBy?: string;
+  /** False when this account may only deny: the folder is another agent's and not its own. */
+  mayAllow: boolean;
+};
+
 /** The waiting escalations this account may see and answer. */
 async function approvalsFor(
   actor: GovernanceActor,
   groupId: string,
-): Promise<GovernanceApproval[]> {
-  const visible: GovernanceApproval[] = [];
+): Promise<GovernanceApprovalView[]> {
+  const visible: GovernanceApprovalView[] = [];
   for (const approval of await listGovernanceApprovals()) {
     if (
       (await isCurrentAgentApproval(approval, groupId)) &&
       canManageAgent(actor, approval.agentId)
     ) {
-      visible.push(approval);
+      const folder = await folderOwnershipOf(approval, groupId);
+      visible.push(
+        folder
+          ? {
+              ...approval,
+              folderOf: folder.agentId,
+              allowedBy: foreignFolderAllowers(folder),
+              mayAllow: mayAllowForeignFolder(actor, folder),
+            }
+          : { ...approval, mayAllow: true },
+      );
     }
   }
   return visible;
@@ -83,7 +123,7 @@ export async function handleGovernanceApprovalRoutes(
       return true;
     }
     const actor = toActor(session);
-    let approvals: GovernanceApproval[];
+    let approvals: GovernanceApprovalView[];
     try {
       approvals = await approvalsFor(actor, groupId);
     } catch {
@@ -141,6 +181,22 @@ export async function handleGovernanceApprovalRoutes(
     if (!target.allowedDecisions.includes(decision)) {
       sendInvalidRequest(res, `${decision} is not offered for this approval`);
       return true;
+    }
+    // A read into another agent's folder is allowed only by the people responsible for
+    // that folder. Denying stays open to every account that manages the reading agent.
+    if (decision !== "deny") {
+      const folder = await folderOwnershipOf(target, groupId);
+      if (folder && !mayAllowForeignFolder(toActor(session), folder)) {
+        sendJson(res, 403, {
+          error: {
+            message:
+              `This asks to read inside ${folder.agentId}'s folder, so only ${foreignFolderAllowers(folder)} ` +
+              "can allow it. You can deny it.",
+            type: "forbidden",
+          },
+        });
+        return true;
+      }
     }
     // Asked before the lock, answered after it: the kill switch ends the prompt that is
     // waiting (finding 364), and this refuses an allow that races that ending.

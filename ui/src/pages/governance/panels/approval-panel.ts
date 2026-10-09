@@ -12,6 +12,7 @@ import { renderExecApprovalCard } from "../../../components/exec-approval-card.t
 import { t } from "../../../i18n/index.ts";
 import type { GovernanceApproval } from "../api.ts";
 import type { ApprovalSlice } from "../approval-controller.ts";
+import { foreignFolderWithheldTip, foreignFolderWords } from "./foreign-folder.ts";
 import { startedByFromSessionKey } from "./format.ts";
 
 /**
@@ -33,6 +34,22 @@ function renderAskedBy(approval: GovernanceApproval, viewer: string | undefined)
       ? t("governance.approvals.askedByYou", { agent: approval.agentId })
       : t("governance.approvals.askedBy", { username, agent: approval.agentId })}
   </p>`;
+}
+
+/**
+ * Whose folder the request reads into, when it is another agent's (Kinan's decision of
+ * 2026-10-08). Said to everyone who sees the card: the owner learns the files are theirs to
+ * decide about, and anyone else learns who decides and that they can still deny.
+ */
+function renderFolderOwner(approval: GovernanceApproval) {
+  const words = foreignFolderWords(approval);
+  return words ? html`<p class="governance-approvals__hint">${words}</p>` : nothing;
+}
+
+/** The answers this account may not give, with the reason as their tooltip. */
+function withheldFor(approval: GovernanceApproval) {
+  const reason = foreignFolderWithheldTip(approval);
+  return reason ? { decisions: ["allow-once", "allow-always"] as const, reason } : undefined;
 }
 
 function toCardRequest(approval: GovernanceApproval): ExecApprovalRequest {
@@ -70,12 +87,15 @@ export function renderWaitingApprovals(props: ApprovalSlice) {
         : nothing}
       ${props.approvals.map(
         (approval) =>
-          html`${renderAskedBy(approval, props.viewer)}${renderExecApprovalCard({
+          html`${renderAskedBy(approval, props.viewer)}${renderFolderOwner(
+            approval,
+          )}${renderExecApprovalCard({
             approval: toCardRequest(approval),
             busy: props.answering.has(approval.id),
             error: props.errors.get(approval.id) ?? null,
             nowMs: props.nowMs,
             variant: "inline",
+            withheld: withheldFor(approval),
             onDecision: (id, decision) => props.decide(id, decision),
           })}`,
       )}

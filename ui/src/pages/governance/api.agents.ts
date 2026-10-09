@@ -74,6 +74,23 @@ export type GovernanceDeprovisionResult = {
   attachmentsKept?: number;
   /** The agent is gone and governance's own copy of its conversations could not be removed. */
   cleanupError?: string;
+  /**
+   * What became of its folder when that sat inside another agent's workspace (finding 416,
+   * option C): moved to the trash, left in place, already gone, or not movable and why.
+   */
+  nestedFolder?: GovernanceNestedFolderOutcome;
+};
+
+/** Whether a nested agent's folder goes to the trash with the deletion or stays (option C). */
+export type GovernanceNestedFolderChoice = "trash" | "keep";
+
+export type GovernanceNestedFolderOutcome = {
+  choice: GovernanceNestedFolderChoice;
+  enclosedBy: string;
+  folder: string;
+  movedTo?: string;
+  absent?: true;
+  error?: string;
 };
 
 /**

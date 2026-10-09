@@ -127,7 +127,9 @@ async function mount(state: Partial<PageState>): Promise<PageState> {
  *
  * One rule of each kind that matters: a self-protecting core denial (no switch,
  * a stated reason), a switchable core denial (a Switch off button), and an
- * operator rule with no description so the pattern becomes its title.
+ * operator rule. Every rule carries a description since T70 (2026-09-27); this one
+ * had none, a state the server no longer produces, and the rule filter met it as
+ * `undefined.toLowerCase()` the first time this file ran after T70 (2026-10-08).
  */
 function policyFixture(): GovernancePolicyDocument {
   const base = {
@@ -163,7 +165,7 @@ function policyFixture(): GovernancePolicyDocument {
         effect: "allow",
         tier: undefined,
         pattern: "^(?:[A-Za-z]:)?[\\\\/]Users[\\\\/][^\\\\/]+[\\\\/]projects[\\\\/].*$",
-        description: undefined,
+        description: "Scout may read and write the projects folder",
         agentId: "scout",
       },
     ],

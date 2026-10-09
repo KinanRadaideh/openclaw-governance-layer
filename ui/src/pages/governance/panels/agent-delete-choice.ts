@@ -17,6 +17,8 @@ import type {
   GovernanceDeprovisionResult,
   GovernanceHostDeletionMode,
   GovernanceHostLeftovers,
+  GovernanceNestedFolderChoice,
+  GovernanceNestedFolderOutcome,
 } from "../api.ts";
 
 /**
@@ -56,12 +58,69 @@ export function chooseHostDeletion(
   });
 }
 
+/**
+ * Asks what happens to a folder that sits inside another agent's workspace (option C of
+ * finding 416, Kinan, 2026-10-08), after the deletion has been chosen. Neither answer is
+ * the default, and each says what it does, when to choose it and what it costs, as the
+ * deletion choice does. Resolves `null` when the operator keeps the agent.
+ */
+export function chooseNestedFolder(
+  name: string,
+  enclosedBy: string,
+): Promise<GovernanceNestedFolderChoice | null> {
+  return showChoiceDialog<GovernanceNestedFolderChoice>({
+    title: t("governance.confirm.title"),
+    message: t("governance.agents.nestedFolderMessage", { name, agent: enclosedBy }),
+    choices: [
+      {
+        value: "trash",
+        label: t("governance.agents.nestedFolderTrashLabel"),
+        description: t("governance.agents.nestedFolderTrashExplain", { agent: enclosedBy }),
+      },
+      {
+        value: "keep",
+        label: t("governance.agents.nestedFolderKeepLabel"),
+        description: t("governance.agents.nestedFolderKeepExplain", { agent: enclosedBy }),
+      },
+    ],
+    cancelLabel: t("governance.agents.cancelRemove"),
+  });
+}
+
+/** What became of a nested folder, and whether that is a problem the operator must act on. */
+function nestedFolderNotice(
+  outcome: GovernanceNestedFolderOutcome | undefined,
+): { text: string; problem: boolean } | undefined {
+  if (!outcome) {
+    return undefined;
+  }
+  const agent = outcome.enclosedBy;
+  if (outcome.choice === "keep") {
+    return { text: t("governance.agents.nestedKept", { agent }), problem: false };
+  }
+  if (outcome.movedTo) {
+    return {
+      text: t("governance.agents.nestedMoved", { agent, path: outcome.movedTo }),
+      problem: false,
+    };
+  }
+  if (outcome.absent) {
+    return { text: t("governance.agents.nestedAbsent", { agent }), problem: false };
+  }
+  return {
+    text: t("governance.agents.nestedFailed", { agent, reason: outcome.error ?? "" }),
+    problem: true,
+  };
+}
+
 /** What the row says after a deletion: what happened, and anything that did not finish. */
 export function deletionNotice(result: GovernanceDeprovisionResult): {
   text: string;
   warning: boolean;
 } {
+  const folder = nestedFolderNotice(result.nestedFolder);
   const problems = [
+    folder?.problem ? folder.text : "",
     result.auditError
       ? t("governance.agents.removeAuditFailed", { reason: result.auditError })
       : "",
@@ -96,7 +155,9 @@ export function deletionNotice(result: GovernanceDeprovisionResult): {
         ? t("governance.agents.deletedRoster")
         : "";
   return {
-    text: [outcome, ...problems].filter(Boolean).join(" "),
+    text: [outcome, folder && !folder.problem ? folder.text : "", ...problems]
+      .filter(Boolean)
+      .join(" "),
     warning: problems.length > 0,
   };
 }

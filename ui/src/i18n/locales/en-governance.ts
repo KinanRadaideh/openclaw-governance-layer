@@ -551,6 +551,14 @@ export const enGovernance: TranslationMap = {
       // QA of 2026-10-07: the requester was readable only inside the session key.
       askedBy: "Asked while {username} was talking to {agent}:",
       askedByYou: "Asked in your conversation with {agent}:",
+      // Kinan's decision of 2026-10-08: a read into another agent's folder is allowed only by
+      // the people responsible for that folder; anyone who manages the reading agent may deny.
+      folderYours:
+        "This asks to read inside {folder}'s folder, which you are responsible for. Allowing it lets {agent} read files that belong to {folder}.",
+      folderNotYours:
+        "This asks to read inside {folder}'s folder, so only {allowedBy} can allow it: the files belong to that agent, not to {agent}. You can deny it.",
+      folderWithheld:
+        "Only {allowedBy} can allow a read inside {folder}'s folder. You can deny it.",
       dismiss: "Dismiss",
       // Finding 386: a press that arrived after the question was answered elsewhere, cancelled
       // or expired. The card goes with the next read, so this is what is left to say so.
@@ -637,7 +645,25 @@ export const enGovernance: TranslationMap = {
       // Finding 416: said only when the folder sits inside another agent's workspace, where
       // OpenClaw leaves it under both deletions.
       deleteNested:
-        "Before choosing: this agent's folder is inside {agent}'s workspace. OpenClaw leaves a folder there in place whichever way it is deleted, so once this agent is gone {agent}, and everyone who talks to it, can read those files without being asked. If that is not intended, move or delete the folder on the server.",
+        "Before choosing: this agent's folder is inside {agent}'s workspace, and OpenClaw leaves a folder there in place whichever way it is deleted. The next step asks what happens to it.",
+      // Option C of finding 416 (Kinan, 2026-10-08): the folder question, asked after the
+      // deletion choice for an agent whose folder is inside another agent's workspace.
+      nestedFolderMessage:
+        "What happens to the working folder of “{name}”? It is inside {agent}'s workspace, and neither way of deleting the agent removes it. Once the agent is gone, {agent} and everyone who talks to it can read whatever stays there without being asked.",
+      nestedFolderTrashLabel: "Move the folder to the trash",
+      nestedFolderTrashExplain:
+        "What it does: once the agent is deleted, its folder is moved out of {agent}'s workspace into the .Trash folder in the home folder of the account the Gateway runs as, where OpenClaw's own delete puts files.\nWhen to choose it: in most cases. {agent} can no longer read the files, and someone with access to the server can still recover them from .Trash.\nThe catch: nothing on this page brings the folder back. Nothing is deleted at all if the agent is still working, if another agent works inside that folder, or if the governance folder is inside it; the page says which.",
+      nestedFolderKeepLabel: "Leave the folder where it is",
+      nestedFolderKeepExplain:
+        "What it does: the folder stays inside {agent}'s workspace.\nWhen to choose it: when {agent} should take these files over, or you will move them yourself on the server.\nThe catch: {agent}, and everyone who talks to it, can read the files without being asked. The audit ledger records that the folder was left there.",
+      nestedFolderTip:
+        "This agent's folder is inside {agent}'s workspace. Deleting it asks whether the folder goes to the trash or stays where {agent} can read it.",
+      nestedMoved:
+        "Its working folder, which sat inside {agent}'s workspace and which OpenClaw leaves in place, was moved to the trash: {path}.",
+      nestedKept: "Its folder was left inside {agent}'s workspace, where {agent} can read it.",
+      nestedAbsent: "Its folder inside {agent}'s workspace was already gone.",
+      nestedFailed:
+        "Its folder could not be moved to the trash ({reason}) and is still inside {agent}'s workspace, where {agent} can read it. Move or delete it on the server.",
       deleteFullLabel: "Delete the way OpenClaw does",
       deleteFullExplain:
         "What it does: runs OpenClaw's own delete. The agent's scheduled tasks, saved command approvals and session records are removed, and its working folder, its own folder and its conversation files are moved to a .Trash folder in the home folder of the account the Gateway runs as. Governance's copy of its dashboard conversations goes too; attachments already sent in a prompt are kept.\nWhen to choose it: for a clean end. An agent created later with the same name starts with nothing OpenClaw could remove; anything it leaves is named here and again when you create that name.\nThe catch: the files leave the agent's folders. Nothing on this page brings them back: someone with access to the server has to move them out of .Trash by hand, and they use disk space until then. It is refused while the agent is still working, and when the governance folder is inside one of the folders it would move.\nAudit ledger: nothing in it is removed or changed. One new entry records this deletion and lists what was removed. The ledger never held whole conversations or the contents of files, so those leave with the files.",
