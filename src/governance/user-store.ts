@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 // Dashboard user accounts: id, username, hashed password, and one governance
 // role. Stored as a small JSON file (consistent with how OpenClaw's own
 // exec-approvals config started life before moving to SQLite, per
@@ -6,8 +5,15 @@ import { randomBytes } from "node:crypto";
 // and appropriate at the account volumes a single-operator deployment has;
 // migrating to the state SQLite database is a documented option if that
 // changes, not a correctness requirement today.
-import { mkdir } from "node:fs/promises";
-import { readJsonIfExists } from "../infra/json-files.js";
+//
+// Its file primitives live in `account-file.ts` and its credential half (signing in, setting a
+// password) in `account-credentials.ts`, both re-exported here (T77, 2026-10-10).
+import {
+  authorityOf,
+  commitAuthorityChanges,
+  sessionsLagNote,
+  type AuthorityChange,
+} from "./account-authority.js";
 import {
   AccountStillExistsError,
   finishDeletedAccount,
@@ -25,87 +31,36 @@ import { normalizeAgentIds } from "./agent-ids.js";
 import { withFileLock } from "./file-lock.js";
 import { newGovernanceId } from "./ids.js";
 import { forgetLoginThrottle } from "./login-throttle.js";
-import { hashPassword, needsRehash, verifyPassword } from "./password.js";
+import { hashPassword } from "./password.js";
 import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
-import { governanceHomeDir, usersFilePath } from "./paths.js";
+import { usersFilePath } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
-import { revokeSessionsForUser } from "./session-tokens.js";
+import { revokeSessionsForUser, revokeSessionsForUsers } from "./session-tokens.js";
 
 export { AccountStillExistsError, SessionRevocationError, type AccountDeletion };
+export { SessionMirrorError, type AuthorityChange } from "./account-authority.js";
+export {
+  accountMayAuthorPolicy,
+  findUserByUsername,
+  MIN_PASSWORD_LENGTH,
+  PasswordTooShortError,
+  type GovernanceUser,
+  type GovernanceUserRecord,
+} from "./account-file.js";
+export { authenticate, confirmSignInSession, setUserPassword } from "./account-credentials.js";
+import {
+  accountMayAuthorPolicy,
+  canonicalUsername,
+  ensureHomeDir,
+  MIN_PASSWORD_LENGTH,
+  PasswordTooShortError,
+  readUsersFile,
+  toRecord,
+  type GovernanceUser,
+  type GovernanceUserRecord,
+  type UsersFile,
+} from "./account-file.js";
 import { writeGovernanceJson } from "./state-file.js";
-
-export type GovernanceUser = {
-  id: string;
-  username: string;
-  passwordHash: string;
-  role: GovernanceRole;
-  createdAt: string;
-  /**
-   * Agents an Administrator has put this account in charge of. Meaningful for
-   * the User and Viewer tiers only: Administrator and above manage every
-   * agent, so the list is ignored for them (see permissions.ts).
-   */
-  assignedAgents: string[];
-  /**
-   * Whether this account may **write** policy for the agents it manages.
-   *
-   * Meaningful for the **User tier only**. Administrator and above manage every
-   * agent by role, and Viewer writes nothing at either scope, so neither is
-   * affected by this flag.
-   *
-   * `ROLE-MODEL.md` §3.7 deliberately widened the paper's User tier from
-   * "proposes changes" to "genuinely manages its assigned agents", and that
-   * remains the shipped default. But it is a *policy* choice about how much an
-   * installation delegates, not a property of the tier. An operator running
-   * several teams may reasonably want some Users to manage their agents and
-   * others only to watch them and raise rule requests.
-   *
-   * **Absent means allowed**, which is what keeps existing accounts working
-   * exactly as they did: this is a control Root can take away, not one Root has
-   * to grant before the tier does its documented job. Only Root may set it,
-   * because it is account administration.
-   */
-  canAuthorPolicy?: boolean;
-  /**
-   * The group this account belongs to (M3).
-   *
-   * A group is one organisation's whole world: its Root, its Administrators,
-   * its Users and Viewers. Accounts in different groups never see each other.
-   *
-   * **Optional in the type and mandatory in practice**, and the gap between
-   * those two is deliberate. Every account created from M3 onward has one;
-   * accounts written before M3 existed do not, and cannot be given one
-   * automatically because there is no way to know which organisation they
-   * belonged to. So absent does not mean "the default group" here. The
-   * pattern `actorRole` and `canAuthorPolicy` use, where absent is a safe
-   * legacy reading. It means **unmigrated**, an account that cannot sign in
-   * until an operator decides its fate. See `authenticate` and
-   * `deleteUnmigratedAccounts`.
-   */
-  groupId?: string;
-  /**
-   * The Administrator answerable for this account. Users and Viewers only.
-   *
-   * Required for those two tiers and absent for Root and Administrator, which
-   * answer to the group rather than to a person. The link is what makes an
-   * Administrator's panel mean "my people and my agents" rather than
-   * "everyone's".
-   *
-   * Root does not appear here even though Root outranks every Administrator. If
-   * Root wants to run a User directly, it creates an Administrator account and
-   * signs into that: which keeps one statable rule ("a User is managed by an
-   * Administrator") instead of two, and keeps the action attributable to the
-   * hat it was done in.
-   */
-  managedBy?: string;
-};
-
-/** Whether a stored account may author policy. Absent means yes. See the field. */
-export function accountMayAuthorPolicy(user: { canAuthorPolicy?: boolean }): boolean {
-  return user.canAuthorPolicy !== false;
-}
-
-export type GovernanceUserRecord = Omit<GovernanceUser, "passwordHash">;
 
 /**
  * A fresh group id. Same shape as an account id, for the same reason: sortable
@@ -140,38 +95,7 @@ export class MissingManagerError extends Error {
   }
 }
 
-type UsersFile = { version: 1; users: GovernanceUser[] };
-
-async function ensureHomeDir(): Promise<void> {
-  await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
-}
-
 export { normalizeAgentIds } from "./agent-ids.js";
-
-async function readUsersFile(): Promise<UsersFile> {
-  const existing = await readJsonIfExists<UsersFile>(usersFilePath());
-  if (!existing) {
-    return { version: 1, users: [] };
-  }
-  // Accounts written before agent assignment existed have no list; default it
-  // rather than letting `undefined` reach a `.includes()` in a permission check.
-  return {
-    ...existing,
-    // A new record per user on purpose: this normalizes a document other
-    // callers have already read, and mutating in place would change objects
-    // they still hold.
-    // oxlint-disable-next-line no-map-spread
-    users: existing.users.map((user) => ({
-      ...user,
-      assignedAgents: normalizeAgentIds(user.assignedAgents),
-    })),
-  };
-}
-
-function toRecord(user: GovernanceUser): GovernanceUserRecord {
-  const { passwordHash: _passwordHash, ...record } = user;
-  return record;
-}
 
 export async function listUsers(groupId?: string): Promise<GovernanceUserRecord[]> {
   if (groupId) {
@@ -179,12 +103,6 @@ export async function listUsers(groupId?: string): Promise<GovernanceUserRecord[
   }
   const file = await readUsersFile();
   return file.users.map(toRecord);
-}
-
-export async function findUserByUsername(username: string): Promise<GovernanceUser | undefined> {
-  const file = await readUsersFile();
-  const normalized = canonicalUsername(username);
-  return file.users.find((u) => canonicalUsername(u.username) === normalized);
 }
 
 /**
@@ -295,28 +213,8 @@ export type CreateUserInput = {
 // property still holds. It does not: signup is deliberately no longer
 // race-protected, because there is nothing left to race for.
 
-/**
- * Minimum password length. OWASP ASVS recommends at least 8 characters for
- * an interactive account; length is enforced here at the store boundary so
- * every creation path (dashboard, bootstrap, future CLI) gets the same rule.
- */
-export const MIN_PASSWORD_LENGTH = 8;
-
 /** Bounds a username so one account cannot bloat the store or the audit trail. */
 export const MAX_USERNAME_LENGTH = 64;
-
-/**
- * Canonical form used for uniqueness and lookup.
- *
- * NFKC folds compatibility and combining-mark variants together, so "jose"
- * plus a combining acute and the precomposed "josé" resolve to one account.
- * Without it two accounts could render identically in the operator list and in
- * the audit trail: an impersonation vector in a product whose entire purpose
- * is knowing who did what. Case folding is applied on top for the same reason.
- */
-function canonicalUsername(username: string): string {
-  return canonicalAccountName(username);
-}
 
 /**
  * `actor` is required on every account mutator, matching the policy mutators in
@@ -342,7 +240,7 @@ export async function createUser(
       throw new Error(`username must be at most ${MAX_USERNAME_LENGTH} characters in length`);
     }
     if (input.password.length < MIN_PASSWORD_LENGTH) {
-      throw new Error(`password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+      throw new PasswordTooShortError();
     }
     const canonical = canonicalUsername(normalized);
     // ------------------------------------------------------------------
@@ -523,7 +421,7 @@ export class DuplicateRootError extends Error {
  * organisation for an account is worse than refusing to guess.
  *
  * The agent registry reached the opposite answer for agents, and the difference
- * is instructive rather than inconsistent: `revokeHoldersOutsideOwner` **can**
+ * is instructive rather than inconsistent: `releaseAgentFromAccounts` **can**
  * repair its join by revoking, because "nobody holds this agent" is a valid,
  * safe state. "Nobody is answerable for this person" is not a valid state; it
  * is the one being prevented.
@@ -735,7 +633,8 @@ export async function setUserRole(
    * thing a test suite is for.
    */
   managedBy?: string,
-): Promise<boolean> {
+  options: AccountChangeOptions = {},
+): Promise<AuthorityChange | false> {
   await ensureHomeDir();
   const changed = await withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
@@ -743,6 +642,7 @@ export async function setUserRole(
     if (!user) {
       return undefined;
     }
+    const before = authorityOf(user);
     if (wouldStrandWithoutRoot(file.users, userId, role)) {
       throw new LastRootError();
     }
@@ -777,6 +677,7 @@ export async function setUserRole(
         );
       }
     }
+    await options.validate?.(toRecord(user), groupRecords(file, user.groupId));
     const becomesManaged = role === "user" || role === "viewer";
     const nextManager = managedBy ?? (becomesManaged ? user.managedBy : undefined);
     const previousManager = user.managedBy;
@@ -816,11 +717,18 @@ export async function setUserRole(
     user.assignedAgents = wasManaged === becomesManaged ? user.assignedAgents : [];
     const previous = user.role;
     user.role = role;
-    await writeGovernanceJson(usersFilePath(), file);
+    const outcome = await commitAccountChange(file, user, before);
     // A same-role move to another Administrator (finding 383) says so; "user -> user" would not.
     const rehomedTo =
       previous === role && previousManager !== nextManager ? managerName : undefined;
-    return { username: user.username, previous, groupId: user.groupId, released, rehomedTo };
+    return {
+      username: user.username,
+      previous,
+      groupId: user.groupId,
+      released,
+      rehomedTo,
+      outcome,
+    };
   });
   if (!changed) {
     return false;
@@ -837,10 +745,11 @@ export async function setUserRole(
         : `account ${changed.username} role ${changed.previous} -> ${role}`) +
       (changed.released.length > 0
         ? ` (assigned agents released: ${changed.released.join(", ")})`
-        : ""),
+        : "") +
+      sessionsLagNote(changed.outcome),
     subjectId: userId,
   });
-  return true;
+  return changed.outcome;
 }
 
 /**
@@ -851,11 +760,10 @@ export async function setUserRole(
 /**
  * Root turns a User account's policy-authoring ability on or off.
  *
- * The caller must also call `updateSessionsPolicyAuthoring`, so revoking it
- * takes effect on a User who is already signed in rather than at their next
- * login. That call lives at the route rather than here, matching how role and
- * assignment changes already work: this module owns the account file and the
- * session file is somebody else's.
+ * The live sessions follow inside this function's own commit (T77), so revoking
+ * it takes effect on a User who is already signed in rather than at their next
+ * login. Until T77 that was left to the route, after the account was written,
+ * and a failure between the two kept the withheld power usable.
  *
  * It is not optional. A permission that only applies to future sessions is one
  * an operator would reasonably believe had taken hold when it had not, which is
@@ -880,7 +788,7 @@ export async function setUserPolicyAuthoring(
    * The check here is the one the command line never had.
    */
   groupId: string,
-): Promise<boolean> {
+): Promise<AuthorityChange | false> {
   await ensureHomeDir();
   const changed = await withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
@@ -890,15 +798,17 @@ export async function setUserPolicyAuthoring(
     if (!user || user.groupId !== groupId) {
       return undefined;
     }
+    const before = authorityOf(user);
     const previous = accountMayAuthorPolicy(user);
     user.canAuthorPolicy = allowed;
-    await writeGovernanceJson(usersFilePath(), file);
+    const outcome = await commitAccountChange(file, user, before);
     return {
       username: user.username,
       role: user.role,
       previous,
       next: allowed,
       groupId: user.groupId,
+      outcome,
     };
   });
   if (!changed) {
@@ -916,17 +826,24 @@ export async function setUserPolicyAuthoring(
       // conclude something was restricted that was not.
       (changed.role === "user"
         ? ""
-        : ` (no effect: the ${changed.role} tier is not governed by it)`),
+        : ` (no effect: the ${changed.role} tier is not governed by it)`) +
+      sessionsLagNote(changed.outcome),
     outcome: allowed ? "allow" : "deny",
   });
-  return true;
+  return changed.outcome;
 }
 
+/**
+ * Replaces the agents an account holds. The unchecked primitive: an operator's assignment comes
+ * through `assignAgentsToAccount` in the registry, which passes the ownership check as `validate`
+ * so it is judged against the account as it is inside this lock, not as the caller last read it.
+ */
 export async function setUserAssignedAgents(
   userId: string,
   agentIds: readonly string[],
   actor: AuditActorInput,
-): Promise<boolean> {
+  options: AccountChangeOptions = {},
+): Promise<AuthorityChange | false> {
   await ensureHomeDir();
   const changed = await withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
@@ -934,23 +851,129 @@ export async function setUserAssignedAgents(
     if (!user) {
       return undefined;
     }
+    await options.validate?.(toRecord(user), groupRecords(file, user.groupId));
+    const before = authorityOf(user);
     const previous = user.assignedAgents;
     user.assignedAgents = normalizeAgentIds(agentIds);
-    await writeGovernanceJson(usersFilePath(), file);
-    return { username: user.username, previous, next: user.assignedAgents, groupId: user.groupId };
+    const outcome = await commitAccountChange(file, user, before);
+    return {
+      id: user.id,
+      username: user.username,
+      previous,
+      next: user.assignedAgents,
+      groupId: user.groupId,
+      outcome,
+    };
   });
   if (!changed) {
     return false;
   }
-  await recordAdminAction(changed.groupId ?? INSTALLATION_LEDGER_GROUP, {
-    actor,
-    action: ADMIN_ACTIONS.userAgentsChange,
-    target:
-      `account ${changed.username} agents [${changed.previous.join(", ")}]` +
-      ` -> [${changed.next.join(", ")}]`,
-    subjectId: userId,
+  await recordAgentChanges([changed], actor, changed.outcome);
+  return changed.outcome;
+}
+
+/** One account's agents before and after, for the ledger. */
+export type AccountAgentsChange = {
+  id: string;
+  username: string;
+  previous: readonly string[];
+  next: readonly string[];
+  groupId?: string;
+};
+
+/** The ledger entries for agent changes: one per account, as an assignment records it. */
+export async function recordAgentChanges(
+  changes: readonly AccountAgentsChange[],
+  actor: AuditActorInput,
+  outcome: AuthorityChange = {},
+): Promise<void> {
+  for (const change of changes) {
+    await recordAdminAction(change.groupId ?? INSTALLATION_LEDGER_GROUP, {
+      actor,
+      action: ADMIN_ACTIONS.userAgentsChange,
+      target:
+        `account ${change.username} agents [${change.previous.join(", ")}]` +
+        ` -> [${change.next.join(", ")}]` +
+        sessionsLagNote(outcome),
+      subjectId: change.id,
+    });
+  }
+}
+
+/**
+ * Takes one agent off every account in a group that `keeps` rejects, in one commit (T77).
+ *
+ * For an ownership transfer and an unregistration, which the registry runs inside its own lock
+ * **before** it writes the agent, so a failure here leaves the owner as it was. Until T77 the
+ * registry released holders one account at a time from a snapshot read before any lock, so an
+ * assignment landing in between survived the transfer. The ledger entries are the caller's to
+ * write once its own lock is released (`recordAgentChanges`).
+ */
+export async function releaseAgentFromAccounts(
+  groupId: string,
+  agentId: string,
+  keeps: (account: GovernanceUserRecord) => boolean,
+): Promise<{ changes: AccountAgentsChange[]; outcome: AuthorityChange }> {
+  await ensureHomeDir();
+  return withFileLock(usersFilePath(), async () => {
+    const file = await readUsersFile();
+    const holders = file.users.filter(
+      (user) =>
+        user.groupId === groupId && user.assignedAgents.includes(agentId) && !keeps(toRecord(user)),
+    );
+    if (holders.length === 0) {
+      return { changes: [], outcome: {} };
+    }
+    const inputs = holders.map((user) => {
+      const before = authorityOf(user);
+      const previous = user.assignedAgents;
+      user.assignedAgents = previous.filter((id) => id !== agentId);
+      return { user, before, previous };
+    });
+    const outcome = await commitAuthorityChanges(
+      inputs.map(({ user, before }) => ({
+        userId: user.id,
+        username: user.username,
+        before,
+        after: authorityOf(user),
+      })),
+      () => writeGovernanceJson(usersFilePath(), file),
+    );
+    return {
+      changes: inputs.map(({ user, previous }) => ({
+        id: user.id,
+        username: user.username,
+        previous,
+        next: user.assignedAgents,
+        groupId: user.groupId,
+      })),
+      outcome,
+    };
   });
-  return true;
+}
+
+/** A check an account change runs inside the accounts lock, against the account as it is now. */
+export type AccountChangeOptions = {
+  validate?: (
+    current: GovernanceUserRecord,
+    group: readonly GovernanceUserRecord[],
+  ) => Promise<void>;
+};
+
+function groupRecords(file: UsersFile, groupId: string | undefined): GovernanceUserRecord[] {
+  return file.users.filter((u) => u.groupId === groupId).map(toRecord);
+}
+
+/** One account's change, with its sessions kept in step (`commitAuthorityChanges`). */
+function commitAccountChange(
+  file: UsersFile,
+  user: GovernanceUser,
+  before: ReturnType<typeof authorityOf>,
+): Promise<AuthorityChange> {
+  return commitAuthorityChanges(
+    [{ userId: user.id, username: user.username, before, after: authorityOf(user) }],
+    () => writeGovernanceJson(usersFilePath(), file),
+  );
 }
 
 /** Whether an account was deleted. For callers that need nothing more; the route uses `deleteAccount`. */
@@ -990,6 +1013,7 @@ export async function deleteUser(userId: string, actor: AuditActorInput): Promis
 export async function deleteAccount(
   userId: string,
   actor: AuditActorInput,
+  options: AccountChangeOptions = {},
 ): Promise<AccountDeletion | undefined> {
   await ensureHomeDir();
   const deleted = await withFileLock(usersFilePath(), async () => {
@@ -1018,6 +1042,7 @@ export async function deleteAccount(
         stranded.map((account) => account.username),
       );
     }
+    await options.validate?.(toRecord(user), groupRecords(file, user.groupId));
     let sessionsRevoked: number;
     try {
       sessionsRevoked = await revokeSessionsForUser(userId);
@@ -1108,6 +1133,17 @@ export async function finishAccountDeletion(
  * caller, and it is the module that owns the confirmation and the ordering.
  * This is the primitive, in the same sense `setUserAssignedAgents` is one.
  */
+/** Thrown when an organisation's sessions cannot be revoked: no account was deleted. */
+export class OrganisationSessionsError extends Error {
+  constructor(cause: unknown) {
+    super(
+      "The organisation's accounts were not deleted: their sessions could not be signed out " +
+        `(${cause instanceof Error ? cause.message : String(cause)}).`,
+    );
+    this.name = "OrganisationSessionsError";
+  }
+}
+
 export async function deleteGroupAccounts(
   groupId: string,
   actor: AuditActorInput,
@@ -1118,6 +1154,14 @@ export async function deleteGroupAccounts(
     const doomed = file.users.filter((u) => u.groupId === groupId);
     if (doomed.length === 0) {
       return [];
+    }
+    // T77, T76's order: the sessions go first, inside this commit. They were revoked after the
+    // accounts had gone, and a failure there left a deleted organisation's people signed in
+    // for up to twelve hours, reported as "incomplete". Failing here, nothing is deleted.
+    try {
+      await revokeSessionsForUsers(doomed.map((u) => u.id));
+    } catch (err) {
+      throw new OrganisationSessionsError(err);
     }
     file.users = file.users.filter((u) => u.groupId !== groupId);
     await writeGovernanceJson(usersFilePath(), file);
@@ -1146,154 +1190,4 @@ export async function deleteGroupAccounts(
     });
   }
   return removed;
-}
-
-/**
- * A syntactically valid scrypt hash of a value nobody can supply, used to burn
- * the same work when the username does not exist. Generated once per process.
- */
-let decoyHashPromise: Promise<string> | undefined;
-
-function decoyHash(): Promise<string> {
-  decoyHashPromise ??= hashPassword(randomBytes(32).toString("hex"));
-  return decoyHashPromise;
-}
-
-/**
- * Verifies credentials and returns the user record on success.
- *
- * When the username does not exist a password verification is still performed
- * against a decoy hash. Returning early instead would make the unknown-user
- * path measurably faster than the wrong-password path, letting an attacker
- * enumerate valid usernames by timing alone: the "broken authentication"
- * class OWASP calls out, and one the login throttle does not address because
- * a handful of probes per account is enough to learn existence.
- */
-export async function authenticate(
-  username: string,
-  password: string,
-): Promise<GovernanceUserRecord | undefined> {
-  const user = await findUserByUsername(username);
-  if (!user) {
-    await verifyPassword(password, await decoyHash());
-    return undefined;
-  }
-  const ok = await verifyPassword(password, user.passwordHash);
-  if (!ok) {
-    return undefined;
-  }
-  // **An account with no group cannot sign in (M3).**
-  //
-  // Groups did not exist before M3, so accounts written earlier have none, and
-  // nothing can infer which organisation they belonged to. Two options were
-  // real: read absent as "the founding group", the way absent `actorRole` and
-  // absent `canAuthorPolicy` are read; or refuse.
-  //
-  // Refusing is right *here* and the difference is what absence means. Those
-  // other fields are properties whose default is knowable. A missing role is
-  // "not recorded", a missing authoring flag is "allowed". A missing group is
-  // not a default; it is an unanswered question about who this account belongs
-  // to, and guessing it would silently place somebody in an organisation
-  // nobody put them in. The refusal is deliberately after the password check,
-  // so it says nothing to an attacker that a wrong password would not.
-  //
-  // The operator's way out was `governance groups migrate --delete`, which went with
-  // the command line on 2026-09-07. Nothing calls `deleteUnmigratedAccounts` since,
-  // so such an account stays until the file is edited by hand; only an installation
-  // that held accounts before M3 can have one (recorded by the QA of 2026-09-14).
-  if (!user.groupId) {
-    return undefined;
-  }
-  // A successful sign-in is the only moment the plaintext exists, so it is the
-  // only moment a stored hash can be strengthened without asking anybody to do
-  // anything. Raising `CURRENT_SCRYPT_PARAMS` therefore migrates the
-  // installation on its own, one login at a time, with no window in which
-  // somebody is locked out. The property whose absence made the cost
-  // effectively permanent (B9).
-  if (needsRehash(user.passwordHash)) {
-    await upgradeStoredPassword(user.id, user.passwordHash, password);
-  }
-  return toRecord(user);
-}
-
-/**
- * Re-hashes one account's password at the current cost.
- *
- * Best-effort by design: a failure here must never turn a valid sign-in into a
- * failed one. The old hash still verifies, so the worst outcome is that the
- * upgrade is retried at the next login.
- *
- * The compare-and-swap on `passwordHash` matters because this runs outside the
- * caller's control flow: if the password changed between the read and this
- * write, a reset landing at the same moment, the stale value must not be
- * written back over the new one.
- */
-async function upgradeStoredPassword(
-  userId: string,
-  expectedHash: string,
-  password: string,
-): Promise<void> {
-  try {
-    const rehashed = await hashPassword(password);
-    await withFileLock(usersFilePath(), async () => {
-      const file = await readUsersFile();
-      const user = file.users.find((u) => u.id === userId);
-      if (!user || user.passwordHash !== expectedHash) {
-        return;
-      }
-      user.passwordHash = rehashed;
-      await writeGovernanceJson(usersFilePath(), file);
-    });
-  } catch {
-    // Deliberately swallowed; see above.
-  }
-}
-
-/**
- * Sets an account's password on behalf of Root.
- *
- * The recovery path whose absence made B9 severe: without it, a stored hash that
- * could not be verified, because the cost parameters moved, or the record was
- * corrupted, had no route back, since bootstrap refuses once any account
- * exists. Restricted to Root at the API boundary, like every other account
- * operation, and audited like one.
- */
-export async function setUserPassword(
-  userId: string,
-  password: string,
-  actor: AuditActorInput,
-): Promise<boolean> {
-  await ensureHomeDir();
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    throw new Error(`password must be at least ${MIN_PASSWORD_LENGTH} characters`);
-  }
-  const hashed = await hashPassword(password);
-  const changed = await withFileLock(usersFilePath(), async () => {
-    const file = await readUsersFile();
-    const user = file.users.find((u) => u.id === userId);
-    if (!user) {
-      return undefined;
-    }
-    user.passwordHash = hashed;
-    await writeGovernanceJson(usersFilePath(), file);
-    return { username: user.username, groupId: user.groupId };
-  });
-  if (!changed) {
-    return false;
-  }
-  // **The failures go with the password they were counted against (finding 414).** A
-  // person who forgot their password locks themselves out guessing; Root sets a new
-  // one, and the lockout kept them out for up to fifteen minutes more. The guesses
-  // were against a credential that no longer exists, and the new one starts with a
-  // full allowance, so nothing the throttle defends is given up.
-  forgetLoginThrottle(changed.username);
-  await recordAdminAction(changed.groupId ?? INSTALLATION_LEDGER_GROUP, {
-    actor,
-    action: ADMIN_ACTIONS.userPasswordReset,
-    // The password itself is never recorded, obviously. Only that it was
-    // replaced, by whom, and for whom.
-    target: `password reset for account ${changed.username}`,
-    subjectId: userId,
-  });
-  return true;
 }

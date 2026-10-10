@@ -297,7 +297,7 @@ describe("assignment is constrained to the account's own Administrator's agents"
     );
     expect(
       await assignAgentsToAccount(await accountById(org.user.id), ["agent-a"], "alpha-admin"),
-    ).toBe(true);
+    ).toEqual({});
     expect((await accountById(org.user.id)).assignedAgents).toEqual(["agent-a"]);
   });
 

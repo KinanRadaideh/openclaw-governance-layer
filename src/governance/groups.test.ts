@@ -218,7 +218,7 @@ describe("a User or Viewer always has an Administrator answerable for it", () =>
     await expect(setUserRole(other.id, "user", "alpha-root")).rejects.toBeInstanceOf(
       MissingManagerError,
     );
-    expect(await setUserRole(other.id, "user", "alpha-root", a.admin.id)).toBe(true);
+    expect(await setUserRole(other.id, "user", "alpha-root", a.admin.id)).toEqual({});
   });
 
   it("refuses an account made answerable for itself", async () => {
@@ -245,7 +245,7 @@ describe("a User or Viewer always has an Administrator answerable for it", () =>
       },
       "alpha-root",
     );
-    expect(await setUserRole(user.id, "administrator", "alpha-root")).toBe(true);
+    expect(await setUserRole(user.id, "administrator", "alpha-root")).toEqual({});
     const after = (await listUsers(a.groupId)).find((u) => u.id === user.id);
     expect(after?.managedBy).toBeUndefined();
   });
@@ -310,7 +310,7 @@ describe("a User or Viewer always has an Administrator answerable for it", () =>
       );
 
       // The step the refusal asks for, and then the act it was refusing.
-      expect(await setUserRole(userId, "user", "alpha-root", successor.id)).toBe(true);
+      expect(await setUserRole(userId, "user", "alpha-root", successor.id)).toEqual({});
       expect(await deleteUser(adminId, "alpha-root")).toBe(true);
       const remaining = await listUsers(groupId);
       expect(remaining.some((u) => u.id === adminId)).toBe(false);
@@ -326,7 +326,7 @@ describe("a User or Viewer always has an Administrator answerable for it", () =>
       );
 
       // The guard must bite on the state it names and on nothing else.
-      expect(await setUserRole(lonely.id, "viewer", "alpha-root", a.admin.id)).toBe(true);
+      expect(await setUserRole(lonely.id, "viewer", "alpha-root", a.admin.id)).toEqual({});
       expect(await deleteUser(lonely.id, "alpha-root")).toBe(true);
     });
   });

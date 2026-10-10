@@ -18,24 +18,18 @@ import { guardDeletion, guardRoleChange } from "../governance/account-guards.js"
 import {
   HoldingsOutsideManagerError,
   OwnedAgentsRemainError,
-  assertOwnershipSurvives,
+  changeAccountRole,
+  deleteAccountKeepingOwnership,
 } from "../governance/account-ownership.js";
 import { isHostDeletionMode } from "../governance/agent-host-deletion.js";
 import { AgentNotAssignableError, assignAgentsToAccount } from "../governance/agent-registry.js";
 import { deleteOrganisation } from "../governance/organisation-deletion.js";
 import { canAssignAgents, type GovernanceActor } from "../governance/permissions.js";
 import { isGovernanceRole, type GovernanceRole } from "../governance/roles.js";
-import {
-  revokeSessionsForUser,
-  updateSessionsAssignedAgents,
-  updateSessionsPolicyAuthoring,
-  updateSessionsRoleForUser,
-  type GovernanceSession,
-} from "../governance/session-tokens.js";
+import type { GovernanceSession } from "../governance/session-tokens.js";
 import {
   AccountStillExistsError,
   createUser,
-  deleteAccount,
   DuplicateRootError,
   finishAccountDeletion,
   LastRootError,
@@ -43,10 +37,12 @@ import {
   ManagedAccountsRemainError,
   MissingManagerError,
   normalizeAgentIds,
+  PasswordTooShortError,
+  SessionMirrorError,
   setUserPassword,
   setUserPolicyAuthoring,
-  setUserRole,
   SessionRevocationError,
+  type AuthorityChange,
 } from "../governance/user-store.js";
 import { requireGroup } from "./governance-dashboard-group.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
@@ -68,6 +64,18 @@ import { sendInvalidRequest, sendJson } from "./http-common.js";
  */
 async function targetIsInCallerGroup(userId: string, session: GovernanceSession): Promise<boolean> {
   return (await listUsers(session.groupId)).some((user) => user.id === userId);
+}
+
+/**
+ * Answers 503 when an account change could not update its signed-in sessions first, so nothing
+ * was changed (T77, `SessionMirrorError`). True when it answered.
+ */
+function sendSessionsUnavailable(res: ServerResponse, err: unknown): boolean {
+  if (!(err instanceof SessionMirrorError)) {
+    return false;
+  }
+  sendJson(res, 503, { error: { message: err.message, type: "sessions_unavailable" } });
+  return true;
 }
 
 export type AccountRouteContext = {
@@ -123,24 +131,31 @@ export async function handleGovernanceAccountRoutes(
       sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
       return true;
     }
-    const updated = await setUserPolicyAuthoring(
-      userId,
-      allowed,
-      auditActor(session),
-      // Belt and braces: `targetIsInCallerGroup` above already refused a
-      // foreign account, and the store now refuses one too (finding 234).
-      // An absent group fails closed rather than matching every account.
-      session.groupId ?? "",
-    );
+    let updated: AuthorityChange | false;
+    try {
+      // The live sessions follow inside the store's own commit (T77), not deferred to the next
+      // login: a permission that only applies to future sessions is one an operator would
+      // believe had taken hold when it had not.
+      updated = await setUserPolicyAuthoring(
+        userId,
+        allowed,
+        auditActor(session),
+        // Belt and braces: `targetIsInCallerGroup` above already refused a
+        // foreign account, and the store now refuses one too (finding 234).
+        // An absent group fails closed rather than matching every account.
+        session.groupId ?? "",
+      );
+    } catch (err) {
+      if (sendSessionsUnavailable(res, err)) {
+        return true;
+      }
+      throw err;
+    }
     if (!updated) {
       sendJson(res, 404, { error: { message: "no such account", type: "not_found" } });
       return true;
     }
-    // Not optional, and not deferred to the next login: a permission that only
-    // applies to future sessions is one an operator would believe had taken
-    // hold when it had not.
-    await updateSessionsPolicyAuthoring(userId, allowed);
-    sendJson(res, 200, { ok: true, users: await listUsers(session.groupId) });
+    sendJson(res, 200, { ok: true, users: await listUsers(session.groupId), ...updated });
     return true;
   }
 
@@ -247,27 +262,26 @@ export async function handleGovernanceAccountRoutes(
     // The snapshot guard above catches the ordinary case; the store re-checks
     // the same invariant inside its write lock so two simultaneous demotions
     // cannot both pass. That second refusal surfaces as this error.
+    let changed: AuthorityChange | false;
     try {
-      const target = groupUsers.find((user) => user.id === userId);
-      if (target) {
-        await assertOwnershipSurvives(
-          target,
-          { role, ...(typeof managedBy === "string" ? { managedBy } : {}) },
-          groupUsers,
-        );
-      }
-      if (
-        !(await setUserRole(
-          userId,
-          role,
-          auditActor(session),
-          typeof managedBy === "string" ? managedBy : undefined,
-        ))
-      ) {
+      // The ownership checks (381, 382) run inside the registry and accounts locks, against the
+      // accounts as they are there, and the live sessions follow inside the same commit (T77):
+      // a role change binds immediately, not at next login, and an operator demoted for cause
+      // does not keep an elevated cookie.
+      changed = await changeAccountRole(
+        userId,
+        role,
+        auditActor(session),
+        typeof managedBy === "string" ? managedBy : undefined,
+      );
+      if (!changed) {
         sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
         return true;
       }
     } catch (err) {
+      if (sendSessionsUnavailable(res, err)) {
+        return true;
+      }
       if (err instanceof LastRootError) {
         sendJson(res, 409, { error: { message: err.message, type: "would_lock_out" } });
         return true;
@@ -304,14 +318,7 @@ export async function handleGovernanceAccountRoutes(
       }
       throw err;
     }
-    // A role change must bind immediately, not at next login: an operator
-    // demoted for cause keeps their elevated cookie otherwise.
-    // A tier crossing releases the assignment list (finding 382), and a move changes the
-    // Administrator the account answers to; the live sessions mirror both.
-    const after = (await listUsers(session.groupId)).find((user) => user.id === userId);
-    await updateSessionsRoleForUser(userId, role, after?.managedBy ?? null);
-    await updateSessionsAssignedAgents(userId, after?.assignedAgents ?? []);
-    sendJson(res, 200, { ok: true });
+    sendJson(res, 200, { ok: true, ...changed });
     return true;
   }
 
@@ -335,21 +342,29 @@ export async function handleGovernanceAccountRoutes(
       sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
       return true;
     }
+    // Every existing session for that account is revoked, inside the store's commit and before
+    // the new hash is written (T77): a password reset is usually a response to it being
+    // compromised, so leaving the old cookies working would defeat the point.
+    let reset: AuthorityChange | false;
     try {
-      if (!(await setUserPassword(userId, password, auditActor(session)))) {
-        sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
+      reset = await setUserPassword(userId, password, auditActor(session));
+    } catch (err) {
+      if (sendSessionsUnavailable(res, err)) {
         return true;
       }
-    } catch (err) {
-      // The store enforces the length policy by throwing.
-      sendInvalidRequest(res, err instanceof Error ? err.message : "could not set password");
+      // The store enforces the length policy by throwing; anything else is a fault, not the
+      // request's (the QA of 2026-10-10: a storage failure was answered 400).
+      if (err instanceof PasswordTooShortError) {
+        sendInvalidRequest(res, err.message);
+        return true;
+      }
+      throw err;
+    }
+    if (!reset) {
+      sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
       return true;
     }
-    // Every existing session for that account is revoked: a password reset is
-    // usually a response to it being compromised, so leaving the old cookies
-    // working would defeat the point.
-    await revokeSessionsForUser(userId);
-    sendJson(res, 200, { ok: true });
+    sendJson(res, 200, { ok: true, ...reset });
     return true;
   }
 
@@ -451,10 +466,15 @@ export async function handleGovernanceAccountRoutes(
     // raw `setUserAssignedAgents` still exists as the primitive that writes the
     // file, and is deliberately no longer reachable from this surface, exactly
     // as `updatePolicy` is kept out of the policy routes.
-    let assigned: boolean;
+    let assigned: AuthorityChange | false;
     try {
+      // Bound immediately, like a role change, inside the store's commit (T77): a revoked agent
+      // stops being manageable now, not at session expiry.
       assigned = await assignAgentsToAccount(target, normalized, auditActor(session));
     } catch (err) {
+      if (sendSessionsUnavailable(res, err)) {
+        return true;
+      }
       if (err instanceof AgentNotAssignableError) {
         sendJson(res, 409, { error: { message: err.message, type: "conflict" } });
         return true;
@@ -465,10 +485,7 @@ export async function handleGovernanceAccountRoutes(
       sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
       return true;
     }
-    // Bind immediately, like a role change: a revoked agent must stop being
-    // manageable now, not at session expiry.
-    await updateSessionsAssignedAgents(userId, normalized);
-    sendJson(res, 200, { ok: true, assignedAgents: normalized });
+    sendJson(res, 200, { ok: true, assignedAgents: normalized, ...assigned });
     return true;
   }
 
@@ -497,15 +514,12 @@ export async function handleGovernanceAccountRoutes(
     }
     let deletion;
     try {
-      const target = deleteUsers.find((user) => user.id === userId);
-      if (target) {
-        await assertOwnershipSurvives(target, { role: "deleted" }, deleteUsers);
-      }
       // T76: the sessions are revoked inside the deletion's own commit, before the
       // record goes, so a deleted account never keeps a working session. This
       // route used to revoke them last, after the purge and the ledger entry, and
       // either of those failing left the account gone and its sessions valid.
-      deletion = await deleteAccount(userId, auditActor(session));
+      // T77: the ownership check (381) runs inside the same locks.
+      deletion = await deleteAccountKeepingOwnership(userId, auditActor(session));
       if (!deletion) {
         sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
         return true;

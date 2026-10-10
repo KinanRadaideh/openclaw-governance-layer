@@ -89,7 +89,7 @@ import { listAgents } from "./agent-registry.js";
 import { retainSentAttachments } from "./attachment-store.js";
 import { groupDir, INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import { revokeSessionsForUser } from "./session-tokens.js";
-import { deleteGroupAccounts, listUsers } from "./user-store.js";
+import { deleteGroupAccounts, listUsers, OrganisationSessionsError } from "./user-store.js";
 
 /**
  * Files kept when the organisation's directory is purged. See the header.
@@ -258,7 +258,25 @@ export async function deleteOrganisation(
     }
   }
 
-  const deleted = await deleteGroupAccounts(input.groupId, actor);
+  let deleted: Awaited<ReturnType<typeof deleteGroupAccounts>>;
+  try {
+    deleted = await deleteGroupAccounts(input.groupId, actor);
+  } catch (err) {
+    if (!(err instanceof OrganisationSessionsError)) {
+      throw err;
+    }
+    // T77: the sessions are revoked inside the accounts' own commit, so this refusal means no
+    // account was deleted and nobody was signed out. The agents are already gone.
+    return {
+      ok: false,
+      stage: "accounts",
+      message: err.message,
+      remedy:
+        `Its ${agentsDeleted} agent(s) were deleted and every account is intact. Check the ` +
+        "governance directory's sessions file and permissions, then run the deletion again.",
+      agentsDeleted,
+    };
+  }
   if (deleted.length === 0) {
     // Only reachable if the accounts vanished between the guard and here, which
     // means another deletion is running or somebody edited users.json. Either
@@ -295,10 +313,12 @@ export async function deleteOrganisation(
     }
   };
 
+  // A second sweep (T77). Every session these accounts held was revoked inside their deletion;
+  // this catches one issued by a sign-in racing it, which the sign-in's own recheck also refuses.
   for (const account of deleted) {
     await attempt(
-      `the session for account ${account.id} could not be revoked, so a browser ` +
-        `still holding its cookie stays signed in until the session expires`,
+      `a session issued for account ${account.id} during the deletion could not be swept, so ` +
+        `a browser still holding its cookie stays signed in until the session expires`,
       () => revokeSessionsForUser(account.id),
     );
   }

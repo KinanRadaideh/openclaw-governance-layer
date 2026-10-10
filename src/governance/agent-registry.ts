@@ -26,13 +26,19 @@
 import { mkdir } from "node:fs/promises";
 import { readJsonIfExists } from "../infra/json-files.js";
 import { normalizeAgentId } from "../routing/session-key.js";
+import type { AuthorityChange } from "./account-authority.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { invalidateAgentGroupCache } from "./agent-group.js";
 import { withFileLock } from "./file-lock.js";
 import { agentsFilePath, governanceHomeDir } from "./paths.js";
-import { updateSessionsAssignedAgents } from "./session-tokens.js";
 import { writeGovernanceJson } from "./state-file.js";
-import { listUsers, setUserAssignedAgents, type GovernanceUserRecord } from "./user-store.js";
+import {
+  listUsers,
+  recordAgentChanges,
+  releaseAgentFromAccounts,
+  setUserAssignedAgents,
+  type GovernanceUserRecord,
+} from "./user-store.js";
 
 /**
  * One agent, as the governance layer knows it.
@@ -410,8 +416,12 @@ export async function registerAgent(
     throw new Error("an agent must belong to a group");
   }
   await ensureHomeDir();
-  const accounts = await listUsers();
+  // The owner's eligibility is judged on the accounts read inside the registry lock (T77): a role
+  // change or deletion that would make the owner ineligible holds this lock too, so the two
+  // cannot interleave. They were read before it, and a demotion in between went unseen.
+  let accounts: GovernanceUserRecord[] = [];
   const created = await withFileLock(agentsFilePath(), async () => {
+    accounts = await listUsers();
     const file = await readAgentsFile();
     // Uniqueness is re-checked inside the lock, not merely before it: two
     // registrations of the same id arriving together would otherwise both read
@@ -435,6 +445,7 @@ export async function registerAgent(
       throw new DuplicateAgentError(id);
     }
     assertOwnerEligible(accounts, input.adminId, input.groupId);
+    await registryCheckedHook?.("register");
     const agent: GovernanceAgent = {
       id,
       displayName,
@@ -594,10 +605,11 @@ export async function setAgentOwner(
   adminId: string,
   groupId: string,
   actor: AuditActorInput,
-): Promise<GovernanceAgent> {
+): Promise<GovernanceAgent & AuthorityChange> {
   await ensureHomeDir();
-  const accounts = await listUsers();
   const changed = await withFileLock(agentsFilePath(), async () => {
+    // Read inside the lock (T77): a demotion or deletion of the new owner holds it too.
+    const accounts = await listUsers();
     const file = await readAgentsFile();
     const agent = file.agents.find((entry) => entry.id === canonicalAgentId(agentId));
     if (!agent || agent.groupId !== groupId) {
@@ -605,13 +617,21 @@ export async function setAgentOwner(
     }
     assertOwnerEligible(accounts, adminId, groupId);
     const previous = agent.adminId;
+    // **The holders first, then the owner (T77).** Released from the accounts as they are inside
+    // the accounts lock, while this lock keeps any assignment out, and before the owner is
+    // written: a failure here leaves the agent with its old owner and its holders as they were
+    // (or narrower), never an agent owned by one Administrator and held by another's people.
+    const released = await releaseAgentFromAccounts(groupId, agent.id, (account) =>
+      keepsAgentUnder(account, adminId),
+    );
+    await registryCheckedHook?.("transfer");
     agent.adminId = adminId;
     await writeGovernanceJson(agentsFilePath(), file);
     // Every write drops the group cache the gate reads on each tool call (M5).
     // Placed next to the write rather than in the callers so a future mutation
     // cannot forget it: the invalidation is part of writing this file.
     invalidateAgentGroupCache();
-    return { agent: { ...agent }, previous };
+    return { agent: { ...agent }, previous, released };
   });
   await recordAdminAction(changed.agent.groupId, {
     actor,
@@ -622,8 +642,8 @@ export async function setAgentOwner(
     agentId: changed.agent.id,
     subjectId: changed.agent.id,
   });
-  await revokeHoldersOutsideOwner(changed.agent, accounts, actor);
-  return changed.agent;
+  await recordAgentChanges(changed.released.changes, actor, changed.released.outcome);
+  return { ...changed.agent, ...changed.released.outcome };
 }
 
 /**
@@ -634,73 +654,73 @@ export async function setAgentOwner(
  * *owned*: the id falls back to the pre-registry state it had before M4, which
  * is the only unregistration that does not silently disarm the assignment rule.
  * Every account holding it is released for the same reason ownership transfer
- * releases the ones that no longer qualify.
+ * releases the ones that no longer qualify, first, inside this lock (T77).
  */
 export async function unregisterAgent(
   agentId: string,
   groupId: string,
   actor: AuditActorInput,
-): Promise<GovernanceAgent> {
+): Promise<GovernanceAgent & AuthorityChange> {
   await ensureHomeDir();
-  const accounts = await listUsers();
   const removed = await withFileLock(agentsFilePath(), async () => {
     const file = await readAgentsFile();
     const agent = file.agents.find((entry) => entry.id === canonicalAgentId(agentId));
     if (!agent || agent.groupId !== groupId) {
       throw new UnknownAgentError(agentId);
     }
+    // An agent nobody owns is an agent nobody can be given: every managed holder is released.
+    const released = await releaseAgentFromAccounts(groupId, agent.id, (account) =>
+      keepsAgentUnder(account, ""),
+    );
     file.agents = file.agents.filter((entry) => entry.id !== agent.id);
     await writeGovernanceJson(agentsFilePath(), file);
     // Every write drops the group cache the gate reads on each tool call (M5).
     // Placed next to the write rather than in the callers so a future mutation
     // cannot forget it: the invalidation is part of writing this file.
     invalidateAgentGroupCache();
-    return { ...agent };
+    return { agent: { ...agent }, released };
   });
-  await recordAdminAction(removed.groupId, {
+  await recordAdminAction(removed.agent.groupId, {
     actor,
     action: ADMIN_ACTIONS.agentUnregister,
     // Name and owner are captured here because the record is gone: after this
     // point the ledger is the only place that says the agent was ever owned.
-    target: `agent ${removed.id} ("${removed.displayName}", owner ${removed.adminId}) unregistered`,
-    agentId: removed.id,
-    subjectId: removed.id,
+    target:
+      `agent ${removed.agent.id} ("${removed.agent.displayName}", owner ` +
+      `${removed.agent.adminId}) unregistered`,
+    agentId: removed.agent.id,
+    subjectId: removed.agent.id,
   });
-  await revokeHoldersOutsideOwner({ ...removed, adminId: "" }, accounts, actor);
-  return removed;
+  await recordAgentChanges(removed.released.changes, actor, removed.released.outcome);
+  return { ...removed.agent, ...removed.released.outcome };
 }
 
 /**
- * Drops one agent from every account in its group whose Administrator is not
- * its owner.
+ * Whether an account may keep an agent owned by `ownerId`.
  *
- * Passing `adminId: ""` releases it from everyone, which is what
- * unregistration wants: an agent nobody owns is an agent nobody can be given.
+ * Administrators and Root reach every agent by role, so their assignment list is inert (see
+ * permissions.ts) and there is nothing to revoke. Only the managed tiers hold an agent by
+ * assignment, and only under their own Administrator. `ownerId: ""` keeps it from every
+ * managed holder, which is what unregistration wants.
  */
-async function revokeHoldersOutsideOwner(
-  agent: GovernanceAgent,
-  accounts: readonly GovernanceUserRecord[],
-  actor: AuditActorInput,
-): Promise<void> {
-  for (const account of accounts) {
-    if (account.groupId !== agent.groupId || !account.assignedAgents.includes(agent.id)) {
-      continue;
-    }
-    // Administrators and Root reach every agent by role, so their assignment
-    // list is inert (see permissions.ts) and there is nothing to revoke. Only
-    // the managed tiers hold an agent by assignment.
-    if (!account.managedBy || account.managedBy === agent.adminId) {
-      continue;
-    }
-    const remaining = account.assignedAgents.filter((id) => id !== agent.id);
-    await setUserAssignedAgents(account.id, remaining, actor);
-    // Bound into any live session immediately, exactly as the assignment route
-    // does. A revocation that only applied at the holder's next login is one an
-    // Administrator would reasonably believe had taken hold when it had not,
-    // the `userAsk` shape again, and the reason `setUserPolicyAuthoring`
-    // carries the same instruction in its own doc comment.
-    await updateSessionsAssignedAgents(account.id, remaining);
-  }
+function keepsAgentUnder(account: GovernanceUserRecord, ownerId: string): boolean {
+  return !account.managedBy || account.managedBy === ownerId;
+}
+
+/**
+ * Holds the agent registry's lock while `fn` runs (T77).
+ *
+ * **The one lock order: the registry, then the accounts, then the sessions.** Every change that
+ * reads one of these files to write another holds the locks of what it reads: an assignment
+ * (`assignAgentsToAccount`), a transfer or unregistration (above), a registration, and a role
+ * change or deletion whose ownership check reads the registry (`account-ownership.ts`). Nothing
+ * takes them the other way round, so the nesting cannot deadlock, and two such changes are
+ * serialised rather than each judged against a file the other is rewriting. The lock is not
+ * re-entrant: `fn` must not call another function that takes it.
+ */
+export async function withAgentRegistryLock<T>(fn: () => Promise<T>): Promise<T> {
+  await ensureHomeDir();
+  return withFileLock(agentsFilePath(), fn);
 }
 
 /**
@@ -809,19 +829,48 @@ export async function assertAssignable(
  * caller that answers to an operator, the route, the command line, comes
  * through here.
  *
- * The two files are locked separately, so an ownership change racing an
- * assignment can land after the check. That leaves an account holding an agent
- * its Administrator no longer owns, which `setAgentOwner` then repairs on its
- * own next pass: a state the system corrects rather than one it cannot
- * describe.
+ * **Checked and written under one lock order (T77).** This comment used to say
+ * the two files were locked separately, so an ownership change racing an
+ * assignment could land after the check, "which `setAgentOwner` then repairs on
+ * its own next pass": a pass that runs only if the agent changes owner again.
+ * And the check read the caller's record of the account, so a move to another
+ * Administrator after the caller read it was not seen. Now the registry lock is
+ * held from the check to the write, so no transfer can interleave, and the check
+ * runs inside the accounts lock against the account as it is there.
  */
 export async function assignAgentsToAccount(
   account: GovernanceUserRecord,
   agentIds: readonly string[],
   actor: AuditActorInput,
-): Promise<boolean> {
-  await assertAssignable(agentIds, account.managedBy, account.groupId);
-  return setUserAssignedAgents(account.id, agentIds, actor);
+): Promise<AuthorityChange | false> {
+  return withAgentRegistryLock(() =>
+    setUserAssignedAgents(account.id, agentIds, actor, {
+      validate: async (current) => {
+        await assertAssignable(agentIds, current.managedBy, current.groupId);
+        await assignmentCheckedHook?.();
+      },
+    }),
+  );
+}
+
+let assignmentCheckedHook: (() => Promise<void>) | undefined;
+
+/** Tests only: runs between an assignment's ownership check and its write (T77's races). */
+export function setAssignmentCheckedHookForTests(hook: (() => Promise<void>) | undefined): void {
+  assignmentCheckedHook = hook;
+}
+
+let registryCheckedHook: ((point: "register" | "transfer") => Promise<void>) | undefined;
+
+/**
+ * Tests only: runs inside the registry lock between a registration's owner check and its write,
+ * and between a transfer's release of holders and its write: the two windows only the registry
+ * lock closes, which a change that skipped it would fall into (T77).
+ */
+export function setRegistryCheckedHookForTests(
+  hook: ((point: "register" | "transfer") => Promise<void>) | undefined,
+): void {
+  registryCheckedHook = hook;
 }
 
 /**

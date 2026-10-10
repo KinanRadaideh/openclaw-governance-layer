@@ -3,12 +3,51 @@
 //
 // The rule joins the account file and the agent registry, so it lives above both, as
 // `assertAssignable` does: the registry knows about accounts, and the account store
-// knows nothing about agents. Checked by the routes before the store writes, the way
-// `guardRoleChange` is; a concurrent re-own in the gap is the accepted tradeoff, and
-// the dashboard shows the result on its next refresh.
-import { listAgents } from "./agent-registry.js";
+// knows nothing about agents.
+//
+// **Checked inside both locks since T77.** The routes used to check it before the store
+// wrote, outside every lock ("a concurrent re-own in the gap is the accepted tradeoff"),
+// so an assignment checked against the old Administrator could land after a move to a
+// new one. `changeAccountRole` and `deleteAccountKeepingOwnership` hold the registry lock
+// and pass the check to the store, which runs it against the accounts as they are inside
+// its own lock: the one lock order `withAgentRegistryLock` states.
+import type { AuditActorInput } from "./admin-audit.js";
+import { listAgents, withAgentRegistryLock } from "./agent-registry.js";
 import type { GovernanceRole } from "./roles.js";
-import type { GovernanceUserRecord } from "./user-store.js";
+import {
+  deleteAccount,
+  setUserRole,
+  type AccountDeletion,
+  type AuthorityChange,
+  type GovernanceUserRecord,
+} from "./user-store.js";
+
+/** A role change, its ownership checked inside the registry and accounts locks (T77). */
+export function changeAccountRole(
+  userId: string,
+  role: GovernanceRole,
+  actor: AuditActorInput,
+  managedBy?: string,
+): Promise<AuthorityChange | false> {
+  return withAgentRegistryLock(() =>
+    setUserRole(userId, role, actor, managedBy, {
+      validate: (current, group) =>
+        assertOwnershipSurvives(current, { role, ...(managedBy ? { managedBy } : {}) }, group),
+    }),
+  );
+}
+
+/** A deletion, its ownership checked inside the registry and accounts locks (T77). */
+export function deleteAccountKeepingOwnership(
+  userId: string,
+  actor: AuditActorInput,
+): Promise<AccountDeletion | undefined> {
+  return withAgentRegistryLock(() =>
+    deleteAccount(userId, actor, {
+      validate: (current, group) => assertOwnershipSurvives(current, { role: "deleted" }, group),
+    }),
+  );
+}
 
 /** Refused: the account still owns agents, and would stop being able to manage them. */
 export class OwnedAgentsRemainError extends Error {

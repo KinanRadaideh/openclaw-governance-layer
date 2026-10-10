@@ -15,7 +15,6 @@ import {
   issueSession,
   revokeSession,
   revokeSessionsForUser,
-  updateSessionsRoleForUser,
   verifySession,
 } from "./session-tokens.js";
 import {
@@ -188,7 +187,7 @@ describe("user store", () => {
       },
       TEST_ACTOR,
     );
-    expect(await setUserRole(user.id, "root", TEST_ACTOR)).toBe(true);
+    expect(await setUserRole(user.id, "root", TEST_ACTOR)).toEqual({});
     expect((await authenticate("bob", "pw12345678"))?.role).toBe("root");
     expect(await deleteUser(user.id, TEST_ACTOR)).toBe(true);
     expect(await countUsers()).toBe(0);
@@ -310,8 +309,8 @@ describe("session tokens", () => {
       TEST_ACTOR,
     );
     const session = await issueSession({ id: user.id, username: user.username, role: user.role });
+    // The store moves the live session with the account (T77); no second call.
     await setUserRole(user.id, "viewer", TEST_ACTOR, manager.id);
-    await updateSessionsRoleForUser(user.id, "viewer");
     expect((await verifySession(session.token))?.role).toBe("viewer");
   });
 
@@ -454,7 +453,7 @@ describe("password cost can be raised later (B9)", () => {
       },
       "root",
     );
-    expect(await setUserPassword(user.id, "a-brand-new-secret", "root-user")).toBe(true);
+    expect(await setUserPassword(user.id, "a-brand-new-secret", "root-user")).toEqual({});
     expect(await authenticate("malek", "a-brand-new-secret")).toBeDefined();
     expect(await authenticate("malek", "correct-horse-battery")).toBeUndefined();
   });

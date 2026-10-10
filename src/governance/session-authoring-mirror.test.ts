@@ -1,8 +1,8 @@
 // Finding 209: a withheld policy-authoring restriction survived only as long as
 // the session it was applied to.
 //
-// `setUserPolicyAuthoring` calls `updateSessionsPolicyAuthoring` so the change
-// reaches sessions already issued, and its own comment argues that doing less
+// The change reaches sessions already issued (since T77 inside
+// `setUserPolicyAuthoring`'s own commit), and its own comment argues that doing less
 // would be "a permission that only applies to future sessions ... one an
 // operator would reasonably believe had taken hold when it had not". The mirror
 // image was true: `issueSession` never copied the flag off the account record,
@@ -18,12 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { canViewAgent, canWritePolicy } from "./permissions.js";
-import {
-  issueSession,
-  updateSessionsAssignedAgents,
-  updateSessionsRoleForUser,
-  verifySession,
-} from "./session-tokens.js";
+import { issueSession, verifySession } from "./session-tokens.js";
 import { seedNamedGroup } from "./test-group.js";
 import {
   authenticate,
@@ -31,6 +26,7 @@ import {
   listUsers,
   setUserAssignedAgents,
   setUserPolicyAuthoring,
+  setUserRole,
 } from "./user-store.js";
 
 const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
@@ -131,7 +127,8 @@ describe("agent assignment mirrored into live sessions", () => {
     const record = await authenticate("malek", PASSWORD);
     const issued = await issueSession(record!);
 
-    await updateSessionsAssignedAgents(userId, ["Scout", " Helper "]);
+    // Through the store, which owns the mirror since T77.
+    await setUserAssignedAgents(userId, ["Scout", " Helper "], TEST_ACTOR);
 
     const verified = await verifySession(issued.token);
     expect(verified?.assignedAgents).toEqual(["scout", "helper"]);
@@ -141,10 +138,9 @@ describe("agent assignment mirrored into live sessions", () => {
 
   it("agrees with what the account store holds", async () => {
     const userId = await seedManagedUser();
+    const issued = await issueSession((await authenticate("malek", PASSWORD))!);
     await setUserAssignedAgents(userId, ["Scout"], TEST_ACTOR);
     const stored = (await listUsers(TEST_GROUP)).find((u) => u.id === userId);
-    const issued = await issueSession((await authenticate("malek", PASSWORD))!);
-    await updateSessionsAssignedAgents(userId, ["Scout"]);
     const verified = await verifySession(issued.token);
     // Two copies of one fact; the point is that they cannot disagree.
     expect(verified?.assignedAgents).toEqual(stored?.assignedAgents);
@@ -157,17 +153,24 @@ describe("agent assignment mirrored into live sessions", () => {
 describe("the managing Administrator, mirrored on a live session", () => {
   it("follows a move, and clears on a promotion", async () => {
     const userId = await seedManagedUser();
+    // A role change is refused in a group with no Root (the last-Root guard), as every real
+    // organisation has one.
+    await createUser(
+      { username: "rooty", password: PASSWORD, role: "root", groupId: TEST_GROUP },
+      TEST_ACTOR,
+    );
     const other = await createUser(
       { username: "admin2", password: PASSWORD, role: "administrator", groupId: TEST_GROUP },
       TEST_ACTOR,
     );
     const issued = await issueSession((await authenticate("malek", PASSWORD))!);
-    await updateSessionsRoleForUser(userId, "user", other.id);
+    await setUserRole(userId, "user", TEST_ACTOR, other.id);
     expect((await verifySession(issued.token))?.managedBy).toBe(other.id);
-    // Undefined leaves it alone, as every caller before this change passed.
-    await updateSessionsRoleForUser(userId, "user");
+    // No manager named keeps the one the account has.
+    await setUserRole(userId, "user", TEST_ACTOR);
     expect((await verifySession(issued.token))?.managedBy).toBe(other.id);
-    await updateSessionsRoleForUser(userId, "administrator", null);
+    await setUserRole(userId, "administrator", TEST_ACTOR);
     expect((await verifySession(issued.token))?.managedBy).toBeUndefined();
+    expect((await verifySession(issued.token))?.role).toBe("administrator");
   });
 });

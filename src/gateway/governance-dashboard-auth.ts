@@ -26,8 +26,8 @@ import { issueSession, revokeSession, verifySession } from "../governance/sessio
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import {
   authenticate,
+  confirmSignInSession,
   createUser,
-  findUserByUsername,
   installationHasOrganisation,
   listUsers,
   newGroupId,
@@ -193,17 +193,22 @@ export async function handleGovernanceAuthRequest(
       return true;
     }
     recordLoginSuccess(throttleKey);
-    await auditLoginSuccess(user);
     const session = await issueSession(user);
-    // **The account must still exist now that its session does** (T76). A
-    // deletion between `authenticate` reading the account and this session being
-    // written revoked every session it could see, which was not yet this one.
-    // The deletion sweeps again after removing the record; this closes the rest.
-    if ((await findUserByUsername(user.username))?.id !== user.id) {
-      await revokeSession(session.token);
+    // **The account must still be the one that was verified, now that its session
+    // exists** (T76 for a deletion, T77 for the rest). A change between
+    // `authenticate` reading the account and this session being written could not
+    // reach a session that did not exist yet: a deletion or a password reset leaves
+    // it unwanted, a demotion leaves it with the old role. Confirmed under the
+    // accounts lock: refused if the account is gone or its password changed, and
+    // otherwise given the account's authority as it is now.
+    const current = await confirmSignInSession(user, session.token);
+    if (!current) {
       sendJson(res, 401, { error: { message: "Invalid credentials", type: "unauthorized" } });
       return true;
     }
+    // Recorded once the sign-in is confirmed, and as the account now is (the QA of 2026-10-10):
+    // recorded before, a sign-in the recheck refused left a "signed in" entry for nothing.
+    await auditLoginSuccess(current);
     setSessionCookie(
       res,
       session.token,
@@ -211,12 +216,14 @@ export async function handleGovernanceAuthRequest(
     );
     sendJson(res, 200, {
       ok: true,
-      username: user.username,
-      role: user.role,
-      assignedAgents: session.assignedAgents,
+      username: current.username,
+      role: current.role,
+      assignedAgents: [...current.assignedAgents],
       // **T27's withhold has to reach the browser** (2026-09-08). See `whoami`
       // below for what its absence cost.
-      ...(user.canAuthorPolicy !== undefined ? { canAuthorPolicy: user.canAuthorPolicy } : {}),
+      ...(current.canAuthorPolicy !== undefined
+        ? { canAuthorPolicy: current.canAuthorPolicy }
+        : {}),
     });
     return true;
   }

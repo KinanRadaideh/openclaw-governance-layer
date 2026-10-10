@@ -19,15 +19,16 @@ export type GovernanceSession = {
   expiresAt: string;
   /**
    * Agent scope captured at sign-in. Mirrored here so an authorization check
-   * costs no extra read; `updateSessionsAssignedAgents` keeps it current when
-   * an Administrator changes the assignment mid-session.
+   * costs no extra read; the account store keeps it current when an
+   * Administrator changes the assignment mid-session (`applySessionAuthority`,
+   * inside the account's own commit since T77).
    */
   assignedAgents: string[];
   /**
    * Whether this account may write policy, mirrored from the account record for
    * the same reason `assignedAgents` is: an authorization check should not cost
-   * a second file read. `updateSessionsPolicyAuthoring` keeps it current when
-   * Root changes it mid-session.
+   * a second file read. The account store keeps it current when Root changes
+   * it mid-session, as it does `assignedAgents`.
    *
    * Absent means allowed, matching the account field it mirrors, so a session
    * issued before this existed keeps working exactly as it did.
@@ -189,78 +190,157 @@ export async function revokeSessionsForUser(userId: string): Promise<number> {
 }
 
 /**
- * Reflects an agent-assignment change into already-issued sessions.
- *
- * **Folded here rather than trusted from the caller (finding 210).** This is the
- * session copy's choke point exactly as `readUsersFile` and the setters are the
- * account file's, and the two copies answer the same question, `canViewAgent`
- * reads whichever one the surface happens to hold. The dashboard's assignment
- * route passed the request body trimmed but not folded, so an Administrator
- * assigning `Scout` for an agent whose id is `scout` wrote a session list that
- * matched nothing, and the assignment did not take effect until its holder
- * signed out and back in. That is finding 200 arriving at the mirror it did not
- * cover, and the reason the fold belongs at the boundary that owns the store
- * rather than at each caller.
+ * Revokes every session of several accounts in one write: an organisation's accounts, inside
+ * the commit that removes them (T77, T76's order).
  */
-export async function updateSessionsAssignedAgents(
-  userId: string,
-  assignedAgents: readonly string[],
-): Promise<void> {
+export async function revokeSessionsForUsers(userIds: readonly string[]): Promise<number> {
+  if (userIds.length === 0) {
+    return 0;
+  }
   await ensureHomeDir();
-  const canonical = normalizeAgentIds(assignedAgents);
-  await withFileLock(sessionsFilePath(), async () => {
+  const doomed = new Set(userIds);
+  return withFileLock(sessionsFilePath(), async () => {
     const file = await readSessionsFile();
-    for (const session of file.sessions) {
-      if (session.userId === userId) {
-        session.assignedAgents = [...canonical];
-      }
+    const before = file.sessions.length;
+    file.sessions = file.sessions.filter((s) => !doomed.has(s.userId));
+    if (file.sessions.length === before) {
+      return 0;
     }
     await writeGovernanceJson(sessionsFilePath(), file);
+    return before - file.sessions.length;
   });
 }
 
-/** Reflects a policy-authoring change into already-issued sessions. */
-export async function updateSessionsPolicyAuthoring(
-  userId: string,
-  canAuthorPolicy: boolean,
-): Promise<void> {
+/**
+ * The part of a session that authorizes: what an account change must keep in step (T77).
+ * `managedBy` is mirrored too, though no check reads it from a session.
+ */
+export type SessionAuthority = {
+  role: GovernanceRole;
+  assignedAgents: readonly string[];
+  /** Absent means allowed, as on the account. */
+  canAuthorPolicy?: boolean;
+  managedBy?: string;
+};
+
+const ROLE_TIER: Record<GovernanceRole, number> = { viewer: 0, user: 1, administrator: 2, root: 3 };
+
+/**
+ * The narrower of two authorities, field by field: the lower role, the agents both hold, policy
+ * authoring only when both allow it. What a session holds while its account changes from one to
+ * the other, so that at no moment does it hold more than either (T77). `managedBy` stays the
+ * first's: it authorizes nothing, and the second is written once the account is.
+ */
+export function narrowerAuthority(a: SessionAuthority, b: SessionAuthority): SessionAuthority {
+  const role = ROLE_TIER[a.role] <= ROLE_TIER[b.role] ? a.role : b.role;
+  const held = new Set(normalizeAgentIds(b.assignedAgents));
+  const assignedAgents = normalizeAgentIds(a.assignedAgents).filter((id) => held.has(id));
+  const canAuthorPolicy =
+    a.canAuthorPolicy === false || b.canAuthorPolicy === false ? false : b.canAuthorPolicy;
+  return {
+    role,
+    assignedAgents,
+    ...(canAuthorPolicy !== undefined ? { canAuthorPolicy } : {}),
+    ...(a.managedBy ? { managedBy: a.managedBy } : {}),
+  };
+}
+
+/** Whether two authorities are the same, so a write that would change nothing can be skipped. */
+export function sameAuthority(a: SessionAuthority, b: SessionAuthority): boolean {
+  const left = normalizeAgentIds(a.assignedAgents);
+  const right = normalizeAgentIds(b.assignedAgents);
+  return (
+    a.role === b.role &&
+    (a.canAuthorPolicy !== false) === (b.canAuthorPolicy !== false) &&
+    (a.managedBy ?? "") === (b.managedBy ?? "") &&
+    left.length === right.length &&
+    left.every((id, index) => id === right[index])
+  );
+}
+
+function applyAuthority(session: GovernanceSession, authority: SessionAuthority): void {
+  session.role = authority.role;
+  // Folded here, at the session copy's choke point, rather than trusted from the caller
+  // (finding 210): `Scout` typed for an agent whose id is `scout` must match.
+  session.assignedAgents = normalizeAgentIds(authority.assignedAgents);
+  if (authority.canAuthorPolicy === undefined) {
+    delete session.canAuthorPolicy;
+  } else {
+    session.canAuthorPolicy = authority.canAuthorPolicy;
+  }
+  if (authority.managedBy) {
+    session.managedBy = authority.managedBy;
+  } else {
+    delete session.managedBy;
+  }
+}
+
+function sessionAuthorityOf(session: GovernanceSession): SessionAuthority {
+  return {
+    role: session.role,
+    assignedAgents: session.assignedAgents ?? [],
+    ...(session.canAuthorPolicy !== undefined ? { canAuthorPolicy: session.canAuthorPolicy } : {}),
+    ...(session.managedBy ? { managedBy: session.managedBy } : {}),
+  };
+}
+
+/**
+ * Sets the authority of every session each listed account holds, in one write.
+ *
+ * **Called by the account store only, inside its lock** (T77). The three helpers this replaces
+ * (`updateSessionsRoleForUser`, `updateSessionsAssignedAgents`, `updateSessionsPolicyAuthoring`)
+ * were called by the routes after the account had been written, in a separate locked write, so a
+ * failure between the two left a demoted or restricted account working with its former authority
+ * until the session expired. The order that makes a failure safe is the store's to keep; see
+ * `commitAuthorityChanges` in `account-authority.ts`. One write for every account a commit
+ * changes, and none when no session would change. Returns the number of sessions changed.
+ */
+export async function applySessionAuthorities(
+  changes: ReadonlyArray<{ userId: string; authority: SessionAuthority }>,
+): Promise<number> {
+  if (changes.length === 0) {
+    return 0;
+  }
   await ensureHomeDir();
-  await withFileLock(sessionsFilePath(), async () => {
+  const byUser = new Map(changes.map((change) => [change.userId, change.authority]));
+  return withFileLock(sessionsFilePath(), async () => {
     const file = await readSessionsFile();
+    let changed = 0;
     for (const session of file.sessions) {
-      if (session.userId === userId) {
-        session.canAuthorPolicy = canAuthorPolicy;
+      const authority = byUser.get(session.userId);
+      if (authority && !sameAuthority(sessionAuthorityOf(session), authority)) {
+        applyAuthority(session, authority);
+        changed += 1;
       }
     }
-    await writeGovernanceJson(sessionsFilePath(), file);
+    if (changed > 0) {
+      await writeGovernanceJson(sessionsFilePath(), file);
+    }
+    return changed;
   });
 }
 
-/** Reflects a role change (e.g. an administrator demoting a user) into already-issued sessions. */
-export async function updateSessionsRoleForUser(
-  userId: string,
-  role: GovernanceRole,
-  /**
-   * The account's Administrator after the change, when the caller knows it.
-   * The session mirrors `managedBy` like `assignedAgents`, and a move to
-   * another Administrator left the mirror naming the old one (2026-10-03).
-   * `null` clears it, for a promotion out of the managed tiers.
-   */
-  managedBy?: string | null,
-): Promise<void> {
+/**
+ * Sets the authority of one session, by its token: a sign-in's own session, given the account as
+ * it is once the session exists (T77, `confirmSignInSession`). False when the session is gone; no
+ * write when it already holds that authority, which is the ordinary case.
+ */
+export async function applySessionAuthorityToToken(
+  token: string,
+  authority: SessionAuthority,
+): Promise<boolean> {
   await ensureHomeDir();
-  await withFileLock(sessionsFilePath(), async () => {
+  return withFileLock(sessionsFilePath(), async () => {
     const file = await readSessionsFile();
-    for (const session of file.sessions) {
-      if (session.userId === userId) {
-        session.role = role;
-        if (managedBy === null) {
-          delete session.managedBy;
-        } else if (managedBy !== undefined) {
-          session.managedBy = managedBy;
-        }
-      }
+    const presented = fingerprintToken(token);
+    const session = file.sessions.find((s) => tokensMatch(presented, s.token));
+    if (!session) {
+      return false;
     }
-    await writeGovernanceJson(sessionsFilePath(), file);
+    if (!sameAuthority(sessionAuthorityOf(session), authority)) {
+      applyAuthority(session, authority);
+      await writeGovernanceJson(sessionsFilePath(), file);
+    }
+    return true;
   });
 }

@@ -487,6 +487,8 @@ export const enGovernance: TranslationMap = {
       deletionIncomplete:
         "The account no longer exists and every session it had is signed out. Something after that did not complete; finishing it removes what is left without bringing the account back.",
       deletionCleanupError: "Still held under the name: {reason}",
+      sessionsLag:
+        "Saved. The signed-in sessions it affects could not be updated ({reason}), so until those accounts sign in again they keep the narrower of the old and the new access.",
       deletionAuditError: "The audit ledger did not record the deletion: {reason}",
       deletionSignedOut: "Deleted and signed out",
       finishDeletion: "Finish deleting",

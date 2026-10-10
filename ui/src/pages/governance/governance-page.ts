@@ -5,7 +5,6 @@ import { consume } from "@lit/context";
 import { html, nothing } from "lit";
 import { state } from "lit/decorators.js";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
-import { resolveControlUiAuthToken } from "../../app/control-ui-auth.ts";
 import { showConfirmDialog } from "../../components/confirm-dialog.ts";
 import { renderDocsLink, renderSettingsPage } from "../../components/settings-ui.ts";
 import { i18n, t } from "../../i18n/index.ts";
@@ -20,6 +19,7 @@ import {
   type AgentSources,
 } from "./agent-directory.ts";
 import { codexIds } from "./agent-directory.ts";
+import { governanceApiFor } from "./api.page.ts";
 import {
   GovernanceApi,
   GovernanceApiError,
@@ -351,14 +351,16 @@ class GovernancePage extends OpenClawLightDomElement {
    */
   @state() private pendingDecisionsShed = 0;
 
+  /**
+   * `sessionsError`s replies reported and no run has shown yet (T77). A queue, not one field each
+   * run resets: runs overlap (finding 384), and a reset would lose a slower change's lag.
+   */
+  private sessionsLags: string[] = [];
+
   private api(): GovernanceApi {
-    const gateway = this.context.gateway;
-    const token = resolveControlUiAuthToken({
-      hello: gateway.snapshot?.hello ?? null,
-      settings: { token: gateway.connection?.token ?? null },
-      password: gateway.connection?.password ?? null,
+    return governanceApiFor(this.context, (reason) => {
+      this.sessionsLags.push(reason);
     });
-    return new GovernanceApi(this.context.basePath, token);
   }
 
   override connectedCallback(): void {
@@ -991,6 +993,12 @@ class GovernancePage extends OpenClawLightDomElement {
     try {
       await action();
       await this.refreshData();
+      // A change that took effect while its sessions lag is said so (T77): saved, and the
+      // accounts signed in keep the narrower access until they sign in again.
+      if (this.sessionsLags.length > 0) {
+        this.error = t("governance.users.sessionsLag", { reason: this.sessionsLags.join("; ") });
+        this.sessionsLags = [];
+      }
     } catch (err) {
       if (isSessionLost(err)) {
         this.markSessionExpired();

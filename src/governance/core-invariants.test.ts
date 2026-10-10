@@ -64,7 +64,7 @@ async function makeRoot(password = "correct-horse-battery") {
 describe("1. Root can change its own password", () => {
   it("accepts a new password for the Root account itself", async () => {
     const root = await makeRoot();
-    await expect(setUserPassword(root.id, "a-much-better-secret", "kinan")).resolves.toBe(true);
+    await expect(setUserPassword(root.id, "a-much-better-secret", "kinan")).resolves.toEqual({});
   });
 
   it("makes the new password the one that works, and the old one stop working", async () => {

@@ -17,6 +17,7 @@ import {
   refusal,
   refusalFromBody,
 } from "./api.errors.ts";
+import { governanceRequestHeaders, reportSessionsLag } from "./api.reply.ts";
 
 export { GOVERNANCE_UNREACHABLE_MESSAGE, GovernanceApiError } from "./api.errors.ts";
 
@@ -305,25 +306,13 @@ export class GovernanceApi {
   constructor(
     private readonly basePath: string,
     private readonly authToken: string | null,
+    /** Told when a change stands while its signed-in sessions lag (T77, `reportSessionsLag`). */
+    private readonly onSessionsLag?: (reason: string) => void,
   ) {}
 
   private url(path: string): string {
     const prefix = this.basePath && this.basePath !== "/" ? this.basePath : "";
     return `${prefix}${BASE}/${path}`;
-  }
-
-  // `Record<string, string>` rather than `HeadersInit`: this only ever returns
-  // a plain object, and the wider union includes `string[][]`, which spreads
-  // into an object literal as indices rather than headers.
-  private headers(json: boolean): Record<string, string> {
-    const headers: Record<string, string> = {};
-    if (json) {
-      headers["Content-Type"] = "application/json";
-    }
-    if (this.authToken) {
-      headers.Authorization = `Bearer ${this.authToken}`;
-    }
-    return headers;
   }
 
   private async request<T>(
@@ -339,7 +328,7 @@ export class GovernanceApi {
       response = await fetch(this.url(path), {
         method: init?.method ?? "GET",
         credentials: "same-origin",
-        headers: this.headers(hasBody),
+        headers: governanceRequestHeaders(this.authToken, hasBody),
         ...(hasBody ? { body: JSON.stringify(init?.body) } : {}),
       });
       text = await response.text();
@@ -374,6 +363,7 @@ export class GovernanceApi {
           : `Request failed (${response.status})`;
       throw refusal(message, response.status, error?.type, opts?.authenticating === true);
     }
+    reportSessionsLag(parsed, this.onSessionsLag);
     return parsed as T;
   }
 
@@ -652,7 +642,7 @@ export class GovernanceApi {
       method: "POST",
       credentials: "same-origin",
       headers: {
-        ...this.headers(false),
+        ...governanceRequestHeaders(this.authToken, false),
         "Content-Type": "application/octet-stream",
         "x-agent-id": agentId,
         "x-attachment-name": encodedName,
@@ -875,7 +865,7 @@ export class GovernanceApi {
     const response = await fetch(this.url("agent/prompt"), {
       method: "POST",
       credentials: "same-origin",
-      headers: { ...this.headers(true), Accept: "text/event-stream" },
+      headers: { ...governanceRequestHeaders(this.authToken, true), Accept: "text/event-stream" },
       body: JSON.stringify({
         agentId,
         message,

@@ -653,7 +653,7 @@ export type DeprovisionResult =
  * The obvious order is "drop the record, then delete the agent", so that a host
  * refusal can be undone by writing the record back. It does not work.
  * `unregisterAgent` does more than delete a row: it **revokes the agent from
- * every account that held it** (`revokeHoldersOutsideOwner`), because an agent
+ * every account that held it** (`releaseAgentFromAccounts`), because an agent
  * nobody owns is an agent nobody may be given. Re-registering restores the row
  * and **not** the assignments, so a failed host deletion would leave every User
  * who had that agent quietly without it: an action ending in an invisible

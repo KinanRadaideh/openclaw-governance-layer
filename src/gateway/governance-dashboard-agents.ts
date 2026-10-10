@@ -40,7 +40,7 @@ import { knownAgentIds } from "../governance/policy-projection.js";
 import { holdsNothing, loadPolicy, readAgentPolicyHoldings } from "../governance/policy-store.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
-import { findUsersForAgent, listUsers } from "../governance/user-store.js";
+import { findUsersForAgent, listUsers, SessionMirrorError } from "../governance/user-store.js";
 import { requireGroup } from "./governance-dashboard-group.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
 
@@ -84,6 +84,11 @@ function mayAdministerAgent(session: GovernanceSession, ownerId: string): boolea
 function sendRegistryError(res: ServerResponse, err: unknown): void {
   if (err instanceof UnknownAgentError) {
     sendJson(res, 404, { error: { message: "no such agent", type: "not_found" } });
+    return;
+  }
+  // T77: the holders' sessions could not be narrowed first, so nothing was changed.
+  if (err instanceof SessionMirrorError) {
+    sendJson(res, 503, { error: { message: err.message, type: "sessions_unavailable" } });
     return;
   }
   if (err instanceof DuplicateAgentError) {

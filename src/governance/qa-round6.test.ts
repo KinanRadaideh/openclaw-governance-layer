@@ -246,7 +246,7 @@ describe("the last Root cannot be removed by two requests at once", () => {
 
   it("still allows demoting one of two Roots", async () => {
     const [a] = await twoRoots();
-    await expect(setUserRole(a as string, "administrator", TEST_ACTOR)).resolves.toBe(true);
+    await expect(setUserRole(a as string, "administrator", TEST_ACTOR)).resolves.toEqual({});
   });
 });
 
