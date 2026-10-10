@@ -1,6 +1,7 @@
 # Handoff: read this first
 
-> **2026-10-08: the current entry point is `mg/HANDOFF-2026-10-08.md`.** This file remains the
+> **2026-10-10: the current entry point is `mg/HANDOFF-2026-10-10.md`** (it supersedes the
+> 2026-10-08 and 2026-10-09 handoffs). This file remains the
 > long engineering history (the snapshot below is as of 2026-09-27; §6's counts are superseded
 > by `mg/REMAINING-WORK.md` §"Where this file stands").
 

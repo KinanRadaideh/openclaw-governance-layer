@@ -8773,3 +8773,42 @@ Deleting an account now signs it out at the exact moment the deletion becomes fi
 tidying-up afterwards fails, Root is told what is left and gets a **Finish deleting** button
 instead of a false "done". And a damaged sign-in cookie now simply asks you to sign in again,
 instead of showing an error page.
+
+## 5.133 Checking the eraser in the places nobody had looked (findings 422 and 423, 10 October)
+
+After finding 421 put the second eraser on OpenClaw's own diaries, we tried to get secrets past it
+on purpose, and looked at every place the program writes anything down. Three gaps were real. When
+something goes wrong, the program writes the error into its diary, and an error from a model
+provider often carries the provider's reply attached to it; the eraser read the error's headline
+but not what was attached, so "the password is hunter2" in a reply got through. A diagnostic
+timeline that can be switched on for troubleshooting had no eraser at all. And the small helper
+that runs commands on another computer for the main program wrote its own status lines with no
+eraser either. All three now get both erasers.
+
+Two smaller things were let through too. A very long line in the diary was cut short before it
+was erased, so a password sitting exactly at the cut left its first few letters behind; now it is
+erased first and cut afterwards. And a passphrase of several words in quotes, such as "correct
+horse battery staple", was not recognised at all; now a quoted phrase after the word "password"
+or "passphrase" is rubbed out whole, unless it is plainly a message about a password ("Invalid
+credentials"). An unquoted passphrase of several words is still beyond it, because nothing marks
+where it ends.
+
+## 5.134 A change to someone's access takes hold at once, or not at all (T77, findings 424 and 425, 10 October)
+
+When you sign in to the dashboard, your browser is given a pass that remembers what you are
+allowed to do, so the dashboard does not have to look you up on every click. When Root demotes
+someone or takes an agent away from them, the pass has to be updated too. It was updated in a
+second, separate step after the change was saved, so if that step failed, the person kept their
+old pass, and their old powers, for up to twelve hours.
+
+Now the change and the pass are updated together, in an order where nothing can go wrong in the
+dangerous direction: the pass is first cut down to what both the old and the new access allow,
+then the change is saved, then the pass gets the new access. If anything fails, the pass is never
+more generous than the account. If the last step fails, the change still stands and the dashboard
+says the person's existing sign-in keeps the narrower access until they sign in again.
+
+Three related checks were also made airtight: giving someone an agent while that agent is handed
+to another Administrator, moving someone to another Administrator while they are being given an
+agent, and signing in at the very moment one's access or password changes. A password reset and
+deleting a whole organisation now sign everyone out before the change is saved rather than after,
+so a failure leaves nobody signed in with a stale pass.

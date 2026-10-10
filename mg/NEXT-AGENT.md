@@ -1,6 +1,7 @@
 # Prompt for the next agent
 
-> **Superseded 2026-10-08: start at `mg/HANDOFF-2026-10-08.md`.** Everything below is as of
+> **Superseded: start at `mg/HANDOFF-2026-10-10.md`** (the entry point since 2026-10-10; it
+> supersedes `mg/HANDOFF-2026-10-08.md`). Everything below is as of
 > 2026-09-29: Chapter 3 is now fully written, Chapters 1 and 2 are frozen, findings stand at
 > 417 / 417 / 0, and the 2026-10-08 work is uncommitted. The report-writing rules further down
 > still apply.

@@ -11536,3 +11536,69 @@ and writing the session.
 **T78: a malformed session cookie is "not signed in".** A cookie value that cannot be
 percent-decoded is treated as absent, so the page receives the typed
 `governance_login_required` 401 and offers sign-in instead of a server error.
+
+### 3.5.106 The QA of finding 421: errors, a cap, a timeline and a passphrase (2026-10-10; T85; findings 422, 423)
+
+**Requirement 8 asked of every writer, not of the ones 421 named.** The QA drove the production
+file log, console, subsystem logger and diagnostic records with shapes the 421 tests did not use
+(17 probes), and swept every file, stream and table writer outside the tests, classifying each as
+a log, the conversation, configuration or state.
+
+- **An error is a log value too (422).** Both log passes stepped over anything that is not a plain
+  object, and the logger keeps an error whole: a provider's reply on its `body` or `responseText`,
+  or on a `cause`, reached the file as written. An error in a log value is now copied with its
+  prototype and property flags and every string in it given both passes, so the logger and
+  `JSON.stringify` see the same shape and only the strings change.
+- **Two writers with no redaction at all (422):** the diagnostics timeline (opt-in, with error
+  messages and command lines; decision D25 had called it "timings and names") and the node host's
+  own stderr lines (its log under a service manager). Both now pass both passes.
+- **A cut before the scrub (423).** The file log cut a long message to 4 KB before the record was
+  redacted, leaving a fragment of a token at the cut too short to recognise. Text over a cap is now
+  redacted before it is cut.
+- **A quoted passphrase (423).** After "password is" or "passphrase:", a quoted value of several
+  words is masked whole: the quotes mark where it ends. Measured on the documentation corpus, one
+  false positive (`Wrong password: "Invalid credentials"`) led to the rule that a phrase naming a
+  credential describes one; after it the corpus scan matched the committed pass exactly.
+- **Left as they were, by precedent:** the Codex wrapper's own stderr file in the `acpx` extension
+  (a generated standalone script that cannot load the logging module; its tail enters OpenClaw only
+  as an error message, which the logs scrub); the Workboard's worker logs and the debug proxy's
+  captured bodies (what a model reads or is sent: D21); the task registry and cron run history
+  (state, whose summary is the run's answer).
+- **The detection boundary, stated:** an unquoted passphrase of several words, a secret used as an
+  object key, a secret split across two records, and a plain word with no label stay unmasked.
+
+### 3.5.107 One owner for every authority change (2026-10-10; T77; findings 424, 425)
+
+**The problem.** A dashboard session carries a copy of its account's authority (role, assigned
+agents, policy authoring) so a check costs no file read. Every change wrote the account first and
+then, at the route, patched the copy in a separate locked write; a failure between the two left a
+demoted or restricted account working with its former authority for up to twelve hours. Three
+checks that join the agent registry and the accounts file (an assignment against the agent's
+owner, a transfer against the agent's holders, a move to another Administrator against what the
+account holds) read one file outside the other's lock, so a change landing in between went unseen.
+
+**The design (decided by precedent: T76's revocation inside the commit).**
+
+- **The store owns the copy.** The function that writes an account change also updates the
+  account's sessions, inside the accounts lock, in three steps: the sessions are first narrowed
+  to the lower of the old and new authority, then the account is written, then the sessions get
+  the new authority. A failure at the first step changes nothing (503); at the second it leaves
+  the sessions narrower than the unchanged account; at the third the change stands, the sessions
+  keep the narrower authority until their holder signs in again, and the reply, the ledger entry
+  and the page say so. At no point does a session hold more than its account, and nothing is
+  rolled back.
+- **One lock order: registry, accounts, sessions.** Every change that reads one of these to write
+  another holds the locks of what it reads, so two such changes are serialised: an assignment is
+  checked against the account as it is inside the lock, a transfer releases the agent's holders
+  before it writes the new owner, and a role change or deletion checks ownership inside both locks.
+- **Sign-in confirms its own session (424).** Once a session exists, the account is read again
+  under the accounts lock: gone, or its password not the one that was verified, and the sign-in is
+  refused; otherwise the session is given the account's authority as it is now. The verified
+  password hash travels beside the record in memory, never in it.
+- **T76's order where it was missing (425).** A password reset and an organisation deletion now
+  revoke their sessions inside their own commit, before the write, and sweep again after it.
+
+**Evidence.** 24 tests that force each failure and each race in the order that used to break the
+property (17 red against the code as it was, the races by pausing one change between its check
+and its write); 19 of 19 mutations caught, two of them only after tests for the windows the
+registry lock alone closes were added.

@@ -262,7 +262,7 @@ lives in `src/governance/account-ownership.ts`.
 **Refused rather than re-homed automatically**, because there is no successor to
 pick without inventing one. The agent registry reaches the opposite answer for
 agents and the difference is instructive rather than inconsistent:
-`revokeHoldersOutsideOwner` **can** repair its join by revoking, because "nobody
+`releaseAgentFromAccounts` **can** repair its join by revoking, because "nobody
 holds this agent" is a valid, safe state. "Nobody is answerable for this person"
 is not a valid state. It is the one being prevented.
 
@@ -660,8 +660,17 @@ inheritance. This lets an Administrator delegate an agent without also being
 able to create the account receiving it: a genuine separation of duties.
 
 _Assignment binds immediately._ Changing a role or an assignment updates live
-sessions (`updateSessionsRoleForUser`, `updateSessionsAssignedAgents`) rather
-than waiting for the 12-hour session expiry. An operator whose access is
+sessions rather than waiting for the 12-hour session expiry. Since T77
+(2026-10-10) the store function that writes the account writes its sessions in
+the same commit, under the accounts lock (`commitAuthorityChanges` in
+`src/governance/account-authority.ts`): first every session is narrowed to the
+lesser of the old and the new authority, then the account is written, then the
+sessions get the new authority. If the first step fails nothing changes (503
+`sessions_unavailable`); if the last fails the change stands, the sessions keep
+the narrower authority until their holder signs in again, and the reply, the
+ledger entry and the page say so (`sessionsError`). Sign-in confirms its new
+session against the account as it is under the lock (`confirmSignInSession`,
+finding 424). An operator whose access is
 revoked for cause must lose it now, and the dashboard follows within a refresh:
 a User unassigned from an agent loses its conversation, and an account demoted
 to Viewer loses any escalation card it was shown (T68).

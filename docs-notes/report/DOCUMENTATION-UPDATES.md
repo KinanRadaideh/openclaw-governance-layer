@@ -4,22 +4,26 @@
 master) and the repository's own documents. **Chapters 1 and 2 are frozen (Kinan, 2026-10-08):
 anything they need is said in Chapter 3.**
 
-**Brought up to date on 2026-10-10.** Every item was re-read against Kinan's latest full export,
-`complete_report.txt` of 2026-10-08 (no newer export exists; every Chapter 3 section written,
-none a stub), and against the code as it stands: committed and pushed through `e3a61a8645a`
-(2026-10-09: finding 417, decisions (ii) and C, T75's B and D, findings 418–420), plus finding
-421 (OpenClaw's own logs; uncommitted on 2026-10-10). Items added on 2026-10-08, 10-09 and 10-10
-are marked **NEW 10-08**, **NEW 10-09** and **NEW 10-10**; the logs are
-`mg/WORK-LOG-2026-10-08.md`, `mg/QA-SESSION-2026-10-09.md` and `mg/WORK-LOG-2026-10-09.md`.
-The repository documents of §8 and §11.11 were applied on 2026-10-10 (backlog T81) and their
-items deleted. **Anything already done in an export has been deleted from this file.** When an
-item is done, delete it; when something new is owed, add it here and nowhere else.
+**Brought up to date on 2026-10-10 (late evening).** Every item was re-read against Kinan's
+latest full export, `complete_report.txt` of 2026-10-08 (no newer export exists; every Chapter 3
+section written, none a stub), and against the code as it stands: finding 421 committed and
+pushed (`2b92794d89a`, `4673ac44db3`), then T85 (findings 422 and 423), T77 (findings 424 and
+425), their QA, the live dashboard QA by role and T86 (requirement gaps), all on 2026-10-10.
+Items added on 2026-10-08, 10-09 and 10-10 are marked **NEW 10-08**, **NEW 10-09** and **NEW
+10-10**; the logs are `mg/WORK-LOG-2026-10-08.md`, `mg/QA-SESSION-2026-10-09.md`,
+`mg/WORK-LOG-2026-10-09.md` and `mg/WORK-LOG-2026-10-10.md`. The repository documents of §8 and
+§11.11 were applied on 2026-10-10 (backlog T81) and their items deleted. **Anything already done
+in an export has been deleted from this file.** When an item is done, delete it; when something
+new is owed, add it here and nowhere else.
 
-**What is left, in one view (2026-10-10):** §1, a probable compile error and the front matter;
-§3, the Chapter 3 corrections, section by section (T72, T79), including T82's scrubber table
-(§3.8) and finding 421's Requirement 8 paragraph (§3.2); §7, material for Chapters 4 and 5;
-§9, the questions only Kinan can answer. Waiting on open tasks: T74 (an off-host witness) and
-T77 (one consistency owner for authorization changes); T84 decides one Chapter 5 sentence.
+**What is left, in one view (2026-10-10, late evening):** §1, the front matter; §3, the
+Chapter 3 corrections, section by section (T72, T79), including T82's scrubber table (§3.8),
+the Requirement 8 paragraph (§3.2, now with T85's sinks), and T77's session wording, which is
+now NOW (§3.9); §7, material for Chapters 4 and 5; §9, the questions only Kinan can answer.
+Waiting on open tasks: T74 (an off-host witness); **T86** (fifteen requirement gaps, Kinan
+decides each; the items marked **WAIT T86** say what text follows from each choice); T84 decides
+one Chapter 5 sentence. **Removed at Kinan's word (2026-10-10):** the `reportcodebox` question
+(dark or light code panels) and its compile item.
 
 It replaces six files, deleted on 2026-10-03 (all but the last are in git at `0b477ce46db`):
 `CH3-EDIT-COMMENTS-2026-09-28.md`, `QA-2026-09-27-FOR-THE-REPORT.md`, `T70-FOR-THE-REPORT.md`,
@@ -46,21 +50,15 @@ give the report section they cover.
 
 ## 1. Compile and front matter
 
-- **Probable compile error, check first.** The preamble has the light listing style (no
-  `tcolorbox`, no `\newtcolorbox{reportcodebox}`), yet five figures wrap their listing in
-  `\begin{reportcodebox}`: `fig:gov-code-rule-model`, `fig:gov-code-rule-examples`,
-  `fig:gov-code-folder-rule-creation`, `fig:gov-code-ledger-projection`,
-  `fig:gov-code-agent-policy-authoring`. Unless Overleaf defines it elsewhere, LaTeX stops with
-  "Environment reportcodebox undefined". Fix: copy lines 15–84 of
-  `docs-notes/report/main-reference.tex` (dark style, Kinan's choice of 2026-09-28) over the block
-  from `% Source-code listings used in Chapter 3.` to `\renewcommand{\lstlistlistingname}{...}`,
-  and box the two unboxed listings (`fig:gov-code-central-interception`,
-  `fig:gov-code-evaluation-order`); or delete the five wrappers and stay light.
 - **Compile.** The Acknowledgments `\prefacesection{…}{\large …` has its closing `}` commented out
   (`% }`); a stray `}` after the commented Abstract closes it by accident. Close it explicitly and
   write the Abstract (missing).
 - Acknowledgments still holds the template's instructions.
 - `\approveddate{7}{August}{2022}`: the template's year.
+
+Removed on 2026-10-10 at Kinan's word: the `reportcodebox` item (the five code figures wrapped
+in an environment the light preamble does not define, and the choice between the dark and light
+code panels). It is his to settle in Overleaf.
 
 Struck on 2026-10-08 with the rest of Chapters 1 and 2 (see §2): the "Lonely \item" errors in
 §1.4 List of Design Constraints and §1.5 List of Engineering Standards, the Table 1.1 timestamp,
@@ -107,9 +105,11 @@ shortened and 3.5.6 Session Control to 3.6 Summary taken from `docs-notes/report
 present in that paste were deleted rather than listed. New items found on 2026-10-07 are marked
 **NEW** and were checked against the code that day.
 
-Markers: **NOW** means the code supports the change today. **WAIT T74 / T77** means the
-task is open and the text owed depends on how it closes (T75 closed on 2026-10-08, so its items
-are NOW). **OPTIONAL** means the report is correct
+Markers: **NOW** means the code supports the change today. **WAIT T74 / T86** means the
+task is open and the text owed depends on how it closes (T75 closed on 2026-10-08 and T77 on
+2026-10-10, so their items are NOW). A **WAIT T86 Dn** item names the row of the T86 table in
+`mg/REMAINING-WORK.md`: if Kinan chooses to build, the text describes the built behaviour; if he
+chooses to state the limit, the item's wording is the statement. **OPTIONAL** means the report is correct
 without it. Suggested wording follows `docs-notes/WRITING-GUIDE.md`.
 
 Two things run alongside this list:
@@ -141,9 +141,6 @@ Two things run alongside this list:
   sentence, add: "OpenClaw's own permission file is an example. \texttt{TOOLS.md}, described in
   Chapter~2, tells the model which tools it has, and the model may disregard it; nothing in the
   host enforces it."
-- **NOW. Code panels.** See §1: `reportcodebox` is undefined in the pasted preamble (the local
-  compile of 2026-10-04 confirmed five "Environment reportcodebox undefined" errors), and
-  `fig:gov-code-central-interception` and `fig:gov-code-evaluation-order` are not boxed.
 
 ### 3.2 Section 3.2, Analysis of Design Requirements
 
@@ -210,9 +207,48 @@ Two things run alongside this list:
   (Section~\ref{sec:gov-security})." Both labels are in the 2026-10-08 export
   (`sec:gov-ledger-sanitization` for 3.5.3.4 Data Sanitization, `sec:gov-security` for 3.5.12
   System Security).
+  **NEW 10-10 (T85, findings 422 and 423): the list of outputs is longer than the paragraph
+  above names, and the paragraph stays true.** The QA of 421 found three more places a log was
+  written without both passes and fixed them: the fields an error object carries (a provider's
+  reply arrives on an error's `body`), the opt-in diagnostics timeline, and the node host's own
+  error output. Keep "and the diagnostic files" (it now covers the timeline) and add "including
+  the details carried by an error". "Wherever the system writes a log" is now true of every log
+  writer the sweep of 2026-10-10 found, with two deliberate exceptions stated in 3.5.3.4 Data
+  Sanitization (§3.8).
+- **WAIT T86 D4. Requirements 3, 5 and 6, who can switch governance off.** The posture item
+  above qualifies "every … is recorded" with "while governance is in the enforce or monitor
+  posture". Add who can do it, since an examiner will ask: "Any Administrator can switch the
+  installation to \texttt{off}; the change is recorded and the deployment report shows it as a
+  failure." If Kinan chooses T86 D4's option A (keep recording under \texttt{off}), the qualifier
+  changes to "Every tool call is recorded in every posture; under \texttt{off} it receives no
+  policy decision"; with option B, write "Root can switch …" instead.
+- **WAIT T86 D1. Requirement 7, what termination reaches.** The paragraph says an operator "can
+  request termination of work already in progress through the Gateway's run-control mechanism".
+  That mechanism ends the agent's runs, and OpenClaw deliberately leaves a shell command that was
+  moved to the background running (a command still running after ten seconds is moved there
+  automatically). Until T86 D1 is decided, add: "A shell process that the agent moved to the
+  background is not part of a run and keeps running after the lockdown; the agent can no longer
+  reach it." If option A is built, write instead: "Termination also ends the shell processes the
+  agent left running in the background, and the stop is confirmed only once they have exited."
+- **WAIT T86 D2, D3, D5. Requirements 3 and 4, how far each kind of rule reaches.** The
+  paragraph says rules support "path-level file permissions, command and network allowlists, and
+  permissions that expire". Each holds for the tool it names. Suggested addition, to be cut to
+  whatever Kinan builds: "Path rules bind the file tools and network rules bind the web fetch
+  tool. A shell command is judged as text against command rules, so a permitted command can name
+  a path or a host that no path or network rule allows; Section~\ref{sec:gov-security} returns to
+  this. A rule can be given a lifetime when it is written; a rule created by approving a request
+  has none."
 - **NOW. Requirement 9 (test counts).** Date the Linux sentence ("on 21 September 2026"), move
   the current totals to Chapter 4 (§10), and drop "the same total of 3,227", which no longer
   holds.
+- **NOW, NEW 10-10 (T86 D15). Requirement 9, "open-source software components only", and the
+  model.** 3.3 Analysis of Design Constraints names a Kimi subscription, a proprietary service,
+  so an examiner can set the two side by side. Suggested sentence after "adds no proprietary
+  service or dependency": "The language model is an external service that the operator chooses
+  and is not a component of the system; the layer works with any OpenAI-compatible endpoint,
+  including a locally hosted open-weight model." (Checked: the QA fixtures run against a local
+  OpenAI-compatible mock; T86 D15 option B would add a run with an open-weight model as
+  evidence.)
 
 ### 3.3 Section 3.3, Analysis of Design Constraints
 
@@ -604,7 +640,8 @@ Two things run alongside this list:
     credential fields …" and its paragraph on component-prefixed flags, add one sentence and the
     table: "Table~\ref{tab:gov-redaction-examples} shows one example of each kind, as the ledger
     records it."
-  - **The table** (ten rows; if space is short, keep rows 1, 3, 4, 7, 9 and 10). It uses
+  - **The table** (eleven rows; if space is short, keep rows 1, 3, 4, 7, 10 and 11; the quoted
+    passphrase row was added on 2026-10-10 after finding 423 and measured through the same path). It uses
     `tabularx` and `booktabs`, which the report already loads:
 
     ```latex
@@ -628,6 +665,7 @@ Two things run alongside this list:
     \multicolumn{3}{@{}l}{\textit{Second pass, \texttt{redactFreeFormSecrets}}} \\
     Labelled password & \texttt{the staging password is Sunrise-42} & \texttt{the staging password is ***} \\
     Labelled PIN & \texttt{the backup PIN is 4417} & \texttt{the backup PIN is ***} \\
+    Quoted passphrase & \texttt{the passphrase is "correct horse battery staple"} & \texttt{the passphrase is ***} \\
     Credential-named code & \texttt{token-like value QA-GAMMA-SECRET-7731} & \texttt{token-like value ***} \\
     Random-looking string & \texttt{paste Xk9qLm2RtV8wNz4PbH7sJd3F into the box} & \texttt{paste *** into the box} \\
     \bottomrule
@@ -661,13 +699,21 @@ Two things run alongside this list:
     is now false as well as the earlier "Entropy is not used …": "Redaction has a defined
     detection boundary. The host redactor masks exact values registered with the host and
     credentials that match a recognised format or sit in a structured credential position. The
-    second pass masks a value introduced by a credential word, a code whose name says it is a
-    secret, and a long string that mixes letters and digits at random. A secret that reads as an
-    ordinary word and carries no label, such as a passphrase typed on its own, can still reach the
-    ledger, as can the second and later words of a multi-word passphrase. A long identifier that
-    looks random, such as a voice or document id, is masked although it is not a secret. Both
-    passes run on every resource and intent field at the storage boundary." This supersedes the
-    narrower boundary sentence suggested in the item above.
+    second pass masks a value introduced by a credential word, a quoted phrase introduced the
+    same way, a code whose name says it is a secret, and a long string that mixes letters and
+    digits at random. A secret that reads as an ordinary word and carries no label, such as a
+    passphrase typed on its own, can still reach the ledger, as can a passphrase of several words
+    written without quotation marks, a secret used as the name of a field, and a secret split
+    across two records. A long identifier that looks random, such as a voice or document id, is
+    masked although it is not a secret, and so is a 40-character run of mixed-case letters and
+    slashes, the shape of a cloud access key, even inside a file path. Both passes run on every
+    resource and intent field at the storage boundary." This supersedes the narrower boundary
+    sentence suggested in the item above. (**Updated 2026-10-10** after findings 423 and the
+    live QA's observation O1, `mg/WORK-LOG-2026-10-10.md` §2.5 D7 and §7.2: the quoted phrase is now
+    masked; the unquoted phrase, field names and split records are the stated boundary; on the
+    Windows development machine every ledger path read `C:/Users…de/…` because
+    `/Users/kinan/AppData/Local/Temp/claude` is exactly such a run. T86 D11 asks whether to keep
+    that trade-off.)
   - **CHECK when writing:** the item above says the second pass "never masks a value that names
     where a secret is kept". True of that pass, but the host redactor runs first and does mask some
     configuration-syntax references: `api_key: os.environ/ANTHROPIC_API_KEY` became
@@ -685,6 +731,27 @@ Two things run alongside this list:
   it from the agent asked to use it." Evidence for Chapter 4 is in §7. The description of the
   random-string test stays true; it now judges the pieces between hyphens, underscores and equals
   signs, after a health line's `eventLoopDelayP99Ms=42.8` was taken for a key.
+- **NOW, NEW 10-10. What the QA of 421 changed (T85, findings 422 and 423).** Three facts the
+  paragraph suggested in the item above should carry, each verified against the code on
+  2026-10-10:
+  - **Errors.** "Every string a log record carries" now includes the fields of an error object.
+    Before 422 both passes stepped over anything that was not a plain object, and the logger keeps
+    an error whole, so a provider's reply on the error's `body` was written as "The password is
+    hunter2". The error is now copied with every string inside it scrubbed
+    (`redactErrorForLog`, `src/logging/redact-log.ts`). A value that is itself a JSON document,
+    such as a provider's error body kept as a string, is parsed and scrubbed value by value
+    (423, found live).
+  - **Length caps.** "Text over a log's length cap is scrubbed before it is cut" (423: the file
+    log cut a message to 4 KB first, which left the first 14 characters of a token straddling the
+    cut, too short to recognise). Text within the cap is untouched.
+  - **Two outputs added, two left by decision.** The diagnostics timeline (opt-in) and the node
+    host's error output now pass both passes. Left as they were, and worth one sentence among the
+    section's limits: the Codex wrapper's own error file, written by a separate process that
+    cannot load the logging module (its content reaches OpenClaw only as an error message, which
+    the logs scrub), and the conversation-class stores of decision D21.
+  Suggested sentence after the paragraph on the host's own logs: "This includes the details of
+  an error, a value that is itself encoded as JSON, and text longer than a log's length limit,
+  which is scrubbed before it is shortened."
 - **NOW, NEW 10-08 (moved from Chapter 1, 1.2 Objectives and 1.6 Preliminary Design, and
   Chapter 2, 2.1.5 Auditability and System Telemetry; T79 item 3). How far the build meets the
   earlier chapters.** Chapter 1 asks for a log "strictly preventing the leakage of sensitive
@@ -757,7 +824,10 @@ Two things run alongside this list:
   resources and model intent masked, and its Administrator or Root makes the assignment."
 - **NOW. Last-Root paragraph.** Add: "The only operation that removes the Root account is deletion
   of the entire organization, which Root confirms by typing its username and which removes every
-  account and agent with it. The audit ledger is kept."
+  account and agent with it. The audit ledger is kept." **Optional, NEW 10-10 (finding 425):**
+  add "Every account's sessions end inside the deletion, before any account is removed; if they
+  cannot be ended, nothing is deleted." (Before 425 they were revoked only after the accounts
+  were gone, and a failure was reported as "stays signed in until the session expires".)
 - **NOW, NEW 10-08. Departure from Chapter 1 (1.6 Preliminary Design) on User rule authoring.** After the
   paragraph "Users may normally create agent-scoped rules … Root can set the account's
   \texttt{canAuthorPolicy} field to \texttt{false}", add: "Chapter~1 had the Administrator decide
@@ -805,21 +875,60 @@ Two things run alongside this list:
   once." (`setUserPassword` calls `forgetLoginThrottle` after storing the password; a refused
   reset keeps the failures.) The limiter sentence ("process-local … starts with an empty counter
   after a Gateway restart") stays.
-- **NOW, wording; WAIT T77 for the guarantee.** "On the normal successful path, role changes,
-  same-role management changes, assignment changes, and policy-authoring changes update the
-  corresponding active sessions. Promotion out of a managed role also clears …" T79 asks that
-  successful-path claims not stand as guarantees. Keep the list of facts a session holds, and
-  replace the two sentences with: "These facts are copied into active sessions by a separate write
-  after the account or registry change. Section~\ref{sec:gov-ownership-assignment} describes what
-  that separation means when the second write fails." (3.5.4.3 Ownership and Assignment already states the limitation.)
-  When T77 closes, describe its consistency owner here.
+- **NOW, NEW 10-10 (T77 built; replaces the former "WAIT T77" item). The session mirror.** "On
+  the normal successful path, role changes, same-role management changes, assignment changes, and
+  policy-authoring changes update the corresponding active sessions. Promotion out of a managed
+  role also clears …" Keep the sentence listing the facts a session holds, and replace the two
+  sentences with: "The operation that changes an account also updates that account's sessions,
+  in one step under the account store's lock. Every session is first narrowed to the lesser of
+  the old and the new authority, then the account is written, then the sessions receive the new
+  authority. If the first update fails, nothing changes and the operator is told so. If the last
+  fails, the change stands and the sessions keep the narrower authority until their holder signs
+  in again, and the response, the ledger entry and the dashboard say so. No session is ever
+  broader than its account." (Code: `commitAuthorityChanges`, `src/governance/account-authority.ts`;
+  tests: `src/gateway/governance-authority-consistency.test.ts`, 24. Shown live on 2026-10-10:
+  with the sessions file locked, a demotion was refused with "Nothing was changed for lina", and
+  a grant of rule writing answered with the lag notice while her live session kept the narrower
+  setting; `mg/WORK-LOG-2026-10-10.md` §3.5.)
+- **NOW, NEW 10-10 (finding 424). A sign-in confirms its session.** After "A successful login
+  creates a 256-bit random session token …", add: "Once the session exists, the sign-in checks the
+  account again under the account store's lock. If the account was deleted, or its password
+  changed after the one just verified, the session is revoked and the sign-in refused; otherwise
+  the session receives the account's authority as it is at that moment." (Before 424, a demotion
+  or a password reset landing between the password check and the session's creation gave the new
+  session the old authority or the old password's access.) This replaces the last sentence of the
+  T76 item above ("A sign-in that read the account just before its deletion is rejected …"),
+  which it generalises.
+- **NOW, NEW 10-10 (finding 425). Password reset revokes inside the change.** Wherever the report
+  says a password reset ends the account's sessions (3.5.4.1 Role Hierarchy, Root's paragraph, or
+  this section), the order is now: "Setting a new password ends the account's sessions in the same
+  step, before the new password is stored. If they cannot be ended, the password is not changed."
+  (Before 425 the sessions were revoked afterwards, so a failure left the password changed and
+  every old cookie working, perhaps the attacker's that the reset was meant to end.)
 
 **3.5.4.3 Ownership and Assignment.**
 
 - The _Your accounts_ sentence (397) is in the paste. Verified 2026-10-07: "a transfer to Root
   releases all existing managed-account assignments" is correct, because Root can never be a
-  User's or Viewer's manager (`createUser` in `user-store.ts`). Keep the consistency-limitation
-  paragraph until T77 closes (T79 item 8).
+  User's or Viewer's manager (`createUser` in `user-store.ts`).
+- **NOW, NEW 10-10 (T77). Replace the consistency-limitation paragraph** ("The account store,
+  agent registry, and active-session store use separate files and locks. … it does not provide
+  an atomic cross-store guarantee.") with: "The agent registry, the account store and the session
+  store are separate files, each with its own lock, and every change that checks one of them in
+  order to write another holds the locks in one fixed order: registry, then accounts, then
+  sessions. An assignment is checked against the account and the registry as they are inside
+  those locks. An ownership transfer releases the agent from the accounts that may no longer hold
+  it before it records the new owner, so a failure part-way leaves the old owner and the holders
+  as they were or narrower, never an agent of one Administrator held by another's staff. The
+  checks that an Administrator owns no agents before being demoted or deleted run inside the same
+  locks. Sessions follow their account as Section~\ref{sec:two-gt-auth} describes. The three
+  files are still not one transaction: a failure after the account is written leaves the
+  sessions narrower than the account until the next sign-in, and the operator is told." Also
+  change "\texttt{setAgentOwner} writes the new owner to the registry, records … and then calls
+  \texttt{revokeHoldersOutsideOwner}" to "\texttt{setAgentOwner} releases the agent from accounts
+  outside the new owner's staff (\texttt{releaseAgentFromAccounts}) and then writes the new owner
+  and records both owners in the ledger". (Verified 2026-10-10 in `agent-registry.ts` and
+  `user-store.ts`; `revokeHoldersOutsideOwner` no longer exists.)
 - **NOW, NEW 10-08 (decision (ii)). Ownership now also decides reads into the agent's folder.**
   The paragraph on `requireOwnership` lists what ownership controls: renaming, transfer,
   unregistering or deleting, and the Codex permission. Add after it: "Ownership also decides who
@@ -951,6 +1060,11 @@ older open and optional ones).
   or rejects the request in the \textit{Rule requests} section." Add: "The decider may add a note
   of up to 500 characters, for example to explain a rejection. The requester sees it beside the
   decision, and the ledger records it with the decision." (Ledger side in §3.8, 3.5.3.3 Administrative Logging.)
+- **WAIT T86 D5, NEW 10-10. 3.5.7.2 Persistent Approvals, the rule has no lifetime.** Approving a
+  request creates a rule that never expires: the approval offers Approve and Reject only (shown
+  live on 2026-10-10, ledger #129 "(agent main, indefinite)"). Unless D5's option A or B is
+  built, add after the approval sentence: "The rule it creates has no expiry; a time-limited
+  permission is written by hand in the Policy section."
 - **OPTIONAL, NEW 10-08 (finding 413).** `tab:gov-escalation-settings`: per-agent waiting times
   are now listed in the Policy section, one row per agent ("Approval timeout: scout · 120
   seconds · Use default"); before 413 one could be set and never seen.
@@ -1071,6 +1185,23 @@ older open and optional ones).
   readable by whoever controls the host, because the Gateway must use them. Diagnostics written
   before the fix keep what they hold until they age out (T84)". Chapter 5 sentence in §7.
 - **WAIT T74.** 3.5.12 System Security's audit-ledger row once an off-host witness exists.
+- **WAIT T86, NEW 10-10. 3.5.12 System Security, `tab:gov-security-limits`, the rows T86
+  changes.** Each is a row to add (or a limit to add to an existing row) if Kinan chooses to
+  state rather than build; if he builds, the row's protection column gains the built behaviour.
+  - **D1, Kill switch row:** append to the Limit "A shell process the agent moved to the
+    background keeps running after a lockdown; the agent can no longer reach it".
+  - **D2 and D3, a new row** Area "Shell commands"; Protection "Every command is checked against
+    the command rules and the core denials"; Limit "Path and network rules do not judge a
+    command's arguments or the folder it runs in, so a permitted command can list or reach what a
+    path or network rule would refuse; the shipped listing rule accepts any path". With D2's
+    option A built, the Limit loses its last clause.
+  - **D4, Reaching the dashboard row or a new row** "Switching governance off": Protection "The
+    change is recorded and the deployment report shows it as a failure"; Limit "Any
+    Administrator can do it, and nothing is recorded while it is off".
+  - **D7:** the Chat approvals row already says anyone with the Gateway credential or channel
+    access can answer; add "and the record does not name who did".
+  - **D9:** the Interpreter rules row already states the policy-file edit; unchanged unless
+    option A (detection) is built.
 - **OPTIONAL. 3.5.8.1 Task and Slot Model.** If the code names are wanted as presentation anchors: "In the code,
   \texttt{settlePromptRun} marks the run as saving and frees its slot, and
   \texttt{finishPromptRun} removes it from the registry."
@@ -1098,12 +1229,16 @@ free-form pass → file, console, telemetry; the conversation store beside it, u
 Do not delete them during cleanup or shortening: the residual filesystem races and the native
 Codex search asymmetry; denial-first folder-grant partial writes; a checkpoint that legitimately
 lags a completed append; pattern redaction's detection boundary; the process-local login limiter;
-best-effort authentication auditing; the loopback and SSH cookie decision; the cross-store
-consistency limits in 3.5.4.3 Ownership and Assignment (until T77). **Added 2026-10-10:** the
+best-effort authentication auditing; the loopback and SSH cookie decision; what remains of the
+cross-store limit in 3.5.4.3 Ownership and Assignment after T77 (the three files are not one
+transaction; a late failure leaves sessions narrower than their account until the next sign-in,
+§3.9). **Added 2026-10-10:** the
 host's owner can read the conversation and the secrets the Gateway uses (finding 421's
 boundary); a rule for the reading agent can still allow a path in another agent's folder
 (decision (ii)); a folder left in place after deletion is readable by the enclosing agent
-(decision C); key, checkpoint and ledger on one host (until T74).
+(decision C); key, checkpoint and ledger on one host (until T74). **Added 2026-10-10, late:**
+the Codex wrapper's own error file and the detection boundary as restated in §3.8 (T85);
+whichever T86 rows Kinan decides to state rather than build (D1 to D15).
 
 ## 7. Chapters 4 and 5
 
@@ -1120,13 +1255,17 @@ boundary); a rule for the reading agent can still allow a path in another agent'
   2026-09-19, 1,623 ms with dispatch 3.5 ms on 2026-09-27, both on the laptop; not yet timed on the
   VPS) and the about-6-second window while an agent is created (finding 395); the current suite totals
   (§10) in place of Requirement 9's.
-- **Chapter 5 (future work), updated 2026-10-10:** T74 (an off-host witness and key separation;
-  options A–F in `mg/REMAINING-WORK.md` §"T74"); T77 (one consistency owner for authorization
-  changes); the agent-creation window off the event loop (finding 395); search withholding on the
-  Codex harness; T84 (diagnostics written before finding 421). No longer future work: T73 was
-  built on 2026-10-04 as a recording design (the append records a disagreement and continues,
-  rather than refusing), and T75 closed on 2026-10-08; their remaining limits are in the items
-  below.
+- **Chapter 5 (future work), updated 2026-10-10 (late):** T74 (an off-host witness and key
+  separation; options A–F in `mg/REMAINING-WORK.md` §"T74"); the agent-creation window off the
+  event loop (finding 395, also T86 D6); search withholding on the Codex harness; T84
+  (diagnostics written before finding 421); and whichever T86 rows Kinan decides not to build,
+  above all D1 (a lockdown leaves backgrounded shell processes running), D2 and D3 (shell
+  commands and the browser reach paths and hosts the path and network rules would refuse; the
+  complete answer is a separate operating-system account or container for tools, which is
+  already this chapter's interpreter-rule future work) and D4 (recording while governance is
+  off). No longer future work: T73 was built on 2026-10-04 as a recording design, T75 closed on
+  2026-10-08, and **T77 was built on 2026-10-10** (one consistency owner for authority changes;
+  §3.9 has its Chapter 3 wording). Their remaining limits are in the items below.
 - **NEW 10-08. Chapter 4 timings: use only numbers measured after finding 406.** Every dashboard
   response or kill-switch figure taken through the page before the 2026-10-07 fix includes up to
   5 s of the Gateway's brute-force penalty per read (406), including the 2026-09-27 figures above
@@ -1225,8 +1364,9 @@ boundary); a rule for the reading agent can still allow a path in another agent'
   on it again; each such action passes the gate and is recorded after the background prompt that
   prompted it."
 - **NEW 10-08. Chapter 5, limits that stay after T75.** A secret that reads as an ordinary word
-  with no label, and the later words of a multi-word passphrase, can still reach the ledger
-  through a person's prompt or model narration. A plugin that forwards a person's words through its
+  with no label, and a multi-word passphrase written without quotation marks (a quoted one is
+  masked since finding 423, 2026-10-10), can still reach the ledger through a person's prompt or
+  model narration. A plugin that forwards a person's words through its
   own background run (voice-call) is recorded as a fact. Entries written before 2026-10-08 keep
   what they hold (the chain cannot be cleaned). (The future-work line above no longer lists T75;
   these limits replace it.)
@@ -1256,6 +1396,47 @@ boundary); a rule for the reading agent can still allow a path in another agent'
   entries) held neither value, the log line reading "… The password is \*\*\*. token-like value
   \*\*\*", while the conversation transcript kept both, as designed. Gates: governance suite 3,669 /
   22 / 0; four typechecks 0; the full lint gate exit 0; the build exit 0.
+- **NEW 10-10. Chapter 4 evidence for T85 (the QA of finding 421; findings 422 and 423).**
+  Method, in five axes: 17 adversarial probes of the production writers (errors in four shapes,
+  a token straddling the 4 KB cap, a quoted and an unquoted passphrase, a secret as an object
+  key, class instances, maps, URLs, `console.error`, diagnostic records); a sweep of every file,
+  stream and table writer outside tests, each classified as log, conversation, configuration or
+  state; a review of 421's diff; mutations; and a live run with a proxy that answers one prompt
+  with a provider error quoting the secrets. Results: 422 and 423 found and fixed red first
+  (seven tests red before any fix, two more before the credential-word exception); the live run
+  found one more shape (a provider's error body kept as a JSON string, where the quotes arrive
+  escaped), added to 423 and fixed; after the fix the log file, the diagnostics timeline (594
+  lines), trajectory capture and the ledger held none of the three synthetic values, and the
+  conversation held them, as designed. Tests: `src/logging/log-free-form-redaction.test.ts` (20),
+  `src/logging/redact-free-form.test.ts` (73), `src/node-host/runner.test.ts` (+1); 12 of 12
+  mutations caught. The documentation corpus (807 files) was scanned before and after: one false
+  positive on the first run, none after. A Chapter 4 point, if wanted: the sweep found a writer
+  that an earlier decision had described as harmless ("timings and names") writing error
+  messages with no redaction at all; a decision about what a writer holds has to be checked
+  against what it writes. Record: `mg/WORK-LOG-2026-10-10.md` §2 and §3.5.
+- **NEW 10-10. Chapter 4 evidence for T77 (findings 424 and 425).** The tests were written first
+  and run against the old code: 17 of the first 21 failed, each for the reason the design named
+  (a session left broader than its account, a check made against a snapshot, a revocation after
+  the point of no return); four drafts were corrected for decisions D8 and D9 with the reason in
+  the test. Now `src/gateway/governance-authority-consistency.test.ts` (24),
+  `ui/src/pages/governance/sessions-lag.test.ts` (2), `src/governance/session-authoring-mirror.test.ts`
+  (6, rewritten onto the store functions); 20 of 20 mutations caught (two first counted killed
+  because they did not compile; the mutation scripts now report such a case as invalid). Live:
+  §3.9's item. A Chapter 4 point, if wanted: finding 424 was found by reading the sign-in path
+  against the account changes while building T77, not by a test; it is T76's class (a
+  revocation or check that ran outside the commit it protects), and 425 is the same class in
+  two operations T76 did not sweep. Record: `mg/WORK-LOG-2026-10-10.md` §3 and §4.
+- **NEW 10-10. Chapter 4 evidence: the live dashboard QA by role (2026-10-10).** On the rebuilt
+  Gateway with the mock model: Root (create a Viewer, a per-account escalation override and its
+  effect, chain verification, the deployment report, lockdown and release), an Administrator
+  (assignment, a 30-minute rule, an escalation answered on the page and its rule request
+  approved, effective permissions, refusals), a User (talking to an agent, writing an agent's
+  rule, a posture request rejected by a second Administrator with a note, the ledger view) and a
+  Viewer (masked ledger, verification, no control that changes anything, refusals). 24 features;
+  every one worked for its role, every action outside a role was refused with a readable reason,
+  no dashboard defect. Measured: a lockdown confirmed in 15.1 ms with nothing in flight; warm
+  governance reads 46–68 ms; the first read after a cold start 17.9 s. Record:
+  `mg/WORK-LOG-2026-10-10.md` §7.2. The governance suite on that tree: §10.
 - **NEW 10-09. Chapter 5, what the server's owner can still read.** Whoever controls the host can
   read the conversations OpenClaw stores, the model credentials, the configuration and the ledger
   key: the Gateway must use them, so no software on the same machine can hide them from that
@@ -1271,7 +1452,18 @@ boundary); a rule for the reading agent can still allow a path in another agent'
 
 ## 8. Repository documents (not the report)
 
-**Nothing owed (2026-10-10).** Every item this section held (findings 381–421, T73, T76, T78,
+**Applied (2026-10-10, late): T85, T77 and findings 422–425 in the contract documents.** The
+registers already carry them (`GOVERNANCE.md` rows 422–425, `CHAPTER3-MATERIAL.md` §3.5.106 and
+§3.5.107, `QA-IN-PLAIN-TERMS.md` §5.133 and §5.134). Applied on 2026-10-10 (late):
+`ROLE-MODEL.md`'s "Assignment binds immediately" paragraph, which named the removed
+`updateSessions*` helpers, now describes T77's three-step commit and sign-in confirmation, and
+its `revokeHoldersOutsideOwner` (removed by T77) reads `releaseAgentFromAccounts` (two code
+comments with the same stale name were corrected too); `PERMISSION-SPEC.md`'s
+account-operations row now states the 503 `sessions_unavailable` and the `sessionsError` lag of a
+role, assignment or authoring change (T77) and the password reset's revocation inside its commit
+(425). Nothing else is owed here.
+
+**Before that: nothing owed (2026-10-10).** Every item this section held (findings 381–421, T73, T76, T78,
 decisions (ii) and C, T75) was checked against the code and applied on 2026-10-10 (backlog T81):
 `PERMISSION-SPEC.md`, `ROLE-MODEL.md`, `WRITING-PERMISSIONS.md`, `BASELINE-RULES.md`,
 `CHAT-DEPLOYMENTS.md`, `FIRST-RUN.md`, `LINUX-INSTALL.md`, `T47-TEST-PLAN.md` (§6g),
@@ -1281,34 +1473,41 @@ entries `CHAPTER3-MATERIAL.md` §3.5.105 and `QA-IN-PLAIN-TERMS.md` §5.132. The
 
 ## 9. Open questions for Kinan
 
-**Open (2026-10-10).**
+**Open (2026-10-10, late).**
 
-1. **Commit and push** finding 421, T82's material, T81's documents and the backlog and log
-   updates (gates green on 2026-10-10; `mg/REMAINING-WORK.md` §"Where this file stands").
+1. **T86, fifteen requirement gaps** (`mg/REMAINING-WORK.md` §"T86"): for each, build an option
+   or state the limit. The ones that matter most: D1 (a lockdown leaves the agent's backgrounded
+   shell processes running), D2 and D3 (shell commands and the browser reach paths and hosts the
+   rules would refuse; the shipped listing rule accepts any folder), D4 (an Administrator can
+   switch governance off, and nothing is recorded meanwhile) and D5 (approved requests never
+   expire). The report text each answer leads to is in the **WAIT T86** items of §3.
 2. **T74, which off-host witness** (options A–F in `mg/REMAINING-WORK.md` §"T74"), with its
    cadence, behaviour when the witness is down, retention, and whether a SQLite schema change is
    acceptable. The report's System Security and Chapter 5 text waits on it.
 3. **T84, pre-421 diagnostics:** clean old trajectory rows with an `openclaw doctor` step
    (precedent `doctor-config-audit-scrub.ts`), or state in Chapter 5 that they keep what they hold
    (§7 has the sentence either way).
-4. **T85's reading of decision D21:** the QA of finding 421 will keep the conversation itself
-   unmasked, so an agent can still use a value it was given. If masking the conversation was
-   meant, that reverses D21 and is a decision of its own.
-5. **The §1 `reportcodebox` choice** (dark wrappers or light without them).
-6. **Nested-workspace search:** results are withheld like a forbidden path, while a direct read
+4. **Nested-workspace search:** results are withheld like a forbidden path, while a direct read
    escalates to a person. Should search escalate instead? (It cannot today: a search result has no
    approval path.)
-7. **OPTIONAL, T75's side questions:** a fifth ledger filter, "Background prompts", beside the
+5. **OPTIONAL, T75's side questions:** a fifth ledger filter, "Background prompts", beside the
    four in `ui/src/pages/governance/ledger-filter.ts`; and whether a User should see a background
    entry in full rather than as the peer-prompt placeholder (it holds no private text).
-8. **Observation not changed:** after a cancelled confirmation, a stale password banner remains.
-9. **T58 and T83** need the VPS (Kinan returns to T58 later; T83 is four test files).
+6. **Observation not changed:** after a cancelled confirmation, a stale password banner remains.
+7. **T58 and T83** need the VPS (Kinan returns to T58 later; T83 is four test files).
 
 **Decided, kept for the record.**
 
+- **2026-10-10, Kinan's revised order:** suite re-run, live dashboard QA by role, T86, this
+  file, then commit and push (authorised in the same message). He removed the QA of 2026-10-08
+  to 10-10, its backlog update, and the `reportcodebox` question.
+- **2026-10-10, T85's reading of decision D21:** built by precedent with the conversation itself
+  unmasked, so an agent can still use a value it was given; Kinan did not reverse it. T86 D10 puts
+  the remaining question (is a stored transcript a "log file"?) with options.
+
 - **2026-10-08, T75:** Kinan chose B and D (background prompts recorded as facts with a
   fingerprint; a second scrubbing pass). Claude decided the side questions as asked: model
-  narration keeps its text and passes both scrubbing passes; no new ledger filter (item 7 above if
+  narration keeps its text and passes both scrubbing passes; no new ledger filter (item 5 above if
   wanted). Built, tested and checked live (§3.8, §3.10, §7).
 - **2026-10-08, findings 408 and 416:** Kinan chose (ii) (only the folder's owner and Root may
   allow a read into another agent's folder) and C (deleting a nested agent asks: trash or keep).
@@ -1322,11 +1521,12 @@ entries `CHAPTER3-MATERIAL.md` §3.5.105 and `QA-IN-PLAIN-TERMS.md` §5.132. The
 
 ## 10. Counts to quote (re-derive before use)
 
-**The figures to quote now (2026-10-10):** governance suite **3,669 / 22 / 0** (239 files);
-findings **421 / 421 / 0** (169 closed as not reproducible); the full lint gate and the build
-pass. Chapter 4 should quote the newest entry below and say how the suite is counted (the
-scrubber's 66 own tests and the 15 log tests run in their own shards since finding 421). The
-history follows.
+**The figures to quote now (2026-10-10, late):** governance suite **3,743 / 22 / 0** (241 files
+passed, 2 skipped); findings **425 / 425 / 0** (169 closed as not reproducible); the build passes
+(2026-10-10, late), and the full lint gate passed on the tree before the QA's review fixes (it is
+re-run before the commit; §"After T85 and T77" below). Chapter 4 should quote the newest entry
+below and say how the suite is counted (the scrubber's 73 own tests and the 20 log tests run in
+their own shards since finding 421). The history follows.
 
 - Governance suite, Windows, 2026-10-07 (committed as `c09e1c9f7ab`, findings 406–416 included):
   **3,609 passed / 22 skipped / 0 failed** (237 files passed, 2 skipped); the full lint gate
@@ -1366,8 +1566,18 @@ ui/src/pages/governance/`): **3,696 passed / 22 skipped / 1 failed, 239 files**;
   typechecks 0; plugin SDK API baseline regenerated and checked; the full lint gate exit 0 (run
   alone: run beside test suites, its type-aware pass ran out of memory on the laptop); the build
   exit 0. On Linux, owed: the audit-store tests this laptop cannot run (T83).
-- Findings: **421 found, 421 closed, 0 open** (406–416 on 2026-10-07, 417 and 418 on 2026-10-08, 419 and 420 in the QA of 2026-10-09, 421 later the same day); 169 closed as not
-  reproducible, so never "all fixed".
+- After T85 and T77 and the QA's nine review fixes (2026-10-10): governance suite, documented
+  command, **3,743 passed / 22 skipped / 0 failed, 241 files passed, 2 skipped**, 1,074 s (the
+  same total as the run before the review fixes, which added tests to the T77 file, now 24; the
+  earlier run's per-file counts were not kept, so the equal totals are recorded as measured).
+  Logging shards: scrubber 73/73, log sinks 20/20. Typechecks core, core-test, UI, extensions and
+  extensions-test 0 (core, core-test and UI re-run after the review fixes); build exit 0. Shards
+  for the logging changes, with this machine's known failures (identical with the committed files
+  restored): logging 521/523, trajectory 71/75, `logs-cli` 39/39, OTEL extension 323/323, node
+  host 170/180. On Linux, owed: T83.
+- Findings: **425 found, 425 closed, 0 open** (406–416 on 2026-10-07, 417 and 418 on 2026-10-08,
+  419 and 420 in the QA of 2026-10-09, 421 later the same day, 422 and 423 in T85 and 424 and 425
+  in T77 on 2026-10-10); 169 closed as not reproducible, so never "all fixed".
 
 ## 11. 2026-10-04: T73, T76 and T78 built (what the report now owes)
 
