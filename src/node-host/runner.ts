@@ -23,6 +23,7 @@ import {
 } from "./invoke-payload.js";
 import { prepareNodeHostRuntime, type NodeHostInventory } from "./runtime.js";
 import { runStartupMigrations } from "./startup-state-migrations.js";
+import { writeNodeHostStderrLine } from "./stderr-line.js";
 
 type NodeHostRunOptions = {
   gatewayHost: string;
@@ -62,10 +63,6 @@ function resolveNodeHostGatewayDeviceFamily(platform: NodeJS.Platform): string |
   }
 }
 
-function writeStderrLine(message: string): void {
-  process.stderr.write(`${message}\n`);
-}
-
 const NODE_HOST_EXIT_ON_RECONNECT_PAUSE_CODES: ReadonlySet<string> = new Set([
   ConnectErrorDetailCodes.AUTH_TOKEN_MISSING,
   ConnectErrorDetailCodes.AUTH_TOKEN_MISMATCH,
@@ -99,7 +96,7 @@ function handleNodeHostReconnectPaused(
   deps: NodeHostReconnectPausedDeps = {},
 ): void {
   const shouldExit = shouldExitNodeHostOnReconnectPaused(info.detailCode);
-  const writeLine = deps.writeLine ?? writeStderrLine;
+  const writeLine = deps.writeLine ?? writeNodeHostStderrLine;
   writeLine(formatNodeHostReconnectPausedMessage(info, { exiting: shouldExit }));
   if (!shouldExit) {
     return;
@@ -131,7 +128,7 @@ async function publishNodePluginTools(client: GatewayClient, tools: unknown[]): 
     if (isUnsupportedNodePluginToolsUpdateError(error)) {
       return;
     }
-    writeStderrLine(`node host plugin tool publish failed: ${String(error)}`);
+    writeNodeHostStderrLine(`node host plugin tool publish failed: ${String(error)}`);
   }
 }
 
@@ -142,7 +139,7 @@ async function publishNodeSkills(client: GatewayClient, skills: unknown[]): Prom
     if (isUnsupportedNodeSkillsUpdateError(error)) {
       return;
     }
-    writeStderrLine(`node host skill publish failed: ${String(error)}`);
+    writeNodeHostStderrLine(`node host skill publish failed: ${String(error)}`);
   }
 }
 
@@ -179,7 +176,9 @@ function buildNodeHostLocalAuthConfig(config: OpenClawConfig): OpenClawConfig {
 export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
   // Operator-approved startup is a second authorized entry point for Doctor-owned
   // state migrators. Runtime invokes those owners here and never migrates inline.
-  await runStartupMigrations({ log: { info: writeStderrLine, warn: writeStderrLine } });
+  await runStartupMigrations({
+    log: { info: writeNodeHostStderrLine, warn: writeNodeHostStderrLine },
+  });
   const plannedGateway: NodeHostGatewayConfig = {
     host: opts.gatewayHost,
     port: opts.gatewayPort,
@@ -281,13 +280,13 @@ export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
       void activeRuntime.invoke(payload);
     },
     onHelloOk: () => {
-      writeStderrLine(`node host gateway connected: ${url}`);
+      writeNodeHostStderrLine(`node host gateway connected: ${url}`);
       gatewayHelloReceived = true;
       publishInventory();
     },
     onConnectError: (err) => {
       // keep retrying (handled by GatewayClient)
-      writeStderrLine(`node host gateway connect failed: ${err.message}`);
+      writeNodeHostStderrLine(`node host gateway connect failed: ${err.message}`);
     },
     onReconnectPaused: (info) => {
       handleNodeHostReconnectPaused(info, {
@@ -302,7 +301,7 @@ export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
     onClose: (code, reason) => {
       gatewayHelloReceived = false;
       activeRuntime.cancelAll();
-      writeStderrLine(`node host gateway closed (${code}): ${reason}`);
+      writeNodeHostStderrLine(`node host gateway closed (${code}): ${reason}`);
     },
   });
   const activeRuntime = preparedRuntime.start({

@@ -69,6 +69,18 @@ describe("masking secrets written as ordinary text", () => {
       "paste Zk81qPx7Lm2Vt9Rw4Bn6Qa3Ts5Xy8Wd= here",
       "Zk81qPx7Lm2Vt9Rw4Bn6Qa3Ts5Xy8Wd=",
     ],
+    // T85: a quoted value of several words. The quotes say where it starts and ends, so the
+    // whole of it is the secret (before, nothing was masked: no single word fitted).
+    [
+      "a quoted passphrase of several words",
+      'the passphrase is "correct horse battery staple"',
+      "correct horse battery staple",
+    ],
+    [
+      "a quoted password with spaces after a colon",
+      "password: 'blue sky 42' for now",
+      "blue sky 42",
+    ],
   ])("masks %s", (_label, input, secret) => {
     const output = redactFreeFormSecrets(input);
     expect(output).not.toContain(secret);
@@ -77,6 +89,9 @@ describe("masking secrets written as ordinary text", () => {
 
   it("keeps the label, so the entry still says what was there", () => {
     expect(redactFreeFormSecrets("the password is hunter2")).toBe("the password is ***");
+    expect(redactFreeFormSecrets('passphrase: "correct horse battery staple".')).toBe(
+      "passphrase: ***.",
+    );
     expect(redactFreeFormSecrets(`token-like value ${LEAKED_ON_FIXTURE}`)).toBe(
       "token-like value ***",
     );
@@ -147,6 +162,15 @@ describe("leaving the ledger's legitimate text alone", () => {
       "a base64-encoded command, which an investigator must be able to read",
       "echo Y2F0IH4vLnNzaC9pZF9yc2E= | base64 -d | sh",
     ],
+    // T85: quoted words after "password:" that only describe it.
+    ["a quoted state of a password, all ordinary words", 'password: "not set"'],
+    // A single quoted word is the single-value rule's, which knows a reference.
+    ["a quoted reference after 'password:'", 'password: "$STAGING_PASS"'],
+    // Found by the documentation scan of the quoted-phrase rule: a quoted error message that
+    // names a credential describes it, it is not one.
+    ["a quoted error message after 'password:'", 'Wrong password: "Invalid credentials"'],
+    ["a quoted prompt after 'passphrase is'", "the passphrase is 'Enter your passphrase'"],
+    ["a quoted phrase after a weak word", 'the token is "not required here"'],
   ])("leaves %s", (_label, input) => {
     expect(redactFreeFormSecrets(input)).toBe(input);
   });

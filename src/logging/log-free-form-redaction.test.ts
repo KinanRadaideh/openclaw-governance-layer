@@ -9,14 +9,18 @@
 // Every test here drives a production writer: the file log, console output (a service's stdout
 // is its log), the subsystem logger, JSON console lines, diagnostic log records (exported over
 // OTEL), the log tail (lines written before the fix), agent diagnostic payloads (payload log and
-// cache trace), trajectory capture (on by default) and the raw stream log.
+// cache trace), trajectory capture (on by default), the raw stream log and, since the QA of
+// 421 (T85), the diagnostics timeline. The node host's stderr lines are tested beside their
+// writer (`src/node-host/runner.test.ts`).
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { types } from "node:util";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { redactAgentDiagnosticPayload } from "../agents/diagnostic-redaction.js";
 import { appendRawStream } from "../agents/embedded-agent-subscribe.raw-stream.js";
 import { resetDiagnosticEventsForTest } from "../infra/diagnostic-events.js";
+import { emitDiagnosticsTimelineEvent } from "../infra/diagnostics-timeline.js";
 import { getLogger, resetLogger, setLoggerOverride } from "../logging.js";
 import { withEnvAsync } from "../test-utils/env.js";
 import { createTrajectoryRuntimeRecorder } from "../trajectory/runtime.js";
@@ -25,6 +29,7 @@ import { formatJsonConsoleLine } from "./json-console-line.js";
 import { readConfiguredLogTail } from "./log-tail.js";
 import { createSuiteLogPathTracker } from "./log-test-helpers.js";
 import { testApi as loggerTest } from "./logger.js";
+import { redactLogValue } from "./redact-log.js";
 import { redactSecrets } from "./redact.js";
 import { loggingState } from "./state.js";
 import { createSubsystemLogger } from "./subsystem.js";
@@ -130,6 +135,64 @@ describe("the file log", () => {
     expectNoSecrets(content);
     expect(content).not.toContain("Sunrise-42");
     expect(content).toContain("noted");
+  });
+
+  // T85: an error is not a plain object, so both passes stepped over it, and the logger
+  // serialises its own fields (`body`, `responseText`: how a provider's reply arrives) and its
+  // `cause`. "The password is hunter2" reached the file through all three shapes.
+  it("masks prose in the fields an error carries, its cause included", async () => {
+    const providerError = () =>
+      Object.assign(new Error("provider returned 401"), {
+        body: "The password is hunter2",
+        responseText: "token-like value QA-DELTA-SECRET-4410",
+        // An HTTP client's shape: the reply nested in an object on the error.
+        response: { status: 401, data: { message: `paste ${RANDOM_TOKEN} into the box` } },
+      });
+    const logPath = logPathTracker.nextPath();
+    setLoggerOverride({ level: "info", file: logPath });
+
+    getLogger().error(providerError());
+    getLogger().error({ err: providerError() }, "request failed");
+    getLogger().error(new Error("outer", { cause: providerError() }));
+    createSubsystemLogger("gateway/test").warn("provider failed", { error: providerError() });
+
+    const content = await readLogFile(logPath);
+    expectNoSecrets(content);
+    expect(content).toContain("The password is ***");
+    // What the error says about itself is kept.
+    expect(content).toContain("provider returned 401");
+    expect(content.trim().split("\n")).toHaveLength(4);
+  });
+
+  it("keeps an error an error: a native one of the same class, fields intact but scrubbed", () => {
+    class ProviderError extends Error {
+      status = 401;
+    }
+    const original = Object.assign(new ProviderError("provider returned 401"), {
+      body: "The password is hunter2",
+    });
+    const copy = redactLogValue({ err: original }).err;
+
+    expect(types.isNativeError(copy)).toBe(true);
+    expect(copy).toBeInstanceOf(ProviderError);
+    expect(copy.message).toBe("provider returned 401");
+    expect(copy.status).toBe(401);
+    expect(copy.body).toBe("The password is ***");
+    // The original is untouched: a log must not change what the caller holds.
+    expect(original.body).toBe("The password is hunter2");
+  });
+
+  it("masks a token cut by the message size cap, so no fragment survives", async () => {
+    // The message is capped at 4 KB. The token starts 14 characters before the cap: cut first,
+    // its first 14 characters would remain, too short for the pass to recognise as random.
+    const logPath = logPathTracker.nextPath();
+    setLoggerOverride({ level: "info", file: logPath });
+
+    getLogger().info(`${"x".repeat(4 * 1024 - 15)} ${RANDOM_TOKEN} ${"y".repeat(100)}`);
+
+    const content = await readLogFile(logPath);
+    expect(content).not.toContain(RANDOM_TOKEN.slice(0, 14));
+    expect(JSON.parse(content.trim()).message).toMatch(/\.\.\.\(truncated\)$/u);
   });
 
   it("leaves the lines a log legitimately holds unchanged", async () => {
@@ -306,6 +369,25 @@ describe("agent diagnostic files", () => {
     expect(writes[0]).toContain("The password is ***.");
   });
 
+  // T85, found live: a provider's error body is kept as a JSON-encoded string, where a quoted
+  // value's quotes arrive escaped (`\"…\"`) and the free-form pass could not see them.
+  it("masks prose secrets inside a JSON-encoded string field, such as a provider's error body", () => {
+    const errorBody = JSON.stringify({
+      message: "Request rejected",
+      detail: 'the passphrase is "correct horse battery staple"',
+    });
+    const writes = recordTrajectoryEvent({ errorBody, status: 400 });
+
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).not.toContain("correct horse battery staple");
+    // Still a JSON string a reader can parse.
+    const stored = JSON.parse(writes[0] ?? "{}") as { data?: { errorBody?: string } };
+    expect(JSON.parse(stored.data?.errorBody ?? "{}")).toMatchObject({
+      message: "Request rejected",
+      detail: "the passphrase is ***",
+    });
+  });
+
   it("masks a token before the final prompt is cut to its size limit, so no fragment survives", () => {
     // The prompt is capped at 4 KB. The token starts 14 bytes before the cap: cut first, its
     // first 14 characters would remain, too short for the pass to recognise as random.
@@ -326,6 +408,11 @@ describe("agent diagnostic files", () => {
         type: "text_delta",
         delta: WITH_RANDOM,
         apiKey: "sk-testsecret1234567890abcd",
+        // T85: no pattern pass runs over this file's line afterwards, so an error's own fields
+        // need both passes, not only the free-form one.
+        error: Object.assign(new Error("stream failed"), {
+          body: "Authorization: Bearer sk-errsecret0987654321wxyz",
+        }),
       });
       for (let attempt = 0; attempt < 100 && !fs.existsSync(rawPath); attempt += 1) {
         await new Promise<void>((resolve) => {
@@ -338,10 +425,43 @@ describe("agent diagnostic files", () => {
       const content = fs.readFileSync(rawPath, "utf8");
       expectNoSecrets(content);
       expect(content).not.toContain("sk-testsecret1234567890abcd");
+      expect(content).not.toContain("sk-errsecret0987654321wxyz");
       expect(() => JSON.parse(content.trim())).not.toThrow();
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe("the diagnostics timeline (opt-in JSONL)", () => {
+  // T85: the timeline wrote error messages, commands and attributes with no redaction at all.
+  it("masks secrets in an error message, a command and an attribute", async () => {
+    const dir = makeTempDir();
+    const timelinePath = path.join(dir, "timeline.jsonl");
+    const env = {
+      OPENCLAW_DIAGNOSTICS: "timeline",
+      OPENCLAW_DIAGNOSTICS_TIMELINE_PATH: timelinePath,
+    } as NodeJS.ProcessEnv;
+
+    emitDiagnosticsTimelineEvent(
+      {
+        type: "span.error",
+        name: "provider.request",
+        errorName: "Error",
+        errorMessage: WITH_RANDOM,
+        command: "mysql --password=Sunrise-42 -e 'select 1'",
+        attributes: { note: "the staging password is Sunrise-42", attempts: 2 },
+      },
+      { env },
+    );
+
+    const content = fs.readFileSync(timelinePath, "utf8");
+    expectNoSecrets(content);
+    expect(content).not.toContain("Sunrise-42");
+    const event = JSON.parse(content.trim()) as Record<string, unknown>;
+    expect(event.name).toBe("provider.request");
+    expect(event.errorMessage).toContain("The password is ***.");
+    expect(event.attributes).toMatchObject({ attempts: 2 });
   });
 });
 

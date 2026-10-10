@@ -5,6 +5,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { performance } from "node:perf_hooks";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { redactLogValue } from "../logging/redact-log.js";
 import { isDiagnosticFlagEnabled } from "./diagnostic-flags.js";
 import { isTruthyEnvValue } from "./env.js";
 import { appendRegularFileSync } from "./regular-file.js";
@@ -133,6 +134,17 @@ function normalizeAttributes(
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
+/** The timeline's own bookkeeping: identifiers and timestamps that must stay exact. */
+const TIMELINE_BOOKKEEPING_KEYS: ReadonlySet<string> = new Set([
+  "schemaVersion",
+  "type",
+  "timestamp",
+  "runId",
+  "envName",
+  "spanId",
+  "parentSpanId",
+]);
+
 function serializeTimelineEvent(event: DiagnosticsTimelineEvent, env: NodeJS.ProcessEnv): string {
   const normalized = {
     schemaVersion: OPENCLAW_DIAGNOSTICS_TIMELINE_SCHEMA_VERSION,
@@ -169,7 +181,9 @@ function serializeTimelineEvent(event: DiagnosticsTimelineEvent, env: NodeJS.Pro
       ? { attributes: normalizeAttributes(event.attributes) }
       : {}),
   };
-  return `${JSON.stringify(normalized)}\n`;
+  // A timeline file is a log: an error's message, a command line and string attributes get
+  // both passes (T85; until then the file had no redaction at all).
+  return `${JSON.stringify(redactLogValue(normalized, TIMELINE_BOOKKEEPING_KEYS))}\n`;
 }
 
 /** Appends one normalized diagnostics timeline event to the configured JSONL file. */

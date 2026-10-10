@@ -262,6 +262,33 @@ describe("runNodeHost", () => {
     expect(mocks.activeRuntime.cancelAll).toHaveBeenCalledOnce();
   });
 
+  // T85: under a service manager the node host's stderr is its log (the journal under systemd).
+  // Its own lines went to stderr with no redaction at all.
+  it("masks secrets in the lines it writes to stderr", async () => {
+    await expect(runNodeHost({ gatewayHost: "127.0.0.1", gatewayPort: 18789 })).rejects.toThrow(
+      "event loop readiness timeout",
+    );
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      const options = lastCapturedOptions();
+      options?.onConnectError?.(
+        new Error(
+          "rejected: the password is hunter2, Authorization: Bearer sk-live1234567890abcdef",
+        ),
+      );
+      options?.onClose?.(4001, "token-like value QA-DELTA-SECRET-4410");
+
+      const written = stderr.mock.calls.map((call) => String(call[0])).join("");
+      expect(written).toContain("node host gateway connect failed: rejected: the password is ***");
+      expect(written).toContain("node host gateway closed (4001): token-like value ***");
+      for (const secret of ["hunter2", "sk-live1234567890abcdef", "QA-DELTA-SECRET-4410"]) {
+        expect(written).not.toContain(secret);
+      }
+    } finally {
+      stderr.mockRestore();
+    }
+  });
+
   it.each([
     ["127.0.0.1", "ws://127.0.0.1:18789"],
     ["gateway.local", "ws://gateway.local:18789"],

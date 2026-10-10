@@ -42,8 +42,10 @@
 // ## What it does not do
 //
 // It cannot know a secret that looks like an ordinary word and has no label ("the door
-// code is in the drawer, it's swordfish"), and it masks only the first word of a
-// multi-word passphrase. Report 3.5.3.4 Data Sanitization states the boundary; this
+// code is in the drawer, it's swordfish"). A passphrase of several words is masked whole
+// when it is quoted (`passphrase: "correct horse battery staple"`); unquoted, nothing marks
+// where it ends, so at most its first word is masked, and none when that word is an
+// ordinary one ("correct"). Report 3.5.3.4 Data Sanitization states the boundary; this
 // pass narrows it, it does not close it. It only ever removes text, so a false positive
 // costs readability of one ledger value and never integrity: the HMAC covers the masked
 // text, exactly as it covers the first pass's output.
@@ -74,6 +76,17 @@ const LABELLED_VALUE = new RegExp(
   "giu",
 );
 const STRONG_WORD = new RegExp(String.raw`^(?:${STRONG_WORDS})$`, "iu");
+
+/**
+ * A quoted value after a strong word and an explicit connector, spaces allowed
+ * (`the passphrase is "correct horse battery staple"`). `VALUE` stops at a space, so a quoted
+ * phrase never matched it and nothing was masked (T85); the quotes say exactly where this one
+ * starts and ends. Bounded to 200 characters and one line.
+ */
+const QUOTED_PHRASE = new RegExp(
+  String.raw`(?<![\w-])(?<word>${STRONG_WORDS})(?:[-\s]like)?(?<noun>\s+(?:value|string|number))?(?<connector>${CONNECTOR})(?<quote>["'])(?<value>[^"'\n]{3,200})\k<quote>`,
+  "giu",
+);
 
 /**
  * Words that follow "password is" and friends in ordinary sentences. A value in this list
@@ -256,7 +269,39 @@ function isLabelledSecret(groups: LabelledGroups, endsClause: boolean): boolean 
     : isPlainWordPassword(value.toLowerCase(), endsClause);
 }
 
+/** A word that names a credential: a phrase holding one describes the secret ("Invalid credentials"). */
+const CREDENTIAL_WORD =
+  /^(?:pass(?:word|wd|phrase|code)s?|credentials?|tokens?|keys?|secrets?|pins?|otps?|codes?)$/iu;
+
+/**
+ * A quoted phrase of several words is the secret, unless every word is an ordinary one ("not
+ * set") or one of them names a credential, as an error message or a prompt does ("Invalid
+ * credentials", "Enter your passphrase"; found by the documentation scan, T85).
+ */
+function redactQuotedPhrases(text: string): string {
+  return text.replace(QUOTED_PHRASE, (...args: unknown[]) => {
+    const match = args[0] as string;
+    const { quote, value } = args.at(-1) as LabelledGroups;
+    const words = value
+      .trim()
+      .split(/\s+/u)
+      .map((word) => word.toLowerCase().replace(/[.,!?:;]+$/u, ""));
+    if (
+      words.length < 2 ||
+      words.every((word) => ORDINARY_WORDS.has(word)) ||
+      words.some((word) => CREDENTIAL_WORD.test(word))
+    ) {
+      return match;
+    }
+    return match.slice(0, match.length - (value.length + quote.length * 2)) + FREE_FORM_MASK;
+  });
+}
+
 function redactLabelledValues(text: string): string {
+  return redactSingleValues(redactQuotedPhrases(text));
+}
+
+function redactSingleValues(text: string): string {
   return text.replace(LABELLED_VALUE, (...args: unknown[]) => {
     const match = args[0] as string;
     const groups = args.at(-1) as LabelledGroups;

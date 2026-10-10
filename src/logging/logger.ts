@@ -226,8 +226,18 @@ function getSortedNumericLogArgs(logObj: TsLogRecord): unknown[] {
     .map(([, value]) => value);
 }
 
+/**
+ * Cuts text to its cap. Text over the cap is redacted first (T85): the whole record is redacted
+ * later, but by then a secret straddling the cut is a fragment too short to recognise.
+ */
 function clampFileLogText(value: string, maxChars: number): string {
-  return value.length > maxChars ? `${truncateUtf16Safe(value, maxChars)}...(truncated)` : value;
+  if (value.length <= maxChars) {
+    return value;
+  }
+  const redacted = redactLogText(value);
+  return redacted.length <= maxChars
+    ? redacted
+    : `${truncateUtf16Safe(redacted, maxChars)}...(truncated)`;
 }
 
 function normalizeFileLogContextValue(value: unknown): string | undefined {
