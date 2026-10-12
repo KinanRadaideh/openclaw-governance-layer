@@ -99,6 +99,8 @@ describe("a decision on a rule request can say why", () => {
       "req-1",
       false,
       "Write just the hostname: ^api[.]github[.]com$",
+      // No lifetime goes with a rejection (T86 D5).
+      undefined,
     );
   });
 
@@ -108,7 +110,8 @@ describe("a decision on a rule request can say why", () => {
     buttonIn(host, "Approve")!.click();
     await Promise.resolve();
 
-    expect(decideRuleRequest).toHaveBeenCalledWith("req-1", true, undefined);
+    // An approval states its lifetime (T86 D5): `null`, never expires, unless chosen.
+    expect(decideRuleRequest).toHaveBeenCalledWith("req-1", true, undefined, null);
   });
 
   it("shows the note to the requester on the decided request", () => {
@@ -181,6 +184,8 @@ describe("the smaller sentences part 1 recorded", () => {
         nowMs: Date.now(),
         decide: () => {},
         dismissNotice: () => {},
+        lifetimeFor: () => "never",
+        setLifetime: () => {},
       }),
     );
     expect(words(host)).toContain("Asked while user1 was talking to main:");
@@ -210,9 +215,42 @@ describe("the smaller sentences part 1 recorded", () => {
         viewer: "user1",
         decide: () => {},
         dismissNotice: () => {},
+        lifetimeFor: () => "never",
+        setLifetime: () => {},
       }),
     );
     expect(words(host)).toContain("Asked in your conversation with main:");
+  });
+
+  it("names the chat a question came from, now that chat runs are answered here (T86 D7)", () => {
+    const host = mountTemplate(
+      renderWaitingApprovals({
+        approvals: [
+          {
+            id: "approval-1",
+            agentId: "main",
+            sessionKey: "agent:main:telegram:direct:alice",
+            title: "Governance: unlisted command",
+            description: "",
+            detail: null,
+            severity: null,
+            allowedDecisions: ["allow-once", "deny"],
+            createdAtMs: Date.now(),
+            expiresAtMs: Date.now() + 60_000,
+            origin: "telegram",
+          },
+        ],
+        notices: [],
+        errors: new Map(),
+        answering: new Set(),
+        nowMs: Date.now(),
+        decide: () => {},
+        dismissNotice: () => {},
+        lifetimeFor: () => "never",
+        setLifetime: () => {},
+      }),
+    );
+    expect(words(host)).toContain("Asked through a telegram chat with main:");
   });
 
   it("names the Administrator a User with no agents should ask", () => {
@@ -448,7 +486,7 @@ describe("a note typed on one pending request survives deciding another", () => 
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(decideRuleRequest).toHaveBeenCalledWith("a", true, undefined);
+    expect(decideRuleRequest).toHaveBeenCalledWith("a", true, undefined, null);
     expect(onDraft).not.toHaveBeenCalledWith({ decisionNoteFor: "", decisionNote: "" });
   });
 });

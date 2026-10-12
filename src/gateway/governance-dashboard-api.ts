@@ -38,8 +38,9 @@ import {
   NotACoreRuleError,
   SelfProtectingCoreRuleError,
   setCoreRuleEnabled,
+  POSTURE_OFF_REFUSED,
 } from "../governance/policy-store.js";
-import type { ResourceKind } from "../governance/policy-types.js";
+import { isGovernanceMode, type ResourceKind } from "../governance/policy-types.js";
 import { roleAtLeast, type GovernanceRole } from "../governance/roles.js";
 import {
   describeRuleRisks,
@@ -458,8 +459,14 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     const mode = (body as { mode?: unknown }).mode;
-    if (mode !== "enforce" && mode !== "monitor" && mode !== "off") {
-      sendInvalidRequest(res, "mode must be enforce, monitor, or off");
+    // `off` no longer exists (T86 D4): named in its own refusal, so a stale client is
+    // told why rather than only that the value is unknown.
+    if (mode === "off") {
+      sendInvalidRequest(res, POSTURE_OFF_REFUSED);
+      return true;
+    }
+    if (!isGovernanceMode(mode)) {
+      sendInvalidRequest(res, "mode must be enforce or monitor");
       return true;
     }
     await setMode(groupId, mode, auditActor(session));
@@ -597,14 +604,13 @@ export async function handleGovernanceApiRequest(
     // own agent" a single request, which is precisely the escalation the
     // core tier exists to prevent (§G6).
     //
-    // Turning the whole installation off remains available to an Administrator
-    // through `policy/mode`, where it is one visible, audited, global act
-    // rather than a quiet per-agent exemption.
+    // Since T86 D4 there is no `off` for the installation either, so the refusal says
+    // that, in the words every refusal of `off` uses (it used to send the caller to
+    // `policy/mode`, which refuses it too).
     if (mode !== null && mode !== "enforce" && mode !== "monitor") {
       sendInvalidRequest(
         res,
-        "mode must be enforce, monitor, or null to follow the installation default; " +
-          "switching governance off is an installation-wide administrator action",
+        `mode must be enforce, monitor, or null to follow the installation default. ${POSTURE_OFF_REFUSED}`,
       );
       return true;
     }

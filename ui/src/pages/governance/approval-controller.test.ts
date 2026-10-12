@@ -99,7 +99,10 @@ describe("waiting approvals on the governance page", () => {
 
     page.setView({ approvals: [], notices: [] });
     page.host.querySelector<HTMLButtonElement>(".exec-approval-actions button")?.click();
-    await vi.waitFor(() => expect(page.decide).toHaveBeenCalledWith("plugin:1", "allow-once"));
+    // No lifetime goes with "Allow once": only "Always allow" files a rule (T86 D5).
+    await vi.waitFor(() =>
+      expect(page.decide).toHaveBeenCalledWith("plugin:1", "allow-once", undefined),
+    );
     await vi.waitFor(() => expect(page.controller.slice().approvals).toEqual([]));
   });
 
@@ -162,6 +165,37 @@ describe("waiting approvals on the governance page", () => {
     page.controller.slice().dismissNotice(notices[0]!.id);
     await page.controller.refresh();
     expect(page.controller.slice().notices).toEqual([]);
+  });
+
+  // Finding 427 (live, 2026-10-11): the page re-reads approvals every two seconds, so a read
+  // that lands while an answer is in flight removes the card; the notices then looked the card
+  // up afterwards, found nothing, and named the question by its internal id.
+  it("names the question in the notice even when a read removed its card mid-answer", async () => {
+    const page = harness();
+    await page.controller.refresh();
+    page.decide.mockImplementationOnce(async () => {
+      page.setView({ approvals: [], notices: [] });
+      await page.controller.refresh();
+      return { answered: true };
+    });
+    page.controller.slice().decide("plugin:1", "allow-always");
+    await vi.waitFor(() => expect(page.controller.slice().notices).toHaveLength(1));
+    expect(page.controller.slice().notices[0]?.message).toContain("Governance: unlisted path");
+    expect(page.controller.slice().notices[0]?.message).not.toContain("plugin:1");
+  });
+
+  it("names the question when a late answer's card was removed mid-answer", async () => {
+    const page = harness();
+    await page.controller.refresh();
+    page.decide.mockImplementationOnce(async () => {
+      page.setView({ approvals: [], notices: [] });
+      await page.controller.refresh();
+      throw new GovernanceApiError("That approval is no longer waiting.", 404);
+    });
+    page.controller.slice().decide("plugin:1", "allow-once");
+    await vi.waitFor(() => expect(page.controller.slice().notices).toHaveLength(1));
+    expect(page.controller.slice().notices[0]?.message).toContain("Governance: unlisted path");
+    expect(page.controller.slice().notices[0]?.agentId).toBe("scout");
   });
 
   it("keeps a dismissed follow-up dismissed across reads", async () => {

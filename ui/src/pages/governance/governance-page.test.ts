@@ -65,7 +65,7 @@ function rule(overrides: Partial<GovernancePolicyRule> = {}): GovernancePolicyRu
 
 function policy(rules: GovernancePolicyRule[]): GovernancePolicyDocument {
   return {
-    version: 2,
+    version: 3,
     mode: "enforce",
     ask: "off",
     agentMode: {},

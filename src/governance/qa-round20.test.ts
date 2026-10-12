@@ -274,13 +274,12 @@ describe("requirement 5. The gap is recorded as a gap", () => {
     expect(entry?.decision).toBe("ungoverned");
   });
 
-  it("records nothing at all when governance is switched off", async () => {
-    // Recording oversight that is not running would be a false entry in the
-    // trail. The mirror of the green-tick class this project treats as its
-    // worst defect.
+  it("records the reach although a stored posture says off (T86 D4)", async () => {
+    // `off` recorded nothing here. The posture is gone, and a document that still
+    // says `off` loads as `enforce`, so the reach is recorded like any other.
     await savePolicy(groupId, {
       ...defaultPolicyDocument(),
-      mode: "off",
+      mode: "off" as never,
       rules: [denial({ pattern: "(^|/)diary\\.txt$" })],
     });
     await auditSearchReach({
@@ -291,6 +290,6 @@ describe("requirement 5. The gap is recorded as a gap", () => {
       sessionKey: `agent:${AGENT}:main`,
     });
 
-    expect(await reaches()).toHaveLength(0);
+    expect(await reaches()).toHaveLength(1);
   });
 });

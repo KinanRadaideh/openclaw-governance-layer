@@ -3,19 +3,34 @@
 // project moved from a plugin to a direct fork (this file now uses core's
 // own JSON helpers, ../infra/json-files.js, instead of the plugin SDK facade
 // that wrapped them).
-import { readJsonIfExists } from "../infra/json-files.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
-import { BASELINE_RULES, coreRules, seedRuleId, type SeedRule } from "./baseline-policy.js";
+import {
+  BASELINE_NETWORK_RULES,
+  BASELINE_RULES,
+  coreRules,
+  LEGACY_LISTING_RULE,
+  NARROWED_LISTING_RULE,
+  seedRuleId,
+  type SeedRule,
+} from "./baseline-policy.js";
 import { withFileLock } from "./file-lock.js";
 import { newGovernanceId } from "./ids.js";
-import { ensureGroupDir, isUnconfiguredTestRun, policyFilePath } from "./paths.js";
+import { ensureGroupDir, policyFilePath } from "./paths.js";
+import {
+  policyFileStillAsFound,
+  readSealedPolicyFile,
+  recordPolicyFileFinding,
+  writeSealedPolicyFile,
+  type PolicyFileFinding,
+} from "./policy-seal.js";
 import {
   MAX_HITL_TIMEOUT_SECONDS,
   MIN_HITL_TIMEOUT_SECONDS,
   defaultPolicyDocument,
   isAskMode,
+  isGovernanceMode,
   POLICY_DOCUMENT_VERSION,
   type GovernanceMode,
   pruneExpiredRules,
@@ -25,7 +40,6 @@ import {
 } from "./policy-types.js";
 import { detectRuleConflicts, type RuleConflict } from "./rule-conflicts.js";
 import { MAX_STORED_RULE_DESCRIPTION_LENGTH } from "./rule-validation.js";
-import { writeGovernanceJson } from "./state-file.js";
 
 /**
  * The installation root **and** this group's directory (M5).
@@ -54,9 +68,34 @@ function coerce<T>(value: unknown, isValid: (candidate: unknown) => boolean, fal
   return isValid(value) ? (value as T) : fallback;
 }
 
+/**
+ * The policy in force. A file changed outside this store is used as found, recorded as
+ * an integrity alert, and then sealed as found, so one change raises one alert (T86 D9,
+ * `policy-seal.ts`).
+ */
 export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
+  const { doc, finding } = await readPolicy(groupId);
+  if (finding && (await recordPolicyFileFinding(groupId, finding)) && finding.kind !== "removed") {
+    // Under the lock, and only if nothing has written the file since it was read.
+    await withFileLock(policyFilePath(groupId), async () => {
+      if (await policyFileStillAsFound(groupId, finding)) {
+        await savePolicy(groupId, doc);
+      }
+    });
+  }
+  return doc;
+}
+
+async function readPolicy(
+  groupId: string,
+): Promise<{ doc: PolicyDocument; finding?: PolicyFileFinding }> {
   await ensureGroup(groupId);
-  const existing = await readJsonIfExists<PolicyDocument>(policyFilePath(groupId));
+  const { stored, finding } = await readSealedPolicyFile(groupId);
+  return { doc: policyFromStored(stored), ...(finding ? { finding } : {}) };
+}
+
+function policyFromStored(stored: unknown): PolicyDocument {
+  const existing = stored as PolicyDocument | null;
   const defaults = defaultPolicyDocument();
   if (!existing || typeof existing !== "object") {
     // A fresh installation: ship the baseline allowances alongside the core
@@ -64,11 +103,6 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
     // refusing everything until somebody writes a policy.
     return {
       ...defaults,
-      // A test process that never asked for a governance directory is not an
-      // installation and has no operator to answer an escalation. See
-      // `isUnconfiguredTestRun`. Narrow by construction: production and this
-      // project's own governance tests both miss it.
-      ...(isUnconfiguredTestRun() ? { mode: "off" as const } : {}),
       rules: [...coreRules(), ...BASELINE_RULES].map((rule) => materialiseSeedRule(rule)),
     };
   }
@@ -76,16 +110,18 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
   // file that predates a given field, or corrupted since.
   const merged = { ...defaults, ...existing };
   // Read before `version` is overwritten below: only a document written before
-  // T70 may hold a rule with no description, and only such a document is repaired.
-  const predatesDescriptions = merged.version !== POLICY_DOCUMENT_VERSION;
+  // T70 (version 2) may hold a rule with no description, and only such a document is
+  // repaired; only one written before T86 D3 (version 3) lacks the baseline hosts.
+  const storedVersion = typeof merged.version === "number" ? merged.version : 0;
+  const predatesDescriptions = storedVersion < 2;
+  const predatesBaselineHosts = storedVersion < 3;
+  const predatesNarrowedListing = storedVersion < 4;
   const loaded: PolicyDocument = {
     ...merged,
     version: POLICY_DOCUMENT_VERSION,
-    mode: coerce(
-      merged.mode,
-      (v) => v === "enforce" || v === "monitor" || v === "off",
-      defaults.mode,
-    ),
+    // A document written while `off` existed loads as the default (T86 D4), the
+    // treatment a stored per-agent `off` already had.
+    mode: coerce(merged.mode, isGovernanceMode, defaults.mode),
     ask: coerce(merged.ask, (v) => v === "off" || v === "on-miss", defaults.ask),
     rules: coerce(merged.rules, Array.isArray, defaults.rules)
       .filter((rule) => typeof rule?.pattern === "string" && typeof rule?.resourceKind === "string")
@@ -105,7 +141,16 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
       // what is wrong with it. Dropping the denial instead would widen access in
       // silence, the failure QA round 10 exists to rule out.
       .map((rule) => repairMissingDescription(rule, predatesDescriptions))
-      .filter((rule): rule is PolicyRule => rule !== undefined),
+      // **The shipped listing rule is narrowed once** (T86 D2-A), the way D3's hosts arrive:
+      // a document older than version 4 that still holds it exactly as shipped gets the rule
+      // that stays inside the project. One an Administrator changed or removed is left alone.
+      .map((rule) => (predatesNarrowedListing ? narrowLegacyListing(rule) : rule))
+      .filter((rule): rule is PolicyRule => rule !== undefined)
+      // **The baseline hosts reach an installation made before them, once** (T86 D3), as
+      // T70's descriptions did: a document older than version 3 gains each host rule it
+      // lacks, and the next write stores version 3, so a host an Administrator removes
+      // afterwards stays removed.
+      .concat(predatesBaselineHosts ? missingBaselineHosts(merged.rules) : []),
     // ------------------------------------------------------------------
     // **Folded, because this list is compared against the id the gate
     // resolves** (finding 202), and that id is always canonical: the host mints
@@ -164,10 +209,7 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
           defaults.agentMode,
         ),
       )
-        .filter(
-          ([agentId, mode]) =>
-            typeof agentId === "string" && (mode === "enforce" || mode === "monitor"),
-        )
+        .filter(([agentId, mode]) => typeof agentId === "string" && isGovernanceMode(mode))
         // Keys folded for the reason `lockedAgents` above is (finding 202): the
         // engine reads `doc.agentMode[agentId]` with the canonical id, so an
         // override stored under the spelling an operator typed was written,
@@ -334,6 +376,23 @@ export function switchedOffCoreRules(disabledCoreRules: readonly string[]): Poli
     .filter((rule) => disabled.has(rule.id) && !rule.selfProtecting);
 }
 
+/** The narrowed listing rule in place of the legacy one, when it is unchanged; else the rule. */
+function narrowLegacyListing<T extends PolicyRule | undefined>(rule: T): T | PolicyRule {
+  return rule?.id === LEGACY_LISTING_RULE.id && rule.pattern === LEGACY_LISTING_RULE.pattern
+    ? materialiseSeedRule(NARROWED_LISTING_RULE)
+    : rule;
+}
+
+/** The baseline host rules a stored rule list does not already hold, by seed id. */
+function missingBaselineHosts(stored: unknown): PolicyRule[] {
+  const ids = new Set(
+    (Array.isArray(stored) ? stored : []).map((rule: { id?: unknown }) => rule?.id),
+  );
+  return BASELINE_NETWORK_RULES.map((rule) => materialiseSeedRule(rule)).filter(
+    (rule) => !ids.has(rule.id),
+  );
+}
+
 function materialiseSeedRule(rule: SeedRule): PolicyRule {
   return {
     ...rule,
@@ -425,9 +484,10 @@ export async function setCoreRuleEnabled(
   return updated;
 }
 
+/** Writes the document, sealed (T86 D9). */
 export async function savePolicy(groupId: string, doc: PolicyDocument): Promise<void> {
   await ensureGroup(groupId);
-  await writeGovernanceJson(policyFilePath(groupId), doc);
+  await writeSealedPolicyFile(groupId, doc);
 }
 
 /**
@@ -445,12 +505,20 @@ export async function updatePolicy(
   // only a consequence. One installation-wide lock meant two organisations
   // editing unrelated rulebooks serialised against each other; a lock on the
   // file actually being written is both correct and less contended.
-  return withFileLock(policyFilePath(groupId), async () => {
-    const current = await loadPolicy(groupId);
-    const next = mutate(current) ?? current;
-    await savePolicy(groupId, next);
-    return next;
+  let finding: PolicyFileFinding | undefined;
+  const next = await withFileLock(policyFilePath(groupId), async () => {
+    const read = await readPolicy(groupId);
+    finding = read.finding;
+    const mutated = mutate(read.doc) ?? read.doc;
+    // Sealed, so a file changed outside the store is sealed here as well.
+    await savePolicy(groupId, mutated);
+    return mutated;
   });
+  // After the lock, as every ledger write in this file is (see `actor` below).
+  if (finding) {
+    await recordPolicyFileFinding(groupId, finding);
+  }
+  return next;
 }
 
 /**
@@ -759,6 +827,11 @@ export async function setMode(
   mode: PolicyDocument["mode"],
   actor: AuditActorInput,
 ): Promise<void> {
+  // Refused here and not only at the route (the lesson of finding 365): `off` was removed
+  // by T86 D4, and a caller that reaches this function some other way must not write it.
+  if (!isGovernanceMode(mode)) {
+    throw new Error(POSTURE_OFF_REFUSED);
+  }
   let previous: PolicyDocument["mode"] | undefined;
   await updatePolicy(groupId, (doc) => {
     previous = doc.mode;
@@ -1074,19 +1147,19 @@ export function describeAgentPolicyHoldings(cleared: AgentPolicyHoldings): strin
 }
 
 /**
- * Why one agent's posture cannot be `off`, in the words every refusal of it uses.
+ * Why a posture cannot be `off`, in the words every refusal of it uses.
  *
- * A per-agent `off` is not a weaker posture but the absence of the gate for that agent:
- * no core denials, no kill switch, no ledger entry. It stays one visible,
- * installation-wide act (`policy/mode`).
+ * `off` was the absence of the gate: no forbid rule, no kill switch, no record. It was
+ * refused for one agent from the start (finding 365) and removed for the installation
+ * by T86 D4; `monitor` is what "watch without blocking" means now.
  */
-export const PER_AGENT_OFF_REFUSED =
-  "Governance cannot be switched off for one agent. Switching it off is an installation-wide Administrator action (Policy, Posture).";
+export const POSTURE_OFF_REFUSED =
+  "Governance cannot be switched off. The posture is enforce or monitor; monitor lets actions through and records them, while forbid rules and the kill switch still hold.";
 
 export async function setAgentMode(
   groupId: string,
   rawAgentId: string,
-  mode: Exclude<GovernanceMode, "off"> | undefined,
+  mode: GovernanceMode | undefined,
   actor: AuditActorInput,
 ): Promise<void> {
   // **`off` is refused here, not only on the route that sets it (finding 365).**
@@ -1095,8 +1168,8 @@ export async function setAgentMode(
   // `off`, the ledger recorded "posture default -> off", and the loader, which keeps
   // only `enforce` and `monitor`, dropped it on the next read. A posture change the
   // trail asserts and the gate never saw. Refusing before the write keeps both true.
-  if ((mode as GovernanceMode | undefined) === "off") {
-    throw new Error(PER_AGENT_OFF_REFUSED);
+  if (mode !== undefined && !isGovernanceMode(mode)) {
+    throw new Error(POSTURE_OFF_REFUSED);
   }
   // Folded like every other agent key in this document (finding 202).
   const agentId = normalizeAgentId(rawAgentId);

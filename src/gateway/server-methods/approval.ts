@@ -27,6 +27,7 @@ import type { ExecApprovalManager, ExecApprovalRecord } from "../exec-approval-m
 import {
   isGovernanceOwnedApprovalRecord,
   isGovernanceOwnedApprovalRequest,
+  isGovernanceRouteAnswer,
 } from "../governance-approval-scope.js";
 import {
   canAccessOperatorApproval,
@@ -161,8 +162,12 @@ function loadVisibleApproval(params: {
   }
   // Governance answers a dashboard prompt's escalation (T68); a Gateway scope, admin
   // included, is not one of its tiers. Only the approval runtime may resolve one here.
+  // Since T86 D7's QA, only while the governance route is answering it: the same principal
+  // serves a chat's /approve (`asGovernanceAnswer` in governance-approval-scope.ts).
   const governanceReader =
-    params.allowApprovalRuntime === true && isTrustedApprovalRuntimeClient(params.client);
+    params.allowApprovalRuntime === true &&
+    isTrustedApprovalRuntimeClient(params.client) &&
+    isGovernanceRouteAnswer(params.id);
   const pluginLiveRecord = params.pluginApprovalManager.getLiveSnapshot(params.id);
   if (
     !governanceReader &&

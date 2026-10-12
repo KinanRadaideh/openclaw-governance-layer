@@ -1,4 +1,6 @@
-// The governance route for escalations raised from a dashboard prompt (T68).
+import { GOVERNANCE_APPROVAL_PLUGIN_ID } from "../governance/approval-origin.js";
+// The governance route for the escalations governance answers (T68): those raised from a
+// dashboard prompt and, since T86 D7, every one the governance gate raises from any channel.
 //
 // Gateway connections do not see these approvals (`governance-approval-scope.ts`), so
 // something in the Gateway process must. This subscriber is their delivery route —
@@ -14,8 +16,15 @@ import type {
 import type { ExecApprovalDecision } from "../infra/exec-approvals.js";
 import { resolveCanonicalPluginApprovalRequestAllowedDecisions } from "../infra/plugin-approval-canonical-decisions.js";
 import type { PluginApprovalRequestPayload } from "../infra/plugin-approvals.js";
+import {
+  GOVERNANCE_MESSAGE_CHANNEL,
+  INTERNAL_MESSAGE_CHANNEL,
+} from "../utils/message-channel-constants.js";
 import { GatewayClientRequestError } from "./client.js";
-import { isGovernanceOwnedApprovalRequest } from "./governance-approval-scope.js";
+import {
+  asGovernanceAnswer,
+  isGovernanceOwnedApprovalRequest,
+} from "./governance-approval-scope.js";
 
 /** One escalation waiting for a governance account's answer. */
 export type GovernanceApproval = {
@@ -29,6 +38,11 @@ export type GovernanceApproval = {
   allowedDecisions: ExecApprovalDecision[];
   createdAtMs: number;
   expiresAtMs: number;
+  /**
+   * The chat channel the run came from (`telegram`, `webchat`, …), or null for a dashboard
+   * prompt, which names its account in the session key instead (T86 D7).
+   */
+  origin: string | null;
 };
 
 /** What happened after an answer, reported by the agent's approval callback (T60). */
@@ -86,6 +100,52 @@ function rememberNotice(route: InstalledRoute, resolved: GatewayApprovalResolved
   ].slice(-MAX_NOTICES);
 }
 
+/**
+ * Tells the chat a governance escalation came from that it waits on the dashboard (T86 D7,
+ * decision E28). Since D7 a chat run's escalation is governance's like a dashboard prompt's,
+ * so the chat's own approval buttons never appear; without this the person who asked would
+ * see the agent stop and nothing else. Through the Gateway's own `send`, as channel runtimes
+ * send their notices; best effort, and once per approval. Nothing for a dashboard prompt
+ * (already there), for the Control UI's own chat (`send` refuses it as internal), or for a
+ * request with no address to answer to.
+ */
+function noticeOriginChat(route: InstalledRoute, approval: GatewayApprovalRequest): void {
+  const request = approval.request as PluginApprovalRequestPayload;
+  const channel = request.turnSourceChannel?.trim().toLowerCase();
+  const to = request.turnSourceTo?.trim();
+  if (
+    request.pluginId !== GOVERNANCE_APPROVAL_PLUGIN_ID ||
+    !channel ||
+    !to ||
+    channel === GOVERNANCE_MESSAGE_CHANNEL ||
+    channel === INTERNAL_MESSAGE_CHANNEL
+  ) {
+    return;
+  }
+  const agent = request.agentId?.trim() || "the agent";
+  const minutes = Math.max(1, Math.round((approval.expiresAtMs - Date.now()) / 60_000));
+  const asked = (request.detail ?? request.title).trim();
+  const message =
+    `Agent "${agent}" needs approval before it can continue: ${asked} ` +
+    "It is answered on the governance dashboard, by an administrator or a user the agent is " +
+    `assigned to. If nobody answers within about ${minutes} minute${minutes === 1 ? "" : "s"}, ` +
+    "it is refused.";
+  void (async () => {
+    try {
+      await route.runtime.requestRoute("send", {
+        channel,
+        to,
+        accountId: request.turnSourceAccountId ?? undefined,
+        threadId: request.turnSourceThreadId ?? undefined,
+        message,
+        idempotencyKey: `governance-approval-notice:${approval.id}`,
+      });
+    } catch {
+      // The question still waits on the dashboard; the notice is a courtesy.
+    }
+  })();
+}
+
 /** Subscribes the governance route to this Gateway generation, replacing any earlier one. */
 export function installGovernanceApprovalRoute(runtime: GatewayNativeApprovalRuntime): () => void {
   const route: InstalledRoute = { runtime, notices: [] };
@@ -93,8 +153,9 @@ export function installGovernanceApprovalRoute(runtime: GatewayNativeApprovalRun
     eventKinds: new Set(["plugin"]),
     shouldHandle: isOwned,
     claimsAudience: isOwned,
-    // Nothing to push: the dashboard reads pending approvals from the Gateway itself.
-    onRequested: () => {},
+    // The dashboard reads pending approvals from the Gateway itself; the chat a run came
+    // from is told where its question waits (T86 D7).
+    onRequested: (approval) => noticeOriginChat(route, approval),
     onResolved: (resolved) => rememberNotice(route, resolved),
   });
   installed = route;
@@ -106,7 +167,16 @@ export function installGovernanceApprovalRoute(runtime: GatewayNativeApprovalRun
   };
 }
 
-/** Escalations from dashboard prompts that are still waiting, across every organisation. */
+/** The run's chat channel, unless it is the dashboard's own (T86 D7). */
+function originChannel(request: PluginApprovalRequestPayload): string | null {
+  const channel = request.turnSourceChannel?.trim().toLowerCase();
+  return channel && channel !== GOVERNANCE_MESSAGE_CHANNEL ? channel : null;
+}
+
+/**
+ * Escalations governance answers that are still waiting, across every organisation: from
+ * dashboard prompts (T68) and, since T86 D7, every one the gate raised from a chat run.
+ */
 export async function listGovernanceApprovals(): Promise<GovernanceApproval[]> {
   if (!installed) {
     return [];
@@ -133,6 +203,7 @@ export async function listGovernanceApprovals(): Promise<GovernanceApproval[]> {
         allowedDecisions: [...resolveCanonicalPluginApprovalRequestAllowedDecisions(entry.request)],
         createdAtMs: entry.createdAtMs,
         expiresAtMs: entry.expiresAtMs,
+        origin: originChannel(entry.request),
       },
     ];
   });
@@ -158,11 +229,16 @@ export async function answerGovernanceApproval(params: {
   if (!installed) {
     return "unavailable";
   }
+  const runtime = installed.runtime;
   try {
-    await installed.runtime.request(
-      "plugin.approval.resolve",
-      { id: params.id, decision: params.decision },
-      { clientDisplayName: params.answeredBy },
+    // Marked as the route's answer: the same principal also serves a chat's /approve,
+    // which may not answer a governance escalation (`asGovernanceAnswer`).
+    await asGovernanceAnswer(params.id, () =>
+      runtime.request(
+        "plugin.approval.resolve",
+        { id: params.id, decision: params.decision },
+        { clientDisplayName: params.answeredBy },
+      ),
     );
     return "answered";
   } catch (err) {

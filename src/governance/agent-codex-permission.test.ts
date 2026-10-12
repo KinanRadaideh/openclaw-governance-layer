@@ -210,10 +210,11 @@ describe("the gate enforcing it", () => {
     expect(refusal(verdict)?.blockReason).toContain("Codex backend");
   });
 
-  it("is exempt when the posture is off, like everything else in the gate", async () => {
-    // `off` means the gate is not running at all and says so plainly. A control
-    // that survived `off` would make the posture a lie.
-    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "off" });
+  it("still blocks when a stored posture says off, which no longer exists (T86 D4)", async () => {
+    // `off` exempted every control, this one included. A document that still says
+    // `off` (a hand edit, or one written before the posture was removed) loads as
+    // `enforce`, so the control holds.
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "off" as never });
 
     const verdict = await evaluateGovernancePolicy(harmlessCall(), {
       agentId: AGENT,
@@ -221,6 +222,6 @@ describe("the gate enforcing it", () => {
       nativeHarness: true,
     });
 
-    expect(verdict).toBeUndefined();
+    expect(refusal(verdict)?.blockReason).toContain("Codex backend");
   });
 });

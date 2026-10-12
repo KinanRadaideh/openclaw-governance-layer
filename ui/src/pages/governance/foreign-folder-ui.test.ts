@@ -80,6 +80,8 @@ function band(approval: GovernanceApproval) {
       viewer: "lina",
       decide: () => {},
       dismissNotice: () => {},
+      lifetimeFor: () => "never",
+      setLifetime: () => {},
     }),
   );
 }

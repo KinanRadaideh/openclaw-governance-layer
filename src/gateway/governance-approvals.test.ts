@@ -15,6 +15,7 @@ import {
   runForResolvedApproval,
   takeResolvingApprovalAnswerer,
 } from "../governance/approval-answerers.js";
+import { GOVERNANCE_APPROVAL_PLUGIN_ID } from "../governance/approval-origin.js";
 import { tailLedger } from "../governance/audit-ledger.js";
 import { lockDownAgent } from "../governance/kill-switch.js";
 import { savePolicy } from "../governance/policy-store.js";
@@ -29,7 +30,10 @@ import type {
 import type { PluginApprovalRequestPayload } from "../infra/plugin-approvals.js";
 import { GatewayClientRequestError } from "./client.js";
 import { ExecApprovalManager } from "./exec-approval-manager.js";
-import { isGovernanceOwnedApprovalRequest } from "./governance-approval-scope.js";
+import {
+  isGovernanceOwnedApprovalRecord,
+  isGovernanceOwnedApprovalRequest,
+} from "./governance-approval-scope.js";
 import { installGovernanceApprovalRoute } from "./governance-approvals.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 import { createPluginApprovalHandlers } from "./server-methods/plugin-approval.js";
@@ -176,13 +180,18 @@ function createRuntime(): GatewayNativeApprovalRuntime {
   } as unknown as GatewayNativeApprovalRuntime;
 }
 
-/** Raises an escalation the way the approval hook does for a dashboard prompt. */
+/**
+ * Raises an escalation the way the approval hook does for a dashboard prompt. Since T86 D7
+ * the gate marks its escalations (`pluginId`); pass another id for some other plugin's.
+ */
 async function escalate(
   params: {
     agentId?: string;
     allowedDecisions?: string[];
     sessionKey?: string;
     turnSourceChannel?: string;
+    turnSourceTo?: string;
+    pluginId?: string;
   } = {},
 ) {
   const agentId = params.agentId ?? "agent-a";
@@ -197,6 +206,8 @@ async function escalate(
       agentId,
       sessionKey: params.sessionKey ?? governanceSessionKey(agentId, "lina"),
       turnSourceChannel: params.turnSourceChannel ?? "governance",
+      ...(params.turnSourceTo ? { turnSourceTo: params.turnSourceTo } : {}),
+      pluginId: params.pluginId ?? GOVERNANCE_APPROVAL_PLUGIN_ID,
       allowedDecisions: params.allowedDecisions ?? ["allow-once", "allow-always", "deny"],
       twoPhase: true,
       reportsOutcome: true,
@@ -328,11 +339,12 @@ describe("a dashboard escalation and the Gateway's connections", () => {
     expect(manager.getSnapshot(id)?.resolvedAtMs).toBeUndefined();
   });
 
-  it("still reaches the Control UI, and is forwarded, when it came from a chat run", async () => {
+  it("still reaches the Control UI, and is forwarded, when another plugin asks from a chat run", async () => {
     release = installGovernanceApprovalRoute(createRuntime());
     const { payload } = await escalate({
       sessionKey: "agent:agent-a:telegram:direct:alice",
       turnSourceChannel: "telegram",
+      pluginId: "some-other-plugin",
     });
     expect(payload).toMatchObject({ status: "accepted" });
 
@@ -344,7 +356,7 @@ describe("a dashboard escalation and the Gateway's connections", () => {
     expect((await call("GET", "approvals", lina())).body.approvals).toEqual([]);
   });
 
-  it("claims the escalation's audience on the in-process bus, and not a chat run's", async () => {
+  it("claims the escalation's audience on the in-process bus, and not another plugin's chat run", async () => {
     release = installGovernanceApprovalRoute(createRuntime());
     const request = (sessionKey: string, turnSourceChannel: string) =>
       ({
@@ -355,6 +367,7 @@ describe("a dashboard escalation and the Gateway's connections", () => {
           agentId: "agent-a",
           sessionKey,
           turnSourceChannel,
+          pluginId: "some-other-plugin",
         },
         createdAtMs: 1,
         expiresAtMs: 2,
@@ -515,6 +528,46 @@ describe("the governance approval routes", () => {
     expect(runForResolvedApproval("plugin:another", takeResolvingApprovalAnswerer)).toBeUndefined();
   });
 
+  // T86 D5-A: the lifetime chosen beside "Always allow" is noted with the answerer, for
+  // the request the answer files; a lifetime on any other answer means nothing and is refused.
+  it("notes the lifetime chosen with Always allow", async () => {
+    release = installGovernanceApprovalRoute(createRuntime());
+    const { payload, pending } = await escalate();
+    const id = payload.id as string;
+
+    await call("POST", "approvals/decide", lina(), {
+      id,
+      decision: "allow-always",
+      ttlMinutes: 1440,
+    });
+    await pending;
+
+    expect(runForResolvedApproval(id, takeResolvingApprovalAnswerer)).toEqual({
+      name: "lina",
+      role: "user",
+      ttlMinutes: 1440,
+    });
+  });
+
+  it("refuses a lifetime with any answer but Always allow, or one that is not a positive number", async () => {
+    release = installGovernanceApprovalRoute(createRuntime());
+    const { payload } = await escalate();
+    const id = payload.id as string;
+
+    for (const body of [
+      { id, decision: "allow-once", ttlMinutes: 60 },
+      { id, decision: "deny", ttlMinutes: 60 },
+      { id, decision: "allow-always", ttlMinutes: 0 },
+      { id, decision: "allow-always", ttlMinutes: "a day" },
+    ]) {
+      expect(
+        (await call("POST", "approvals/decide", lina(), body)).status,
+        JSON.stringify(body),
+      ).toBe(400);
+    }
+    expect(manager.getSnapshot(id)?.resolvedAtMs).toBeUndefined();
+  });
+
   it("brings the agent's follow-up to the accounts that manage it (T60)", async () => {
     release = installGovernanceApprovalRoute(createRuntime());
     const { payload, pending } = await escalate();
@@ -535,5 +588,146 @@ describe("the governance approval routes", () => {
       expect.objectContaining({ id, agentId: "agent-a", ...outcome }),
     ]);
     expect((await call("GET", "approvals", omar())).body.notices).toEqual([]);
+  });
+});
+
+describe("T86 D7: a chat run's governance escalation is answered on the dashboard", () => {
+  const telegram = {
+    sessionKey: "agent:agent-a:telegram:direct:alice",
+    turnSourceChannel: "telegram",
+    turnSourceTo: "12345",
+  };
+
+  it("is governance's by its marker, live and stored, whatever the channel", () => {
+    expect(
+      isGovernanceOwnedApprovalRequest({
+        pluginId: GOVERNANCE_APPROVAL_PLUGIN_ID,
+        turnSourceChannel: "telegram",
+        sessionKey: telegram.sessionKey,
+      }),
+    ).toBe(true);
+    expect(
+      isGovernanceOwnedApprovalRequest({
+        pluginId: "some-other-plugin",
+        turnSourceChannel: "telegram",
+        sessionKey: telegram.sessionKey,
+      }),
+    ).toBe(false);
+    const stored = (pluginId: string) =>
+      ({
+        kind: "plugin",
+        source: { sessionKey: telegram.sessionKey },
+        audienceSessionKeys: [telegram.sessionKey],
+        presentation: { kind: "plugin", pluginId },
+      }) as never;
+    expect(isGovernanceOwnedApprovalRecord(stored(GOVERNANCE_APPROVAL_PLUGIN_ID))).toBe(true);
+    expect(isGovernanceOwnedApprovalRecord(stored("some-other-plugin"))).toBe(false);
+  });
+
+  it("is shown to no Gateway connection and forwarded to no channel", async () => {
+    release = installGovernanceApprovalRoute(createRuntime());
+    const { payload } = await escalate(telegram);
+    expect(payload).toMatchObject({ status: "accepted" });
+    const id = payload.id as string;
+    expect((await dispatch("plugin.approval.list", {}, controlUi)).payload).toEqual([]);
+    expect(
+      (await dispatch("plugin.approval.resolve", { id, decision: "allow-once" }, controlUi)).ok,
+    ).toBe(false);
+    expect(forwarder.handlePluginApprovalRequested).not.toHaveBeenCalled();
+    expect(manager.getSnapshot(id)?.resolvedAtMs).toBeUndefined();
+  });
+
+  it("waits on the dashboard for the accounts that manage the agent, and records who answered", async () => {
+    release = installGovernanceApprovalRoute(createRuntime());
+    const { payload } = await escalate(telegram);
+    const id = payload.id as string;
+    expect((await call("GET", "approvals", lina())).body.approvals).toEqual([
+      expect.objectContaining({ id, agentId: "agent-a", origin: "telegram" }),
+    ]);
+    expect((await call("GET", "approvals", omar())).body.approvals).toEqual([]);
+    const answered = await call("POST", "approvals/decide", lina(), { id, decision: "deny" });
+    expect(answered.status).toBe(200);
+    expect(manager.getSnapshot(id)).toMatchObject({ decision: "deny", resolvedBy: "lina (user)" });
+    const ledger = await tailLedger(groupId, 50);
+    expect(
+      ledger.some(
+        (entry) =>
+          entry.toolName === ADMIN_ACTIONS.agentApprovalAnswer &&
+          entry.agentId === "agent-a" &&
+          JSON.stringify(entry).includes("lina") &&
+          JSON.stringify(entry).includes(id),
+      ),
+    ).toBe(true);
+  });
+
+  it("tells the chat it came from to answer on the governance dashboard, once", async () => {
+    const runtime = createRuntime();
+    release = installGovernanceApprovalRoute(runtime);
+    const { payload } = await escalate(telegram);
+    await vi.waitFor(() => expect(runtime.requestRoute).toHaveBeenCalledOnce());
+    const [method, sent] = vi.mocked(runtime.requestRoute).mock.calls[0] ?? [];
+    expect(method).toBe("send");
+    expect(sent).toMatchObject({ channel: "telegram", to: "12345" });
+    expect(String((sent as { message?: unknown }).message)).toMatch(/governance dashboard/);
+    expect(String((sent as { message?: unknown }).message)).toMatch(/agent-a/);
+    expect((sent as { idempotencyKey?: unknown }).idempotencyKey).toContain(payload.id);
+  });
+
+  it("refuses an answer from the approval principal outside the governance route (a chat's /approve)", async () => {
+    release = installGovernanceApprovalRoute(createRuntime());
+    const { payload } = await escalate(telegram);
+    const id = payload.id as string;
+    const chatApprove = client({
+      connId: "gateway-internal",
+      clientId: "gateway-internal",
+      displayName: "Chat approval (alice)",
+      scopes: ["operator.approvals"],
+      approvalRuntime: true,
+    });
+    const refused = await dispatch(
+      "plugin.approval.resolve",
+      { id, decision: "allow-once" },
+      chatApprove,
+    );
+    expect(refused.ok).toBe(false);
+    expect(String(refused.error?.message)).toMatch(/governance dashboard/);
+    expect(manager.getSnapshot(id)?.resolvedAtMs).toBeUndefined();
+    const answered = await call("POST", "approvals/decide", lina(), { id, decision: "deny" });
+    expect(answered.status).toBe(200);
+  });
+
+  it("never messages a chat about another plugin's question, or about a dashboard prompt, even with an address", () => {
+    // The route only hears approvals governance owns; this guard is for the ones it owns
+    // without being the gate's (a dashboard prompt's other plugins) and must hold on its own.
+    const runtime = createRuntime();
+    release = installGovernanceApprovalRoute(runtime);
+    const heard = (request: Record<string, unknown>) =>
+      subscriber?.onRequested({
+        id: "plugin:direct",
+        request: { title: "T", description: "D", agentId: "agent-a", ...request },
+        createdAtMs: Date.now(),
+        expiresAtMs: Date.now() + 60_000,
+      } as never);
+    heard({ ...telegram, pluginId: "some-other-plugin" });
+    heard({
+      sessionKey: governanceSessionKey("agent-a", "lina"),
+      turnSourceChannel: "governance",
+      turnSourceTo: "lina",
+      pluginId: GOVERNANCE_APPROVAL_PLUGIN_ID,
+    });
+    expect(runtime.requestRoute).not.toHaveBeenCalled();
+  });
+
+  it("sends no notice for a dashboard prompt, the Control UI's own chat, or another plugin's approval", async () => {
+    const runtime = createRuntime();
+    release = installGovernanceApprovalRoute(runtime);
+    await escalate();
+    await escalate({
+      sessionKey: "agent:agent-a:main",
+      turnSourceChannel: "webchat",
+      turnSourceTo: "x",
+    });
+    await escalate({ ...telegram, pluginId: "some-other-plugin" });
+    expect(runtime.requestRoute).not.toHaveBeenCalled();
   });
 });

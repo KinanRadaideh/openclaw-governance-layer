@@ -95,7 +95,7 @@ function policyWith(
   lockedAgents: string[] = [],
 ): GovernancePolicyDocument {
   return {
-    version: 2,
+    version: 3,
     mode: "enforce",
     ask: "off",
     agentMode: {},

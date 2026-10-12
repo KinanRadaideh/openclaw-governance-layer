@@ -16,6 +16,13 @@ import { t } from "../../../i18n/index.ts";
 import type { GovernanceIdentity, GovernancePolicyRule, GovernanceRuleRequest } from "../api.ts";
 import type { PanelEffects } from "./account-panels.ts";
 import { renderAgentSettingRequestRow } from "./agent-setting-request.ts";
+import {
+  lifetimeMinutes,
+  lifetimeValue,
+  lifetimeWords,
+  NEVER,
+  renderRuleLifetimeSelect,
+} from "./rule-lifetime.ts";
 import type { RuleRequestDrafts } from "./rule-request-drafts.ts";
 import { renderRuleRequestPreview } from "./rule-request-preview.ts";
 
@@ -40,6 +47,24 @@ function requester(request: GovernanceRuleRequest): string {
     : request.requestedBy;
 }
 
+/**
+ * The lifetime a pending row's Approve grants (T86 D5): the one chosen on that row, or
+ * else the one its request asked for, which is what the row shows selected.
+ */
+function rowLifetime(props: RuleRequestsPanelProps, request: GovernanceRuleRequest): string {
+  return props.drafts.decisionLifetimeFor === request.id
+    ? props.drafts.decisionLifetime
+    : lifetimeValue(request.ttlMinutes);
+}
+
+/** When a granted rule ends, or that it already has, as the Policy list says it. */
+function grantedExpiryWords(ruleExpiresAt: string): string {
+  const when = new Date(ruleExpiresAt).toLocaleString();
+  return Date.parse(ruleExpiresAt) > Date.now()
+    ? t("governance.requests.ruleExpires", { when })
+    : t("governance.requests.ruleExpired", { when });
+}
+
 /** Decides a pending request, sending the note typed on its own row, if any. */
 function decide(
   props: RuleRequestsPanelProps,
@@ -48,11 +73,19 @@ function decide(
 ): Promise<void> {
   const own = props.drafts.decisionNoteFor === request.id;
   const note = own ? props.drafts.decisionNote.trim() : "";
+  // Sent on every approval of a rule, so what is granted is what the row showed.
+  const ttlMinutes =
+    approve && request.kind !== "agent-setting"
+      ? lifetimeMinutes(rowLifetime(props, request))
+      : undefined;
   return props.run(async () => {
-    await props.api().decideRuleRequest(request.id, approve, note || undefined);
+    await props.api().decideRuleRequest(request.id, approve, note || undefined, ttlMinutes);
     // Only this row's note: one typed on another pending row is still to be sent.
     if (own) {
       props.onDraft({ decisionNoteFor: "", decisionNote: "" });
+    }
+    if (props.drafts.decisionLifetimeFor === request.id) {
+      props.onDraft({ decisionLifetimeFor: "", decisionLifetime: NEVER });
     }
   });
 }
@@ -104,7 +137,13 @@ export function renderRuleRequestsSection(
             ? ` (${request.access === "read" ? t("governance.policy.readOnlyBadge") : t("governance.policy.writeOnlyBadge")})`
             : ""
         }
-        · ${t("governance.requests.by")} ${requester(request)}, ${request.reason}
+        · ${t("governance.requests.by")} ${requester(request)},
+        ${request.reason}${
+          // The lifetime asked for (T86 D5), stated as well as preselected below.
+          request.ttlMinutes
+            ? ` · ${t("governance.requests.asksLifetime", { duration: lifetimeWords(request.ttlMinutes) })}`
+            : ""
+        }
         ${renderRuleRequestPreview(request)}${request.agentRegistered === false
           ? html`<div class="governance-request-preview" role="note">
               ${t("governance.requests.agentGone")}
@@ -128,6 +167,15 @@ export function renderRuleRequestsSection(
                       decisionNote: (event.target as HTMLInputElement).value,
                     })}
                 />
+                ${request.kind === "agent-setting"
+                  ? nothing
+                  : renderRuleLifetimeSelect({
+                      value: rowLifetime(props, request),
+                      label: t("governance.requests.approveLifetimeLabel"),
+                      disabled: props.busy,
+                      onChange: (value) =>
+                        props.onDraft({ decisionLifetimeFor: request.id, decisionLifetime: value }),
+                    })}
                 <button
                   class="btn primary"
                   ?disabled=${props.busy || request.agentRegistered === false}
@@ -163,7 +211,10 @@ export function renderRuleRequestsSection(
                 value: request.value ?? "",
               })}`
             : html`<code>${request.pattern}</code>`,
-        description: `${t("governance.requests.by")} ${requester(request)} · ${t("governance.requests.decidedBy")} ${request.decidedBy ?? "-"}${request.decisionNote ? `: “${request.decisionNote}”` : ""}`,
+        description: `${t("governance.requests.by")} ${requester(request)} · ${t("governance.requests.decidedBy")} ${request.decidedBy ?? "-"}${request.decisionNote ? `: “${request.decisionNote}”` : ""}${
+          // A time-limited grant says when it ends (T86 D5), or that it has (QA of 2026-10-11).
+          request.ruleExpiresAt ? ` · ${grantedExpiryWords(request.ruleExpiresAt)}` : ""
+        }`,
         control: renderSettingsStatus({
           kind: request.status === "approved" ? "ok" : "warn",
           label: request.status,
@@ -264,6 +315,11 @@ export function renderRuleRequestsSection(
                   props.onDraft({ requestAgentId: (e.target as HTMLInputElement).value });
                 }}
               />
+              ${renderRuleLifetimeSelect({
+                value: props.drafts.requestLifetime,
+                label: t("governance.requests.requestLifetimeLabel"),
+                onChange: (value) => props.onDraft({ requestLifetime: value }),
+              })}
               <button
                 class="btn primary"
                 ?disabled=${props.busy ||
@@ -272,7 +328,9 @@ export function renderRuleRequestsSection(
                 @click=${() =>
                   props.run(async () => {
                     const agentId = props.drafts.requestAgentId.trim();
+                    const ttlMinutes = lifetimeMinutes(props.drafts.requestLifetime);
                     await props.api().submitRuleRequest({
+                      ...(ttlMinutes ? { ttlMinutes } : {}),
                       resourceKind: props.drafts.requestKind,
                       pattern: props.drafts.requestPattern,
                       reason: props.drafts.requestReason,
@@ -291,6 +349,7 @@ export function renderRuleRequestsSection(
                     props.onDraft({ requestReason: "" });
                     props.onDraft({ requestAgentId: "" });
                     props.onDraft({ requestAccess: "" });
+                    props.onDraft({ requestLifetime: NEVER });
                   })}
               >
                 ${t("governance.requests.submitButton")}

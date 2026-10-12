@@ -139,7 +139,7 @@ function policyFixture(): GovernancePolicyDocument {
     tier: "core" as const,
   };
   return {
-    version: 2,
+    version: 3,
     mode: "enforce",
     ask: "off",
     agentAsk: { scout: "on-miss" },

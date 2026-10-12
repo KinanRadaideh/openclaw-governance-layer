@@ -17,7 +17,7 @@ import { resetLedgerKeyCacheForTests } from "../governance/ledger-key.js";
 import { policyFilePath } from "../governance/paths.js";
 import {
   loadPolicy,
-  PER_AGENT_OFF_REFUSED,
+  POSTURE_OFF_REFUSED,
   savePolicy,
   setAgentMode,
 } from "../governance/policy-store.js";
@@ -110,7 +110,7 @@ describe("a request for one agent's posture (finding 365)", () => {
     });
 
     expect(res.status).toBe(400);
-    expect(JSON.stringify(res.body)).toContain(PER_AGENT_OFF_REFUSED);
+    expect(JSON.stringify(res.body)).toContain(POSTURE_OFF_REFUSED);
     expect(await listRuleRequests(groupId)).toEqual([]);
   });
 
@@ -151,7 +151,7 @@ describe("a request for one agent's posture (finding 365)", () => {
     });
 
     expect(res.status).toBe(400);
-    expect(JSON.stringify(res.body)).toContain(PER_AGENT_OFF_REFUSED);
+    expect(JSON.stringify(res.body)).toContain(POSTURE_OFF_REFUSED);
     expect((await listRuleRequests(groupId)).find((r) => r.id === stored.id)?.status).toBe(
       "pending",
     );
@@ -186,7 +186,7 @@ describe("a request for one agent's posture (finding 365)", () => {
         name: "administrator",
         role: "administrator",
       }),
-    ).rejects.toThrow(PER_AGENT_OFF_REFUSED);
+    ).rejects.toThrow(POSTURE_OFF_REFUSED);
 
     expect(await agentModeOnDisk()).toEqual({});
     expect(

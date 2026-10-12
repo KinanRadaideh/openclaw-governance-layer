@@ -26,6 +26,14 @@ import { endPromptRunsForAgent, promptRunsStillExecuting } from "./prompt-runs.j
 export type AgentTerminationResult = {
   /** Ids of runs that were actually signalled to abort. */
   abortedRunIds: string[];
+  /**
+   * Ids of the agent's background shell processes that were signalled to end (T86 D1).
+   *
+   * OpenClaw's run abort deliberately spares a backgrounded exec session, and a command
+   * still running after its yield window is backgrounded on its own, so ending the runs
+   * left such a process running after the stop was reported confirmed.
+   */
+  endedProcessIds?: string[];
 };
 
 export type AgentTerminator = (
@@ -42,22 +50,29 @@ export type AgentTerminator = (
  */
 export type RunActivityProbe = (runIds: readonly string[]) => readonly string[];
 
+/** Reports which of the given background process ids have not exited yet. */
+export type ProcessActivityProbe = (processIds: readonly string[]) => readonly string[];
+
 let registeredTerminator: AgentTerminator | undefined;
 let registeredProbe: RunActivityProbe | undefined;
+let registeredProcessProbe: ProcessActivityProbe | undefined;
 
 /** Installs the Gateway's abort implementation. Called once during startup. */
 export function registerAgentTerminator(
   terminator: AgentTerminator,
   probe?: RunActivityProbe,
+  processProbe?: ProcessActivityProbe,
 ): void {
   registeredTerminator = terminator;
   registeredProbe = probe;
+  registeredProcessProbe = processProbe;
 }
 
 /** Removes the registered terminator. Used by tests and on Gateway shutdown. */
 export function clearAgentTerminator(): void {
   registeredTerminator = undefined;
   registeredProbe = undefined;
+  registeredProcessProbe = undefined;
 }
 
 export function hasAgentTerminator(): boolean {
@@ -108,6 +123,10 @@ export type TerminationOutcome = {
   stoppedConfirmed: boolean;
   /** Runs still present when the wait gave up. Empty when confirmed. */
   stillRunningRunIds?: string[];
+  /** Background shell processes signalled to end (T86 D1). */
+  endedProcessIds: string[];
+  /** Background processes that had not exited when the wait gave up. */
+  stillRunningProcessIds?: string[];
   /** Present when the registered terminator threw. */
   error?: string;
 };
@@ -123,6 +142,7 @@ export type TerminationOutcome = {
 export async function terminateAgentRuns(agentId: string): Promise<TerminationOutcome> {
   const terminator = registeredTerminator;
   const probe = registeredProbe;
+  const processProbe = registeredProcessProbe;
   const startedAt = process.hrtime.bigint();
   const elapsed = () => Number(process.hrtime.bigint() - startedAt) / 1e6;
   // **Governance's own prompt runs first, and without the Gateway** (finding 364). A
@@ -137,23 +157,27 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
     return {
       supported: false,
       abortedRunIds: promptRunIds,
+      endedProcessIds: [],
       elapsedMs: dispatchMs,
       dispatchMs,
       stoppedConfirmed: false,
     };
   }
   let abortedRunIds: string[];
+  let endedProcessIds: string[];
   try {
     const result = await terminator(agentId);
     abortedRunIds = [
       ...promptRunIds,
       ...result.abortedRunIds.filter((runId) => !promptRunIds.includes(runId)),
     ];
+    endedProcessIds = [...(result.endedProcessIds ?? [])];
   } catch (err) {
     const dispatchMs = elapsed();
     return {
       supported: true,
       abortedRunIds: promptRunIds,
+      endedProcessIds: [],
       elapsedMs: dispatchMs,
       dispatchMs,
       stoppedConfirmed: false,
@@ -164,10 +188,11 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
 
   // Nothing was in flight, so there is nothing to wait for and the agent is
   // demonstrably not running. That counts as confirmed.
-  if (abortedRunIds.length === 0) {
+  if (abortedRunIds.length === 0 && endedProcessIds.length === 0) {
     return {
       supported: true,
       abortedRunIds,
+      endedProcessIds,
       elapsedMs: dispatchMs,
       dispatchMs,
       stoppedConfirmed: true,
@@ -179,12 +204,16 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
     ...promptRunsStillExecuting(runIds.filter((runId) => promptRunIds.includes(runId))),
     ...(probe ? probe(runIds.filter((runId) => !promptRunIds.includes(runId))) : []),
   ];
-  if (!probe && gatewayRunIds.length > 0) {
+  // A background process counts as stopped only once its exit is observed, like a run.
+  const watchProcesses = (processIds: readonly string[]): readonly string[] =>
+    processProbe ? processProbe(processIds) : [];
+  if ((!probe && gatewayRunIds.length > 0) || (!processProbe && endedProcessIds.length > 0)) {
     // No way to watch. Reporting `false` is the honest answer: the abort was
     // sent and nobody observed the result.
     return {
       supported: true,
       abortedRunIds,
+      endedProcessIds,
       elapsedMs: dispatchMs,
       dispatchMs,
       stoppedConfirmed: false,
@@ -213,18 +242,22 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
   // ---------------------------------------------------------------------
   const deadline = Date.now() + CONFIRM_STOPPED_TIMEOUT_MS;
   let stillRunning: readonly string[];
+  let stillRunningProcesses: readonly string[];
   try {
     stillRunning = watch(abortedRunIds);
-    while (stillRunning.length > 0 && Date.now() < deadline) {
+    stillRunningProcesses = watchProcesses(endedProcessIds);
+    while ((stillRunning.length > 0 || stillRunningProcesses.length > 0) && Date.now() < deadline) {
       await new Promise((resolve) => {
         setTimeout(resolve, CONFIRM_POLL_INTERVAL_MS);
       });
       stillRunning = watch(abortedRunIds);
+      stillRunningProcesses = watchProcesses(endedProcessIds);
     }
   } catch (err) {
     return {
       supported: true,
       abortedRunIds,
+      endedProcessIds,
       elapsedMs: elapsed(),
       dispatchMs,
       stoppedConfirmed: false,
@@ -234,9 +267,13 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
   return {
     supported: true,
     abortedRunIds,
+    endedProcessIds,
     elapsedMs: elapsed(),
     dispatchMs,
-    stoppedConfirmed: stillRunning.length === 0,
+    stoppedConfirmed: stillRunning.length === 0 && stillRunningProcesses.length === 0,
     ...(stillRunning.length > 0 ? { stillRunningRunIds: [...stillRunning] } : {}),
+    ...(stillRunningProcesses.length > 0
+      ? { stillRunningProcessIds: [...stillRunningProcesses] }
+      : {}),
   };
 }

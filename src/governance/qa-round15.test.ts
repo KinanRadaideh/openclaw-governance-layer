@@ -100,24 +100,27 @@ describe("B1. The relay requirement and the shipped posture cannot drift apart",
   // is required exactly when the posture governs. Both sides are read here,
   // neither is assumed.
 
-  it("agrees on an installation: posture governs, relay required", async () => {
+  it("agrees on an installation: the gate governs, relay required", async () => {
     process.env.OPENCLAW_GOVERNANCE_DIR = dir;
     TEST_GROUP = await seedGroupWithAgents([]);
     const policy = await loadPolicy(TEST_GROUP);
-    expect(policy.mode).not.toBe("off");
-    expect(governanceRequiresNativeToolRelay()).toBe(policy.mode !== "off");
+    expect(policy.mode).toBe("enforce");
+    expect(isUnconfiguredTestRun()).toBe(false);
+    expect(governanceRequiresNativeToolRelay()).toBe(!isUnconfiguredTestRun());
   });
 
-  it("agrees on an unconfigured test process: posture off, relay not required", async () => {
+  it("agrees on an unconfigured test process: the gate's exemption applies, relay not required", async () => {
     // No OPENCLAW_GOVERNANCE_DIR. This is OpenClaw's own harness suite: it
-    // predates governance, has no operator and no policy, and `loadPolicy`
-    // hands it `off` for exactly that reason. Relaying here would spawn
-    // processes to reach a gate that is switched off, and forcing it on is
-    // what made the naive one-line fix break thirty host tests.
+    // predates governance, has no operator and no policy, and the gate waves it
+    // through for exactly that reason (`isUnconfiguredTestRun`). Relaying here
+    // would spawn processes to reach a gate that is not running, and forcing it
+    // on is what made the naive one-line fix break thirty host tests. The
+    // exemption rode on an `off` posture until T86 D4; the posture is now the
+    // shipped `enforce`, and the exemption is the gate's own.
     expect(isUnconfiguredTestRun()).toBe(true);
     const policy = await loadPolicy(TEST_GROUP);
-    expect(policy.mode).toBe("off");
-    expect(governanceRequiresNativeToolRelay()).toBe(policy.mode !== "off");
+    expect(policy.mode).toBe("enforce");
+    expect(governanceRequiresNativeToolRelay()).toBe(!isUnconfiguredTestRun());
   });
 
   it("states which artefact is its source of truth", () => {

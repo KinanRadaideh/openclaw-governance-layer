@@ -192,7 +192,9 @@ export function renderKillNotice(
   // has more than one agent, and "lockdown engaged" alone did not say whose.
   const named = html`<strong>${agentLabel(agents, killNotice.agentId)}</strong> · `;
   const notice = killNotice.result;
-  const aborted = notice.abortedRunIds?.length ?? 0;
+  // Runs and the background shell processes the agent left running both count as
+  // work the stop ended (T86 D1).
+  const aborted = (notice.abortedRunIds?.length ?? 0) + (notice.endedProcessIds?.length ?? 0);
   // Shown **before** every other outcome, and it is the only branch that can
   // combine with any of them (finding 195): the stop landed, whichever way it
   // landed, and the ledger did not record it. A missing entry in a

@@ -1,5 +1,6 @@
 // Request and response shapes for escalations waiting for a person: the live ones
-// raised from a dashboard prompt (T68), and the timed-out ones answered later.
+// raised from a dashboard prompt (T68) or, since T86 D7, from any chat run, and the
+// timed-out ones answered later.
 //
 // **Types only**, on the rule `api.agent-control.ts` states: the client methods stay
 // with their siblings in `api.ts`, so there is one place to look for what the
@@ -20,6 +21,8 @@ export type GovernanceApproval = {
   allowedDecisions: GovernanceApprovalDecision[];
   createdAtMs: number;
   expiresAtMs: number;
+  /** The chat channel the run came from, or null for a dashboard prompt (T86 D7). */
+  origin?: string | null;
   /**
    * The agent whose folder this reads into, when it is another agent's (Kinan's decision of
    * 2026-10-08). Only that agent's owning Administrator and Root may allow such a read.

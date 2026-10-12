@@ -101,3 +101,80 @@ describe("ledger view projection", () => {
     expect(projectLedgerForActor([], admin)).toEqual([]);
   });
 });
+
+// T86 D12 (Kinan, 2026-10-10). A User's or Viewer's view hid every entry not tied to one of
+// their agents, so it left out that the installation's posture or global rules changed under
+// them. Six installation-policy action types are now shown, the ones whose content they
+// already read on the Policy page; every other installation-wide entry stays hidden, and so
+// does any type added later until it is put on the list.
+function installationEntry(seq: number, action: string, resource: string): LedgerEntry {
+  return {
+    seq,
+    timestamp: new Date(seq * 1000).toISOString(),
+    agentId: "-",
+    sessionKey: "-",
+    toolName: action,
+    resourceKind: "unknown",
+    resource,
+    ruleId: "admin",
+    decision: "allow",
+    entryKind: "admin",
+    actor: "root",
+    prevHash: `prev-${seq}`,
+    hash: `hash-${seq}`,
+  } as LedgerEntry;
+}
+
+describe("installation-policy entries (T86 D12)", () => {
+  const shown = [
+    "governance.policy.mode",
+    "governance.policy.ask",
+    "governance.policy.hitl-timeout",
+    "governance.policy.core-rule",
+    "governance.policy.rule.add",
+    "governance.policy.rule.remove",
+  ];
+  const hidden = [
+    "governance.account.create",
+    "governance.account.password-reset",
+    "governance.auth.login",
+    "governance.policy.user-ask",
+    "governance.organisation.delete",
+    "governance.ledger.alert-acknowledge",
+    "governance.backend.codex",
+    "governance.some.future-action",
+  ];
+  const installation = [
+    ...shown.map((action, index) => installationEntry(10 + index, action, `${action} changed`)),
+    ...hidden.map((action, index) => installationEntry(30 + index, action, `${action} secret`)),
+  ];
+
+  it("shows a User the six installation-policy types and nothing else installation-wide", () => {
+    const view = projectLedgerForActor([...ledger, ...installation], userOfA);
+    const installationTypes = view.filter((e) => e.agentId === "-").map((e) => e.toolName);
+    expect(installationTypes).toEqual(shown);
+    expect(view.find((e) => e.toolName === "governance.policy.mode")?.resource).toBe(
+      "governance.policy.mode changed",
+    );
+  });
+
+  it("shows a Viewer the same types, masked like every other entry", () => {
+    const view = projectLedgerForActor([...ledger, ...installation], viewerOfA);
+    const installationEntries = view.filter((e) => e.agentId === "-");
+    expect(installationEntries.map((e) => e.toolName)).toEqual(shown);
+    expect(installationEntries.every((e) => e.resource === REDACTED_RESOURCE)).toBe(true);
+  });
+
+  it("shows them to a User or Viewer who holds no agent yet", () => {
+    const unassigned: GovernanceActor = { username: "new", role: "user", assignedAgents: [] };
+    expect(projectLedgerForActor(installation, unassigned).map((e) => e.toolName)).toEqual(shown);
+  });
+
+  it("does not show an agent-scoped action of the same type to an account outside that agent", () => {
+    const agentRule = {
+      ...installationEntry(50, "governance.policy.rule.add", "x"),
+      agentId: "agent-b",
+    };
+    expect(projectLedgerForActor([agentRule], userOfA)).toEqual([]);
+  });
+});

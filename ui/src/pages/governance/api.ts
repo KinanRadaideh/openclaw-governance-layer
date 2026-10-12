@@ -88,9 +88,9 @@ export type GovernancePolicyRule = {
 };
 
 export type GovernancePolicyDocument = {
-  /** 2 since every rule gained a required description (T70). */
-  version: 2;
-  mode: "enforce" | "monitor" | "off";
+  /** 2 since every rule gained a required description (T70); 3 since the baseline hosts (T86 D3). */
+  version: 3;
+  mode: "enforce" | "monitor";
   ask: "off" | "on-miss";
   /** Per-agent overrides of `ask`; absent key means the agent uses the default. */
   agentAsk: Record<string, "off" | "on-miss">;
@@ -104,13 +104,10 @@ export type GovernancePolicyDocument = {
    */
   userAsk: Record<string, "off" | "on-miss">;
   /**
-   * Per-agent posture overrides; absent key means the agent follows `mode`.
-   *
-   * `off` can appear here on an installation whose `policy.json` was hand
-   * edited: the API refuses to set it, because a per-agent `off` also removes
-   * the kill switch and the core denials from that agent.
+   * Per-agent posture overrides; absent key means the agent follows `mode`. Never
+   * `off`: the server refuses it and drops a hand-edited one on load (T86 D4).
    */
-  agentMode: Record<string, "enforce" | "monitor" | "off">;
+  agentMode: Record<string, "enforce" | "monitor">;
   hitlTimeoutSeconds: number;
   /**
    * Per-agent approval timeouts in seconds; absent key means the installation value.
@@ -141,21 +138,10 @@ export type GovernanceRuleConflict = {
   message: string;
 };
 
-export type GovernanceActiveSession = {
-  runId: string;
-  agentId: string;
-  sessionKey: string;
-  startedAtMs: number;
-  expiresAtMs?: number;
-  runningForSeconds: number;
-  lockedDown: boolean;
-};
-
-export type GovernanceActiveSessionsView = {
-  supported: boolean;
-  sessions: GovernanceActiveSession[];
-  sampledAt: string;
-};
+// Run and host-resource shapes live in `api.monitoring.ts` (T86 D5's split), re-exported
+// so every module importing them from `./api.ts` keeps working.
+export type * from "./api.monitoring.ts";
+import type { GovernanceActiveSessionsView, GovernanceSystemStatus } from "./api.monitoring.ts";
 
 /**
  * A rule that is valid but grants more than it appears to. An unanchored
@@ -191,26 +177,6 @@ export type GovernanceIdentity = {
 // Rule-request shapes live in `api.rule-requests.ts` and are re-exported here, so
 // every module importing them from `./api.ts` keeps working (A11).
 export type * from "./api.rule-requests.ts";
-import type {
-  GovernanceAgentSettingRequestInput,
-  GovernanceRuleRequest,
-  GovernanceRuleRequestInput,
-} from "./api.rule-requests.ts";
-
-export type GovernanceSystemStatus = {
-  platform: string;
-  cpuCount: number;
-  loadAverage: [number, number, number];
-  loadAverageSupported: boolean;
-  totalMemoryBytes: number;
-  freeMemoryBytes: number;
-  usedMemoryPercent: number;
-  uptimeSeconds: number;
-  processUptimeSeconds: number;
-  processMemoryBytes: number;
-  sampledAt: string;
-};
-
 /**
  * The Root-tier deployment report (backlog item A7).
  *
@@ -220,6 +186,11 @@ export type GovernanceSystemStatus = {
 // Imported as well as re-exported: `export type { ... } from` forwards a name
 // without binding it locally, and the client method below annotates with it.
 import type { GovernanceDeploymentStatus } from "./api.deployment.ts";
+import type {
+  GovernanceAgentSettingRequestInput,
+  GovernanceRuleRequest,
+  GovernanceRuleRequestInput,
+} from "./api.rule-requests.ts";
 
 // The deployment report's shapes live in `api.deployment.ts` and are
 // re-exported here, so every module importing them from `./api.ts` keeps
@@ -556,10 +527,15 @@ export class GovernanceApi {
     return this.request<GovernanceApprovalsView>("approvals");
   }
 
-  decideApproval(id: string, decision: GovernanceApprovalDecision): Promise<{ answered: true }> {
+  /** `ttlMinutes` goes with "Always allow" only: the lifetime its request asks for (T86 D5). */
+  decideApproval(
+    id: string,
+    decision: GovernanceApprovalDecision,
+    ttlMinutes?: number,
+  ): Promise<{ answered: true }> {
     return this.request<{ answered: true }>("approvals/decide", {
       method: "POST",
-      body: { id, decision },
+      body: { id, decision, ...(ttlMinutes ? { ttlMinutes } : {}) },
     });
   }
 
@@ -601,8 +577,8 @@ export class GovernanceApi {
    * Switches one agent into `monitor` for observation, or back.
    *
    * Pass null to clear the override and follow the installation posture. `off`
-   * is not offered: it is not a weaker posture but the absence of the gate, so
-   * it stays an installation-wide administrator action.
+   * is not offered: it is not a weaker posture but the absence of the gate, and
+   * since T86 D4 no surface offers it.
    */
   setAgentMode(
     agentId: string,
@@ -990,10 +966,24 @@ export class GovernanceApi {
     return this.request<GovernanceRuleRequest>("rule-requests", { method: "POST", body: input });
   }
 
-  decideRuleRequest(id: string, approve: boolean, note?: string): Promise<GovernanceRuleRequest> {
+  /**
+   * `ttlMinutes` is the approved rule's lifetime (T86 D5): a number of minutes, `null` for
+   * a rule that never expires, or left out to grant what the request asked for.
+   */
+  decideRuleRequest(
+    id: string,
+    approve: boolean,
+    note?: string,
+    ttlMinutes?: number | null,
+  ): Promise<GovernanceRuleRequest> {
     return this.request<GovernanceRuleRequest>("rule-requests/decide", {
       method: "POST",
-      body: { id, approve, ...(note ? { note } : {}) },
+      body: {
+        id,
+        approve,
+        ...(note ? { note } : {}),
+        ...(ttlMinutes !== undefined ? { ttlMinutes } : {}),
+      },
     });
   }
 

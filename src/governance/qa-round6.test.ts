@@ -289,17 +289,18 @@ describe("the kill switch is not suspended by monitor mode", () => {
     });
   });
 
-  it("records the stop even when the posture is off, and does not block", async () => {
-    // `off` is the one posture that exempts it, because `off` means the gate is
-    // not running at all rather than running quietly.
-    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "off" });
+  it("blocks a locked agent although a stored posture says off (T86 D4)", async () => {
+    // `off` was the one posture that exempted a lockdown: the kill switch did not hold
+    // while governance was off. The posture is gone, and a document that still says
+    // `off` loads as `enforce`, so the stop holds.
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "off" as never });
     await lockAgent(TEST_GROUP, "agent-a");
     expect(
       await evaluateGovernancePolicy(
         { toolName: "exec", params: { command: "ls" } },
         { agentId: "agent-a" },
       ),
-    ).toBeUndefined();
+    ).toEqual({ block: true, blockReason: expect.stringContaining("locked down") });
   });
 });
 

@@ -103,11 +103,12 @@ describe("every action is recorded, governed or not", () => {
     expect(entry?.resource).toMatch(/unserialisable/);
   });
 
-  it("records nothing when the gate is switched off", async () => {
-    // "off" means no oversight is happening; logging would imply otherwise.
-    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "off" });
+  it("records the call although a stored posture says off (T86 D4)", async () => {
+    // `off` recorded nothing, a gap in Requirement 5's record. The posture is gone, and
+    // a document that still says `off` loads as `enforce`, so the call is recorded.
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "off" as never });
     await evaluateGovernancePolicy({ toolName: "mystery", params: {} }, ctx);
-    expect(await tailLedger(TEST_GROUP)).toEqual([]);
+    expect((await tailLedger(TEST_GROUP)).at(-1)?.decision).toBe("ungoverned");
   });
 
   it("keeps the chain valid across mixed governed and ungoverned entries", async () => {

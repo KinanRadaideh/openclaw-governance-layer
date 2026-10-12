@@ -21,12 +21,13 @@
 // registration path rather than a stub of it, which is what makes the
 // "unregistered agents are refused" tests meaningful: the registered case is
 // reached the way an operator reaches it.
-import { rm } from "node:fs/promises";
+import { rm, stat } from "node:fs/promises";
 import { resetAgentGroupCacheForTests } from "./agent-group.js";
 import { registerAgent } from "./agent-registry.js";
 import { clearCheckpointForTests, resetLedgerCursorForTests } from "./audit-ledger.js";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
-import { ensureGroupDir, ledgerFilePath, ledgerKeyFilePath } from "./paths.js";
+import { ensureGroupDir, ledgerFilePath, ledgerKeyFilePath, policyFilePath } from "./paths.js";
+import { resetPolicySealStateForTests } from "./policy-seal.js";
 import {
   createUser,
   deleteUser,
@@ -89,6 +90,7 @@ export async function seedGroupWithOwner(
 ): Promise<{ groupId: string; adminId: string }> {
   const groupId = newGroupId();
   await ensureGroupDir(groupId);
+  const hadPolicy = await exists(policyFilePath(groupId));
   const admin = await createUser(
     {
       username: `admin-${groupId}`,
@@ -110,6 +112,7 @@ export async function seedGroupWithOwner(
   await rm(ledgerKeyFilePath(), { force: true });
   resetLedgerKeyCacheForTests();
   resetLedgerCursorForTests();
+  await forgetSeededPolicy(groupId, hadPolicy);
   return { groupId, adminId: admin.id };
 }
 
@@ -136,6 +139,7 @@ export async function seedNamedGroup(
   // not have to create it, and `withFileLock` needs it before it can place a
   // lock beside the file it guards.
   await ensureGroupDir(groupId);
+  const hadPolicy = await exists(policyFilePath(groupId));
   const admin = agentIds.length
     ? await createUser(
         {
@@ -207,7 +211,34 @@ export async function seedNamedGroup(
   await rm(ledgerKeyFilePath(), { force: true });
   resetLedgerKeyCacheForTests();
   resetLedgerCursorForTests();
+  await forgetSeededPolicy(groupId, hadPolicy);
   return groupId;
+}
+
+async function exists(path: string): Promise<boolean> {
+  return stat(path).then(
+    () => true,
+    () => false,
+  );
+}
+
+/**
+ * **And the policy file the seeding wrote (T86 D9).**
+ *
+ * Deleting the seeded Administrator clears their escalation override, which writes
+ * `policy.json`, sealed under the key removed above. Left in place, that seal fails
+ * under the next key and the suite's first load would record a "changed outside the
+ * store" alert the suite never caused: the fixture manufacturing tampering again, as
+ * the checkpoint once did. The file held only the shipped baseline, which a load of no
+ * file gives back unchanged, so removing it restores the state the fixture found. A
+ * file the suite wrote before seeding is kept. What this process remembers about seals
+ * goes too, as the ledger cursor does.
+ */
+async function forgetSeededPolicy(groupId: string, hadPolicy: boolean): Promise<void> {
+  if (!hadPolicy) {
+    await rm(policyFilePath(groupId), { force: true });
+  }
+  resetPolicySealStateForTests();
 }
 
 /**

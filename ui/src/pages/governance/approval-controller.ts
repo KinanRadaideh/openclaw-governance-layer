@@ -16,6 +16,7 @@ import {
   type GovernanceIdentity,
 } from "./api.ts";
 import { canManageAnyAgent, isSessionLost } from "./identity.ts";
+import { lifetimeMinutes, NEVER } from "./panels/rule-lifetime.ts";
 
 /**
  * How often waiting approvals are re-read while the page is open.
@@ -36,6 +37,9 @@ export type ApprovalSlice = {
   viewer?: string;
   decide: (id: string, decision: GovernanceApprovalDecision) => void;
   dismissNotice: (id: string) => void;
+  /** The lifetime chosen beside one card's "Always allow" (T86 D5); `NEVER` until chosen. */
+  lifetimeFor: (id: string) => string;
+  setLifetime: (id: string, value: string) => void;
 };
 
 /** What the controller needs from the page. */
@@ -76,6 +80,8 @@ export class ApprovalController implements ReactiveController {
   private readonly dismissed = new Set<string>();
   private readonly errors = new Map<string, string>();
   private readonly answering = new Set<string>();
+  /** Per card, so a lifetime chosen on one question never rides along with another. */
+  private readonly lifetimes = new Map<string, string>();
   private timer: ReturnType<typeof setInterval> | undefined;
   private reading = false;
   /**
@@ -123,6 +129,11 @@ export class ApprovalController implements ReactiveController {
         this.lateAnswers = this.lateAnswers.filter((notice) => notice.id !== id);
         this.host.requestUpdate();
       },
+      lifetimeFor: (id) => this.lifetimes.get(id) ?? NEVER,
+      setLifetime: (id, value) => {
+        this.lifetimes.set(id, value);
+        this.host.requestUpdate();
+      },
     };
   }
 
@@ -146,6 +157,7 @@ export class ApprovalController implements ReactiveController {
     this.dismissed.clear();
     this.errors.clear();
     this.answering.clear();
+    this.lifetimes.clear();
     this.host.requestUpdate();
   }
 
@@ -173,6 +185,11 @@ export class ApprovalController implements ReactiveController {
       for (const id of this.errors.keys()) {
         if (!waiting.has(id)) {
           this.errors.delete(id);
+        }
+      }
+      for (const id of this.lifetimes.keys()) {
+        if (!waiting.has(id)) {
+          this.lifetimes.delete(id);
         }
       }
       this.approvals = view.approvals;
@@ -208,10 +225,16 @@ export class ApprovalController implements ReactiveController {
     this.answering.add(id);
     this.errors.delete(id);
     this.host.requestUpdate();
+    // Looked up before the answer is sent (finding 427): the two-second read can remove the
+    // card while the answer is in flight, and a notice that looked it up afterwards found
+    // nothing and named the question by its internal id.
+    const asked = this.approvals.find((approval) => approval.id === id);
     try {
-      await this.bridge.api().decideApproval(id, decision);
+      // The lifetime goes with "Always allow" only, the one answer that files a rule request.
+      const ttlMinutes =
+        decision === "allow-always" ? lifetimeMinutes(this.lifetimes.get(id) ?? NEVER) : null;
+      await this.bridge.api().decideApproval(id, decision, ttlMinutes ?? undefined);
       if (generation === this.generation) {
-        const asked = this.approvals.find((approval) => approval.id === id);
         this.approvals = this.approvals.filter((approval) => approval.id !== id);
         if (decision === "allow-always") {
           // Said, because nothing else on the card said where the "always" went: it is
@@ -240,7 +263,6 @@ export class ApprovalController implements ReactiveController {
       // Kept on the card it is about, until the next read shows the approval gone.
       this.errors.set(id, err instanceof Error ? err.message : String(err));
       if (err instanceof GovernanceApiError && err.status === 404) {
-        const asked = this.approvals.find((approval) => approval.id === id);
         this.lateAnswers = [
           ...this.lateAnswers.filter((notice) => notice.id !== `late:${id}`),
           {

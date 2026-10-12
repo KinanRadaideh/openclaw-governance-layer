@@ -25,6 +25,7 @@ import {
   LEDGER_GAP_ACTION,
   LEDGER_INTEGRITY_ACTOR,
   LEDGER_WITNESS_ACTION,
+  POLICY_FILE_ALERT_ACTION,
   type LedgerEntry,
 } from "./audit-ledger.js";
 import type { GovernanceRole } from "./roles.js";
@@ -257,6 +258,8 @@ export const ADMIN_ACTIONS = {
    */
   ledgerGap: LEDGER_GAP_ACTION,
   ledgerWitnessContradiction: LEDGER_WITNESS_ACTION,
+  /** The policy file changed outside the store (T86 D9), written by `policy-seal.ts`. */
+  policyFileChanged: POLICY_FILE_ALERT_ACTION,
   /**
    * Root acknowledged one of those alerts, with a stated reason. The alert stays
    * in the chain for ever; this entry is what stops the dashboard raising it.

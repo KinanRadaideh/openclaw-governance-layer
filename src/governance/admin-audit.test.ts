@@ -102,14 +102,15 @@ describe("policy changes are attributable", () => {
   });
 
   it("records a posture change as a transition, not just a destination", async () => {
-    await setMode(TEST_GROUP, "off", "kinan");
+    await setMode(TEST_GROUP, "monitor", "kinan");
     const entry = await entryFor(ADMIN_ACTIONS.modeChange);
     expect(entry?.actor).toBe("kinan");
-    expect(entry?.resource).toContain("enforce -> off");
+    expect(entry?.resource).toContain("enforce -> monitor");
   });
 
-  it("records switching the gate off. The change an attacker would most want unlogged", async () => {
-    await setMode(TEST_GROUP, "off", "mallory");
+  it("records loosening the gate. The change an attacker would most want unlogged", async () => {
+    // Monitor and ask-off are the widest settings left since T86 D4 removed `off`.
+    await setMode(TEST_GROUP, "monitor", "mallory");
     await setAskMode(TEST_GROUP, "off", "mallory");
     const actions = (await adminEntries()).map((entry) => entry.toolName);
     expect(actions).toContain(ADMIN_ACTIONS.modeChange);
@@ -327,7 +328,7 @@ describe("tamper-evidence survives the added fields", () => {
 
   it("continues an old chain with new administrative entries", async () => {
     await writeFile(ledgerFilePath(TEST_GROUP), legacyLine(), { mode: 0o600 });
-    await setMode(TEST_GROUP, "off", "kinan");
+    await setMode(TEST_GROUP, "monitor", "kinan");
     const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(true);
     expect(result.entriesChecked).toBe(2);

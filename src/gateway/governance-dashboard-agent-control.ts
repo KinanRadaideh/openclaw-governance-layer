@@ -810,6 +810,8 @@ export async function handleGovernanceAgentControlRoutes(
       dispatchMs: Math.round(outcome.termination.dispatchMs * 10) / 10,
       stoppedConfirmed: outcome.termination.stoppedConfirmed,
       abortedRunIds: outcome.termination.abortedRunIds,
+      // The background shell processes the stop ended (T86 D1).
+      endedProcessIds: outcome.termination.endedProcessIds,
       inFlightTerminationSupported: outcome.termination.supported,
       // The stop landed and its ledger entry did not (finding 195). Reported
       // beside the success rather than as a failure: the agent *is* stopped,

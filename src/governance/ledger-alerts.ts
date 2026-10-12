@@ -9,8 +9,9 @@
 // this project's lesson about a fact kept in two places: the copy goes stale.
 // An "unread alerts" file would be a second record an attacker could edit to
 // silence the banner while the chain still said otherwise. So the list is read
-// out of the ledger itself: an alert is an entry `isLedgerIntegrityAlert`
-// recognises, an acknowledgement is Root's `ledgerAlertAcknowledge` entry naming
+// out of the ledger itself: an alert is an entry `isGovernanceIntegrityAlert`
+// recognises (the ledger's own, and since T86 D9 a policy file changed outside
+// the store, `policy-seal.ts`), an acknowledgement is Root's `ledgerAlertAcknowledge` entry naming
 // it, and **both must carry a seal this installation's key produces**, so a line
 // appended by hand, without the key, can neither raise an alert nor clear one.
 //
@@ -23,7 +24,7 @@
 import { open, readFile, stat } from "node:fs/promises";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import {
-  isLedgerIntegrityAlert,
+  isGovernanceIntegrityAlert,
   ledgerEntrySealIsValid,
   listLedgerSegments,
   type LedgerEntry,
@@ -37,7 +38,10 @@ export type LedgerIntegrityAlert = {
   timestamp: string;
   /** The alert's own text: what was expected, what was found. */
   summary: string;
-  /** What it contradicts: `checkpoint:<seq>:<hash>`, `checkpoint:missing` or `witness:<seq>:<hash>`. */
+  /**
+   * What it contradicts: `checkpoint:<seq>:<hash>`, `checkpoint:missing`, `witness:<seq>:<hash>`,
+   * or `policy-file:<kind>:<fingerprint>` (T86 D9).
+   */
   subject: string;
 };
 
@@ -67,7 +71,7 @@ export function resetLedgerAlertIndexForTests(): void {
 }
 
 function absorb(index: AlertIndex, entry: LedgerEntry, key: Buffer | undefined): void {
-  if (isLedgerIntegrityAlert(entry)) {
+  if (isGovernanceIntegrityAlert(entry)) {
     if (ledgerEntrySealIsValid(entry, key)) {
       index.alerts.set(entry.seq, {
         seq: entry.seq,

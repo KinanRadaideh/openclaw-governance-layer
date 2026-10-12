@@ -223,7 +223,7 @@ export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResul
           ? t("governance.agentPolicy.override")
           : t("governance.agentPolicy.inherited"),
         control: renderSettingsStatus({
-          kind: posture.mode === "enforce" ? "ok" : posture.mode === "off" ? "warn" : "muted",
+          kind: posture.mode === "enforce" ? "ok" : "muted",
           label: posture.mode,
         }),
       }),

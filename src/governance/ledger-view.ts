@@ -186,11 +186,43 @@ function sanitizePromptEntry(entry: LedgerEntry): LedgerEntry {
   return { ...entry, resource: REDACTED_PROMPT };
 }
 
+/**
+ * The installation-wide entries every reader of the trail sees (T86 D12, Kinan, 2026-10-10).
+ *
+ * A User's or Viewer's view held only the entries of their own agents, so it left out that
+ * the posture or a rule binding every agent had changed under them. These six are the
+ * installation-policy acts, whose content they already read on the Policy page, so showing
+ * the entry discloses nothing new. A fixed list that fails closed: accounts, sign-ins,
+ * per-account escalation, the organisation, ledger integrity and the Codex backend stay
+ * hidden, and so does any action added later until someone decides to put it here.
+ */
+const INSTALLATION_POLICY_ACTIONS: ReadonlySet<string> = new Set([
+  ADMIN_ACTIONS.modeChange,
+  ADMIN_ACTIONS.askChange,
+  ADMIN_ACTIONS.hitlTimeoutChange,
+  ADMIN_ACTIONS.coreRuleToggle,
+  ADMIN_ACTIONS.ruleAdd,
+  ADMIN_ACTIONS.ruleRemove,
+]);
+
+/** The installation-scope agent id an administrative entry carries (`recordAdminAction`). */
+const INSTALLATION_AGENT_ID = "-";
+
+function isInstallationPolicyEntry(entry: LedgerEntry): boolean {
+  return (
+    entry.entryKind === "admin" &&
+    entry.agentId === INSTALLATION_AGENT_ID &&
+    INSTALLATION_POLICY_ACTIONS.has(entry.toolName)
+  );
+}
+
 export function projectLedgerForActor(
   entries: readonly LedgerEntry[],
   actor: GovernanceActor,
 ): LedgerEntry[] {
-  const visible = entries.filter((entry) => canViewAgent(actor, entry.agentId));
+  const visible = entries.filter(
+    (entry) => canViewAgent(actor, entry.agentId) || isInstallationPolicyEntry(entry),
+  );
   if (requiresSanitizedAudit(actor)) {
     // A Viewer's masking is stricter and already covers prompts, so applying
     // both would only replace one placeholder with another.

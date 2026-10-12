@@ -389,34 +389,13 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         options: [
           { value: "enforce", label: t("governance.policy.modeEnforce") },
           { value: "monitor", label: t("governance.policy.modeMonitor") },
-          { value: "off", label: t("governance.policy.modeOff") },
         ],
-        // QA round 13, finding 87. The risk gradient on this page was
-        // inverted. Deleting a single rule, which is recoverable in seconds,
-        // opened a confirmation dialog styled as dangerous. Switching the
-        // installation to `off`, which stops every protection for every
-        // agent, including the core denials the whole tier model exists to
-        // make unconditional, was a third segment in a toggle with no
-        // dialog, no distinct styling and no confirmation at all.
-        //
-        // Only `off` is gated. `monitor` still records every decision and
-        // `enforce` is stricter, so neither is a step an operator needs
-        // protecting from; interposing a dialog on those would train them to
-        // dismiss the one that matters.
+        // Two postures (T86 D4). The third, `off`, stopped every protection for every
+        // agent and sat behind a confirmation (finding 87) until it was removed; `monitor`
+        // still records every decision and keeps the forbid rules and the kill switch, so
+        // neither choice left needs a dialog.
         onChange: (mode) => {
-          const next = mode as GovernancePolicyDocument["mode"];
-          if (next !== "off") {
-            void props.run(() => props.api().setMode(next));
-            return;
-          }
-          void props.confirmThen(
-            {
-              message: t("governance.policy.confirmOff"),
-              details: t("governance.policy.confirmOffDetails"),
-              confirmLabel: t("governance.policy.confirmOffAction"),
-            },
-            () => props.api().setMode(next),
-          );
+          void props.run(() => props.api().setMode(mode as GovernancePolicyDocument["mode"]));
         },
       }),
     }),
@@ -541,9 +520,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
             ${renderSettingsValue(
               mode === "monitor"
                 ? t("governance.policy.modeMonitor")
-                : mode === "off"
-                  ? t("governance.policy.modeOff")
-                  : t("governance.policy.modeEnforce"),
+                : t("governance.policy.modeEnforce"),
             )}
             ${canEditPostures
               ? html`<button

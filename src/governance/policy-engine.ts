@@ -25,6 +25,7 @@ import { readAgentIntent } from "./agent-intent.js";
 import { findAgent } from "./agent-registry.js";
 import { nestedAgentWorkspaceRoots, otherAgentHoldingPath } from "./agent-workspace-roots.js";
 import { takeResolvingApprovalAnswerer, type ApprovalAnswerer } from "./approval-answerers.js";
+import { GOVERNANCE_APPROVAL_PLUGIN_ID } from "./approval-origin.js";
 import {
   appendLedgerEntry,
   MAX_LEDGER_RESOURCE_LENGTH,
@@ -43,7 +44,12 @@ import {
   type ResourceKind,
   resolveAskMode,
 } from "./policy-types.js";
-import { type GovernedToolSpec, resolveGovernedTool } from "./resource-extraction.js";
+import {
+  commandWorkingFolder,
+  type GovernedToolSpec,
+  resolveGovernedToolForCall,
+  WORKING_FOLDER_SPEC,
+} from "./resource-extraction.js";
 import { RuleRequestCapacityError, submitRuleRequest } from "./rule-requests.js";
 import { requestReasonRoom } from "./rule-validation.js";
 import { findLockedAncestor, lineageUnknown } from "./session-lineage.js";
@@ -91,6 +97,8 @@ export type GovernancePolicyDecision =
     }
   | {
       requireApproval: {
+        /** Always `GOVERNANCE_APPROVAL_PLUGIN_ID`: the dashboard answers it (T86 D7). */
+        pluginId: string;
         title: string;
         description: string;
         detail?: string;
@@ -296,13 +304,12 @@ export async function recordLoopDetectorBlock(input: {
     if (!groupId) {
       return;
     }
-    const doc = await loadPolicy(groupId);
-    if (effectivePosture(doc, agentId) === "off") {
-      // The gate is not running for this agent; recording would imply oversight that
-      // is not happening. The same posture the gate reads (finding 417).
+    // The gate's own exemption, for a test process that is not an installation (T86 D4
+    // removed the `off` posture that used to carry it).
+    if (isUnconfiguredTestRun()) {
       return;
     }
-    const spec = resolveGovernedTool(input.toolName);
+    const spec = resolveGovernedToolForCall(input.toolName, input.params);
     await appendLedgerEntry(groupId, {
       agentId: input.agentId,
       sessionKey: input.sessionKey,
@@ -512,6 +519,8 @@ export async function proposeRuleFromEscalation(
       ...(input.answeredBy
         ? { answeredBy: input.answeredBy.name, answeredByRole: input.answeredBy.role }
         : {}),
+      // The lifetime chosen beside "Always allow", asked for on the request (T86 D5).
+      ...(input.answeredBy?.ttlMinutes ? { ttlMinutes: input.answeredBy.ttlMinutes } : {}),
       reason: escalationRequestReason(
         { ...input, agentId },
         requestReasonRoom({
@@ -615,11 +624,19 @@ async function resolvePathMatchForms(
   return (resource) => byResource.get(resource) ?? [resource];
 }
 
+/**
+ * How the gate judges one part of a call on its own (T86 D2-A): the spec to use instead of
+ * the tool's, and the refusal to give when no rule covers it, in place of a question. Only
+ * the gate passes it, for the folder a command runs in.
+ */
+type PartJudgement = { spec: GovernedToolSpec; refuseOnMiss: (resource: string) => string };
+
 export async function evaluateGovernancePolicy(
   event: ToolCallEvent,
   ctx: ToolCallContext,
+  part?: PartJudgement,
 ): Promise<GovernancePolicyDecision> {
-  const spec = resolveGovernedTool(event.toolName);
+  const spec = part?.spec ?? resolveGovernedToolForCall(event.toolName, event.params);
   const agentId = resolveEffectiveAgentId(ctx);
   // ---------------------------------------------------------------------
   // **Whose rulebook? the question M5 added to the front of the gate.**
@@ -672,12 +689,13 @@ export async function evaluateGovernancePolicy(
         "policy applies to it. An Administrator must register it before it can act.",
     };
   }
-  const doc = await loadPolicy(groupId);
-  if (effectivePosture(doc, agentId) === "off") {
-    // The gate is switched off entirely; recording would imply oversight that
-    // is not happening.
+  // A test process that never asked for a governance directory is not an installation
+  // (`isUnconfiguredTestRun`): the exemption above for an unregistered agent, and the
+  // one the `off` posture carried until T86 D4 removed it. Production never reaches it.
+  if (isUnconfiguredTestRun()) {
     return undefined;
   }
+  const doc = await loadPolicy(groupId);
 
   // Lockdown is checked before anything else, including before asking whether
   // this tool is one we know how to judge.
@@ -855,6 +873,51 @@ export async function evaluateGovernancePolicy(
   }
 
   // ---------------------------------------------------------------------
+  // **The folder a command runs in is judged first, as a read of that folder** (T86 D2-A,
+  // Kinan, 2026-10-11). A command was judged as text only, so an allowed `pwd` or `git log`
+  // ran in any folder the agent named. The folder is judged against the path rules, core
+  // denials included, through this same gate, and recorded as a path entry beside the
+  // command's. Where no rule covers it the command is **refused, not put to a person**: one
+  // call can carry only one question, and a question about the folder would let an unlisted
+  // command run unasked (the precedent of search results, which have no approval path and
+  // are withheld). The refusal says how to go on: leave the folder out, or ask for a rule.
+  // ---------------------------------------------------------------------
+  const workingFolder = part ? undefined : commandWorkingFolder(event.toolName, event.params);
+  if (workingFolder !== undefined) {
+    const folderDecision = await evaluateGovernancePolicy(
+      { toolName: event.toolName, params: { path: workingFolder } },
+      ctx,
+      {
+        spec: WORKING_FOLDER_SPEC,
+        refuseOnMiss: (folder) =>
+          `governance: the folder "${folder}" this command would run in is not covered by a ` +
+          "path rule (default-deny). Leave the working folder out to run it in the agent's " +
+          "own folder, or ask an Administrator for a path rule that allows reading that folder.",
+      },
+    );
+    // Only a refusal counts here. An allowed folder may come back carrying the canonical
+    // path for a path tool (T23); a command is not a path tool and is handed nothing.
+    if (folderDecision && "block" in folderDecision) {
+      // The command is recorded as well, refused because of its folder, so the record says
+      // what the agent tried to run there (QA of D2: the folder alone was recorded). Not
+      // judged: a judgement could record a question nobody was asked.
+      for (const resource of await spec.extract(event, ctx.cwd)) {
+        await appendLedgerEntry(groupId, {
+          agentId,
+          sessionKey: ctx.sessionKey,
+          ...intentFields(ctx.sessionKey),
+          toolName: event.toolName,
+          resourceKind: spec.resourceKind,
+          resource,
+          ruleId: "working-folder-refused",
+          decision: "deny",
+        });
+      }
+      return folderDecision;
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // **Order matters here, and the first version of T23 had it wrong.**
   //
   // The binding used to be computed *after* `spec.extract`, from the agent's
@@ -1021,6 +1084,9 @@ export async function evaluateGovernancePolicy(
   // resources unaudited, which breaks the "record 100% of policy decisions"
   // requirement and hides the full blast radius of a multi-path edit.
   let firstMiss: string | undefined;
+  // A miss is refused under the strict ask setting, and always for a part of a call judged
+  // on its own (the folder a command runs in, T86 D2-A).
+  const refusesMiss = askMode === "off" || part !== undefined;
   for (const resource of resources) {
     const matched = activeRules.find((rule) =>
       matchForms(resource).some((form) => matchesPattern(rule.pattern, form)),
@@ -1029,7 +1095,7 @@ export async function evaluateGovernancePolicy(
     // Monitor mode changes whether we *act* on it, never what we write down,
     // a dry run whose log says "ask" when the rule says "deny" would make the
     // audit trail useless for predicting the effect of switching to enforce.
-    const decision: LedgerDecision = matched ? "allow" : askMode === "off" ? "deny" : "ask";
+    const decision: LedgerDecision = matched ? "allow" : refusesMiss ? "deny" : "ask";
 
     await appendLedgerEntry(groupId, {
       agentId,
@@ -1087,15 +1153,19 @@ export async function evaluateGovernancePolicy(
   {
     const resource = firstMiss;
     const hitlTimeoutMs = resolveHitlTimeoutMs(doc, agentId);
-    if (askMode === "off") {
+    if (refusesMiss) {
       return {
         block: true,
-        blockReason: `governance: ${spec.resourceKind} "${resource}" is not on the allowlist (default-deny)`,
+        blockReason: part
+          ? part.refuseOnMiss(resource)
+          : `governance: ${spec.resourceKind} "${resource}" is not on the allowlist (default-deny)`,
       };
     }
 
+    // "before permission becomes permanent" until T86 D5 (2026-10-11): an approved request
+    // can now grant a rule with a lifetime, so the sentence says what is true either way.
     const explanation =
-      '"Always allow" allows this action once and requests permission for future attempts. An Administrator must approve the request before permission becomes permanent.';
+      '"Always allow" allows this action once and requests permission for future attempts. An Administrator must approve the request before the action is allowed again without asking.';
     // When the question was put, so one that ends is recorded with the wait it
     // really had rather than the configured window.
     const askedAtMs = Date.now();
@@ -1112,6 +1182,9 @@ export async function evaluateGovernancePolicy(
     const actionDescription = escalationQuestion(agentId ?? "unknown", event.toolName, target);
     return {
       requireApproval: {
+        // The dashboard answers every escalation the gate raises, from any channel (T86 D7):
+        // this marks it as the gate's, see `approval-origin.ts`.
+        pluginId: GOVERNANCE_APPROVAL_PLUGIN_ID,
         title: `Governance: unlisted ${spec.resourceKind}`,
         description: `${truncateUtf16Safe(actionDescription, PLUGIN_APPROVAL_DESCRIPTION_MAX_LENGTH - explanation.length - 1)} ${explanation}`,
         detail: truncatePluginApprovalDetail(actionDescription),

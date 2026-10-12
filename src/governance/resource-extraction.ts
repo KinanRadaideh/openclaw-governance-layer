@@ -9,6 +9,10 @@
 // tool's parameter schema, extraction is declared per tool name here, in one
 // place, so adding governance for a new tool is a one-line addition instead of
 // a change buried in the policy engine.
+import { statSync } from "node:fs";
+import { homedir } from "node:os";
+import { isAbsolute as isAbsolutePath, resolve as resolvePath } from "node:path";
+import { readSnakeCaseParamRaw } from "../param-key.js";
 import { normalizeGovernedPath } from "./path-normalize.js";
 import type { ResourceKind } from "./policy-types.js";
 
@@ -564,4 +568,122 @@ export const GOVERNED_TOOLS: Record<string, GovernedToolSpec> = Object.assign(
 /** Safe lookup that never returns an inherited property. */
 export function resolveGovernedTool(toolName: string): GovernedToolSpec | undefined {
   return Object.hasOwn(GOVERNED_TOOLS, toolName) ? GOVERNED_TOOLS[toolName] : undefined;
+}
+
+/**
+ * The folder a shell command will run in, when the agent names one (T86 D2-A), resolved the
+ * way the tool resolves it, so the folder judged is the folder used (finding 428's lesson):
+ *
+ *   - `exec` takes `workdir`, trimmed, and hands it to the operating system as-is: a relative
+ *     one is under the **Gateway process's** working folder, and `~` is not expanded
+ *     (`resolveExecWorkdir`, `src/agents/bash-tools.exec-workdir.ts`).
+ *   - `terminal` takes `cwd` on `open`, and opens in the home folder unless it names an
+ *     existing absolute folder (`existingDirOrHome`, `src/gateway/terminal/launch.ts`).
+ *
+ * Undefined when no folder is named: the command runs where the agent's session does,
+ * which is what every rule was written against.
+ */
+export function commandWorkingFolder(
+  toolName: string,
+  params: Record<string, unknown>,
+): string | undefined {
+  if (toolName === "exec") {
+    const workdir = typeof params.workdir === "string" ? params.workdir.trim() : "";
+    return workdir ? resolvePath(process.cwd(), workdir) : undefined;
+  }
+  if (toolName === "terminal" && toolStringParam(params, "action") === "open") {
+    const cwd = typeof params.cwd === "string" ? params.cwd.trim() : "";
+    if (!cwd) {
+      return undefined;
+    }
+    return isAbsolutePath(cwd) && isExistingDirectory(cwd)
+      ? cwd
+      : process.env.HOME?.trim() || homedir();
+  }
+  return undefined;
+}
+
+function isExistingDirectory(dir: string): boolean {
+  try {
+    return statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * How the folder of a command is judged: as a read of that folder, against the path rules
+ * (T86 D2-A). The engine evaluates it before the command, and refuses the command when it
+ * is not covered rather than asking, because one call can carry only one question.
+ */
+export const WORKING_FOLDER_SPEC: GovernedToolSpec = {
+  resourceKind: "path",
+  access: "read",
+  extract: extractPaths,
+};
+
+/** Browser actions that load an address the agent names (`open`, `navigate`). */
+const BROWSER_NAVIGATION_ACTIONS = new Set(["open", "navigate"]);
+
+/**
+ * A tool parameter read exactly as the tools read one (`readStringParam`): the
+ * camelCase key or its snake_case spelling, trimmed, and absent when blank. Anything looser
+ * or stricter lets the check judge a value the browser does not act on.
+ */
+function toolStringParam(params: Record<string, unknown>, key: string): string | undefined {
+  const raw = readSnakeCaseParamRaw(params, key);
+  const value = typeof raw === "string" ? raw.trim() : "";
+  return value ? value : undefined;
+}
+
+/**
+ * The address a browser navigation names, or undefined when the call names none.
+ *
+ * The tool takes it as `url` or `targetUrl`. An address with no scheme is read as `https://`,
+ * as the browser itself reads it, so `github.com/openclaw` is judged by its host. One that
+ * still has no host (`file:`, `data:`, `about:`) is governed as written, which no host rule
+ * matches.
+ */
+function browserNavigationUrl(params: Record<string, unknown>): string | undefined {
+  if (!BROWSER_NAVIGATION_ACTIONS.has(toolStringParam(params, "action") ?? "")) {
+    return undefined;
+  }
+  // **The order the browser reads them in** (QA of 2026-10-11): `targetUrl` (or
+  // `target_url`), then `url`. Reading `url` first judged one address while the browser
+  // loaded the other, given both.
+  const raw = toolStringParam(params, "targetUrl") ?? toolStringParam(params, "url");
+  if (!raw) {
+    return undefined;
+  }
+  return /^[a-z][a-z0-9+.-]*:/iu.test(raw) ? raw : `https://${raw}`;
+}
+
+/**
+ * A browser navigation is a network access (T86 D3). The host it loads is judged against the
+ * network rules, the same allowlist as `web_fetch`, rather than the action name, so a rule
+ * allowing `browser:navigate` no longer allows every site. A link followed by a click, or a
+ * request made by script the page or `evaluate` runs, is not a navigation the agent names,
+ * and is outside this check (stated in the report as a limit).
+ */
+const BROWSER_NAVIGATION_SPEC: GovernedToolSpec = {
+  resourceKind: "network",
+  extract: async (event) => {
+    const url = browserNavigationUrl(event.params);
+    return url ? [extractNetworkResource(url)] : [];
+  },
+};
+
+/**
+ * The spec that governs this call: the tool's own, except a browser navigation, which is a
+ * network access (T86 D3). Every caller that judges or records a call goes through here, so
+ * the gate and the loop-detector record agree on what kind of resource a call touched.
+ */
+export function resolveGovernedToolForCall(
+  toolName: string,
+  params: Record<string, unknown>,
+): GovernedToolSpec | undefined {
+  if (toolName === "browser" && browserNavigationUrl(params) !== undefined) {
+    return BROWSER_NAVIGATION_SPEC;
+  }
+  return resolveGovernedTool(toolName);
 }

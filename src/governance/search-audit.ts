@@ -52,6 +52,7 @@ import { resolveAgentGroup } from "./agent-group.js";
 import { canonicalNestedAgentWorkspaceRoots, isInsideAnyRoot } from "./agent-workspace-roots.js";
 import { appendLedgerEntry } from "./audit-ledger.js";
 import { resolveGovernedPathForms } from "./path-normalize.js";
+import { isUnconfiguredTestRun } from "./paths.js";
 import { matchesPattern } from "./pattern-match.js";
 import { loadPolicy } from "./policy-store.js";
 import { isRuleExpired, type PolicyRule } from "./policy-types.js";
@@ -298,12 +299,12 @@ export async function auditSearchReach(params: {
     if (!groupId) {
       return;
     }
-    const doc = await loadPolicy(groupId);
-    if (doc.mode === "off") {
-      // The gate is switched off entirely and says so plainly; recording here
-      // would imply an oversight that is not running.
+    // The gate's exemption for a test process that is not an installation; it rode on
+    // the `off` posture until T86 D4 removed that posture.
+    if (isUnconfiguredTestRun()) {
       return;
     }
+    const doc = await loadPolicy(groupId);
     const denials = applicableDenials(doc.rules, params.agentId, Date.now());
     const nestedRoots = await canonicalNestedAgentWorkspaceRoots(params.agentId);
     if (denials.length === 0 && nestedRoots.length === 0) {
@@ -440,10 +441,10 @@ export async function filterSearchResult(params: {
       // to filter and nothing happened to record.
       return undefined;
     }
-    const doc = await loadPolicy(groupId);
-    if (doc.mode === "off") {
+    if (isUnconfiguredTestRun()) {
       return undefined;
     }
+    const doc = await loadPolicy(groupId);
     const denials = applicableDenials(doc.rules, params.agentId, Date.now());
     const nestedRoots = await canonicalNestedAgentWorkspaceRoots(params.agentId);
     if (denials.length === 0 && nestedRoots.length === 0) {

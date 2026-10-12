@@ -108,13 +108,13 @@ export async function lockDownAgent(
       target: !termination.supported
         ? `lockdown engaged; no in-flight termination available (${elapsedMs.toFixed(1)}ms)`
         : termination.stoppedConfirmed
-          ? `lockdown engaged; aborted ${termination.abortedRunIds.length} in-flight run(s); ` +
-            `signalled in ${termination.dispatchMs.toFixed(1)}ms, confirmed stopped in ${elapsedMs.toFixed(1)}ms`
-          : `lockdown engaged; aborted ${termination.abortedRunIds.length} in-flight run(s); ` +
-            `signalled in ${termination.dispatchMs.toFixed(1)}ms, stop NOT confirmed after ${elapsedMs.toFixed(1)}ms` +
-            (termination.stillRunningRunIds?.length
-              ? ` (${termination.stillRunningRunIds.length} still running)`
-              : " (no probe available to observe)"),
+          ? `lockdown engaged; aborted ${termination.abortedRunIds.length} in-flight run(s)` +
+            endedProcessesClause(termination) +
+            `; signalled in ${termination.dispatchMs.toFixed(1)}ms, confirmed stopped in ${elapsedMs.toFixed(1)}ms`
+          : `lockdown engaged; aborted ${termination.abortedRunIds.length} in-flight run(s)` +
+            endedProcessesClause(termination) +
+            `; signalled in ${termination.dispatchMs.toFixed(1)}ms, stop NOT confirmed after ${elapsedMs.toFixed(1)}ms` +
+            stillRunningClause(termination),
     });
   } catch (err) {
     // See `auditError`. The lockdown is already in force; the operator is told
@@ -123,6 +123,26 @@ export async function lockDownAgent(
   }
 
   return { agentId, elapsedMs, termination, ...(auditError ? { auditError } : {}) };
+}
+
+/** ", ended N background process(es)" when the stop reached any (T86 D1); empty otherwise. */
+function endedProcessesClause(termination: TerminationOutcome): string {
+  const ended = termination.endedProcessIds.length;
+  return ended > 0 ? `, ended ${ended} background process(es)` : "";
+}
+
+/** Why an unconfirmed stop is unconfirmed: what was still running, or that nothing could watch. */
+function stillRunningClause(termination: TerminationOutcome): string {
+  const runs = termination.stillRunningRunIds?.length ?? 0;
+  const processes = termination.stillRunningProcessIds?.length ?? 0;
+  if (runs === 0 && processes === 0) {
+    return " (no probe available to observe)";
+  }
+  const parts = [
+    ...(runs > 0 ? [`${runs} still running`] : []),
+    ...(processes > 0 ? [`${processes} background process(es) not yet exited`] : []),
+  ];
+  return ` (${parts.join(", ")})`;
 }
 
 /** Releases a lockdown. Does not restart anything that was aborted. */

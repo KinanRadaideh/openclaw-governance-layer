@@ -18,7 +18,11 @@ import type {
 } from "../../infra/plugin-approvals.js";
 import { resolvePluginApprovalTimeoutMs } from "../../infra/plugin-approvals.js";
 import type { ExecApprovalManager, ExecApprovalRecord } from "../exec-approval-manager.js";
-import { isGovernanceOwnedApprovalRequest } from "../governance-approval-scope.js";
+import {
+  GOVERNANCE_ANSWER_ELSEWHERE_REFUSED,
+  isGovernanceOwnedApprovalRequest,
+  isGovernanceRouteAnswer,
+} from "../governance-approval-scope.js";
 import { publishAppliedApprovalResolution } from "./approval-publication.js";
 import { runApprovalRequestDeliveries } from "./approval-request-delivery.js";
 import {
@@ -383,16 +387,23 @@ export function createPluginApprovalHandlers(
         client,
         exposeAmbiguousPrefixError: false,
         validateDecision: (snapshot) =>
-          resolveCanonicalPluginApprovalRequestAllowedDecisions(snapshot.request).includes(decision)
-            ? null
-            : {
-                message: `${decision} is unavailable for this plugin approval`,
-                details: {
-                  allowedDecisions: resolveCanonicalPluginApprovalRequestAllowedDecisions(
-                    snapshot.request,
-                  ),
+          // A governance escalation is answered by the governance route only, even through
+          // the trusted approval principal a chat's /approve also uses (T86 D7's QA).
+          isGovernanceOwnedApprovalRequest(snapshot.request) &&
+          !isGovernanceRouteAnswer(snapshot.id)
+            ? { message: GOVERNANCE_ANSWER_ELSEWHERE_REFUSED }
+            : resolveCanonicalPluginApprovalRequestAllowedDecisions(snapshot.request).includes(
+                  decision,
+                )
+              ? null
+              : {
+                  message: `${decision} is unavailable for this plugin approval`,
+                  details: {
+                    allowedDecisions: resolveCanonicalPluginApprovalRequestAllowedDecisions(
+                      snapshot.request,
+                    ),
+                  },
                 },
-              },
         forwardResolved: (resolvedEvent) =>
           opts?.forwarder?.handlePluginApprovalResolved?.(resolvedEvent),
         forwardResolvedErrorLabel: "plugin approvals: forward resolve failed",

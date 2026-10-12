@@ -195,8 +195,16 @@ describe("tier floors", () => {
       (await call("POST", "policy/mode", session("user", ["a"]), { mode: "off" })).status,
     ).toBe(403);
     expect(
-      (await call("POST", "policy/mode", session("administrator"), { mode: "off" })).status,
+      (await call("POST", "policy/mode", session("administrator"), { mode: "monitor" })).status,
     ).toBe(200);
+  });
+
+  it("refuses the off posture at every tier, Root included (T86 D4)", async () => {
+    for (const role of ["administrator", "root"] as const) {
+      const res = await call("POST", "policy/mode", session(role), { mode: "off" });
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toContain("cannot be switched off");
+    }
   });
 
   it("lets an Administrator assign agents but not manage accounts", async () => {
@@ -468,6 +476,11 @@ describe("per-agent posture", () => {
         mode: "off",
       });
       expect(result.status, actor.role).toBe(400);
+      // Since T86 D4 no surface offers `off`: the refusal must not send the caller to
+      // another route that would switch governance off (it named one until 2026-10-12).
+      const message = JSON.stringify(result.body);
+      expect(message).toContain("Governance cannot be switched off");
+      expect(message).not.toContain("installation-wide administrator action");
     }
     const policy = await call("GET", "policy", session("administrator"));
     expect((policy.body as { agentMode: Record<string, string> }).agentMode).toEqual({});

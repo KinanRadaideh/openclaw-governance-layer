@@ -67,6 +67,27 @@ describe("a request filed by Always allow (C15)", () => {
     expect(JSON.stringify(entry)).toContain('"lina"');
   });
 
+  // T86 D5-A: the lifetime chosen beside "Always allow" travels with the answer and is
+  // what the request asks for, so the Administrator sees it preselected.
+  it("asks for the lifetime the answering account chose", async () => {
+    const approval = await escalate("hostname");
+    noteApprovalAnswerer("plugin:timed", { name: "lina", role: "user" }, { ttlMinutes: 480 });
+
+    await runForResolvedApproval("plugin:timed", () => approval.onResolution!("allow-always"));
+
+    const [request] = await listRuleRequests(group);
+    expect(request).toMatchObject({ answeredBy: "lina", ttlMinutes: 480 });
+  });
+
+  it("asks for no lifetime when none was chosen", async () => {
+    const approval = await escalate("hostname");
+    noteApprovalAnswerer("plugin:untimed", { name: "lina", role: "user" });
+
+    await runForResolvedApproval("plugin:untimed", () => approval.onResolution!("allow-always"));
+
+    expect((await listRuleRequests(group))[0]).not.toHaveProperty("ttlMinutes");
+  });
+
   it("keeps the labelled origin when no governance account answered", async () => {
     const approval = await escalate("hostname");
 

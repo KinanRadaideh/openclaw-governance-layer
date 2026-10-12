@@ -101,6 +101,15 @@ describe("a command rule that lets the agent run code of its own choosing", () =
     }
   });
 
+  it("says the edit is detected but not prevented, and names no `off` posture (T86 D4, D9)", () => {
+    const message = describeRuleRisks("^python3? .*$", "command").find(
+      (w) => w.code === RUNS_CODE,
+    )?.message;
+    expect(message).toMatch(/detects such an edit and raises an integrity alert/);
+    expect(message).toMatch(/does not prevent it/);
+    expect(message).not.toMatch(/\boff\b/);
+  });
+
   it("does not warn on a denial, which restricts rather than grants", () => {
     expect(
       describeRuleRisks("^python3? .*$", "command", { effect: "deny" }).map((w) => w.code),

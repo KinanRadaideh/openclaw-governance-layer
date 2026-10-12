@@ -332,14 +332,15 @@ describe("round thirteen's three silent failures stay closed", () => {
   });
 
   it('a hand-written agentMode of "off" does not switch the gate off', async () => {
-    // `off` means the gate is not running, so a lockdown could not be enforced
-    //, which made it a way to opt out of the emergency stop by editing a JSON
-    // file. Dropped on load.
+    // `off` meant the gate was not running, so a lockdown could not be enforced,
+    // which made it a way to opt out of the emergency stop by editing a JSON
+    // file. Dropped on load; since T86 D4 there is no `off` posture at all, and
+    // this file is what a hand edit or an older version would leave.
     await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
       mode: "enforce",
       ask: "off",
-      agentMode: { a1: "off" },
+      agentMode: { a1: "off" as never },
     });
     await addRule(
       TEST_GROUP,

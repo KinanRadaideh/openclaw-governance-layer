@@ -609,10 +609,8 @@ describe("the posture in force is reported (finding 390)", () => {
     expect((await withPolicy({ mode: "enforce" })).status).toBe("pass");
   });
 
-  it("fails when governance is switched off", async () => {
-    const check = await withPolicy({ mode: "off" });
-    expect(check.status).toBe("fail");
-    expect(check.detail).toContain("switched off");
+  it("passes for a stored Off, which loads as Enforce since T86 D4 removed the posture", async () => {
+    expect((await withPolicy({ mode: "off" as never })).status).toBe("pass");
   });
 
   it("warns for Monitor, installation-wide or for one agent", async () => {

@@ -14,6 +14,7 @@ import {
   noteApprovalAnswerer,
   takeResolvingApprovalAnswerer,
 } from "../governance/approval-answerers.js";
+import { GOVERNANCE_APPROVAL_PLUGIN_ID } from "../governance/approval-origin.js";
 import {
   onInternalDiagnosticEvent,
   onDiagnosticEvent,
@@ -3287,6 +3288,60 @@ describe("before_tool_call requireApproval handling", () => {
     });
     expect(mockCallGateway).not.toHaveBeenCalled();
     expect(onResolution).toHaveBeenCalledWith("cancelled");
+  });
+
+  describe("T86 D7: the governance gate's escalations are answered on the dashboard", () => {
+    // A channel that cannot show an approval: not registered here and not deliverable, so
+    // `resolveApprovalInitiatingSurfaceState` reads it as unsupported (a disabled one ends
+    // in the same refusal).
+    const chatRun = {
+      agentId: "main",
+      sessionKey: "agent:main:pager:direct:alice",
+      trigger: "user",
+      turnSourceChannel: "pager-without-approvals",
+      turnSourceTo: "12345",
+    };
+    const approvalFrom = (pluginId: string) => ({
+      requireApproval: { pluginId, title: "Governance: unlisted command", description: "Asks" },
+    });
+
+    it("refuses another plugin's approval from a chat whose channel cannot show it (the control)", async () => {
+      hookRunner.runBeforeToolCall.mockResolvedValue(approvalFrom("some-other-plugin"));
+      const result = await runBeforeToolCallHook({
+        toolName: "bash",
+        params: { command: "gh run view 1" },
+        ctx: chatRun,
+      });
+      expect(result).toMatchObject({ blocked: true, deniedReason: "plugin-approval-unavailable" });
+      expect(mockCallGateway).not.toHaveBeenCalled();
+    });
+
+    it("asks the governance gate's question even so, because the dashboard answers it", async () => {
+      hookRunner.runBeforeToolCall.mockResolvedValue(approvalFrom(GOVERNANCE_APPROVAL_PLUGIN_ID));
+      mockCallGateway.mockResolvedValueOnce({ id: "gov-id", status: "accepted" });
+      mockCallGateway.mockResolvedValueOnce({ id: "gov-id", decision: "deny" });
+      const result = await runBeforeToolCallHook({
+        toolName: "bash",
+        params: { command: "gh run view 1" },
+        ctx: chatRun,
+      });
+      expect(mockCallGateway.mock.calls.map(([method]) => method)).toEqual([
+        "plugin.approval.request",
+        "plugin.approval.waitDecision",
+      ]);
+      expect(result).toMatchObject({ blocked: true });
+    });
+
+    it("still refuses a background run's question at once: nobody is waiting on it", async () => {
+      hookRunner.runBeforeToolCall.mockResolvedValue(approvalFrom(GOVERNANCE_APPROVAL_PLUGIN_ID));
+      const result = await runBeforeToolCallHook({
+        toolName: "bash",
+        params: { command: "gh run view 1" },
+        ctx: { agentId: "main", sessionKey: "main", trigger: "cron" },
+      });
+      expect(result).toMatchObject({ blocked: true, deniedReason: "plugin-approval-unavailable" });
+      expect(mockCallGateway).not.toHaveBeenCalled();
+    });
   });
 
   it("keeps waiting when an interactive approval surface is bound", async () => {

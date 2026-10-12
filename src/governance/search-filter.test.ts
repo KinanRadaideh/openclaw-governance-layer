@@ -279,10 +279,10 @@ describe("what it deliberately leaves alone", () => {
     expect(filtered).toBeUndefined();
   });
 
-  it("returns undefined when the posture is off", async () => {
+  it("still withholds when a stored posture says off (T86 D4)", async () => {
     await denyPath(".*\\.env$");
     const doc = await loadPolicy(TEST_GROUP);
-    await savePolicy(TEST_GROUP, { ...doc, mode: "off" });
+    await savePolicy(TEST_GROUP, { ...doc, mode: "off" as never });
     const filtered = await filterSearchResult({
       toolName: "grep",
       toolParams: { path: "." },
@@ -290,9 +290,9 @@ describe("what it deliberately leaves alone", () => {
       agentId: AGENT,
       cwd: workspace,
     });
-    // Switched off means switched off. Filtering while claiming not to be
-    // running would be the oversight-that-is-not-happening the ledger avoids.
-    expect(filtered).toBeUndefined();
+    // `off` stopped the filtering. The posture is gone, and a document that still
+    // says `off` loads as `enforce`, so the denied result is withheld.
+    expect(filtered).toBeDefined();
   });
 
   it("returns undefined for an agent no registry knows", async () => {

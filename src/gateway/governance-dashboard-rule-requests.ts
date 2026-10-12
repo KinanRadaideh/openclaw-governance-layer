@@ -25,7 +25,7 @@ import { canManageAgent, canViewAgent, type GovernanceActor } from "../governanc
 import {
   addRule,
   loadPolicy,
-  PER_AGENT_OFF_REFUSED,
+  POSTURE_OFF_REFUSED,
   setAgentAskMode,
   setAgentMode,
   TooManyRulesError,
@@ -47,7 +47,9 @@ import {
   MAX_RULE_DESCRIPTION_LENGTH,
   fitGeneratedDescription,
   requestedRuleDescription,
+  ruleExpiryAfter,
   validateRulePattern,
+  validateRuleTtlMinutes,
 } from "../governance/rule-validation.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import { requireGroup } from "./governance-dashboard-group.js";
@@ -87,10 +89,22 @@ function withApprovalPreview(
         resourceKind: request.resourceKind,
         pattern: request.pattern,
         ...(request.agentId ? { agentId: request.agentId } : {}),
+        // With the lifetime approving would grant by default, the one the request asked
+        // for (QA of 2026-10-11): without it a time-limited request was previewed as a
+        // permanent grant. A stored value that is not valid previews as none.
+        ...previewExpiry(request.ttlMinutes),
       },
       now,
     ),
   } as RuleRequestRecord;
+}
+
+/** The expiry a request's own lifetime would give, for the preview; undefined when none. */
+function previewExpiry(ttlMinutes: unknown): { expiresAt: string } | undefined {
+  const lifetime = validateRuleTtlMinutes(ttlMinutes);
+  return lifetime.ok && lifetime.ttlMinutes
+    ? { expiresAt: ruleExpiryAfter(lifetime.ttlMinutes) }
+    : undefined;
 }
 
 function isResourceKind(value: unknown): value is ResourceKind {
@@ -172,6 +186,9 @@ function isFiledForCurrentAgent(
  * created rule's description.
  */
 const MAX_REQUEST_REASON_LENGTH = MAX_RULE_DESCRIPTION_LENGTH;
+
+const TTL_ON_SETTING_REFUSED =
+  "ttlMinutes applies to rule requests only: a setting request creates no rule to expire";
 
 export type RuleRequestRouteContext = {
   requireRole: (
@@ -321,13 +338,18 @@ export async function handleGovernanceRuleRequestRoutes(
         });
         return true;
       }
+      // A setting request creates no rule, so a lifetime on one could only be ignored.
+      if ((body as { ttlMinutes?: unknown }).ttlMinutes !== undefined) {
+        sendInvalidRequest(res, TTL_ON_SETTING_REFUSED);
+        return true;
+      }
       if (!isApplicableSettingValue(settingRaw, value)) {
         sendInvalidRequest(
           res,
           settingRaw === "ask"
             ? "value must be off or on-miss"
             : value === "off"
-              ? PER_AGENT_OFF_REFUSED
+              ? POSTURE_OFF_REFUSED
               : "value must be enforce or monitor",
         );
         return true;
@@ -391,11 +413,19 @@ export async function handleGovernanceRuleRequestRoutes(
       sendInvalidRequest(res, `reason must be at most ${MAX_REQUEST_REASON_LENGTH} characters`);
       return true;
     }
+    // **How long the rule should last, asked for like its direction (T86 D5).** Checked as
+    // "Add a rule" checks its lifetime; it starts counting when the request is approved.
+    const lifetime = validateRuleTtlMinutes((body as { ttlMinutes?: unknown }).ttlMinutes);
+    if (!lifetime.ok) {
+      sendInvalidRequest(res, lifetime.error);
+      return true;
+    }
     try {
       sendJson(
         res,
         200,
         await submitRuleRequest(groupId, {
+          ...(lifetime.ttlMinutes ? { ttlMinutes: lifetime.ttlMinutes } : {}),
           resourceKind,
           pattern: validatedPattern.pattern,
           reason,
@@ -444,6 +474,16 @@ export async function handleGovernanceRuleRequestRoutes(
       sendInvalidRequest(res, `note must be at most ${MAX_REQUEST_REASON_LENGTH} characters`);
       return true;
     }
+    // **The approval may set the rule's lifetime (T86 D5, option A).** Absent grants the
+    // lifetime the request asked for, if any, because an Administrator grants what was
+    // reviewed; `null` grants a rule that never expires, as an Administrator may write one
+    // outright. Checked before the decision is claimed, like the note.
+    const lifetimeGiven = "ttlMinutes" in body;
+    const lifetime = validateRuleTtlMinutes(body.ttlMinutes);
+    if (!lifetime.ok) {
+      sendInvalidRequest(res, lifetime.error);
+      return true;
+    }
     const pending = await findPendingRuleRequest(groupId, id);
     if (!pending) {
       sendJson(res, 404, {
@@ -451,6 +491,31 @@ export async function handleGovernanceRuleRequestRoutes(
       });
       return true;
     }
+    if (approve && lifetimeGiven && pending.kind === "agent-setting") {
+      sendInvalidRequest(res, TTL_ON_SETTING_REFUSED);
+      return true;
+    }
+    // The request's own lifetime is read from disk, so it is checked like a typed one (QA of
+    // 2026-10-11): a corrupt value threw while computing the date, and must never be granted
+    // as no limit. Refused before the claim; naming a lifetime on the approval still works,
+    // and so does rejecting, which grants nothing.
+    const asked =
+      approve && !lifetimeGiven && pending.kind !== "agent-setting"
+        ? validateRuleTtlMinutes(pending.ttlMinutes)
+        : undefined;
+    if (asked && !asked.ok) {
+      sendInvalidRequest(
+        res,
+        "This request's stored lifetime is not a valid number of minutes. Approve it with a " +
+          "lifetime chosen here, or reject it.",
+      );
+      return true;
+    }
+    const grantedTtlMinutes = lifetimeGiven ? lifetime.ttlMinutes : asked?.ttlMinutes;
+    const ruleExpiresAt =
+      approve && pending.kind !== "agent-setting" && grantedTtlMinutes
+        ? ruleExpiryAfter(grantedTtlMinutes)
+        : undefined;
     // **Refused before the decision is claimed, not after (finding 365).** A request
     // stored before submission checked its value can ask for an `off` posture, which
     // `setAgentMode` refuses. Claiming first would write "approved" to the ledger and
@@ -464,7 +529,7 @@ export async function handleGovernanceRuleRequestRoutes(
       sendInvalidRequest(
         res,
         pending.setting === "mode" && pending.value === "off"
-          ? `${PER_AGENT_OFF_REFUSED} Reject this request instead.`
+          ? `${POSTURE_OFF_REFUSED} Reject this request instead.`
           : "This request asks for a value that cannot be applied. Reject it instead.",
       );
       return true;
@@ -506,6 +571,7 @@ export async function handleGovernanceRuleRequestRoutes(
       decidedBy: session.username,
       decidedByRole: session.role,
       ...(decisionNote ? { note: decisionNote } : {}),
+      ...(ruleExpiresAt ? { ruleExpiresAt } : {}),
     });
     if (!decided) {
       sendJson(res, 409, {
@@ -570,6 +636,8 @@ export async function handleGovernanceRuleRequestRoutes(
             // gate: after approving, a write to the escalated path came back
             // allowed.
             ...(decided.access ? { access: decided.access } : {}),
+            // The lifetime decided above, the one the decision entry already states.
+            ...(ruleExpiresAt ? { expiresAt: ruleExpiresAt } : {}),
             // The request's mandatory reason is the rule's description (T70), so
             // the justification an Administrator approved is the sentence the rule
             // is listed under and the ledger records.

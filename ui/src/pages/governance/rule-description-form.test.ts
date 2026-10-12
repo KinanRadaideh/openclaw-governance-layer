@@ -94,7 +94,7 @@ const OPERATOR: GovernancePolicyRule = {
 
 function policyWith(rules: GovernancePolicyRule[]): GovernancePolicyDocument {
   return {
-    version: 2,
+    version: 3,
     mode: "enforce",
     ask: "off",
     agentMode: {},

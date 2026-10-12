@@ -13,9 +13,9 @@
 //     not already show, and every open dashboard is one more copy of how far the
 //     ledger had got. Restricting it would only make the witness rarer.
 //   - **Alerts are Administrator.** They are installation-wide entries (`agentId`
-//     `-`), which `projectLedgerForActor` already shows to Administrator and
-//     above only; the banner follows the ledger's own scoping rather than
-//     inventing one.
+//     `-`) outside the six policy kinds every reader sees (T86 D12), so
+//     `projectLedgerForActor` shows them to Administrator and above only; the
+//     banner follows the ledger's own scoping rather than inventing one.
 //   - **Acknowledging is Root.** It is the decision to carry on after history
 //     was lost, about the installation's evidence as a whole; the other
 //     installation-level judgements (the deployment report, the backend) are

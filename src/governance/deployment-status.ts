@@ -595,37 +595,31 @@ export async function readDeploymentStatus(
   const monitored = Object.entries(policy.agentMode ?? {})
     .filter(([, mode]) => mode === "monitor")
     .map(([agentId]) => agentId);
+  // Off failed here until T86 D4 removed the posture (2026-10-10); a stored `off` now
+  // loads as Enforce, so the two states left are the ones below.
   checks.push(
-    policy.mode === "off"
+    policy.mode === "monitor"
       ? check(
           "deployment.posture_enforce",
           "Governance is enforcing",
-          "fail",
-          "Governance is switched off for every agent: nothing is checked, blocked or recorded, the core denials and the kill switch included.",
-          "Set the posture back to Enforce in the Policy section of the governance dashboard.",
+          "warn",
+          "The installation is in Monitor: forbid rules and the kill switch still apply, and every action no rule covers is allowed and only recorded.",
+          "Set the posture back to Enforce in the Policy section once the rules you were discovering are written.",
         )
-      : policy.mode === "monitor"
+      : monitored.length > 0
         ? check(
             "deployment.posture_enforce",
             "Governance is enforcing",
             "warn",
-            "The installation is in Monitor: forbid rules and the kill switch still apply, and every action no rule covers is allowed and only recorded.",
-            "Set the posture back to Enforce in the Policy section once the rules you were discovering are written.",
+            `Enforcing, except ${monitored.length} agent(s) in Monitor, where actions no rule covers are allowed and only recorded: ${monitored.join(", ")}.`,
+            "Use default on each agent's posture row in the Policy section once its rules are written.",
           )
-        : monitored.length > 0
-          ? check(
-              "deployment.posture_enforce",
-              "Governance is enforcing",
-              "warn",
-              `Enforcing, except ${monitored.length} agent(s) in Monitor, where actions no rule covers are allowed and only recorded: ${monitored.join(", ")}.`,
-              "Use default on each agent's posture row in the Policy section once its rules are written.",
-            )
-          : check(
-              "deployment.posture_enforce",
-              "Governance is enforcing",
-              "pass",
-              "Enforce is the posture for every agent: an action no rule covers is asked about or refused.",
-            ),
+        : check(
+            "deployment.posture_enforce",
+            "Governance is enforcing",
+            "pass",
+            "Enforce is the posture for every agent: an action no rule covers is asked about or refused.",
+          ),
   );
 
   // -------------------------------------------------------------------
@@ -680,13 +674,13 @@ export async function readDeploymentStatus(
   // **The gate's own off switch, asserted rather than assumed.**
   //
   // `isUnconfiguredTestRun()` in `paths.ts` is true when a `VITEST` variable is
-  // present and `OPENCLAW_GOVERNANCE_DIR` is not, and two places consult it:
-  // a fresh policy starts `mode: "off"`, and the engine waves through a call
-  // whose agent has no resolvable group. Both are correct for OpenClaw's own
-  // harness suite, which has no operator, no policy and no approver.
+  // present and `OPENCLAW_GOVERNANCE_DIR` is not, and the engine consults it
+  // to wave every call through (it carried the `off` posture's job too until
+  // T86 D4 removed that posture). Correct for OpenClaw's own harness suite,
+  // which has no operator, no policy and no approver.
   //
   // **What makes it worth a deployment check is the failure mode rather than
-  // the likelihood.** `mode: "off"` returns before the lockdown check and
+  // the likelihood.** The exemption returns before the lockdown check and
   // before the core denials, and deliberately records nothing, because
   // recording would imply oversight that is not happening. So a Gateway that
   // reached this state would enforce nothing, refuse nothing, and write no
@@ -718,7 +712,7 @@ export async function readDeploymentStatus(
           "deployment.gate_not_disarmed",
           "The governance gate is armed",
           "fail",
-          'A VITEST variable is present and OPENCLAW_GOVERNANCE_DIR is unset, so this process is treated as an unconfigured test run: a fresh policy starts in "off", an agent with no resolvable group is allowed through, and neither is written to the ledger. The gate is not enforcing.',
+          "A VITEST variable is present and OPENCLAW_GOVERNANCE_DIR is unset, so this process is treated as an unconfigured test run: every governed call is allowed through without a check, and none is written to the ledger. The gate is not enforcing.",
           "Unset VITEST and VITEST_WORKER_ID in the environment this Gateway starts from, then restart it. If this is genuinely a test process, no action is needed and this report is not describing an installation.",
         )
       : check(
@@ -727,7 +721,7 @@ export async function readDeploymentStatus(
           "pass",
           // What the gate enforces is the posture check's to say (finding 390); this sentence used
           // to claim enforcement while the posture was Off.
-          "The test-only posture that disables the gate does not apply here.",
+          "The test-only exemption that disables the gate does not apply here.",
         ),
   );
 

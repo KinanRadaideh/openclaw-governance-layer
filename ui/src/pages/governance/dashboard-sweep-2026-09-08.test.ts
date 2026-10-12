@@ -102,7 +102,7 @@ function sectionText(heading: string): string {
 
 function policyNaming(agentIds: string[]): GovernancePolicyDocument {
   return {
-    version: 2,
+    version: 3,
     mode: "enforce",
     ask: "off",
     agentMode: Object.fromEntries(agentIds.map((agentId) => [agentId, "monitor"])),

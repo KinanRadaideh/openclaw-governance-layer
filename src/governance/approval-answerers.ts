@@ -9,13 +9,22 @@
 //
 // Nothing here is authority: the note only names who asked, on a request an
 // Administrator still decides. A note is taken once, forgotten when the answer does not
-// land, and bounded, so a callback that never runs cannot grow this without limit. An
-// approval answered anywhere else (a chat run, the Control UI) has no note, and its
-// request keeps the labelled origin `hitl-approval`.
+// land, and bounded, so a callback that never runs cannot grow this without limit. Since
+// T86 D7 every escalation the gate raises, from any channel, is answered through that
+// route (finding 429: only it may resolve one), so its request always names the account;
+// `requestedBy` stays the labelled origin `hitl-approval` for the queue's budget.
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { GovernanceRole } from "./roles.js";
 
-export type ApprovalAnswerer = { name: string; role: GovernanceRole };
+export type ApprovalAnswerer = {
+  name: string;
+  role: GovernanceRole;
+  /**
+   * How long the answering account asked the rule to last, chosen beside "Always allow"
+   * (T86 D5); the request it files asks for this. Absent asks for no limit.
+   */
+  ttlMinutes?: number;
+};
 
 /** Longer than the longest approval window (24 hours), so a slow answer still finds its note. */
 const NOTE_TTL_MS = 25 * 60 * 60 * 1000;
@@ -40,10 +49,19 @@ function prune(now: number): void {
 }
 
 /** Called by the approvals route before it resolves `approvalId`. */
-export function noteApprovalAnswerer(approvalId: string, answerer: ApprovalAnswerer): void {
+export function noteApprovalAnswerer(
+  approvalId: string,
+  answerer: Omit<ApprovalAnswerer, "ttlMinutes">,
+  answer: { ttlMinutes?: number } = {},
+): void {
   const now = Date.now();
   prune(now);
-  notes.set(approvalId, { ...answerer, notedAtMs: now });
+  notes.set(approvalId, {
+    name: answerer.name,
+    role: answerer.role,
+    ...(answer.ttlMinutes ? { ttlMinutes: answer.ttlMinutes } : {}),
+    notedAtMs: now,
+  });
 }
 
 /** Called by the approvals route when its answer did not land. */
@@ -64,5 +82,11 @@ export function takeResolvingApprovalAnswerer(): ApprovalAnswerer | undefined {
   }
   const note = notes.get(approvalId);
   notes.delete(approvalId);
-  return note ? { name: note.name, role: note.role } : undefined;
+  return note
+    ? {
+        name: note.name,
+        role: note.role,
+        ...(note.ttlMinutes ? { ttlMinutes: note.ttlMinutes } : {}),
+      }
+    : undefined;
 }

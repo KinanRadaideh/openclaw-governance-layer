@@ -237,24 +237,26 @@ describe("loop-detector blocks reach the ledger", () => {
     expect(entry?.agentId).toBe("agent-a");
   });
 
-  it("stays silent when the gate is switched off", async () => {
-    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "off" });
+  it("records the block although a stored posture says off (T86 D4)", async () => {
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "off" as never });
     await recordLoopDetectorBlock({
       toolName: "exec",
       params: { command: "ls" },
       agentId: "agent-a",
       reason: "repeated",
     });
-    expect((await tailLedger(TEST_GROUP)).filter((e) => e.entryKind !== "admin")).toHaveLength(0);
+    expect((await tailLedger(TEST_GROUP)).at(-1)?.ruleId).toBe("loop-detector");
   });
 
   // Finding 417. The gate reads the agent's own posture before the installation's, so an
-  // agent pinned to `enforce` is governed while the installation is `off`. This record
-  // read only the installation posture, and dropped that agent's loop-detector blocks.
-  it("records a block for an agent whose own posture keeps it governed", async () => {
+  // agent pinned to `enforce` was governed while the installation was `off`, and this
+  // record read only the installation posture and dropped that agent's blocks. Since T86
+  // D4 there is no `off` posture: a stored one loads as `enforce`, so every agent's
+  // block is recorded, the pinned agent's and the one that follows the installation.
+  it("records a block for every agent, pinned or not, when a stored posture says off", async () => {
     await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
-      mode: "off",
+      mode: "off" as never,
       agentMode: { "agent-a": "enforce" },
     });
     await recordLoopDetectorBlock({
@@ -265,7 +267,7 @@ describe("loop-detector blocks reach the ledger", () => {
     });
     expect((await tailLedger(TEST_GROUP)).at(-1)?.ruleId).toBe("loop-detector");
 
-    // An agent with no override still follows the installation, which is off.
+    // An agent with no override follows the installation, which loads as enforce.
     await recordLoopDetectorBlock({
       toolName: "exec",
       params: { command: "ls" },
@@ -276,7 +278,7 @@ describe("loop-detector blocks reach the ledger", () => {
       (await tailLedger(TEST_GROUP)).filter(
         (e) => e.entryKind !== "admin" && e.agentId === "agent-b",
       ),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
   });
 
   it("redacts a secret in the refused payload", async () => {

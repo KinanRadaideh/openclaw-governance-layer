@@ -49,6 +49,10 @@ export type GovernanceRuleRequest = {
   access?: "read" | "write";
   /** `false` on a pending request whose agent is no longer registered; approval is refused (finding 366). */
   agentRegistered?: false;
+  /** How long the requester asked the rule to last, in minutes from approval (T86 D5). */
+  ttlMinutes?: number;
+  /** When the rule an approval created expires; absent when it never does (T86 D5). */
+  ruleExpiresAt?: string;
 };
 
 /** What an agent-setting request may ask for: never `off` for a posture (finding 365). */
@@ -69,4 +73,6 @@ export type GovernanceRuleRequestInput = {
   agentId?: string;
   /** A path request's direction; omit to ask for both. Refused on other kinds. */
   access?: "read" | "write";
+  /** How long the rule should last once approved; omit for a rule that never expires. */
+  ttlMinutes?: number;
 };

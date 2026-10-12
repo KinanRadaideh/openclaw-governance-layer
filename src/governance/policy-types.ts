@@ -7,8 +7,22 @@
 // confused by sharing names.
 import { canonicalAccountName } from "./account-name.js";
 
-/** Governance-layer posture. "enforce" is the only mode that can block. */
-export type GovernanceMode = "enforce" | "monitor" | "off";
+/**
+ * Governance-layer posture. `enforce` blocks or asks on what no rule allows; `monitor`
+ * lets it through and records what `enforce` would have decided. Forbid rules and the
+ * kill switch hold in both.
+ *
+ * There is no `off` (T86 D4, Kinan, 2026-10-10: "remove off from the dashboard and from
+ * our project completely"). `off` skipped the gate entirely: no forbid rule, no kill
+ * switch, no record. `monitor` already gives "observe without blocking" and keeps all
+ * three. A document stored with `off` loads as the default, `enforce`.
+ */
+export type GovernanceMode = "enforce" | "monitor";
+
+/** Whether a value from outside (a request body, a stored document) is a posture. */
+export function isGovernanceMode(value: unknown): value is GovernanceMode {
+  return value === "enforce" || value === "monitor";
+}
 
 /** What happens when a governed tool call matches no rule. */
 export type AskMode = "off" | "on-miss";
@@ -130,7 +144,9 @@ export type PolicyRule = {
  * version 2 by the next policy write; a version-2 document is trusted to carry a
  * description on every rule, and one that does not is malformed.
  */
-export const POLICY_DOCUMENT_VERSION = 2;
+// 2: every rule carries a description (T70). 3: the baseline network hosts (T86 D3).
+// 4: the shipped listing rule narrowed to the project (T86 D2-A).
+export const POLICY_DOCUMENT_VERSION = 4;
 
 export type PolicyDocument = {
   version: typeof POLICY_DOCUMENT_VERSION;

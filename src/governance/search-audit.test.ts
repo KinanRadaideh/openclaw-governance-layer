@@ -200,12 +200,12 @@ describe("it stays off the ordinary path", () => {
     expect(await reachEntries()).toHaveLength(0);
   });
 
-  it("writes nothing while the gate is switched off", async () => {
-    // `off` means the gate is not running and says so plainly. Recording here
-    // would imply an oversight that is not happening.
+  it("records the reach although a stored posture says off (T86 D4)", async () => {
+    // `off` wrote nothing here. The posture is gone, and a document that still says
+    // `off` loads as `enforce`, so the reach is recorded.
     await denyPath("(^|/)\\.env$");
     const doc = await loadPolicy(TEST_GROUP);
-    await savePolicy(TEST_GROUP, { ...doc, mode: "off" });
+    await savePolicy(TEST_GROUP, { ...doc, mode: "off" as never });
     await auditSearchReach({
       toolName: "grep",
       toolParams: { path: workspace },
@@ -213,7 +213,7 @@ describe("it stays off the ordinary path", () => {
       agentId: "agent-a",
       cwd: workspace,
     });
-    expect(await reachEntries()).toHaveLength(0);
+    expect(await reachEntries()).toHaveLength(1);
   });
 });
 

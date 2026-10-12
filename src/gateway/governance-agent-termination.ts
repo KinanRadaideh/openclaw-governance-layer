@@ -12,8 +12,20 @@
 // AbortController, which propagates to cooperative tool code and, for spawned
 // subprocesses, to OS process-tree termination
 // (src/process/exec-termination.ts).
+//
+// That abort deliberately spares a shell command the agent moved to the background
+// (`bash-tools.exec-run.ts`: "Tool-call abort should not kill backgrounded sessions"),
+// and a command still running after its yield window is moved there on its own. So the
+// terminator also ends the agent's background exec sessions, through the same cancel the
+// `process` tool's kill uses (T86 D1).
+import {
+  cancelBackgroundExecSession,
+  isBackgroundExecSessionActive,
+} from "../agents/bash-process-control.js";
+import { listRunningSessions, type ProcessSession } from "../agents/bash-process-registry.js";
 import { registerActiveSessionsSupplier } from "../governance/active-sessions.js";
 import { registerAgentTerminator } from "../governance/agent-terminator.js";
+import { killProcessTree } from "../process/kill-tree.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../routing/session-key.js";
 import { abortChatRunById, type ChatAbortOps } from "./chat-abort.js";
 
@@ -46,6 +58,52 @@ function runsForAgent(ops: ChatAbortOps, rawAgentId: string): Array<[string, str
 }
 
 /**
+ * The agent a background exec session belongs to, read from its keys.
+ *
+ * The exec tool scopes a session by the run's session key (`agent:<id>:<rest>`), or by
+ * `agent:<id>` when there is none (`resolveProcessToolScopeKey`), so either key names it.
+ */
+function processOwnerAgentId(session: ProcessSession): string | undefined {
+  for (const key of [session.sessionKey, session.scopeKey]) {
+    if (!key) {
+      continue;
+    }
+    const parsed = parseAgentSessionKey(key)?.agentId ?? /^agent:([^:]+)$/u.exec(key)?.[1];
+    if (parsed) {
+      return normalizeAgentId(parsed);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Ends the agent's running background shell processes; returns the ids signalled.
+ *
+ * The cancel is OpenClaw's own, so the registry records why the process ended; it is
+ * graceful (a polite signal, then force after a three-second grace), which on Windows
+ * took 5.3 s to end a plain `node` child. An emergency stop does not wait out a grace
+ * period, so the process tree is then killed at once (`taskkill /F /T`, SIGKILL), as
+ * Chapter 1 described the kill switch.
+ */
+function endBackgroundProcessesForAgent(rawAgentId: string): string[] {
+  const agentId = normalizeAgentId(rawAgentId);
+  const ended: string[] = [];
+  for (const session of listRunningSessions()) {
+    if (session.exited || processOwnerAgentId(session) !== agentId) {
+      continue;
+    }
+    const pid = session.pid;
+    if (cancelBackgroundExecSession(session.id)) {
+      ended.push(session.id);
+      if (pid !== undefined) {
+        killProcessTree(pid, { force: true });
+      }
+    }
+  }
+  return ended;
+}
+
+/**
  * Installs the terminator. `resolveOps` is called per invocation so the
  * kill switch always acts on the Gateway's live run registry rather than a
  * snapshot captured at startup.
@@ -53,9 +111,12 @@ function runsForAgent(ops: ChatAbortOps, rawAgentId: string): Array<[string, str
 export function installGovernanceAgentTerminator(resolveOps: () => ChatAbortOps | undefined): void {
   registerAgentTerminator(
     (agentId) => {
+      // Processes first: they belong to no run, so a Gateway with no run registry yet
+      // can still end them.
+      const endedProcessIds = endBackgroundProcessesForAgent(agentId);
       const ops = resolveOps();
       if (!ops) {
-        return { abortedRunIds: [] };
+        return { abortedRunIds: [], endedProcessIds };
       }
       const abortedRunIds: string[] = [];
       for (const [runId, sessionKey] of runsForAgent(ops, agentId)) {
@@ -68,7 +129,7 @@ export function installGovernanceAgentTerminator(resolveOps: () => ChatAbortOps 
           abortedRunIds.push(runId);
         }
       }
-      return { abortedRunIds };
+      return { abortedRunIds, endedProcessIds };
     },
     // The probe reads the same live registry the terminator acted on, so
     // "gone from chatAbortControllers" is the Gateway's own definition of a run
@@ -80,6 +141,8 @@ export function installGovernanceAgentTerminator(resolveOps: () => ChatAbortOps 
       }
       return runIds.filter((runId) => ops.chatAbortControllers.has(runId));
     },
+    // A process has stopped once the registry has seen it exit.
+    (processIds) => processIds.filter((id) => isBackgroundExecSessionActive(id)),
   );
 }
 

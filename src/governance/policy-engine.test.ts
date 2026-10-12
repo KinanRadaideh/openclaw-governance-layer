@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { GOVERNANCE_APPROVAL_PLUGIN_ID } from "./approval-origin.js";
 import { appendLedgerEntry, tailLedger } from "./audit-ledger.js";
 import { ledgerFilePath } from "./paths.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
@@ -9,6 +10,7 @@ import {
   addRule,
   loadPolicy,
   lockAgent,
+  POSTURE_OFF_REFUSED,
   savePolicy,
   setAgentAskMode,
   setMode,
@@ -93,6 +95,16 @@ describe("governance policy engine", () => {
     expect(verdict(decision)).toBe("ask");
   });
 
+  it("marks its escalation as the governance gate's, so the dashboard answers it (T86 D7)", async () => {
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "rm -rf /" } },
+      { ...ctx, turnSourceChannel: "telegram" } as typeof ctx,
+    );
+    expect(
+      decision && "requireApproval" in decision ? decision.requireApproval.pluginId : null,
+    ).toBe(GOVERNANCE_APPROVAL_PLUGIN_ID);
+  });
+
   it("allows a command matching an active rule", async () => {
     await addRule(
       TEST_GROUP,
@@ -155,19 +167,23 @@ describe("governance policy engine", () => {
     expect(entries.at(-1)?.decision).toBe("deny");
   });
 
-  it("is inert when the posture is off", async () => {
-    await setMode(TEST_GROUP, "off", "tester");
+  it("refuses the off posture, which no longer exists (T86 D4)", async () => {
+    await expect(setMode(TEST_GROUP, "off" as never, "tester")).rejects.toThrow(
+      POSTURE_OFF_REFUSED,
+    );
+    expect((await loadPolicy(TEST_GROUP)).mode).toBe("enforce");
+  });
+
+  it("is not inert when a stored posture says off: it decides and records (T86 D4)", async () => {
+    await savePolicy(TEST_GROUP, { ...(await loadPolicy(TEST_GROUP)), mode: "off" as never });
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "rm -rf /" } },
       ctx,
     );
-    expect(verdict(decision)).toBe("allow");
-    // `off` records nothing for the agent action. The posture change itself is
-    // an administrative act and is still recorded. Switching the gate off is
-    // exactly the kind of change an audit trail must not lose.
-    expect((await tailLedger(TEST_GROUP)).filter((entry) => entry.entryKind !== "admin")).toEqual(
-      [],
-    );
+    expect(verdict(decision)).not.toBe("allow");
+    expect(
+      (await tailLedger(TEST_GROUP)).filter((entry) => entry.entryKind !== "admin"),
+    ).not.toEqual([]);
   });
 
   it("does not judge tools it has no extractor for, but still records them", async () => {
@@ -611,15 +627,6 @@ describe("per-agent HITL override (design doc §1.6)", () => {
   // these return `undefined`, and `verdict` reports that as "allow".
   // ---------------------------------------------------------------------
   describe("every path through the gate ends in a decision", () => {
-    it("posture off. The gate is not running, and says so by allowing", async () => {
-      await setMode(TEST_GROUP, "off", "tester");
-      expect(
-        verdict(
-          await evaluateGovernancePolicy({ toolName: "exec", params: { command: "id" } }, ctx),
-        ),
-      ).toBe("allow");
-    });
-
     it("lockdown. Refused before the tool is even classified", async () => {
       await lockAgent(TEST_GROUP, "demo");
       expect(

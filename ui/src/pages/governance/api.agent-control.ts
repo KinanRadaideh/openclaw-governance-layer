@@ -90,6 +90,8 @@ export type GovernanceKillResult = {
    */
   stoppedConfirmed?: boolean;
   abortedRunIds?: string[];
+  /** Background shell processes the stop ended (T86 D1). */
+  endedProcessIds?: string[];
   inFlightTerminationSupported?: boolean;
   /**
    * Present when the stop landed but its ledger entry could not be written

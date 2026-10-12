@@ -662,6 +662,13 @@ export const LEDGER_GAP_ACTION = "governance.ledger.gap";
  */
 export const LEDGER_WITNESS_ACTION = "governance.ledger.witness-contradiction";
 
+/**
+ * The policy file was changed by something other than the governance store (T86 D9).
+ * Written by `policy-seal.ts`. An alert about governance's own records, shown with the
+ * two above, but not about the chain, which is intact: see `isGovernanceIntegrityAlert`.
+ */
+export const POLICY_FILE_ALERT_ACTION = "governance.policy.file-changed";
+
 /** Whether an entry is one of the ledger's own integrity alerts. */
 export function isLedgerIntegrityAlert(entry: LedgerEntry): boolean {
   return (
@@ -669,6 +676,21 @@ export function isLedgerIntegrityAlert(entry: LedgerEntry): boolean {
     entry.actor === LEDGER_INTEGRITY_ACTOR &&
     entry.keyed === true &&
     (entry.toolName === LEDGER_GAP_ACTION || entry.toolName === LEDGER_WITNESS_ACTION)
+  );
+}
+
+/**
+ * Whether an entry is any integrity alert a person is shown (T73's banner): the ledger's
+ * own, and the policy file's (T86 D9). Verification counts the first kind only, because
+ * a changed policy file leaves the chain intact.
+ */
+export function isGovernanceIntegrityAlert(entry: LedgerEntry): boolean {
+  return (
+    isLedgerIntegrityAlert(entry) ||
+    (entry.entryKind === "admin" &&
+      entry.actor === LEDGER_INTEGRITY_ACTOR &&
+      entry.keyed === true &&
+      entry.toolName === POLICY_FILE_ALERT_ACTION)
   );
 }
 
@@ -871,13 +893,17 @@ async function recordCheckpointDisagreement(
 }
 
 /**
- * Appends one of the ledger's own integrity alerts that is not a gap line: the
- * dashboard witness's contradiction (`ledger-witness.ts`). The gap check runs
- * first, as for every append.
+ * Appends an integrity alert that is not a gap line: the dashboard witness's
+ * contradiction (`ledger-witness.ts`) or a policy file changed outside the store
+ * (`policy-seal.ts`, T86 D9). The gap check runs first, as for every append.
  */
 export async function appendIntegrityAlert(
   groupId: string,
-  fields: { toolName: typeof LEDGER_WITNESS_ACTION; resource: string; ruleId: string },
+  fields: {
+    toolName: typeof LEDGER_WITNESS_ACTION | typeof POLICY_FILE_ALERT_ACTION;
+    resource: string;
+    ruleId: string;
+  },
 ): Promise<LedgerEntry> {
   await ensureGroupDir(groupId);
   const key = await loadLedgerKey();

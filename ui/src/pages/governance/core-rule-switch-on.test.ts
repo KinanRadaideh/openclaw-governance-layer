@@ -16,7 +16,7 @@ const RULE_ID = "core-command-privilege-escalation-sudo-su-doas-runas-pkexec";
 
 function policy(): GovernancePolicyDocument {
   return {
-    version: 2,
+    version: 3,
     mode: "enforce",
     ask: "on-miss",
     agentAsk: {},

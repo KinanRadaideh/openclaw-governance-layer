@@ -50,8 +50,8 @@ import { isUnconfiguredTestRun } from "./paths.js";
  * governance directory: and that exception is not a special case invented
  * here, which is the whole point of writing it this way.
  *
- * `loadPolicy` already creates the policy for such a process with `mode: "off"`
- * (see `paths.ts`, `isUnconfiguredTestRun`, and QA finding 46): OpenClaw's own
+ * The gate already waves such a process through (`isUnconfiguredTestRun` in `paths.ts`,
+ * QA finding 46; it did so through an `off` posture until T86 D4 removed it): OpenClaw's own
  * harness suite predates governance, drives synthetic tool calls through the
  * hook, and has no operator, no policy and no approver, so it is not an
  * installation and is not governed. Relaying for it would mean spawning relay
@@ -62,7 +62,7 @@ import { isUnconfiguredTestRun } from "./paths.js";
  * parts of the system that must agree, each correct alone, disagreeing because
  * nothing forced them to be derived from one source. If the relay requirement
  * carried its own copy of "is this a real installation?", the copy could drift
- * from the posture rule: and drift in one direction is a governed installation
+ * from the gate's exemption: and drift in one direction is a governed installation
  * whose harness sessions are silently ungoverned. `qa-round15.test.ts` asserts
  * the agreement directly, on a fresh policy, in both environments.
  */

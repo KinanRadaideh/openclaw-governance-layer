@@ -301,14 +301,10 @@ describe("posture semantics", () => {
     expect(last?.decision).toBe("deny");
   });
 
-  it("off records nothing for the agent and enforces nothing", async () => {
-    await setMode(TEST_GROUP, "off", "kinan");
-    expect(
-      verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "rm" } }, ctx)),
-    ).toBe("allow");
-    expect(
-      (await tailLedger(TEST_GROUP)).filter((entry) => entry.entryKind !== "admin"),
-    ).toHaveLength(0);
+  it("off cannot be set: the posture is enforce or monitor (T86 D4)", async () => {
+    await expect(setMode(TEST_GROUP, "off" as never, "kinan")).rejects.toThrow(
+      /cannot be switched off/,
+    );
   });
 });
 

@@ -7,6 +7,7 @@
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import type { GovernancePolicyRule } from "../api.ts";
 import type { AgentSettingRequestDrafts } from "./agent-setting-request.ts";
+import { NEVER } from "./rule-lifetime.ts";
 
 export type RuleRequestDrafts = AgentSettingRequestDrafts & {
   requestKind: GovernancePolicyRule["resourceKind"];
@@ -22,6 +23,14 @@ export type RuleRequestDrafts = AgentSettingRequestDrafts & {
    */
   decisionNoteFor: string;
   decisionNote: string;
+  /** How long the filed rule should last once approved (T86 D5); `NEVER` asks for no limit. */
+  requestLifetime: string;
+  /**
+   * The lifetime an Administrator chose on one pending row, and which row, on the note's
+   * per-row shape. A row with no choice of its own approves what its request asked for.
+   */
+  decisionLifetimeFor: string;
+  decisionLifetime: string;
 };
 
 export function emptyRuleRequestDrafts(): RuleRequestDrafts {
@@ -33,6 +42,9 @@ export function emptyRuleRequestDrafts(): RuleRequestDrafts {
     requestAccess: "",
     decisionNoteFor: "",
     decisionNote: "",
+    requestLifetime: NEVER,
+    decisionLifetimeFor: "",
+    decisionLifetime: NEVER,
     settingAgentId: "",
     settingKind: "mode",
     settingValue: "",

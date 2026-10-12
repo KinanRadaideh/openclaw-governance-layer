@@ -18,6 +18,7 @@ import {
 } from "../governance/foreign-folder-approval.js";
 import { canManageAgent, type GovernanceActor } from "../governance/permissions.js";
 import { readAgentPolicyHoldings } from "../governance/policy-store.js";
+import { validateRuleTtlMinutes } from "../governance/rule-validation.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import type { ExecApprovalDecision } from "../infra/exec-approvals.js";
 import {
@@ -182,6 +183,22 @@ export async function handleGovernanceApprovalRoutes(
       sendInvalidRequest(res, `${decision} is not offered for this approval`);
       return true;
     }
+    // **How long the rule "Always allow" asks for should last (T86 D5, option A).** Only
+    // that answer files a request, so a lifetime on any other is refused rather than
+    // dropped; checked as "Add a rule" checks one. The Administrator still decides it.
+    const ttlRaw = (body as { ttlMinutes?: unknown }).ttlMinutes;
+    const lifetime = validateRuleTtlMinutes(ttlRaw);
+    if (!lifetime.ok) {
+      sendInvalidRequest(res, lifetime.error);
+      return true;
+    }
+    if (lifetime.ttlMinutes && decision !== "allow-always") {
+      sendInvalidRequest(
+        res,
+        "ttlMinutes goes with allow-always only: no other answer files a rule",
+      );
+      return true;
+    }
     // A read into another agent's folder is allowed only by the people responsible for
     // that folder. Denying stays open to every account that manages the reading agent.
     if (decision !== "deny") {
@@ -213,7 +230,11 @@ export async function handleGovernanceApprovalRoutes(
     // written by the policy's callback in the agent's run, which learns the decision
     // and not the person; noted before resolving, because resolving is what runs it.
     if (decision === "allow-always") {
-      noteApprovalAnswerer(id, { name: session.username, role: session.role });
+      noteApprovalAnswerer(
+        id,
+        { name: session.username, role: session.role },
+        lifetime.ttlMinutes ? { ttlMinutes: lifetime.ttlMinutes } : {},
+      );
     }
     let answer: Awaited<ReturnType<typeof answerGovernanceApproval>>;
     try {

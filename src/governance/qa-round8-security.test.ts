@@ -13,7 +13,7 @@ import { appendLedgerEntry, tailLedger } from "./audit-ledger.js";
 import { projectLedgerForActor, REDACTED_RESOURCE } from "./ledger-view.js";
 import { ledgerFilePath, sessionsFilePath } from "./paths.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
-import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
+import { addRule, loadPolicy, savePolicy, setUserAskMode } from "./policy-store.js";
 import { defaultPolicyDocument, resolveAskMode } from "./policy-types.js";
 import { issueSession, verifySession } from "./session-tokens.js";
 import { seedNamedGroup } from "./test-group.js";
@@ -220,15 +220,21 @@ describe("the viewer tier is confidentiality, not just read-only", () => {
     );
   });
 
-  it("hides installation-wide administrative entries from a scoped account", async () => {
-    // An installation-wide change carries no agent, so the scope filter keeps
-    // it to Administrator and above. A User must not learn the posture changed.
+  it("shows a scoped account the installation's policy changes, and no other installation-wide entry", async () => {
+    // An installation-wide change carries no agent, and until T86 D12 the scope filter
+    // kept every one to Administrator and above, so a User could not learn the posture or
+    // a rule binding every agent had changed. Kinan decided (2026-10-10) that they should
+    // see the six policy kinds, which they already read on the Policy page, and nothing
+    // else installation-wide: a per-account escalation setting stays hidden.
     await addRule(
       TEST_GROUP,
       { description: "test rule", resourceKind: "command", pattern: "^ls$" },
       "kinan",
     );
-    expect(projectLedgerForActor(await tailLedger(TEST_GROUP), user)).toHaveLength(0);
+    await setUserAskMode(TEST_GROUP, "someone-else", "off", "kinan");
+    expect(
+      projectLedgerForActor(await tailLedger(TEST_GROUP), user).map((entry) => entry.toolName),
+    ).toEqual(["governance.policy.rule.add"]);
   });
 });
 

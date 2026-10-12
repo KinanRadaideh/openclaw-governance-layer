@@ -360,8 +360,9 @@ export function describeRuleRisks(
           `choosing, which amounts to allowing every command. Inside that code a path ` +
           `can be put together while it runs, where the shipped denials protecting the ` +
           `governance layer's own files (policy, accounts, ledger) cannot see it, so the ` +
-          `agent could edit the policy file itself: put itself into monitor, or switch ` +
-          `governance off. Allow one script with fixed arguments instead ` +
+          `agent could edit the policy file itself: put itself into monitor, or give ` +
+          `itself a rule. Governance detects such an edit and raises an integrity alert, ` +
+          `but it does not prevent it. Allow one script with fixed arguments instead ` +
           `(for example ^python3 scripts/report[.]py$), and if you need this, give it a ` +
           `short time limit.`,
       });
@@ -451,16 +452,45 @@ export type TtlValidation = { ok: true; expiresAt?: string } | { ok: false; erro
  * quietly promoted to a permanent one.
  */
 export function resolveRuleTtl(ttlMinutes: unknown): TtlValidation {
+  const minutes = validateRuleTtlMinutes(ttlMinutes);
+  if (!minutes.ok) {
+    return minutes;
+  }
+  return minutes.ttlMinutes === undefined
+    ? { ok: true }
+    : { ok: true, expiresAt: ruleExpiryAfter(minutes.ttlMinutes) };
+}
+
+export type TtlMinutesValidation = { ok: true; ttlMinutes?: number } | { ok: false; error: string };
+
+/**
+ * Checks a caller-supplied lifetime in minutes without turning it into a date yet.
+ *
+ * `resolveRuleTtl`'s rules, for a lifetime that is stored before it starts (T86 D5): a
+ * rule request asks for one, and it counts from the approval, not from the asking.
+ * Capped as there, so a stored value can never overflow a date later.
+ */
+export function validateRuleTtlMinutes(ttlMinutes: unknown): TtlMinutesValidation {
   if (ttlMinutes === undefined || ttlMinutes === null || ttlMinutes === "") {
     return { ok: true };
   }
-  const value = typeof ttlMinutes === "number" ? ttlMinutes : Number(ttlMinutes);
+  // Booleans are refused before `Number`, which reads `true` as one minute.
+  const value =
+    typeof ttlMinutes === "number"
+      ? ttlMinutes
+      : typeof ttlMinutes === "string"
+        ? Number(ttlMinutes)
+        : Number.NaN;
   if (!Number.isFinite(value)) {
     return { ok: false, error: "ttl must be a number of minutes" };
   }
   if (value <= 0) {
     return { ok: false, error: "ttl must be greater than zero (omit it for an indefinite rule)" };
   }
-  const capped = Math.min(value, MAX_RULE_TTL_MINUTES);
-  return { ok: true, expiresAt: new Date(Date.now() + capped * 60_000).toISOString() };
+  return { ok: true, ttlMinutes: Math.min(value, MAX_RULE_TTL_MINUTES) };
+}
+
+/** The expiry of a rule that starts now and lasts `ttlMinutes` (already validated). */
+export function ruleExpiryAfter(ttlMinutes: number): string {
+  return new Date(Date.now() + Math.min(ttlMinutes, MAX_RULE_TTL_MINUTES) * 60_000).toISOString();
 }

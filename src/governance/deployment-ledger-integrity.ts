@@ -1,11 +1,12 @@
 // The deployment report's rows about the audit ledger's own integrity (T73): whether
 // this process could rewrite the ledger in place, whether it can still rotate, and
-// whether the ledger has raised an alert Root has not acknowledged.
+// whether the ledger holds an integrity alert Root has not acknowledged (since T86 D9
+// also one for the policy file changed outside the store).
 //
 // Split from `deployment-status.ts` on 2026-10-04 to keep that file within its
 // line limit; it returns plain rows and `readDeploymentStatus` adds them, as it
 // does every row it writes.
-import { ledgerRotationFailure } from "./audit-ledger.js";
+import { ledgerRotationFailure, POLICY_FILE_ALERT_ACTION } from "./audit-ledger.js";
 import { unacknowledgedLedgerAlerts } from "./ledger-alerts.js";
 import { ledgerProtectionFailure, probeLedgerAppendOnly } from "./ledger-append-only.js";
 import { ledgerFilePath } from "./paths.js";
@@ -127,9 +128,25 @@ export async function ledgerIntegrityChecks(
           "deployment.ledger_alerts",
           title,
           "fail",
-          `${alerts.length} integrity alert${alerts.length === 1 ? "" : "s"} not yet acknowledged, the first at entry #${alerts[0]?.seq}: entries were removed from, or rewritten in, the audit ledger.`,
+          `${alerts.length} integrity alert${alerts.length === 1 ? "" : "s"} not yet acknowledged, the first at entry #${alerts[0]?.seq}: ${describeOpenAlerts(alerts)}.`,
           "Review each alert at the top of the dashboard, find out what happened, and acknowledge it with the reason.",
         ),
   );
   return rows;
+}
+
+/**
+ * What the open alerts are about, in the report's words. Since T86 D9 the list also holds
+ * policy-file alerts, which say nothing about the chain, so the ledger's wording is used
+ * only for the ledger's own.
+ */
+function describeOpenAlerts(alerts: ReadonlyArray<{ action: string }>): string {
+  const policy = alerts.filter((alert) => alert.action === POLICY_FILE_ALERT_ACTION).length;
+  const parts = [
+    ...(alerts.length > policy
+      ? ["entries were removed from, or rewritten in, the audit ledger"]
+      : []),
+    ...(policy > 0 ? ["the policy file was changed outside the governance store"] : []),
+  ];
+  return parts.join("; and ");
 }

@@ -7,6 +7,7 @@ import { GatewayClientRequestError } from "../gateway/client.js";
  * timeout classification, and owner-provided approval outcomes.
  */
 import { runForResolvedApproval } from "../governance/approval-answerers.js";
+import { GOVERNANCE_APPROVAL_PLUGIN_ID } from "../governance/approval-origin.js";
 import { isEmbeddedMode } from "../infra/embedded-mode.js";
 import { getEmbeddedPluginApprovalBroker } from "../infra/embedded-plugin-approval-broker.js";
 import { formatErrorMessage } from "../infra/errors.js";
@@ -200,6 +201,14 @@ function buildPluginApprovalFailureReason(params: {
   return `${params.fallbackReason}\n\n${setupText}`;
 }
 
+/** A run nobody is waiting on (cron, heartbeat, …) cannot ask anyone. */
+function resolveUnattendedRunApprovalReason(ctx?: HookContext): string | undefined {
+  const trigger = ctx?.trigger?.trim();
+  return trigger && trigger !== "user"
+    ? `Plugin approval unavailable: ${trigger} runs have no approval-capable initiating surface.`
+    : undefined;
+}
+
 function resolveUnavailablePluginApprovalSurfaceReason(ctx?: HookContext): string | undefined {
   const trigger = ctx?.trigger?.trim();
   // Legacy/internal callers without run provenance still rely on the Gateway's
@@ -213,8 +222,9 @@ function resolveUnavailablePluginApprovalSurfaceReason(ctx?: HookContext): strin
     cfg: ctx?.config,
     approvalKind: "plugin",
   });
-  if (trigger !== "user") {
-    return `Plugin approval unavailable: ${trigger} runs have no approval-capable initiating surface.`;
+  const unattended = resolveUnattendedRunApprovalReason(ctx);
+  if (unattended) {
+    return unattended;
   }
   if (!ctx?.turnSourceChannel?.trim() && !ctx?.approvalReviewerDeviceId?.trim()) {
     return "Plugin approval unavailable: non-interactive CLI runs have no approval-capable initiating surface.";
@@ -309,7 +319,13 @@ async function requestPluginToolApproval(params: {
           };
     }
 
-    const unavailableSurfaceReason = resolveUnavailablePluginApprovalSurfaceReason(params.ctx);
+    // The governance gate's question is answered on the governance dashboard, not on the
+    // run's own channel (T86 D7), so the channel's approval support does not decide whether
+    // it can be asked; a background run is still refused at once, as nobody waits on it.
+    const unavailableSurfaceReason =
+      approval.pluginId === GOVERNANCE_APPROVAL_PLUGIN_ID
+        ? resolveUnattendedRunApprovalReason(params.ctx)
+        : resolveUnavailablePluginApprovalSurfaceReason(params.ctx);
     if (unavailableSurfaceReason) {
       notifyPluginApprovalResolution(approval, PluginApprovalResolutions.CANCELLED);
       return {

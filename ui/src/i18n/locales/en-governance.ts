@@ -126,14 +126,9 @@ export const enGovernance: TranslationMap = {
       loading: "Loading policy…",
       mode: "Posture",
       modeHint:
-        "Enforce blocks or asks on unlisted actions. Monitor records decisions without blocking. Off disables the gate.",
-      confirmOff: "Switch governance off for every agent?",
-      confirmOffDetails:
-        "Nothing will be checked, blocked, or recorded, including the core denials on credentials and the governance directory, and including the kill switch. This applies to every agent in the installation, not just one. To observe without blocking, choose Monitor instead.",
-      confirmOffAction: "Switch governance off",
+        "Enforce blocks or asks on unlisted actions. Monitor lets them through and records what Enforce would have decided; forbid rules and the kill switch still apply.",
       modeEnforce: "Enforce",
       modeMonitor: "Monitor",
-      modeOff: "Off",
       ask: "On an unlisted action",
       askHint:
         "Ask on miss pauses and requests human approval. Off denies outright (strict default-deny).",
@@ -247,8 +242,6 @@ export const enGovernance: TranslationMap = {
         "No account of this name exists in this group. Check the spelling, or this override will do nothing until somebody with that name is created.",
       clearOverride: "Use default",
       agentPosture: "Agent posture",
-      agentPostureOff:
-        "Governance is switched off for this agent. The kill switch and built-in restrictions do not apply. Set from policy.json by hand; the dashboard will not do this.",
       agentPostureHint: "This agent ignores the installation posture above.",
       observeAgent: "Observe one agent",
       observeAgentHint:
@@ -389,11 +382,12 @@ export const enGovernance: TranslationMap = {
       alertMissing: "Entries #{from}–#{to} are missing.",
     },
     integrity: {
-      // The banner (T73, idea 14). Shown to Administrators and Root.
-      title: "Audit ledger integrity alert",
-      hint: "The audit ledger recorded that its own history was cut short or rewritten. Nothing has stopped and every entry since is intact, but entries before this point were lost or changed. Root must find out what happened and acknowledge each alert with the reason.",
+      // The banner (T73, idea 14). Shown to Administrators and Root. Since T86 D9 it also
+      // carries the policy file changed outside the store, so it names both.
+      title: "Integrity alert",
+      hint: "Governance recorded that one of its own records was changed outside it: the audit ledger's history cut short or rewritten, or the policy file edited outside the governance store. Nothing has stopped; each alert says what was found. Root must find out what happened and acknowledge each alert with the reason.",
       hintAdmin:
-        "Only Root can acknowledge these. Tell Root, and keep the ledger files as they are until they have looked.",
+        "Only Root can acknowledge these. Tell Root, and keep the governance files as they are until they have looked.",
       entry: "Entry #{seq}, {time}",
       reasonLabel: "What you found, and why it is safe to carry on",
       reasonPlaceholder: "For example: restored from the 3 October backup after a disk failure",
@@ -553,6 +547,8 @@ export const enGovernance: TranslationMap = {
       // QA of 2026-10-07: the requester was readable only inside the session key.
       askedBy: "Asked while {username} was talking to {agent}:",
       askedByYou: "Asked in your conversation with {agent}:",
+      // T86 D7: a chat run's question waits here too; the chat was told to answer here.
+      askedFromChat: "Asked through a {channel} chat with {agent}:",
       // Kinan's decision of 2026-10-08: a read into another agent's folder is allowed only by
       // the people responsible for that folder; anyone who manages the reading agent may deny.
       folderYours:
@@ -562,6 +558,9 @@ export const enGovernance: TranslationMap = {
       folderWithheld:
         "Only {allowedBy} can allow a read inside {folder}'s folder. You can deny it.",
       dismiss: "Dismiss",
+      // T86 D5: chosen before pressing "Always allow"; the request it files asks for it,
+      // and the Administrator approving the request sees it chosen and may change it.
+      alwaysLifetimeLabel: "If you choose Always allow, ask for a rule that:",
       // Finding 386: a press that arrived after the question was answered elsewhere, cancelled
       // or expired. The card goes with the next read, so this is what is left to say so.
       // Worded so it stays true when the request could not be saved (a full queue,
@@ -858,9 +857,27 @@ export const enGovernance: TranslationMap = {
       host: "host",
       gateway: "gateway",
     },
+    // T86 D5, option A: how long a rule made from a request lasts. Offered on the request
+    // form, the approval row and beside "Always allow"; "never expires" is the default.
+    lifetime: {
+      never: "Never expires",
+      lasts: "Lasts {duration}",
+      minute: "{count} minute",
+      minutes: "{count} minutes",
+      hour: "{count} hour",
+      hours: "{count} hours",
+      day: "{count} day",
+      days: "{count} days",
+    },
     requests: {
       title: "Rule requests",
       by: "requested by",
+      // T86 D5: the lifetime the requester asked for, the approver's choice, and the result.
+      asksLifetime: "asks for the rule to last {duration}",
+      requestLifetimeLabel: "How long the rule should last once approved",
+      approveLifetimeLabel: "How long the rule lasts if you approve it",
+      ruleExpires: "the rule expires {when}",
+      ruleExpired: "the rule expired {when}",
       // C15: a request filed by answering an escalation, named for who answered.
       answeredEscalation: "{name}, answering an escalation",
       decidedBy: "decided by",
@@ -900,9 +917,9 @@ export const enGovernance: TranslationMap = {
       // offered, and the hints say so (finding 365).
       settingRequestTitle: "Request a change for one agent",
       settingRequestHintAsk:
-        "Only an Administrator sets an agent's posture, or what happens when it tries something no rule covers. Ask for a change to one of your agents here; approving it applies the change. Governance cannot be switched off for one agent.",
+        "Only an Administrator sets an agent's posture, or what happens when it tries something no rule covers. Ask for a change to one of your agents here; approving it applies the change. Governance cannot be switched off.",
       settingRequestHintRecord:
-        "Records the change as a request, decided in this queue; approving it applies the change. A posture or an escalation can also be set directly under Policy. Governance cannot be switched off for one agent.",
+        "Records the change as a request, decided in this queue; approving it applies the change. A posture or an escalation can also be set directly under Policy. Governance cannot be switched off.",
       settingAgentLabel: "Agent to change",
       settingLabel: "Setting to change",
       settingOptionMode: "Posture (enforce or monitor)",
@@ -919,9 +936,9 @@ export const enGovernance: TranslationMap = {
     kill: {
       title: "Emergency kill switch",
       noticeUnconfirmed:
-        "Stop signal sent, but the agent was not confirmed to have stopped. Runs signalled:",
+        "Stop signal sent, but the agent was not confirmed to have stopped. Runs and background processes signalled:",
       signalled: "signalled in",
-      noticeStopped: "Lockdown engaged. In-flight runs aborted:",
+      noticeStopped: "Lockdown engaged. Runs and background processes stopped:",
       // Not a warning (2026-10-03). It used to tell the operator to "check whether the
       // id is correct", from before the route refused an id that is not registered
       // here; now the id is always a real agent, and nothing running is the common case.

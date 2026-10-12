@@ -106,6 +106,15 @@ export type RuleRequest = {
   decisionNote?: string;
   /** Set when an approval created a rule, linking request to granted policy. */
   createdRuleId?: string;
+  /**
+   * How long the requester asked the rule to last, in minutes from its approval (T86
+   * D5). Absent asks for a rule that never expires. A proposal like the rest of the
+   * request: the approving Administrator grants it when they name no other lifetime,
+   * and may shorten it or make the rule permanent.
+   */
+  ttlMinutes?: number;
+  /** When the rule this approval created expires; absent when it never does (T86 D5). */
+  ruleExpiresAt?: string;
 };
 
 type RuleRequestsFile = { version: 1; requests: RuleRequest[] };
@@ -234,6 +243,8 @@ export type SubmitRuleRequestInput = ActorTier &
         /** See `RuleRequest.answeredBy`, with the tier that account held. */
         answeredBy?: string;
         answeredByRole?: GovernanceRole;
+        /** See `RuleRequest.ttlMinutes`; validated by the caller. */
+        ttlMinutes?: number;
       }
     | {
         kind: "agent-setting";
@@ -264,7 +275,10 @@ export function describeRequest(request: RuleRequest): string {
   // belongs in the one description the queue and the ledger share rather than
   // in prose one of them might not show.
   const direction = request.access ? ` (${request.access})` : "";
-  return `requested ${request.resourceKind} ${request.pattern}${direction}: ${request.reason}`;
+  // The lifetime asked for, said the same way for the same reason (T86 D5); nothing
+  // when none was asked, so a request without one reads as it always has.
+  const lifetime = request.ttlMinutes ? ` for ${request.ttlMinutes} minutes` : "";
+  return `requested ${request.resourceKind} ${request.pattern}${direction}${lifetime}: ${request.reason}`;
 }
 
 export async function submitRuleRequest(
@@ -314,6 +328,7 @@ export async function submitRuleRequest(
             // a hand-filed request stays byte-identical to one written before
             // this field existed. The same rule `agentId` above follows.
             ...(input.access ? { access: input.access } : {}),
+            ...(input.ttlMinutes ? { ttlMinutes: input.ttlMinutes } : {}),
           }),
       reason: input.reason,
       requestedBy: input.requestedBy,
@@ -355,6 +370,25 @@ export async function submitRuleRequest(
 }
 
 /**
+ * The lifetime an approval granted, for its ledger entry (T86 D5).
+ *
+ * Said whenever it is not what the sentence before it implies: a granted expiry always,
+ * and "never expires" when the request asked for a lifetime the approver removed. Found
+ * live: the entry repeated the request's "for 1440 minutes" and read as a 1440-minute
+ * approval of what was granted as a permanent rule. Nothing is added when no lifetime was
+ * asked or granted, so such an approval reads as it always has.
+ */
+function grantedLifetimeWords(request: RuleRequest, approved: boolean): string {
+  if (!approved || request.kind === "agent-setting") {
+    return "";
+  }
+  if (request.ruleExpiresAt) {
+    return `; the rule expires ${request.ruleExpiresAt}`;
+  }
+  return request.ttlMinutes ? "; the rule never expires" : "";
+}
+
+/**
  * Records an administrator's decision. Returns the updated request, or
  * undefined when the id is unknown or the request was already decided,
  * decisions are single-shot so a stale dashboard cannot double-apply one.
@@ -370,6 +404,8 @@ export async function decideRuleRequest(
     createdRuleId?: string;
     /** Trimmed and bounded by the route; empty means nothing was said. */
     note?: string;
+    /** When the rule an approval creates will expire; absent for a permanent one (T86 D5). */
+    ruleExpiresAt?: string;
   },
 ): Promise<RuleRequest | undefined> {
   await ensureHomeDir(groupId);
@@ -387,6 +423,9 @@ export async function decideRuleRequest(
     }
     if (params.createdRuleId) {
       request.createdRuleId = params.createdRuleId;
+    }
+    if (params.approve && params.ruleExpiresAt) {
+      request.ruleExpiresAt = params.ruleExpiresAt;
     }
     await writeGovernanceJson(ruleRequestsFilePath(groupId), file);
     return request;
@@ -417,7 +456,7 @@ export async function decideRuleRequest(
     // the ledger and an Administrator reading the review list see the same
     // words. Two descriptions of one request is how the two drift." There were
     // two descriptions, and one of them had drifted into nonsense.
-    target: `${params.approve ? "approved" : "rejected"} ${decided.answeredBy ?? decided.requestedBy}'s request: ${describeRequest(decided)}${decided.decisionNote ? `, saying: ${decided.decisionNote}` : ""}`,
+    target: `${params.approve ? "approved" : "rejected"} ${decided.answeredBy ?? decided.requestedBy}'s request: ${describeRequest(decided)}${grantedLifetimeWords(decided, params.approve)}${decided.decisionNote ? `, saying: ${decided.decisionNote}` : ""}`,
     subjectId: decided.id,
     ...(decided.agentId ? { agentId: decided.agentId } : {}),
   });
@@ -469,6 +508,7 @@ export async function reopenRuleRequest(groupId: string, id: string): Promise<vo
     delete request.decidedAt;
     delete request.decisionNote;
     delete request.createdRuleId;
+    delete request.ruleExpiresAt;
     await writeGovernanceJson(ruleRequestsFilePath(groupId), file);
   });
 }

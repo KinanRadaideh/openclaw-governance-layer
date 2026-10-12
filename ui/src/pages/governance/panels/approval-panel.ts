@@ -14,6 +14,7 @@ import type { GovernanceApproval } from "../api.ts";
 import type { ApprovalSlice } from "../approval-controller.ts";
 import { foreignFolderWithheldTip, foreignFolderWords } from "./foreign-folder.ts";
 import { startedByFromSessionKey } from "./format.ts";
+import { renderRuleLifetimeSelect } from "./rule-lifetime.ts";
 
 /**
  * Whose conversation a question came from (QA of 2026-10-07).
@@ -25,7 +26,15 @@ import { startedByFromSessionKey } from "./format.ts";
 function renderAskedBy(approval: GovernanceApproval, viewer: string | undefined) {
   const username = approval.sessionKey ? startedByFromSessionKey(approval.sessionKey) : undefined;
   if (!username) {
-    return nothing;
+    // A chat run's question, answered here since T86 D7: say which chat it came from.
+    return approval.origin
+      ? html`<p class="governance-approvals__hint">
+          ${t("governance.approvals.askedFromChat", {
+            channel: approval.origin,
+            agent: approval.agentId,
+          })}
+        </p>`
+      : nothing;
   }
   // Both are canonical account names: the session key is minted by the server.
   const own = viewer !== undefined && viewer.toLowerCase() === username.toLowerCase();
@@ -50,6 +59,26 @@ function renderFolderOwner(approval: GovernanceApproval) {
 function withheldFor(approval: GovernanceApproval) {
   const reason = foreignFolderWithheldTip(approval);
   return reason ? { decisions: ["allow-once", "allow-always"] as const, reason } : undefined;
+}
+
+/**
+ * How long the rule "Always allow" asks for should last (T86 D5, option A). Beside the
+ * card rather than inside it: the card is the Control UI's own, shared with every other
+ * approval surface. Shown only where this account may press "Always allow".
+ */
+function renderAlwaysLifetime(approval: GovernanceApproval, props: ApprovalSlice) {
+  if (!approval.allowedDecisions.includes("allow-always") || withheldFor(approval)) {
+    return nothing;
+  }
+  return html`<p class="governance-approvals__hint">
+    ${t("governance.approvals.alwaysLifetimeLabel")}
+    ${renderRuleLifetimeSelect({
+      value: props.lifetimeFor(approval.id),
+      label: t("governance.approvals.alwaysLifetimeLabel"),
+      disabled: props.answering.has(approval.id),
+      onChange: (value) => props.setLifetime(approval.id, value),
+    })}
+  </p>`;
 }
 
 function toCardRequest(approval: GovernanceApproval): ExecApprovalRequest {
@@ -97,7 +126,7 @@ export function renderWaitingApprovals(props: ApprovalSlice) {
             variant: "inline",
             withheld: withheldFor(approval),
             onDecision: (id, decision) => props.decide(id, decision),
-          })}`,
+          })}${renderAlwaysLifetime(approval, props)}`,
       )}
       ${props.notices.map(
         (notice) => html`

@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { GOVERNANCE_APPROVAL_PLUGIN_ID } from "../../governance/approval-origin.js";
 import {
   resolveExecApprovalRequestAllowedDecisions,
   type ExecApprovalRequestPayload,
@@ -19,6 +20,7 @@ import {
   type OpenClawStateDatabaseOptions,
 } from "../../state/openclaw-state-db.js";
 import { ExecApprovalManager } from "../exec-approval-manager.js";
+import { asGovernanceAnswer } from "../governance-approval-scope.js";
 import { createApprovalHandlers } from "./approval.js";
 import type { GatewayRequestHandlerOptions } from "./types.js";
 
@@ -54,7 +56,7 @@ function createManagers(databaseOptions: OpenClawStateDatabaseOptions) {
 function registerPlugin(
   manager: ExecApprovalManager<PluginApprovalRequestPayload>,
   id: string,
-  origin: Pick<PluginApprovalRequestPayload, "sessionKey" | "turnSourceChannel">,
+  origin: Pick<PluginApprovalRequestPayload, "sessionKey" | "turnSourceChannel" | "pluginId">,
 ) {
   const record = manager.create(
     {
@@ -143,7 +145,7 @@ afterEach(() => {
 });
 
 describe("durable approval methods and a dashboard escalation", () => {
-  it("refuses to read or answer it for an admin-scope client, and lets the approval runtime answer", async () => {
+  it("refuses to read or answer it for an admin-scope client, and lets only the governance route answer", async () => {
     const databaseOptions = createDatabaseOptions();
     const managers = createManagers(databaseOptions);
     const handlers = createApprovalHandlers({
@@ -169,11 +171,23 @@ describe("durable approval methods and a dashboard escalation", () => {
     expect(refused.ok).toBe(false);
     expect(managers.plugin.getSnapshot(record.id)?.resolvedAtMs).toBeUndefined();
 
-    const answered = await invoke(
+    // The approval principal is shared: a chat's /approve resolves through it too, so it
+    // answers a governance escalation only while the governance route is answering it.
+    const outsideTheRoute = await invoke(
       handlers,
       "approval.resolve",
       { id: record.id, kind: "plugin", decision: "allow-once" },
       approvalRuntime,
+    );
+    expect(outsideTheRoute.ok).toBe(false);
+    expect(managers.plugin.getSnapshot(record.id)?.resolvedAtMs).toBeUndefined();
+    const answered = await asGovernanceAnswer(record.id, () =>
+      invoke(
+        handlers,
+        "approval.resolve",
+        { id: record.id, kind: "plugin", decision: "allow-once" },
+        approvalRuntime,
+      ),
     );
     expect(answered.ok).toBe(true);
     await expect(decision).resolves.toBe("allow-once");
@@ -221,5 +235,53 @@ describe("durable approval methods and a dashboard escalation", () => {
     const ids = (history.result as { items: Array<{ id: string }> }).items.map((item) => item.id);
     expect(ids).toContain(chat.record.id);
     expect(ids).not.toContain(dashboard.record.id);
+  });
+});
+
+describe("durable approval methods and a chat run's governance escalation (T86 D7)", () => {
+  const GATE_FROM_CHAT = { ...CHAT_ORIGIN, pluginId: GOVERNANCE_APPROVAL_PLUGIN_ID };
+
+  it("refuses it to an admin-scope client and to the approval principal outside the route", async () => {
+    const databaseOptions = createDatabaseOptions();
+    const managers = createManagers(databaseOptions);
+    const handlers = createApprovalHandlers({
+      execApprovalManager: managers.exec,
+      pluginApprovalManager: managers.plugin,
+      databaseOptions,
+    });
+    const { record } = registerPlugin(managers.plugin, "plugin:gate-from-chat", GATE_FROM_CHAT);
+    expect((await invoke(handlers, "approval.get", { id: record.id }, adminControlUi)).ok).toBe(
+      false,
+    );
+    for (const caller of [adminControlUi, approvalRuntime]) {
+      const refused = await invoke(
+        handlers,
+        "approval.resolve",
+        { id: record.id, kind: "plugin", decision: "allow-once" },
+        caller,
+      );
+      expect(refused.ok).toBe(false);
+    }
+    expect(managers.plugin.getSnapshot(record.id)?.resolvedAtMs).toBeUndefined();
+  });
+
+  it("keeps it hidden after a restart and out of history, by the stored marker", async () => {
+    const databaseOptions = createDatabaseOptions();
+    const before = createManagers(databaseOptions);
+    const gate = registerPlugin(before.plugin, "plugin:gate-restart", GATE_FROM_CHAT);
+    before.plugin.resolve(gate.record.id, "deny");
+    await gate.decision;
+    const after = createManagers(databaseOptions);
+    const handlers = createApprovalHandlers({
+      execApprovalManager: after.exec,
+      pluginApprovalManager: after.plugin,
+      databaseOptions,
+    });
+    expect(
+      (await invoke(handlers, "approval.get", { id: gate.record.id }, adminControlUi)).ok,
+    ).toBe(false);
+    const history = await invoke(handlers, "approval.history", { limit: 50 }, adminControlUi);
+    const ids = (history.result as { items: Array<{ id: string }> }).items.map((item) => item.id);
+    expect(ids).not.toContain(gate.record.id);
   });
 });

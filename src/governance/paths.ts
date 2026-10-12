@@ -53,8 +53,11 @@ export function governanceHomeDir(): string {
  * those calls is correctly refused or escalated, and 38 host tests fail for
  * reasons that have nothing to do with what they are testing.
  *
- * So a fresh policy created in *this* situation starts `off`. The scope is
- * deliberately narrow and the exception is not available to anything real:
+ * So the gate exempts such a run: `evaluateGovernancePolicy` and the loop-detector
+ * record return before reading any policy. (Until T86 D4 removed the `off` posture,
+ * a fresh policy here started `off` instead; this exemption is all that is left of
+ * it, and it is not a posture anything can set.) The scope is deliberately narrow
+ * and the exception is not available to anything real:
  *
  *   - Production never reaches it: `VITEST` is unset, so the home directory is
  *     used and the shipped `enforce` default applies.
@@ -64,8 +67,8 @@ export function governanceHomeDir(): string {
  *
  * That last point is what makes this an environment distinction rather than a
  * test-passing convenience. The behaviour under test is still the shipped
- * behaviour; what changes is only the posture handed to a process that never
- * asked to be governed.
+ * behaviour; what changes is only whether a process that never asked to be
+ * governed is governed at all.
  */
 export function isUnconfiguredTestRun(): boolean {
   return isTestRun() && !process.env.OPENCLAW_GOVERNANCE_DIR?.trim();

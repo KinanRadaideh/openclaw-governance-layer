@@ -328,9 +328,14 @@ export const BASELINE_RULES: readonly SeedRule[] = Object.freeze([
     effect: "allow",
     tier: "baseline",
     // Arguments limited to a safe character set: no shell metacharacters, so
-    // the argument cannot smuggle a second command.
-    pattern: "^ls( -[a-zA-Z]{1,8})?( [A-Za-z0-9._/-]{1,200})?$",
-    description: "Directory listing with simple flags and one plain path",
+    // the argument cannot smuggle a second command. **And a path inside the project
+    // only** (T86 D2-A, Kinan, 2026-10-11): not absolute (no leading `/`; the set has no
+    // `:`, `\` or `~`) and with no `..` segment, so `ls /etc`, `ls -la /root/.ssh` and
+    // `ls ../../..` are no longer allowed by default. Lookaheads rather than a repeated
+    // segment group, which the pattern-safety check refuses as a nested quantifier. The
+    // folder the command runs in is judged separately, as a path (`commandWorkingFolder`).
+    pattern: String.raw`^ls( -[a-zA-Z]{1,8})?( (?!/)(?!\.\.(?:/|$))(?!.*/\.\.(?:/|$))[A-Za-z0-9._/-]{1,200})?$`,
+    description: "Directory listing inside the project, with simple flags and one relative path",
   },
   {
     resourceKind: "command",
@@ -359,7 +364,97 @@ export const BASELINE_RULES: readonly SeedRule[] = Object.freeze([
     pattern: "^(node|npm|pnpm|python|python3|git) --version$",
     description: "Tool version checks",
   },
+  // -------------------------------------------------------------------------
+  // **Network hosts an agent may reach by default** (T86 D3, the list Kinan agreed on
+  // 2026-10-10; `mg/WORK-LOG-2026-10-10.md` §7.7). They bind the web fetch tool and a
+  // browser navigation, which since D3 is judged by the host it loads. Each is a starting
+  // point an Administrator may remove. Matched against the canonical (lowercase) hostname,
+  // anchored at both ends, so `wikipedia.org.evil.example` matches nothing.
+  //
+  // Kept out on purpose: `localhost` and private addresses (the Gateway and its dashboard
+  // live there), cloud metadata (already a core denial), the model provider's API (the
+  // agent's model traffic is the Gateway's own), and paste, file-sharing and link-shortening
+  // sites. Google is search only: the rest of `*.google.com` includes Drive and Docs, where a
+  // browser could upload. A shell command such as `npm install` is judged by command rules,
+  // so a registry here does not make installs work; and any allowed host can carry data out
+  // in its address, so this list narrows where data can go rather than stopping it.
+  // -------------------------------------------------------------------------
+  {
+    resourceKind: "network",
+    effect: "allow",
+    tier: "baseline",
+    // Alternatives, not a repeated label group: a quantifier nested in a quantified group is
+    // what `validateRulePattern` refuses for an operator's rule (catastrophic backtracking).
+    pattern:
+      "^(wikipedia\\.org|[a-z0-9-]{1,63}\\.wikipedia\\.org|[a-z0-9-]{1,63}\\.m\\.wikipedia\\.org|upload\\.wikimedia\\.org)$",
+    description: "Wikipedia, in every language, and its images",
+  },
+  {
+    resourceKind: "network",
+    effect: "allow",
+    tier: "baseline",
+    pattern: "^(www\\.)?google\\.com$",
+    description: "Google search (not Drive, Docs or other Google services)",
+  },
+  {
+    resourceKind: "network",
+    effect: "allow",
+    tier: "baseline",
+    pattern:
+      "^(github\\.com|api\\.github\\.com|gist\\.github\\.com|docs\\.github\\.com|raw\\.githubusercontent\\.com|codeload\\.github\\.com|objects\\.githubusercontent\\.com)$",
+    description: "GitHub: repositories, raw files, releases and its documentation",
+  },
+  {
+    resourceKind: "network",
+    effect: "allow",
+    tier: "baseline",
+    pattern:
+      "^(registry\\.npmjs\\.org|www\\.npmjs\\.com|pypi\\.org|files\\.pythonhosted\\.org|crates\\.io|rubygems\\.org|repo1\\.maven\\.org|search\\.maven\\.org|proxy\\.golang\\.org|pkg\\.go\\.dev|api\\.nuget\\.org|www\\.nuget\\.org)$",
+    description: "Package registries: npm, PyPI, crates.io, RubyGems, Maven Central, Go, NuGet",
+  },
+  {
+    resourceKind: "network",
+    effect: "allow",
+    tier: "baseline",
+    pattern:
+      "^(developer\\.mozilla\\.org|nodejs\\.org|www\\.typescriptlang\\.org|docs\\.python\\.org|go\\.dev|doc\\.rust-lang\\.org|docs\\.oracle\\.com|learn\\.microsoft\\.com|en\\.cppreference\\.com|ruby-doc\\.org|www\\.php\\.net)$",
+    description: "Programming language documentation",
+  },
+  {
+    resourceKind: "network",
+    effect: "allow",
+    tier: "baseline",
+    pattern: "^(openclaw\\.ai|docs\\.openclaw\\.ai)$",
+    description: "The OpenClaw website and its documentation",
+  },
+  {
+    resourceKind: "network",
+    effect: "allow",
+    tier: "baseline",
+    pattern: "^(stackoverflow\\.com|duckduckgo\\.com)$",
+    description: "Stack Overflow, and DuckDuckGo search",
+  },
 ]);
+
+/**
+ * The listing rule as shipped before T86 D2-A, by the id and pattern a stored policy holds.
+ * A document older than version 4 has it replaced by the narrowed rule, but only while it is
+ * exactly this: one an Administrator changed or removed is theirs.
+ */
+export const LEGACY_LISTING_RULE = Object.freeze({
+  id: "baseline-command-directory-listing-with-simple-flags-and-one-plai",
+  pattern: "^ls( -[a-zA-Z]{1,8})?( [A-Za-z0-9._/-]{1,200})?$",
+});
+
+/** The listing rule that replaces it (T86 D2-A). */
+export const NARROWED_LISTING_RULE: SeedRule = BASELINE_RULES.find((rule) =>
+  rule.description?.startsWith("Directory listing inside the project"),
+)!;
+
+/** Baseline rules first shipped with policy document version 3 (T86 D3). */
+export const BASELINE_NETWORK_RULES: readonly SeedRule[] = Object.freeze(
+  BASELINE_RULES.filter((rule) => rule.resourceKind === "network"),
+);
 
 /** Escapes a literal for embedding inside a larger pattern. */
 function escapeLiteral(value: string): string {

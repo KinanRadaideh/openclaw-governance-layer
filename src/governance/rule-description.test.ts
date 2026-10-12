@@ -160,7 +160,7 @@ describe("a document written before T70 is repaired once", () => {
     expect(loaded.version).toBe(POLICY_DOCUMENT_VERSION);
   });
 
-  it("stores the repair as version 2 on the next policy write", async () => {
+  it("stores the repair as the current version on the next policy write", async () => {
     await writeRaw({ version: 1, mode: "enforce", ask: "off", rules: [legacyRule] });
     await setMode(TEST_GROUP, "monitor", ACTOR);
 
@@ -168,7 +168,8 @@ describe("a document written before T70 is repaired once", () => {
       version: number;
       rules: { id: string; description?: string }[];
     };
-    expect(stored.version).toBe(2);
+    // 2 when T70 shipped; 3 since T86 D3 added the baseline hosts.
+    expect(stored.version).toBe(POLICY_DOCUMENT_VERSION);
     expect(stored.rules.find((rule) => rule.id === "command-legacy")?.description).toMatch(
       /^No purpose was recorded/,
     );
