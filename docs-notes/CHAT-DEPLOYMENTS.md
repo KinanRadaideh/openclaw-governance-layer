@@ -61,14 +61,21 @@ chat user asking the agent to look at something gets an answer immediately.
 Writing files is not in the baseline. Round 12 checks that baseline work goes
 through on a channel run and not only on a dashboard one.
 
-**Anything outside the baseline asks a human.** The default posture is `enforce`
-with `ask: on-miss`, so an unlisted command escalates rather than failing. The
-escalation is handed to **OpenClaw's own approval machinery**, not to something
-this project reimplemented. It is answered in the Control UI, and on Discord it
-can render as Discord's native approval buttons (exec approvals,
-`channels.discord.execApprovals` in `docs/channels/discord.md`). A chat user sees
-the prompt they would see for any other OpenClaw approval, naming the agent and
-the resource.
+**Anything outside the baseline asks a human, on the governance dashboard.** The
+default posture is `enforce` with `ask: on-miss`, so an unlisted command escalates
+rather than failing. **Since T86 D7 (2026-10-12) the question waits in the
+dashboard's _Waiting for your answer_ section**, shown to the accounts that manage
+the agent (a User assigned it, its Administrators, Root), and the answer is recorded
+against the account that gave it. The chat gets one message instead of buttons:
+the agent needs approval before it can continue, what it asked, that it is answered
+on the governance dashboard, and that nobody answering within the approval window
+means refused. The card on the dashboard says which chat it came from. Before D7
+the question went to OpenClaw's own approval surfaces (the Control UI, Discord's
+native buttons), where anyone with the channel or the Gateway credential could
+answer and the record could not say who. The Control UI's own chat gets no message
+(OpenClaw's `send` does not deliver into it), and a background run (a scheduled
+job, the heartbeat, memory dreaming) is refused at once, as before, because nobody
+is waiting on it.
 
 **A core denial is refused outright, with no button.** Credential files,
 privilege escalation, host-destroying commands, the governance directory and the
@@ -81,10 +88,11 @@ The three that protect the governance layer itself cannot be switched off.
 
 ### What "Always allow" does from a chat
 
-The approval offers **Allow once**, **Always allow** and **Deny**. On a chat
-deployment the person pressing a button holds no governance account and is
-authenticated only by the chat platform, so what the middle button may do matters
-most here.
+The approval offers **Allow once**, **Always allow** and **Deny**. Since T86 D7
+they are pressed on the dashboard by a signed-in governance account, so the rule
+request **Always allow** files names that account (C15) rather than `hitl-approval`.
+The rest of this section describes the request itself, which is unchanged, and the
+reasons it was designed for the case when the person pressing it held no account.
 
 - It **permits that one call**, exactly as **Allow once** does.
 - It files **one rule request**, however many times the agent retries the same
@@ -99,7 +107,9 @@ most here.
 
 The card says so in its own words: _"Always allow" allows this action once and
 requests permission for future attempts. An Administrator must approve the
-request before permission becomes permanent._ That sentence is part of the
+request before the action is allowed again without asking._ ("before permission
+becomes permanent" until 2026-10-11, when an approval could first grant a rule
+with a lifetime.) That sentence is part of the
 escalation's description, so it travels with the approval into Discord or
 Telegram.
 
@@ -223,10 +233,12 @@ as any other:
 | Your agents            | The dashboard's own conversation with that agent (separate from chat)                                                                                                                                                                                                                                                                                                                                            |
 | Emergency kill switch  | Stops the agent regardless of which channel started the run                                                                                                                                                                                                                                                                                                                                                      |
 
-**Waiting for your answer** is not one of them. It shows the questions raised by
-prompts sent from the dashboard, answered there by the accounts that manage the
-agent (T68). A chat run's questions are answered in the Control UI or in the
-channel.
+**Waiting for your answer** is one of them since T86 D7 (2026-10-12): a chat run's
+questions wait there with the dashboard's own, answered by the accounts that manage the
+agent, each card saying which chat it came from ("Asked through a telegram chat with
+…"). Before D7 they were answered in the Control UI or in the channel. A request
+**Always allow** files from there names the account that pressed it, not
+`hitl-approval`.
 
 The dashboard conversation and a chat conversation are **separate threads** with
 the same agent, deliberately: they have different audiences, and merging them

@@ -8812,3 +8812,120 @@ to another Administrator, moving someone to another Administrator while they are
 agent, and signing in at the very moment one's access or password changes. A password reset and
 deleting a whole organisation now sign everyone out before the change is saved rather than after,
 so a failure leaves nobody signed in with a stale pass.
+
+## 5.135 The emergency stop now ends what the agent left running, and governance can no longer be switched off (T86, finding 426, 10 October)
+
+When an agent runs a command that takes a while, OpenClaw moves it to the background after ten
+seconds so the agent can carry on. Pressing the emergency stop ended the agent's conversation, but
+OpenClaw deliberately leaves background commands running when a conversation ends, so a download
+or a loop the agent had started kept going, and the dashboard still said the agent had stopped.
+The stop now ends those background commands as well, forcefully and at once, and only reports
+"stopped" once they have actually ended. On the development laptop that takes about a third of a
+second.
+
+Three of Kinan's decisions were built at the same time. The "Off" setting is gone: it switched
+every protection off for every agent and recorded nothing, and "Monitor" already lets actions
+through while still recording them and keeping the most important protections. The browser now
+has to ask before visiting a site that is not on the list of allowed sites, and every new
+installation comes with a short list (Wikipedia, Google search, GitHub, the main programming
+package sites and documentation, the OpenClaw site, Stack Overflow, DuckDuckGo). And Users and
+Viewers now see, in their audit log, when the installation's posture or a rule covering every
+agent was changed.
+
+## 5.136 A permission given in answer to a request can now run out (T86 D5, 11 October)
+
+The requirements ask for permissions that expire. Until now only a rule an administrator typed in
+by hand could be given an expiry time. A permission granted by approving somebody's request, which
+is the usual way permissions are given, including every time someone pressed "Always allow" on an
+agent's question, lasted forever.
+
+Now the administrator approving a request picks how long the rule lasts: one hour, eight hours, a
+day, a week, thirty days, or no limit, which is still the default. The person asking can suggest a
+lifetime, both on the request form and, on the dashboard, next to the "Always allow" button; the
+administrator sees that suggestion already picked and can change it. The clock starts when the
+request is approved, not when it was asked for, so a request that waits a day in the queue does
+not arrive already used up. The audit log records the expiry time with the approval.
+
+Trying it on the real dashboard turned up a small older fault (finding 427). After pressing
+"Always allow", the confirmation under the question sometimes named it by a meaningless internal
+code instead of its title, because the page refreshes itself every two seconds and could remove
+the question before the confirmation was written. The page now notes the title before sending the
+answer.
+
+## 5.137 The browser checked one address and visited another (finding 428, 11 October)
+
+Since 10 October the browser must ask before visiting a site that is not on the allowed list. A
+review of the last four days' work found a way around that. The browser accepts the address
+under two names, and when both are given it uses one of them; the check looked at the other. So
+an agent could name Wikipedia under one name, which the check allowed, and a different site under
+the other, which the browser then visited. A third spelling of the name, and stray spaces around
+the instruction, slipped past the same way. The check now reads the address exactly as the
+browser does. The fault was in work not yet released.
+
+The same review also tightened three small things in the 11 October lifetime feature, and noted
+two limits for the report: a site on the allowed list could send the browser on to another site
+without that second site being checked, and the emergency stop's new step reaches commands on the
+main computer, not ones running on a separate paired device.
+
+## 5.138 Shell commands kept to the folders an agent may use (T86 D2, 11 October)
+
+Agents run shell commands, and those were checked only as text. Two things followed. The
+built-in "list a folder" permission let any agent see the names of files in any folder on the
+machine, including private ones, although it was meant for looking around the agent's own
+project. And an agent could choose the folder a command runs in, which nothing checked, so a
+harmless command could run in a folder the agent was not allowed to open.
+
+Now the built-in listing permission covers folders inside the project only, and existing
+installations get the narrower version automatically unless an administrator had already changed
+it. The folder a command runs in is checked like opening that folder: inside the project it is
+fine; anywhere else it needs an administrator's rule, or the command is refused and the agent is
+told to run it in its own folder instead. The audit record shows both the folder and the command.
+
+## 5.139 Noticing when someone edits the rules file behind governance's back (T86 D9, 12 October)
+
+Every organisation's rules live in one file, `policy.json`. Governance changes it only through
+its own code, which records every change in the audit ledger. But if an administrator allows an
+agent to run a programming language (python, for example), that agent can do anything the
+machine's account can, including opening the rules file and editing it directly, for instance to
+give itself a permission. Until now nothing noticed: the edited rules were used and no record
+said they had changed.
+
+Now governance puts a seal on the file every time it writes it: a short code computed from the
+file's contents with the secret key that also protects the audit ledger. Every time the rules are
+read, the seal is checked. If the file was changed without going through governance (an edited
+rule, a removed seal, an older copy put back, or the file deleted), governance writes a sealed
+entry into the audit ledger and shows an alert at the top of the dashboard to administrators and
+Root, until Root looks into it and acknowledges it with a reason. It does not block anything: the
+changed rules stay in force, as Kinan chose ("does not prevent; makes it visible"), so an
+administrator must check them. A person editing the file by hand raises the same alert, and every
+existing installation sees it once, the first time after this update, because files written
+before it carry no seal.
+
+What it cannot catch: an agent that also reads the secret key could make a valid seal (the same
+limit the audit ledger has), and an older copy put back, or the file deleted, at the same moment
+the Gateway restarts is not noticed. The real cure, running agents' tools under a separate
+account that cannot reach governance's files, remains future work.
+
+## 5.140 Approvals from chat apps are answered on the dashboard, by a named person (T86 D7, 12 October)
+
+When an agent wants to do something no rule covers, governance asks a person. If the request
+started on the governance dashboard, the question appeared there, only the people responsible for
+that agent could answer, and the record named who did. But if someone talked to the agent through a
+chat app (Telegram, Discord, Slack, WhatsApp) or OpenClaw's own control screen, the question went to
+that app instead: anyone in the chat, or anyone with the Gateway password, could press "allow", and
+the record could not say who.
+
+Now every such question goes to the dashboard, whatever app the conversation started in. Only the
+people responsible for that agent see it and can answer, and the record names the person who did.
+The chat app gets a short message instead of buttons: the agent needs approval on the governance
+dashboard, what it asked, and that if nobody answers in time it is refused. The dashboard card says
+which chat it came from. Two things are as before: background jobs (scheduled tasks, the heartbeat)
+are refused at once because nobody is waiting on them, and OpenClaw's own control screen chat gets
+no message, so a person there just sees the agent wait.
+
+Checking this work found one more gap (finding 429): chat apps have their own approve command, and
+it went through the same internal door governance uses to give its answers. Someone in a chat who
+somehow knew a question's code could have approved it there, without the dashboard and without the
+record naming them. Nobody in a chat is ever sent that code, so it would have needed a leak, but the
+door now opens only for the dashboard's own answers; the approve command is told the question is
+answered on the governance dashboard.

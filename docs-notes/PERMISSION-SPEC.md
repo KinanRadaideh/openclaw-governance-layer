@@ -23,8 +23,10 @@ Persisted per organisation at
 
 ```ts
 type PolicyDocument = {
-  version: 1;
-  mode: "enforce" | "monitor" | "off"; // default: "enforce"
+  version: 4; // POLICY_DOCUMENT_VERSION; older documents are upgraded once on load
+  // On disk only, never handed to a caller: the store's seal (§1.1, T86 D9).
+  // seal: { generation: number; mac: string };
+  mode: "enforce" | "monitor"; // default: "enforce"; a stored "off" loads as "enforce" (T86 D4)
   ask: "off" | "on-miss"; // default: "on-miss"
   agentMode: Record<AgentId, "enforce" | "monitor">; // a stored "off" is dropped on load
   agentAsk: Record<AgentId, "off" | "on-miss">;
@@ -37,17 +39,17 @@ type PolicyDocument = {
 };
 ```
 
-| Field                | Semantics                                                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `mode`               | `enforce` applies verdicts; `monitor` records them without acting; `off` disables the gate and records nothing      |
-| `ask`                | Installation default for an unmatched action: `off` refuses it, `on-miss` puts it to a human                        |
-| `agentMode`          | Per-agent override of `mode`, to watch one agent in `monitor`. Absent key ⇒ inherit `mode`                          |
-| `agentAsk`           | Per-agent override of `ask`. Absent key ⇒ inherit `ask`                                                             |
-| `agentHitlTimeout`   | Per-agent override of `hitlTimeoutSeconds`. Absent key ⇒ inherit                                                    |
-| `userAsk`            | Per-**account** override of `ask`, set by Root. Combined with the agent axis by taking the stricter (§5)            |
-| `hitlTimeoutSeconds` | Escalation wait before timeout. Timeout ⇒ deny, and the question is kept on the held-decision stack (§5.1)          |
-| `lockedAgents`       | Kill-switch set; evaluated before rules                                                                             |
-| `disabledCoreRules`  | Core rules Root has switched off, by id. Records a decision the reassertion of core rules consults; deletes nothing |
+| Field                | Semantics                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `mode`               | `enforce` applies verdicts; `monitor` records them without acting. No `off` since T86 D4; a stored one loads as `enforce` |
+| `ask`                | Installation default for an unmatched action: `off` refuses it, `on-miss` puts it to a human                              |
+| `agentMode`          | Per-agent override of `mode`, to watch one agent in `monitor`. Absent key ⇒ inherit `mode`                                |
+| `agentAsk`           | Per-agent override of `ask`. Absent key ⇒ inherit `ask`                                                                   |
+| `agentHitlTimeout`   | Per-agent override of `hitlTimeoutSeconds`. Absent key ⇒ inherit                                                          |
+| `userAsk`            | Per-**account** override of `ask`, set by Root. Combined with the agent axis by taking the stricter (§5)                  |
+| `hitlTimeoutSeconds` | Escalation wait before timeout. Timeout ⇒ deny, and the question is kept on the held-decision stack (§5.1)                |
+| `lockedAgents`       | Kill-switch set; evaluated before rules                                                                                   |
+| `disabledCoreRules`  | Core rules Root has switched off, by id. Records a decision the reassertion of core rules consults; deletes nothing       |
 
 `agentMode` MUST NOT hold `off`. The route refuses it at every tier including
 Root, and a stored `off` is **dropped on load** so the agent inherits the
@@ -57,12 +59,14 @@ agent, not merely its ordinary rules, and would write nothing to the ledger
 recording that it had. Until QA round 13 (finding 80) only the routes refused it,
 so a hand-edited `policy.json` reintroduced it, one field away from the core
 rules' reassertion, which exists precisely so that hand-editing cannot remove the
-core tier. Switching the gate off is an installation-wide `mode` change, which is
-Administrator-level and audited.
+core tier. Since T86 D4 (2026-10-10) `mode` MUST NOT hold `off` either: `setMode` and
+`policy/mode` refuse it at every tier with `POSTURE_OFF_REFUSED`, and a stored `off`
+loads as `enforce`. The one process the gate waves through, OpenClaw's own unconfigured
+test run, is exempted by `isUnconfiguredTestRun`, not by a posture.
 
 The deployment report's check **"Governance is enforcing"**
-(`deployment.posture_enforce`, finding 390) reads the posture: `off` **fails** (nothing is
-checked, blocked or recorded, the core denials and the kill switch included); `monitor`
+(`deployment.posture_enforce`, finding 390) reads the posture (an `off` failed it until
+T86 D4 removed that posture); `monitor`
 installation-wide, or any agent in `monitor`, **warns** (forbid rules and the kill switch
 still apply, but an action no rule covers is allowed and only recorded); `enforce` for every
 agent passes. Before 390 the report said "0 failed" while the gate was off.
@@ -75,6 +79,41 @@ branch.
 
 A document written by an earlier build is merged over current defaults on read,
 so absent fields resolve to defaults rather than `undefined`.
+
+### 1.1 The seal: a change made outside the store is detected (T86 D9, 2026-10-12)
+
+Every write by the store (`savePolicy`, and `updatePolicy` under the file lock) ends the file
+with `seal: { generation, mac }`: `mac` is an HMAC-SHA256 under the ledger key over a label of its
+own, the organisation's id (so a sealed file copied in from another organisation's folder does
+not pass), the write counter `generation`, and `JSON.stringify` of the document without the seal
+(`src/governance/policy-seal.ts`). Whitespace is not covered; every field is. `generation` is one
+above the highest counter this process has seen for the file and the one on disk.
+
+On every load (`loadPolicy`, and the read inside `updatePolicy`):
+
+| The load finds                                                        | Subject recorded                |
+| --------------------------------------------------------------------- | ------------------------------- |
+| A seal that does not match the document                               | `policy-file:edited:<fp>`       |
+| No seal (including a file written before seals, once after upgrading) | `policy-file:unsealed:<fp>`     |
+| A valid seal with a lower counter than this process has already seen  | `policy-file:earlier-copy:<fp>` |
+| No file, where this process has already seen one                      | `policy-file:removed:-`         |
+
+`<fp>` is the first 16 hexadecimal digits of the SHA-256 of the file as found. Each finding is
+recorded once per process as a sealed entry `governance.policy.file-changed` by the labelled actor
+`ledger-integrity` (§10), raised in the integrity banner to Administrators and Root, and
+acknowledged by Root with a reason (§8). The file as found is **used** (detection, not prevention:
+refusing it would let anything that can write the file stop every agent), and is then **sealed as
+found**, under the lock and only if it is unchanged since the read, so one change raises one alert
+across restarts. With no ledger key nothing is checked and no key is created (findings 76/77).
+
+An operator editing `policy.json` by hand raises the alert too; the acknowledgement records it.
+A file that is not valid JSON raises no alert: the load fails, which refuses every governed call
+(fail closed) and is visible already (decision E24). Without a usable key the store writes the file
+unsealed and does not alarm on its own file; the same file after a restart raises the
+`unsealed` alert (decision E25).
+Limits (§12 item 12): a party that can read the ledger key can write a valid seal; an earlier copy
+put back, or the file deleted, together with a Gateway restart is not noticed, because the highest
+counter seen is held in memory.
 
 ## 2. Rule
 
@@ -167,6 +206,8 @@ One or more strings are derived from a tool invocation and matched against
 | `path`         | `read`, `grep`, `find`, `ls`                                                                                                                | `read`  | each host-derived path, or `params.path` / `params.file_path`, **canonicalised**, see §3.1                                                     |
 | `path`         | `write`, `edit`, `apply_patch`                                                                                                              | `write` | as above                                                                                                                                       |
 | `network`      | `web_fetch`                                                                                                                                 | -       | the destination hostname, **canonicalised**, see §3.3                                                                                          |
+| `network`      | `browser` (`open`, `navigate`)                                                                                                              | -       | the hostname of `targetUrl`, else `target_url`, else `url`, read as the browser reads them (trimmed; T86 D3, finding 428)                      |
+| `path`         | `exec` (`workdir`), `terminal` (`cwd` on `open`)                                                                                            | `read`  | the folder the command runs in, resolved as the tool resolves it, **judged before the command**, see §3.6 (T86 D2-A)                           |
 
 More than one resource MAY be derived from a single invocation (a multi-path
 patch, or a `terminal` call carrying both a `command` and `data`). Every one is
@@ -277,6 +318,12 @@ all four. The same canonicalisation removes a false negative that ran the other
 way: a correct operator rule `^api\.example\.com$` previously failed to match a
 URL an agent wrote with a trailing dot.
 
+### 3.3a Hosts a browser loads
+
+See the table above: a browser `open` or `navigate` that names an address is judged by its
+host against the network rules. A link the agent clicks, a request a page's script makes, and a
+redirect from an allowed host are not addresses the agent names and are not judged (§12).
+
 ### 3.4 Control surfaces
 
 Eleven tools reach the operating system by a route other than `exec`, and each
@@ -380,6 +427,26 @@ Derivation rules that affect matching:
   `file:///etc/shadow` through ungoverned.
 - **Length.** A derived resource is clamped to 2048 characters before matching.
 
+### 3.6 The folder a command runs in (T86 D2-A, 2026-10-11)
+
+A command's text is judged against the command rules, and since T86 D2-A the folder it runs in
+is judged too, as a **read** of that folder against the path rules (core denials included),
+before the command. The folder is the one the tool will use:
+
+- `exec`: `params.workdir`, trimmed; a relative one is under the **Gateway process's** working
+  folder, and `~` is not expanded (`resolveExecWorkdir`).
+- `terminal`, action `open`: `params.cwd`, trimmed; a relative or missing folder opens in the home
+  folder (`HOME`, else the account's), as the terminal's launcher does.
+
+A call naming no folder is judged as before. A folder no rule covers is **refused, not asked**
+(one call carries one question; an approved folder question would let an unlisted command run
+unasked); a forbid rule refuses it in every posture; monitor records an uncovered folder and lets
+it through. The folder is canonicalised (§3.1), so a link is judged by its target. When the
+folder is refused, the command is recorded with rule id `working-folder-refused` and is not
+judged. Limits: the folder of a command sent to a paired node, or run in a sandbox container, is
+judged as a path on the Gateway host; and a command's own arguments are not paths to this check
+(`ls src/link` lists wherever the link points).
+
 ## 4. Pattern grammar
 
 `pattern` is an ECMAScript regular expression source string, compiled with
@@ -479,13 +546,15 @@ every string under a substring search.
 definition. For an invocation with derived agent `A`:
 
 ```
- 1. spec ← governedTool(toolName)
+ 1. spec ← governedToolForCall(toolName, params)   (a browser open/navigate naming an address
+             is a network access, §3.3; T86 D3)
     A    ← ctx.agentId ?? agentId(ctx.sessionKey)
  2. G    ← the organisation the agent registry places A in
  3. if G undefined              → record deny "agent-not-registered" (installation ledger); BLOCK
  4. doc  ← policy document of G
  5. effMode ← doc.agentMode[A] ?? doc.mode
- 6. if effMode = "off"          → abstain, record nothing
+ 6. if the process is an unconfigured test run (`isUnconfiguredTestRun`: a VITEST variable and
+       no governance directory) → abstain, record nothing   (there is no `off` posture, T86 D4)
  7. if A ∈ doc.lockedAgents, or a locked agent started this session (§3.4),
        or the lineage cannot be read while any agent is locked
                                  → record deny "kill-switch" | "kill-switch-lineage" |
@@ -493,6 +562,9 @@ definition. For an invocation with derived agent `A`:
  8. if the call comes through the native Codex harness and A is not permitted on Codex
                                  → record deny "agent-not-permitted-on-codex"; BLOCK
  9. if spec undefined           → record "ungoverned" ("no-extractor"); abstain
+ 9a. if the call names a working folder F (`exec` `workdir`, `terminal` `cwd` on open; §3.6)
+       → evaluate F as a path read through steps 10–17 with a miss refused, not asked;
+         if refused: record each command resource deny "working-folder-refused"; BLOCK (T86 D2-A)
 10. B ← canonical parameter binding (§3.1); R ← spec.derive(invocation with B)
 11. if R = ∅                    → record "ungoverned" ("no-resource-extracted"); abstain
 12. denials ← { r ∈ doc.rules :
@@ -614,8 +686,22 @@ shed, and 500 in all.
 
 - An escalation raised by a **dashboard prompt** is answered on the governance
   page by the governance accounts that manage the agent, and by no Gateway
-  connection (T68). An escalation raised by a **chat run** is answered in the
-  Control UI.
+  connection (T68). **Since T86 D7 (2026-10-12) so is every escalation the gate
+  raises, whatever channel started the run**: it carries `pluginId:
+"openclaw-governance"` (`src/governance/approval-origin.ts`), which makes it
+  governance-owned live and stored, so no Gateway connection lists or answers it
+  and no chat channel or phone receives it; the answer is recorded against the
+  account. A chat channel with an address gets one notice that the question waits
+  on the governance dashboard (none for the Control UI's own chat, which `send`
+  refuses). A user-started run is asked whatever its channel's own approval
+  support; a background run (cron, heartbeat, memory dreaming) is refused at once,
+  as before, because nobody waits on it. Other plugins' approvals and exec
+  approvals keep OpenClaw's own surfaces. **Only the governance route answers a
+  governance-owned approval** (finding 429): the in-process approval principal it
+  resolves through also serves a chat's `/approve`, so `plugin.approval.resolve`
+  and `approval.resolve` accept such an answer only while the route has it in
+  flight (`asGovernanceAnswer`), and refuse anything else with "This approval is
+  answered on the governance dashboard, by an account that manages the agent."
 - A run that stops while its escalation waits **withdraws** it: the approval is
   closed as cancelled and its card goes away (finding 363).
 - **The host applies an allow without evaluating policy again.** So an agent that
@@ -720,7 +806,7 @@ tier model in prose; this is the contract.
 | Prompt an agent, attach a file, read that transcript                           | `user`          | `canManageAgent`, **and the agent must be in the caller's organisation**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Cancel a running prompt                                                        | `user`          | The caller's own run; Administrator and above, any run in the organisation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Lock/release an agent                                                          | `user`          | `canManageAgent`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Answer a dashboard escalation (T68)                                            | `user`          | `canManageAgent` on the agent in the Gateway's record; an allow is refused while locked (364); one raised before its agent's current registration is not listed and answers 404 (370); an allow into another agent's folder only by that folder's owner or Root, 403 otherwise (decision (ii))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Answer an escalation (T68; from any channel since T86 D7)                      | `user`          | `canManageAgent` on the agent in the Gateway's record; an allow is refused while locked (364); one raised before its agent's current registration is not listed and answers 404 (370); an allow into another agent's folder only by that folder's owner or Root, 403 otherwise (decision (ii))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Read / answer held decisions                                                   | `user`          | `canViewAgent` to read, `canManageAgent` to answer; an allow is refused when the agent was deleted or registered again since the question (370), and, into another agent's folder, from anyone but that folder's owner or Root (decision (ii))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Set one agent's approval timeout                                               | `user`          | `canManageAgent`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **Set per-agent `ask`** (T4)                                                   | `administrator` | Must manage that agent. A User _requests_ it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -976,7 +1062,10 @@ before it continues; when a dashboard hands back a receipt for a head the ledger
 holds, it seals `governance.ledger.witness-contradiction`, naming the account whose browser
 held it; Root's acknowledgement of either, with a reason, is
 `governance.ledger.alert-acknowledge`. Each is an administrative entry like any other, so the
-evidence is inside the chain it describes. Completing an account deletion that left work
+evidence is inside the chain it describes. The same actor seals `governance.policy.file-changed`
+when a load finds the policy file changed outside the store (§1.1, T86 D9); Root acknowledges it
+the same way. It is an integrity alert but not a chain alert: verification's "intact since N
+alerts" counts the ledger's own two kinds only. Completing an account deletion that left work
 undone is `governance.account.delete-finish` (T76).
 
 Administrative entries MUST carry both fields; agent entries MUST carry neither.
@@ -1009,7 +1098,23 @@ Below Administrator, a prompt's text is visible only to the account that sent it
 `access` (`"read"` or `"write"`) is accepted for a `path` rule only. The response
 carries the created rule with a `conflicts` array (§7) and a `warnings` array
 (§4.2), each possibly empty. A pattern that fails §4.1 is HTTP 400; a full
-organisation is HTTP 409 `too_many_rules`.
+organisation is HTTP 409 `too_many_rules`. `ttlMinutes` is a positive number of
+minutes or a numeric string, capped at about ten years; anything else (`0`, a
+negative number, `true`, an array) is HTTP 400.
+
+**A rule made from a request can expire too (T86 D5, 2026-10-11).** The same
+`ttlMinutes` is taken in three more places, and in each it counts from the
+approval, not from when it was asked for:
+
+- `POST rule-requests` (a rule request): the lifetime the requester asks for,
+  stored on the request. Refused on an agent-setting request.
+- `POST approvals/decide` with `"decision": "allow-always"`: the lifetime the
+  rule request that answer files asks for. Refused with any other answer.
+- `POST rule-requests/decide` with `"approve": true`: the granted lifetime. A
+  number grants that; `null` grants a rule that never expires; leaving the field
+  out grants what the request asked for (or no limit if it asked for none).
+  Refused on an agent-setting request. The approved request carries
+  `ruleExpiresAt`, and the ledger's decision entry ends "the rule expires <time>".
 
 The dashboard's _Policy_ form is the operator's way to call this route. There is
 no command line: the governance command surface was removed on 2026-09-07, and its
@@ -1165,3 +1270,14 @@ and both sit behind self-protecting core denials.
     layer re-checks it. Lockdown is covered (§5.1, finding 364); a rule removed
     while an escalation waits is not, because the operator answering it is the one
     deciding.
+12. **An agent allowed to run an interpreter can still change the policy file; the change is
+    detected, not prevented (T86 D9, §1.1).** The core command denials match a command's text,
+    and code an interpreter runs can assemble the path to `policy.json` from pieces no denial
+    matches; tools run under the Gateway's operating-system account. Since 2026-10-12 a load
+    that finds the file changed outside the store records a sealed integrity alert and the
+    banner raises it until Root acknowledges it. What the seal cannot see: a party that reads
+    the ledger key (in the same governance folder unless supplied through
+    `OPENCLAW_GOVERNANCE_LEDGER_KEY`) can write a valid seal; an earlier copy put back, or the
+    file deleted, together with a Gateway restart, is not noticed (the highest counter seen is
+    held in memory). Closing it needs tools
+    run under an account that cannot reach the governance directory (Chapter 5).

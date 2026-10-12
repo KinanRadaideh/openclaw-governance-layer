@@ -113,6 +113,14 @@ Three things people get wrong here:
   as `read` is. A rule that keeps an agent out of a folder also keeps it from
   searching there, and a folder you meant it to search needs a `path` rule, not a
   `command` rule.
+- **`path` also decides where a shell command may run (2026-10-11).** When an agent
+  runs a command in a folder of its choosing (`exec`'s working folder, or the
+  folder a terminal opens in), that folder is checked like a read of it. Inside
+  the agent's own project it is allowed; anywhere else it needs a `path` rule that
+  allows reading it, or the command is refused (no question is asked: the agent is
+  told to leave the folder out). A forbid rule on a folder therefore stops commands
+  running there too. The shipped `ls` rule now lists folders inside the project
+  only (`ls src`, not `ls /etc` or `ls ../..`).
 
 A search is judged on the folder it **starts from**, then reads everything below
 it. So a search started above a forbidden folder reaches into it. On the
@@ -419,8 +427,10 @@ is not yours, or because Root has withheld your authoring, **ask for it**. In th
 (up to 500 characters) and an agent (blank asks for a rule binding every agent).
 For a `path`, a **Read or write** dropdown appears, as on the Add a rule form
 (§4c): leave it at **read + write** to ask for both directions, or narrow the
-request to one. A request always asks for an **allow** rule. You can have up to 20
-waiting at once.
+request to one. A request always asks for an **allow** rule. A lifetime list
+beside the agent asks for how long the rule should last once approved: **Never
+expires** (the default), or 1 hour, 8 hours, 1 day, 7 days or 30 days. You can
+have up to 20 waiting at once.
 
 An Administrator sees the request with **Approve** and **Reject**, and a path
 request's row says which direction it asks for, `path (read)` or `path (write)`. While it is
@@ -433,6 +443,15 @@ requested, from the stored request, and the new rule's description says who
 asked and why. The Administrator may add a **note** to either answer (up to 500
 characters), which the person who asked sees beside the decision: "rejected: write it
 for the scratch folder only" says what a bare rejection did not (2026-10-07).
+
+**How long the approved rule lasts (2026-10-11).** Each pending rule request has a
+lifetime list beside **Approve**, set to what the request asked for ("asks for the
+rule to last 8 hours" is written on the row) or to **Never expires** when it asked
+for nothing. Change it before pressing **Approve** to shorten the grant, lengthen it,
+or remove the limit. The time counts from the approval, so a request that waited in
+the queue loses nothing. The decided request then says when the rule expires, and so
+does the ledger. A request to change an agent's setting has no lifetime: it creates no
+rule.
 
 > **Another agent's folder.** OpenClaw puts every later agent's working folder inside the
 > default agent's. A read from one into the other is never covered by "its own folder",
@@ -451,7 +470,11 @@ Requests also come from escalations. When somebody answers an agent's question
 with **Always allow**, or answers a question that already timed out with
 **Would allow**, no rule is created there and then. A request is filed for that
 agent and that exact resource, escaped and anchored, in the direction the agent
-used, and an Administrator approves it like any other.
+used, and an Administrator approves it like any other. On the dashboard, a lifetime
+list under the question ("If you choose Always allow, ask for a rule that:") lets
+the person answering ask for a time limit; it goes with **Always allow** only. An
+answer given in a chat channel asks for none, and the Administrator can still set
+one when approving.
 
 ### Asking for a change to one agent's posture or escalation
 

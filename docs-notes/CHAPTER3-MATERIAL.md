@@ -11320,8 +11320,10 @@ function (`foreign-folder-approval.ts`; agent ids cannot contain a quote, and th
 id is the engine's), and the held list under _Awaiting your decision_ works it out from the
 stored path. The design point for the chapter: authority over an action that touches another
 party's resource follows that resource's owner, not the actor's manager. The limits: rule
-writing is separate (a rule for the reading agent can still allow the path), and a chat-started
-run's question is answered on OpenClaw's own surfaces.
+writing is separate (a rule for the reading agent can still allow the path). (A second limit
+written here on 2026-10-08, that a chat-started run's question is answered on OpenClaw's own
+surfaces, ended with T86 D7 on 2026-10-12, §3.5.113: every gate escalation is answered on the
+dashboard, where this rule applies.)
 
 **What happens to a deleted agent's folder (decision C; §3.5.10 Agent Lifecycle).** Neither
 deletion removed a nested folder: the roster-only delete keeps every file by design, and
@@ -11602,3 +11604,195 @@ account holds) read one file outside the other's lock, so a change landing in be
 property (17 red against the code as it was, the races by pausing one change between its check
 and its write); 19 of 19 mutations caught, two of them only after tests for the windows the
 registry lock alone closes were added.
+
+### 3.5.108 T86's first four decisions: the stop reaches background work, no `off`, the browser on the allowlist, the installation's policy in every view (2026-10-10; finding 426)
+
+**D1, finding 426: the kill switch and background processes.** The kill switch aborted the
+agent's runs through OpenClaw's run control, and that abort deliberately spares a shell command
+the agent moved to the background (a command still running after its ten-second yield window is
+moved there on its own). A lockdown therefore could leave a download, a loop or a server the agent
+had started running, while it reported the stop as confirmed. The Gateway's terminator now ends
+the agent's running background sessions too (`src/gateway/governance-agent-termination.ts`),
+through the cancel OpenClaw's own `process` tool uses, and then kills each process tree at once;
+the stop is confirmed only once each has exited. The forced kill is the design choice: OpenClaw's
+tree kill is graceful (a polite signal, force after three seconds), which took 5.3 s on Windows,
+and Chapter 1 describes the kill switch as sending SIGKILL. Measured with the forced kill: a
+confirmed stop in 267–325 ms. The ledger entry reads "aborted N in-flight run(s), ended M
+background process(es)".
+
+**D4: `off` removed.** The posture is `enforce` or `monitor`. `off` skipped the gate for every
+agent, with no forbid rule, no kill switch and no record, and any Administrator could set it.
+`monitor` already gives "watch without blocking" and keeps the forbid rules, the kill switch and
+the record, so `off` added only a way to stop all three. A stored `off` loads as `enforce`;
+`setMode` and the route refuse it at every tier. The one legitimate user of `off`, OpenClaw's own
+unconfigured test runs, never needed a posture: the gate exempts them through
+`isUnconfiguredTestRun`, which now carries that job alone.
+
+**D3: browser navigation on the network allowlist.** The browser tool was judged by its action
+name, so a rule allowing `browser:navigate` allowed every site, and the host allowlist bound only
+the web fetch tool. A browser `open` or `navigate` that names an address is now a network access,
+judged by its host against the same rules (`resolveGovernedToolForCall`,
+`src/governance/resource-extraction.ts`). Seven baseline rules allow a short list of hosts
+(Wikipedia, Google search, GitHub, the main package registries, language documentation, the
+OpenClaw site, Stack Overflow and DuckDuckGo), chosen by Kinan; local and private addresses,
+metadata endpoints, the model API and drop sites are left out on purpose. An installation made
+before them gains them once, by the document version (precedent: T70). Limits: a link followed by
+a click, or a request a page's script makes, is not a navigation the agent names; and a host on
+the list can still carry data out in its address.
+
+**D12: the installation's policy in every view.** A User's or Viewer's ledger held only their
+own agents' entries, so it did not show that the posture or a rule binding every agent had
+changed. Six installation-policy actions are now shown to everyone who reads the trail (Viewers
+masked), the ones whose content they already see on the Policy page; every other
+installation-wide entry stays hidden, and a new action type stays hidden until it is listed: a
+fixed allowlist that fails closed (`src/governance/ledger-view.ts`).
+
+**D6, measured, not built.** Creating an agent still stops the Gateway answering for 3.2–3.3 s
+when warm (12 s for the first creation after a start); a CPU profile puts 3.0 s in building the
+new workspace's model runtime (plugin runtime load 1.6 s, plugin metadata scan 1.4 s), most of it
+synchronous `lstat` and `existsSync`. Upstream code, not a small fix; options in the backlog (T86).
+
+### 3.5.109 A rule granted from a request can expire (2026-10-11; T86 D5, option A; finding 427)
+
+**The gap.** Requirement 4 asks for time-limited permissions, and only a rule typed under "Add a
+rule" could have one. The permissions an operator grants most often, by approving a request
+(including every "Always allow" answer, which files a request rather than writing a rule), were
+permanent.
+
+**The design.** Every rule made from a request is created by one route, the approval
+(`rule-requests/decide`), so the lifetime is chosen there and covers every source: the request
+form, "Always allow" on the dashboard or in a chat, and "Would allow" on a timed-out question. The
+route takes "Add a rule"'s `ttlMinutes`: a number grants that, `null` grants no limit, and leaving
+it out grants what the request asked for, because an Administrator grants what was reviewed (the
+precedent of `agentId` and of finding 279's `access`). A request may ask for a lifetime (the form,
+and a list beside "Always allow" on the dashboard); it is stored as minutes and **counts from the
+approval**, so a request that waits in the queue does not reach its approver already expired. The
+dashboard always sends the lifetime the row shows, preselected with what was asked for, and "never
+expires" is the default everywhere, so nothing changes unless somebody chooses. The ledger says it
+three times: the submission ("for N minutes"), the decision ("the rule expires T") and the rule
+itself ("expires T"), each worded as before when there is no lifetime.
+
+**Refused rather than dropped:** a lifetime on a request to change an agent's setting (it creates no
+rule), and a lifetime sent with any answer but "Always allow". Found and fixed on the way: the
+lifetime check turned its input into a number with `Number()`, so `true` was accepted as one
+minute and `[5]` as five; it now takes a number or a numeric string only.
+
+**Left, and stated:** folder grants and agent assignments still have no lifetime (the other half of
+D5's gap, not part of option A); two "Always allow" answers to one question with different
+lifetimes file one request, the first.
+
+**Found by the live check.** The decision entry first repeated the request's "for 1440 minutes"
+when the approver had removed the limit, so it read as a 1440-minute approval of a permanent rule;
+it now adds "the rule never expires" whenever a lifetime asked for was not granted. The approval
+card's own sentence, "An Administrator must approve the request before permission becomes
+permanent", stopped being true and now ends "before the action is allowed again without asking".
+**Finding 427**, older than D5 and found beside it: after "Always allow", the notice named the
+question by its internal id, because the page's two-second re-read removed the card while the
+answer was in flight and the notice looked the card up afterwards. It is looked up before the
+answer is sent.
+
+### 3.5.110 The QA of four days: the browser's own parameter order, and D5's edges (2026-10-11; finding 428)
+
+**Finding 428: a check must read what the tool acts on.** D3 judged a browser navigation by an
+address read as `url`, else `targetUrl`; the browser reads `targetUrl`, else `target_url`, else
+`url`, all trimmed, and trims the action. Given two addresses, the check judged one and the
+browser loaded the other, and an untrimmed action fell to the action-name rule. The check now
+reads every parameter through the browser's own reader (`readSnakeCaseParamRaw`, trimmed, blank
+as absent), so the two cannot disagree. The general lesson, which the sweep applied to the file
+tools, `exec` and `web_fetch` (all already in agreement): a gate that parses a request itself is
+only as good as its agreement with the code that acts on the request.
+
+**D5's edges.** A stored lifetime is checked before it is granted (a corrupt one crashed the
+approval; a negative one would have granted a rule born expired), without blocking a rejection.
+The approval preview judges the rule approving would grant, with the request's lifetime, so a
+short request inside a longer identical rule is "redundant", not "now permanent". A decided
+request whose rule has lapsed says "expired".
+
+**Stated, not changed.** A redirect from an allowed host is followed without a check (the web
+fetch tool follows up to three; the browser as browsers do); the obvious redirectors among the
+shipped hosts did not redirect an unsigned request when tried. A background command on a paired
+node or in a sandbox container is outside what the kill switch's process step reaches; ending the
+local process is what OpenClaw's own process control does there too.
+
+### 3.5.111 Shell commands and the folders they reach (2026-10-11; T86 D2, option A)
+
+**The gap.** A command was judged as text against the command rules only. The shipped listing
+rule accepted any path (`ls -la /root/.ssh`, `ls ../../..`), and the folder a command runs in
+(`exec`'s `workdir`, the terminal's `cwd`) was never read, so an allowed `pwd` or `git log` ran
+anywhere the agent named.
+
+**The design.** The listing rule takes a path inside the project only: relative, with no `..`
+segment, written with lookaheads because a repeated segment group is a nested quantifier the
+pattern-safety check refuses. Installations made before it have the rule replaced once (policy
+document version 4) when it is still exactly as shipped. The folder a command runs in is judged as
+a read of that folder, against the path rules and the core denials, before the command, through
+the same gate with a judgement of its own (`PartJudgement`). The folder judged is the one the
+tool uses: exec resolves a relative `workdir` under the Gateway process's folder and never
+expands `~`; the terminal opens in the home folder for a relative or missing `cwd`. A folder no
+rule covers is **refused, not asked**, because one call can carry one question and a question
+about the folder would let an unlisted command run unasked; the agent is told to leave the folder
+out. The refused command is still recorded (`working-folder-refused`), not judged.
+
+**Left, and stated.** A command's own arguments are not paths to the gate, so a link inside the
+project can still lead a listing out of it; the folder of a command sent to a paired node or run in
+a sandbox is judged as a path on the Gateway host. The complete answer, a separate account or
+container for tools, stays future work.
+
+### 3.5.112 A policy file changed outside the store is detected and raised (2026-10-12; T86 D9, option A)
+
+**The gap.** An interpreter rule lets an agent run code that assembles the path to `policy.json`
+from pieces no core denial matches, and tools run under the Gateway's account, so the agent could
+edit the rules that bind it. `loadPolicy` kept the gate sound against a hand-edited file (core
+rules reasserted, bad fields coerced) but used the edit and recorded nothing.
+
+**The design (decisions E15–E25, `mg/WORK-LOG-2026-10-12.md`).** The store seals every write:
+`seal: { generation, mac }` at the end of the file, the HMAC under the ledger key over its own
+label, the organisation's id, a write counter, and the document without the seal (`src/governance/policy-seal.ts`). A
+seal in the file rather than beside it, because one atomic write cannot leave the two disagreeing
+(findings 209/210), and rather than in the chain, because the policy is read on every tool call
+and many writes record no entry of their own. Every load checks it. A seal that does not match, no
+seal, a counter lower than this process has already seen (an earlier copy put back), or no file
+where one was seen is recorded once as a sealed `governance.policy.file-changed` entry by the
+labelled actor `ledger-integrity`, raised in T73's banner to Administrators and Root, and
+acknowledged by Root with a reason; the deployment report fails while one is open. **It does not
+prevent**: the file as found is used (refusing it would let anything that can write the file stop
+every agent) and is then sealed as found, so one change raises one alert, across restarts too.
+A file with no seal raises the alert even when it predates seals, because nothing without the key
+can tell an old file from one whose seal was deleted; every existing installation sees one alert
+after the upgrade, worded for it. With no ledger key nothing is checked and none is created. It is
+an integrity alert, not a chain alert: verification's "intact since N alerts" is unchanged.
+
+**Left, and stated.** A party that reads the ledger key can write a valid seal (the ledger's own
+limit; the key can be supplied through `OPENCLAW_GOVERNANCE_LEDGER_KEY`). The highest counter seen
+is held in memory, so an earlier copy put back, or the file deleted, together with a Gateway
+restart, is not noticed. The complete answer, tools under a separate account, stays future work.
+
+### 3.5.113 Every escalation is answered on the dashboard, by a named account (2026-10-12; T86 D7, option A)
+
+**The gap.** An escalation from a dashboard prompt was answered on the dashboard by an account
+that manages the agent, recorded against it (T68). One from a chat run (Discord, Telegram, Slack,
+WhatsApp, the Control UI's own chat) went to OpenClaw's approval surfaces, where anyone with the
+channel or the Gateway credential could answer, and the record said only that it was answered.
+
+**The design (decisions E26–E31, `mg/WORK-LOG-2026-10-12.md`).** The gate marks its escalations
+(`pluginId: "openclaw-governance"`, `src/governance/approval-origin.ts`), and an approval carrying
+the mark is governance-owned whatever channel started the run, live and in the approval store
+(which keeps the plugin id in its presentation). T68's machinery then applies unchanged: no Gateway
+connection lists or answers it, it is forwarded to no chat or phone, the governance route claims it
+on the in-process bus, and the dashboard shows it to the accounts that manage the agent, with the
+chat it came from; the answer is recorded against the account, and "Always allow" files its request
+under that account (C15). The chat the run came from receives one message through the Gateway's own
+`send`, saying the question waits on the governance dashboard and that nobody answering means refused.
+A user-started run is asked whatever its channel's own approval support; a background run is refused
+at once, as before. Other plugins' approvals and exec approvals keep OpenClaw's own surfaces.
+
+**Finding 429, found by the QA of D7 and fixed.** Every in-process approval surface resolves as one
+trusted approval principal: the governance route, and a chat's `/approve <id> <decision>`. T68 hid a
+governance escalation from Gateway connections but not from that principal, so a chat sender allowed
+`/approve` who knew the id could answer outside the dashboard, recorded against no account (no chat
+receives the id, so it needed a leak). The route now marks its own answer (`asGovernanceAnswer`), and
+both resolve methods accept a governance-owned answer only while that answer is in flight.
+
+**Left, and stated.** The Control UI's own chat receives no message (`send` refuses it as internal);
+the person there sees the agent wait until it is answered or refused. Who may _talk to_ a chat agent
+is still the channel's to decide; only who may _approve_ changed.

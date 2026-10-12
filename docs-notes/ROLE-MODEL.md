@@ -380,7 +380,7 @@ somewhere they would think to look.
 
 | Capability                                                                                                                                                                                                                | Enforced by                                                   |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Change posture (enforce / monitor / off), installation-wide                                                                                                                                                               | `policy/mode`, `canManageGlobalPolicy`                        |
+| Change posture (enforce / monitor), installation-wide; `off` no longer exists (T86 D4)                                                                                                                                    | `policy/mode`, `canManageGlobalPolicy`                        |
 | Change ask mode (ask-on-miss vs. strict deny), installation-wide                                                                                                                                                          | `policy/ask`, `canManageGlobalPolicy`                         |
 | Set the approval timeout, installation-wide                                                                                                                                                                               | `policy/hitl-timeout`, floor Administrator                    |
 | Switch **one agent** to `monitor` or back to `enforce` (T4)                                                                                                                                                               | `policy/agent-mode`, floor Administrator                      |
@@ -391,10 +391,10 @@ somewhere they would think to look.
 | Lock / release **any** agent in the organisation                                                                                                                                                                          | `kill`, `canManageAgent`                                      |
 | Prompt any agent, attach files, read that account's conversation                                                                                                                                                          | `agent/prompt`, `agent/attachment`, `canManageAgent`          |
 | See and cancel **any** running prompt in the organisation                                                                                                                                                                 | `agent/runs`, `agent/cancel`, `canManageGlobalPolicy`         |
-| Answer an escalation from a dashboard prompt, for any agent (T68); an **allow** into another agent's folder only for agents they own (decision (ii))                                                                      | `approvals/decide`, `canManageAgent`, `mayAllowForeignFolder` |
+| Answer an escalation (from a dashboard prompt or, since T86 D7, any chat run), for any agent (T68); an **allow** into another agent's folder only for agents they own (decision (ii))                                     | `approvals/decide`, `canManageAgent`, `mayAllowForeignFolder` |
 | Answer a held decision in _Awaiting your decision_, for any agent; the same folder rule                                                                                                                                   | `pending-decisions/decide`, `canManageAgent`                  |
 | Assign agents to the Users and Viewers that answer to them, from _Your accounts_ (397)                                                                                                                                    | `users/agents`, `canAssignAgents`                             |
-| Approve or reject rule requests and agent-setting requests                                                                                                                                                                | `rule-requests/decide`, floor Administrator                   |
+| Approve or reject rule requests and agent-setting requests; choose how long an approved rule lasts (T86 D5)                                                                                                               | `rule-requests/decide`, floor Administrator                   |
 | Register or provision an agent **owned by themselves**                                                                                                                                                                    | `agents/register`, `agents/provision`                         |
 | Rename, re-own, unregister, delete from the host, or set Codex for an agent they **own**; deleting one whose folder sits inside another agent's workspace asks whether the folder goes to the trash or stays (decision C) | ownership check                                               |
 | Read the full unmasked audit ledger for every agent, every prompt's text                                                                                                                                                  | `requiresSanitizedAudit` false                                |
@@ -407,10 +407,10 @@ somewhere they would think to look.
 > allow" still only files a rule request, which needs the Administrator row above.
 > **An agent that is locked down cannot be allowed** (finding 364): the kill switch
 > ends the prompt that is waiting, which withdraws its escalation, and the answer
-> route refuses an allow for a locked agent while still taking a deny. **Approvals
-> from chat runs are still outside this table**: they are answered in the Control
-> UI, which connects to the Gateway as an operator rather than as a governance
-> account, so any browser holding the Gateway credential can answer them.
+> route refuses an allow for a locked agent while still taking a deny. **Since T86
+> D7 (2026-10-12) escalations from chat runs are inside this table too**: every
+> escalation the gate raises is answered here, by the same accounts, and the chat
+> it came from is told so. The Control UI no longer lists or answers them.
 
 > **Ownership also decides who may allow a read into an agent's folder** (Kinan's
 > decision (ii), 2026-10-08). OpenClaw nests every later agent's workspace inside the
@@ -445,30 +445,35 @@ a widening made by the tier with the least authority. Both per-agent switches we
 to the Administrator, and a User now **asks** through the rule-request queue (an
 `agent-setting` request) rather than setting them.
 
-Turning the gate off is still possible: `policy/mode`, which is installation-wide,
-Administrator-level, audited, and displayed prominently on the dashboard. The
-distinction the design draws is between switching something off _visibly and
-globally_, which is a legitimate operator decision, and switching it off _quietly
-for one agent_, which is indistinguishable from an attack.
+Turning the gate off for the whole installation was possible until 2026-10-10:
+`policy/mode`, Administrator-level, audited and shown on the dashboard, on the
+argument that switching something off _visibly and globally_ is a legitimate
+operator decision while switching it off _quietly for one agent_ is
+indistinguishable from an attack. **T86 D4 removed it** (Kinan, 2026-10-10: "go with
+B, remove off from the dashboard and from our project completely"): visible or not,
+it let any Administrator remove the kill switch and the core denials for every agent
+and stop the record, and `monitor` already serves the legitimate purpose, watching
+without blocking, while keeping all three. The posture is `enforce` or `monitor` at
+both levels, and a stored `off` loads as `enforce`.
 
 ### User: manages the agent(s) assigned to them
 
-| Capability                                                                                                                                           | Enforced by                                          |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| **Prompt an assigned agent, attach files, and read that conversation back**                                                                          | `agent/prompt`, `agent/transcript`, `canManageAgent` |
-| Cancel their **own** running prompts                                                                                                                 | `agent/cancel`, ownership of the run                 |
-| Create rules and folder grants **scoped to an assigned agent**, allowing _or forbidding_                                                             | `canAuthorPolicyForAgent` (T27)                      |
-| Remove rules belonging to an assigned agent                                                                                                          | `canAuthorPolicyForAgent` (T27)                      |
-| Lock / release an assigned agent                                                                                                                     | `kill`, `canManageAgent`                             |
-| Answer an escalation from a dashboard prompt, for an assigned agent (T68); a read into another agent's folder may only be **denied** (decision (ii)) | `approvals/decide`, `canManageAgent`                 |
-| Answer a held decision for an assigned agent; the same folder rule                                                                                   | `pending-decisions/decide`, `canManageAgent`         |
-| Set the approval timeout for an assigned agent                                                                                                       | `policy/agent-hitl-timeout`, `canManageAgent`        |
-| Read unmasked audit detail for assigned agents                                                                                                       | `requiresSanitizedAudit` false                       |
-| Request a global rule, a rule for another agent, or an agent setting                                                                                 | `rule-requests`, floor User                          |
-| **Cannot** switch an assigned agent's posture or escalation. May _request_ it                                                                        | floor Administrator (T4)                             |
-| **Cannot** touch installation-wide posture, ask mode, or global rules                                                                                | `canManageGlobalPolicy` false                        |
-| **Cannot** see or touch an agent they were not assigned                                                                                              | `canViewAgent` false                                 |
-| See their own Administrator's name (`whoami` returns `answersTo`)                                                                                    | `whoami`                                             |
+| Capability                                                                                                                                                                            | Enforced by                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **Prompt an assigned agent, attach files, and read that conversation back**                                                                                                           | `agent/prompt`, `agent/transcript`, `canManageAgent` |
+| Cancel their **own** running prompts                                                                                                                                                  | `agent/cancel`, ownership of the run                 |
+| Create rules and folder grants **scoped to an assigned agent**, allowing _or forbidding_                                                                                              | `canAuthorPolicyForAgent` (T27)                      |
+| Remove rules belonging to an assigned agent                                                                                                                                           | `canAuthorPolicyForAgent` (T27)                      |
+| Lock / release an assigned agent                                                                                                                                                      | `kill`, `canManageAgent`                             |
+| Answer an escalation (from a dashboard prompt or, since T86 D7, any chat run), for an assigned agent (T68); a read into another agent's folder may only be **denied** (decision (ii)) | `approvals/decide`, `canManageAgent`                 |
+| Answer a held decision for an assigned agent; the same folder rule                                                                                                                    | `pending-decisions/decide`, `canManageAgent`         |
+| Set the approval timeout for an assigned agent                                                                                                                                        | `policy/agent-hitl-timeout`, `canManageAgent`        |
+| Read unmasked audit detail for assigned agents, and the six installation-policy entries (T86 D12)                                                                                     | `requiresSanitizedAudit` false                       |
+| Request a global rule, a rule for another agent, or an agent setting                                                                                                                  | `rule-requests`, floor User                          |
+| **Cannot** switch an assigned agent's posture or escalation. May _request_ it                                                                                                         | floor Administrator (T4)                             |
+| **Cannot** touch installation-wide posture, ask mode, or global rules                                                                                                                 | `canManageGlobalPolicy` false                        |
+| **Cannot** see or touch an agent they were not assigned                                                                                                                               | `canViewAgent` false                                 |
+| See their own Administrator's name (`whoami` returns `answersTo`)                                                                                                                     | `whoami`                                             |
 
 **From the paper** (§1.6): "Granted targeted access to interact with specific,
 pre-configured agents… may strictly prompt the agents for task execution or be
@@ -531,19 +536,19 @@ the _agent_, use the per-agent axis.
 
 ### Viewer: sees the assigned agent, changes nothing
 
-| Capability                                                         | Enforced by                   |
-| ------------------------------------------------------------------ | ----------------------------- |
-| Read policy rules affecting assigned agents (plus global rules)    | `canViewAgent`                |
-| Read the posture and escalation overrides for assigned agents      | `canViewAgent`                |
-| Look up what one assigned agent may do (_Agent permissions_)       | `canViewAgent`                |
-| Watch assigned agents running, live, and whether one is locked     | `canViewAgent`                |
-| Read audit entries for assigned agents, **resource detail masked** | `requiresSanitizedAudit` true |
-| Verify the audit chain's integrity                                 | floor Viewer                  |
-| View system resource states (CPU, memory, uptime)                  | floor Viewer                  |
-| See the rule-request queue for assigned agents                     | `canViewAgent`                |
-| **Cannot** prompt an agent, or read a conversation with one        | floor User                    |
-| **Cannot** see or answer escalations or held decisions             | floor User                    |
-| **Cannot** change anything at all                                  | every mutating route          |
+| Capability                                                                                                           | Enforced by                   |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Read policy rules affecting assigned agents (plus global rules)                                                      | `canViewAgent`                |
+| Read the posture and escalation overrides for assigned agents                                                        | `canViewAgent`                |
+| Look up what one assigned agent may do (_Agent permissions_)                                                         | `canViewAgent`                |
+| Watch assigned agents running, live, and whether one is locked                                                       | `canViewAgent`                |
+| Read audit entries for assigned agents and the six installation-policy entries (T86 D12), **resource detail masked** | `requiresSanitizedAudit` true |
+| Verify the audit chain's integrity                                                                                   | floor Viewer                  |
+| View system resource states (CPU, memory, uptime)                                                                    | floor Viewer                  |
+| See the rule-request queue for assigned agents                                                                       | `canViewAgent`                |
+| **Cannot** prompt an agent, or read a conversation with one                                                          | floor User                    |
+| **Cannot** see or answer escalations or held decisions                                                               | floor User                    |
+| **Cannot** change anything at all                                                                                    | every mutating route          |
 
 **From the paper** (§1.6): "strictly read-only access… can monitor active agent
 operations, view system resource states (e.g., VPS CPU/RAM usage), and read
@@ -556,18 +561,18 @@ verify, sessions, system and mutating rows are enumerated in
 that boundary is a property of the build; the agents, held-decision and approval
 rows are the route floors, as checked on 2026-09-13:
 
-| Surface                 | Viewer                                                                                                                                                                       |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET policy`            | ✔ own agents' rules + global rules; own agents' `agentMode` / `agentAsk`; **not** another agent's anything; **not** `userAsk`, which is keyed by account and belongs to Root |
-| `GET ledger`            | ✔ own agents' entries, `resource` and `intent` replaced by a placeholder; sequence and hashes intact so the shape of the chain is still visible                              |
-| `POST ledger/verify`    | ✔ the verdict only: whether the log was tampered with, computed server-side against the unmasked file                                                                        |
-| `GET sessions`          | ✔ own agents' live runs and lockdown state                                                                                                                                   |
-| `GET system`            | ✔ CPU, memory, uptime                                                                                                                                                        |
-| `GET agents`            | ✔ own agents' registry entries                                                                                                                                               |
-| `GET rule-requests`     | ✔ queue entries for own agents, plus unscoped ones                                                                                                                           |
-| `GET pending-decisions` | ✘ **403**                                                                                                                                                                    |
-| `GET approvals`         | ✘ **403**                                                                                                                                                                    |
-| every mutating route    | ✘ **403**                                                                                                                                                                    |
+| Surface                 | Viewer                                                                                                                                                                                                                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET policy`            | ✔ own agents' rules + global rules; own agents' `agentMode` / `agentAsk`; **not** another agent's anything; **not** `userAsk`, which is keyed by account and belongs to Root                                                                                                              |
+| `GET ledger`            | ✔ own agents' entries and the six installation-policy entries (T86 D12: posture, ask-or-deny, approval timeout, core-rule switch, global rule added or removed), `resource` and `intent` replaced by a placeholder; sequence and hashes intact so the shape of the chain is still visible |
+| `POST ledger/verify`    | ✔ the verdict only: whether the log was tampered with, computed server-side against the unmasked file                                                                                                                                                                                     |
+| `GET sessions`          | ✔ own agents' live runs and lockdown state                                                                                                                                                                                                                                                |
+| `GET system`            | ✔ CPU, memory, uptime                                                                                                                                                                                                                                                                     |
+| `GET agents`            | ✔ own agents' registry entries                                                                                                                                                                                                                                                            |
+| `GET rule-requests`     | ✔ queue entries for own agents, plus unscoped ones                                                                                                                                                                                                                                        |
+| `GET pending-decisions` | ✘ **403**                                                                                                                                                                                                                                                                                 |
+| `GET approvals`         | ✘ **403**                                                                                                                                                                                                                                                                                 |
+| every mutating route    | ✘ **403**                                                                                                                                                                                                                                                                                 |
 
 Two deliberate choices in that table are worth defending in the report. First,
 **global rules are shown**: they bind the Viewer's agent as much as an
@@ -619,8 +624,9 @@ sensible future extension and is recorded as such (§5).
 The consequence an operator should understand: on a chat deployment the policy
 and the kill switch constrain **what the agent may do**, and the channel's own
 access controls decide **who may ask it**. Both are needed; neither substitutes
-for the other. The same boundary applies to approvals: an escalation raised by a
-chat run is answered in the Control UI, not by a governance tier (T68).
+for the other. Approvals are no longer on that boundary: since T86 D7 an
+escalation raised by a chat run is answered on the governance dashboard by an
+account that manages the agent, and the record names it.
 
 ---
 
@@ -893,7 +899,7 @@ this Administrator owns (M4) · ✘ = refused
 | Prompt an agent, attach files, read the conversation               |                     ✘                      |            scoped             |        ✔        |  ✔   |
 | Cancel a running prompt                                            |                     ✘                      |           own only            |        ✔        |  ✔   |
 | Lock / release an agent (kill switch)                              |                     ✘                      |            scoped             |        ✔        |  ✔   |
-| Answer an escalation from a dashboard prompt (T68)                 |                     ✘                      |            scoped             |        ✔        |  ✔   |
+| Answer an escalation, from any channel (T68, T86 D7)               |                     ✘                      |            scoped             |        ✔        |  ✔   |
 | Answer a held decision (_Awaiting your decision_)                  |                     ✘                      |            scoped             |        ✔        |  ✔   |
 | **Allow** a read into another agent's folder (decision (ii))       |                     ✘                      |         ✘ (may deny)          |    **owned**    |  ✔   |
 | Set the approval timeout for **one agent**                         |                     ✘                      |            scoped             |        ✔        |  ✔   |
@@ -962,9 +968,8 @@ this Administrator owns (M4) · ✘ = refused
 
 - **Bridging chat-channel identities to governance accounts.** A person reaching
   an agent through Discord, Telegram, Slack or WhatsApp is not a governance
-  account: the ledger attributes their activity to the agent, and an approval
-  raised by a chat run is answered in the Control UI by any browser holding the
-  Gateway credential rather than by a tier (T68's boundary).
+  account: the ledger attributes their activity to the agent. (Their approvals are
+  no longer part of this: since T86 D7 the governance dashboard answers them.)
 - **An in-product handover of the Root role.** Deliberately offline (§2, Root).
 - **Editing deployment configuration from the dashboard.** Deliberately
   read-only (§2, Root): a control plane that can cut off its own access in one

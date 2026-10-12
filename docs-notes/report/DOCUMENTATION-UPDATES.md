@@ -4,26 +4,28 @@
 master) and the repository's own documents. **Chapters 1 and 2 are frozen (Kinan, 2026-10-08):
 anything they need is said in Chapter 3.**
 
-**Brought up to date on 2026-10-10 (late evening).** Every item was re-read against Kinan's
-latest full export, `complete_report.txt` of 2026-10-08 (no newer export exists; every Chapter 3
-section written, none a stub), and against the code as it stands: finding 421 committed and
-pushed (`2b92794d89a`, `4673ac44db3`), then T85 (findings 422 and 423), T77 (findings 424 and
-425), their QA, the live dashboard QA by role and T86 (requirement gaps), all on 2026-10-10.
-Items added on 2026-10-08, 10-09 and 10-10 are marked **NEW 10-08**, **NEW 10-09** and **NEW
-10-10**; the logs are `mg/WORK-LOG-2026-10-08.md`, `mg/QA-SESSION-2026-10-09.md`,
-`mg/WORK-LOG-2026-10-09.md` and `mg/WORK-LOG-2026-10-10.md`. The repository documents of §8 and
-§11.11 were applied on 2026-10-10 (backlog T81) and their items deleted. **Anything already done
-in an export has been deleted from this file.** When an item is done, delete it; when something
-new is owed, add it here and nowhere else.
+**Brought up to date on 2026-10-12 (evening; record `mg/WORK-LOG-2026-10-13.md`).** Every item
+was re-read against Kinan's latest export, `complete_report.txt`, exported again on 2026-10-12 at
+18:00 (byte for byte the size of the 2026-10-08 export, and every passage this file quotes is
+still in it, so Overleaf has not moved since 10-08; every Chapter 3 section written, none a
+stub), and against the code as it stands on 2026-10-12: pushed at `3d647af9b07` (2026-10-10),
+then six uncommitted layers (the T86 build of 10-10, D5-A, the QA of four days, D2-A, D9-A, and
+D7-A with finding 429). Items are marked **NEW 10-08** to **NEW 10-12** by the day they were
+added; the logs are `mg/WORK-LOG-2026-10-08.md` to `mg/WORK-LOG-2026-10-12.md`,
+`mg/QA-SESSION-2026-10-09.md` and `mg/QA-SESSION-2026-10-11.md`. **Anything already done in an
+export has been deleted from this file** (on 2026-10-12 nothing was: no item had been applied).
+When an item is done, delete it; when something new is owed, add it here and nowhere else.
 
-**What is left, in one view (2026-10-10, late evening):** §1, the front matter; §3, the
-Chapter 3 corrections, section by section (T72, T79), including T82's scrubber table (§3.8),
-the Requirement 8 paragraph (§3.2, now with T85's sinks), and T77's session wording, which is
-now NOW (§3.9); §7, material for Chapters 4 and 5; §9, the questions only Kinan can answer.
-Waiting on open tasks: T74 (an off-host witness); **T86** (fifteen requirement gaps, Kinan
-decides each; the items marked **WAIT T86** say what text follows from each choice); T84 decides
-one Chapter 5 sentence. **Removed at Kinan's word (2026-10-10):** the `reportcodebox` question
-(dark or light code panels) and its compile item.
+**What is left, in one view (2026-10-12):** §1, the front matter; §3, the Chapter 3
+corrections, section by section (T72, T79), including T82's scrubber table (§3.8), the
+Requirement 8 paragraph (§3.2), and the text that **T86** changed: every requirement gap is now
+decided, so every T86 item is NOW (D1, D2-A, D3, D4, D5-A, D7-A, D9-A and D12 built; D11 stated
+as behaviour; D10, D13, D14 and D15 need nothing; D8 deleted). The largest single change is that
+the `off` posture no longer exists, and nine passages of the export still describe it (§3.1).
+§7 holds the material for Chapters 4 and 5, including D6-A, decided and not built, which stays
+future work until it is. §9 holds the questions only Kinan can answer. Still waiting on open
+tasks: T74 (an off-host witness) and T84 (one Chapter 5 sentence). **Removed at Kinan's word
+(2026-10-10):** the `reportcodebox` question (dark or light code panels) and its compile item.
 
 It replaces six files, deleted on 2026-10-03 (all but the last are in git at `0b477ce46db`):
 `CH3-EDIT-COMMENTS-2026-09-28.md`, `QA-2026-09-27-FOR-THE-REPORT.md`, `T70-FOR-THE-REPORT.md`,
@@ -84,7 +86,7 @@ went, so nothing is lost silently. "Moved" items are in §3 under the named Chap
 | Ch1 1.6 Preliminary Design and Ch2 2.1.3 Core Development Technologies: SIGTERM/SIGKILL                       | Moved (optional): §3.10, 3.5.6.2 Kill Switch                                                                                |
 | Ch1 1.6 Preliminary Design: "OAuth-based connection … such as Kimi" (unverified)                              | Dropped: Chapter 3 (3.3 Analysis of Design Constraints) only names a Kimi subscription, which is true                       |
 | Ch1 1.6 Preliminary Design: tier descriptions not read against `ROLE-MODEL.md`                                | Dropped: 3.5.4.1 Role Hierarchy describes the built tiers; the two departures are moved above                               |
-| Ch1 1.6 Preliminary Design: identity of the human approver                                                    | Dropped: 3.5.7.2 Persistent Approvals already says a chat answer is recorded as `hitl-approval`                             |
+| Ch1 1.6 Preliminary Design: identity of the human approver                                                    | Dropped (revised 2026-10-12): since T86 D7 every escalation is answered on the dashboard by a named account, §3.10 3.5.7.2 |
 | Ch1 Table 1.1: illustrative rule identifier, and the year 2030 in its timestamp                               | Dropped: `tab:gov-ledger-decisions` in 3.5.3 Audit Ledger shows the built form                                              |
 | Ch1 1.1 Introduction and Ch2 2.1.1 The OpenClaw Framework: figure references typed without `\ref` or "Figure" | Dropped (cosmetic)                                                                                                          |
 | Ch2 2.1.1 The OpenClaw Framework: Node.js "version 18+"                                                       | Moved: §3.2, 3.2 Analysis of Design Requirements (Requirement 1)                                                            |
@@ -105,12 +107,12 @@ shortened and 3.5.6 Session Control to 3.6 Summary taken from `docs-notes/report
 present in that paste were deleted rather than listed. New items found on 2026-10-07 are marked
 **NEW** and were checked against the code that day.
 
-Markers: **NOW** means the code supports the change today. **WAIT T74 / T86** means the
-task is open and the text owed depends on how it closes (T75 closed on 2026-10-08 and T77 on
-2026-10-10, so their items are NOW). A **WAIT T86 Dn** item names the row of the T86 table in
-`mg/REMAINING-WORK.md`: if Kinan chooses to build, the text describes the built behaviour; if he
-chooses to state the limit, the item's wording is the statement. **OPTIONAL** means the report is correct
-without it. Suggested wording follows `docs-notes/WRITING-GUIDE.md`.
+Markers: **NOW** means the code supports the change today. **WAIT T74** means the task is
+open and the text owed depends on how it closes (T75 closed on 2026-10-08, T77 on 2026-10-10,
+and every T86 row was decided by 2026-10-12, so their items are NOW). A **Dn** in an item names
+the row of the T86 table in `mg/REMAINING-WORK.md` it comes from. **OPTIONAL** means the report
+is correct without it. **CHECK** marks a claim not yet verified against the code or a live run.
+Suggested wording follows `docs-notes/WRITING-GUIDE.md`.
 
 Two things run alongside this list:
 
@@ -130,6 +132,48 @@ Two things run alongside this list:
   so nothing depends on it. Delete the inline `% FIGURE NOTE` comments under 3.4.4 Log Integrity, 3.4.5 Operator Identity, 3.4.6 Management Surfaces,
   3.4.7 Tenancy Model and 3.5.1 System Architecture for the same reason.
 - **NOW.** `\providecommand{\sectionstub}…` and its comment can be deleted: no stub is left.
+- **NOW, NEW 10-12 (T86 D4, built 2026-10-10). The `off` posture no longer exists: nine
+  passages still describe it.** The postures are `enforce` and `monitor`, for the installation
+  and for one agent; `off` is refused from every surface and by every tier
+  (`POSTURE_OFF_REFUSED`, `src/governance/policy-store.ts`), and a policy file that still says
+  `off` loads as `enforce`. Neither posture suspends the forbid rules, the kill switch or the
+  record. (`\texttt{off}` as the escalation setting, "deny outright", is a different thing and
+  stays.) Found by searching the export on 2026-10-12; each place, in order:
+  1. **`tab:gov-ungoverned` caption** (3.2 Analysis of Design Requirements): delete "In
+     \texttt{off}, the policy engine records no tool-call decision." and begin the sentence
+     before it "In either posture, calls from a registered agent …".
+  2. **3.5.2.2 Evaluation Order**, the paragraph "For a registered agent, the policy engine loads
+     the organization policy and checks its posture. The \texttt{off} posture returns at this
+     point …": replace the paragraph with "For a registered agent, the policy engine loads the
+     organization policy and reads the posture that applies to the agent: the agent's own posture
+     when an Administrator has set one, and the installation posture otherwise. Registration is
+     checked first because the engine must identify the organization policy before it can read
+     its posture." (This replaces the NEW 10-08 item "which posture is read" in §3.7.)
+  3. **`tab:gov-unmatched-outcomes`** (3.5.2.2 Evaluation Order): delete the `off` column, and the
+     `p{2.8cm}` column it used; the caption "under each posture" stays true.
+  4. **3.5.2.2 Evaluation Order**, end of the `monitor` paragraph: delete "Under \texttt{off}, in
+     contrast, the engine returns after loading the policy, so tool calls are neither evaluated nor
+     recorded as policy decisions. Other aspects are still recorded in the audit ledger however."
+  5. **`fig:gov-pathnorm` caption** (3.5.2.3 Path Canonicalization): delete "Installation-wide
+     \texttt{off} bypasses this policy pipeline."
+  6. **3.5.3 Audit Ledger**, after `tab:gov-ledger-decisions`: delete the paragraph "The
+     \texttt{off} posture returns before resource extraction and creates no policy-decision entry.
+     …". Optional replacement: "Neither posture skips this record. \texttt{monitor} records the
+     decision \texttt{enforce} would have taken and lets the call proceed."
+  7. **3.5.5 Prompt Execution Path**: "The lockdown check comes next. It also applies when the
+     installation posture is \texttt{off}, because the dashboard route is itself a governance
+     control." becomes "The lockdown check comes next."
+  8. **3.5.6.1 Agent Lockdown**: delete "When the installation posture is \texttt{off}, the
+     tool-call gate does not run. The dashboard's prompt route still checks the list in that
+     posture and rejects a prompt to a locked agent." (Replaces the NEW 10-08 item in §3.10.)
+  9. **3.5.12 System Security**, the interpreter paragraph: "set its own agent to
+     \texttt{monitor} or the installation to \texttt{off}" (the D9 item in §3.10 has the wording).
+
+  And one sentence in 3.5.11 Management Interface, the deployment report ("fails when governance
+  is off", §3.10). Every other mention of a posture in the export is already true. The one exception
+  to governance that is left, OpenClaw's own test processes that name no governance directory
+  (`isUnconfiguredTestRun`, `src/governance/paths.ts`), is not a posture, cannot be set from any
+  surface and never applies to an installation; the report need not name it.
 - **NOW, NEW 10-08 (moved from Chapter 2, 2.1.1 The OpenClaw Framework). Chapter 3
   introduction (the paragraphs before 3.1 Design Requirements), `TOOLS.md`.** Chapter 2 says
   `TOOLS.md` "defines the agent's exact capabilities" and that modifying it "is how an
@@ -164,24 +208,18 @@ Two things run alongside this list:
   Viewers of that organization can sign in from their own computers to one Gateway on a Linux
   server. The records stay labeled with the organization's identifier, which scopes them and the
   authorization checks (Section~\ref{sec:gov-tenancy-model})."
-- **NOW. Requirements 5 and 6 (T79 item 7, T73).** "Every agent tool invocation, policy
-  decision, and administrative approval is recorded" and "a complete account of activity" are
-  true only while governance is active. Suggested paragraph opening: "While governance is in the
-  \texttt{enforce} or \texttt{monitor} posture, every agent tool invocation, policy decision, and
-  administrative approval is recorded in the tamper-evident governance ledger. Switching
-  governance \texttt{off} is itself recorded, and tool calls made while it is off receive no
-  governance decision record." After "a means of detecting modification", add: "Entries removed
+- **NOW. Requirements 5 and 6 (T79 item 7, T73), REVISED 10-10 after T86 D4 removed `off`.**
+  "Every agent tool invocation, policy decision, and administrative approval is recorded" is now
+  true in every posture: there is no `off` (the qualifier this item used to suggest, "while
+  governance is in the enforce or monitor posture", and its NEW 10-08 nuance below, are
+  withdrawn). Suggested sentence after the first one: "There is no posture in which the gate
+  stops recording: \texttt{monitor} lets an action no rule covers go ahead and records the
+  decision \texttt{enforce} would have taken." After "a means of detecting modification", add: "Entries removed
   from the end of the ledger are also recorded. The next append compares the ledger with its
   checkpoint and, if they disagree, first writes a sealed record of the disagreement into the
   ledger itself (Section~\ref{sec:gov-ledger-verification})." Change "a complete account of
-  activity" to "a complete account of governed activity".
-  **NEW 10-08 nuance:** the posture that counts is the agent's own. An Administrator can pin one
-  agent to `enforce` or `monitor` (`agentMode`), and the engine checks
-  `doc.agentMode[agentId] ?? doc.mode` (`policy-engine.ts`, the `off` test after
-  `loadPolicy`), so a pinned agent stays governed and recorded even while the installation is
-  `off`. Write "While the posture that applies to an agent is \texttt{enforce} or
-  \texttt{monitor}" rather than naming the installation posture. (A per-agent `off` is refused by
-  `policy/agent-mode`, so only the installation can be switched off.)
+  activity" to "a complete account of governed activity" (governed: the tools the gate
+  evaluates, and the \texttt{ungoverned} record of the rest).
 - **NEW 10-08, OPTIONAL. Requirements 5 and 6, "an independent verifier".** Accurate in the
   sense meant (the script shares no code with the Gateway), but T79 asks that nothing local be
   called independent. Suggested: "a standalone verifier".
@@ -215,40 +253,34 @@ Two things run alongside this list:
   the details carried by an error". "Wherever the system writes a log" is now true of every log
   writer the sweep of 2026-10-10 found, with two deliberate exceptions stated in 3.5.3.4 Data
   Sanitization (§3.8).
-- **WAIT T86 D4. Requirements 3, 5 and 6, who can switch governance off.** The posture item
-  above qualifies "every … is recorded" with "while governance is in the enforce or monitor
-  posture". Add who can do it, since an examiner will ask: "Any Administrator can switch the
-  installation to \texttt{off}; the change is recorded and the deployment report shows it as a
-  failure." If Kinan chooses T86 D4's option A (keep recording under \texttt{off}), the qualifier
-  changes to "Every tool call is recorded in every posture; under \texttt{off} it receives no
-  policy decision"; with option B, write "Root can switch …" instead.
-- **WAIT T86 D1. Requirement 7, what termination reaches.** The paragraph says an operator "can
-  request termination of work already in progress through the Gateway's run-control mechanism".
-  That mechanism ends the agent's runs, and OpenClaw deliberately leaves a shell command that was
-  moved to the background running (a command still running after ten seconds is moved there
-  automatically). Until T86 D1 is decided, add: "A shell process that the agent moved to the
-  background is not part of a run and keeps running after the lockdown; the agent can no longer
-  reach it." If option A is built, write instead: "Termination also ends the shell processes the
-  agent left running in the background, and the stop is confirmed only once they have exited."
-- **WAIT T86 D2, D3, D5. Requirements 3 and 4, how far each kind of rule reaches.** The
-  paragraph says rules support "path-level file permissions, command and network allowlists, and
-  permissions that expire". Each holds for the tool it names. Suggested addition, to be cut to
-  whatever Kinan builds: "Path rules bind the file tools and network rules bind the web fetch
-  tool. A shell command is judged as text against command rules, so a permitted command can name
-  a path or a host that no path or network rule allows; Section~\ref{sec:gov-security} returns to
-  this. A rule can be given a lifetime when it is written; a rule created by approving a request
-  has none."
+- **NOW, NEW 10-10 (T86 D4, built). Requirement 3, the gate cannot be switched off.** Where 3.2
+  or 3.5.2 Policy Engine names the postures, they are \texttt{enforce} and \texttt{monitor}.
+  Suggested sentence: "The posture is \texttt{enforce} or \texttt{monitor}. Neither suspends the
+  forbid rules, the kill switch or the record, so the gate cannot be switched off from any
+  surface, by any tier." (An `off` posture existed until 2026-10-10, when Kinan removed it. The
+  nine passages of the export that still describe it are listed in §3.1.)
+- **NOW, NEW 10-10 (T86 D1 built, finding 426). Requirement 7, what termination reaches.** The
+  paragraph says an operator "can request termination of work already in progress through the
+  Gateway's run-control mechanism". After it, add: "Termination also ends the shell processes the
+  agent left running in the background, which that mechanism deliberately spares, and the stop
+  is confirmed only once they have exited." Chapter 4 figure in §7.
+- **NOW, NEW 10-12. Requirement 7, a sentence with no verb.** The same paragraph ends "Confirmation
+  that work already in progress has terminated and the hardware capabilities of the host
+  machine." Suggested: "Confirmation that the work has ended is reported separately
+  (Section~\ref{sec:gov-kill-switch}), and how long it takes depends on that work and on the host
+  machine." (`sec:gov-kill-switch` is the label of 3.5.6.2 Kill Switch in the export.)
+- **NOW, NEW 10-11 (T86 D2-A, D3 and D5 built). Requirements 3 and 4, how far each kind of rule
+  reaches.** The paragraph says rules support "path-level file permissions, command and network
+  allowlists, and permissions that expire". Suggested addition: "Path rules bind the file tools
+  and the folder a shell command runs in; network rules bind the web fetch tool and every browser
+  navigation the agent names. A command's own text is judged against command rules, so a
+  permitted command can still name a path or a host that no path or network rule allows;
+  Section~\ref{sec:gov-security} returns to this. A rule can be given a lifetime when it is
+  written, and when a request for it is approved." (D2 option A and D5 option A built
+  2026-10-11; `mg/WORK-LOG-2026-10-11.md` §8.)
 - **NOW. Requirement 9 (test counts).** Date the Linux sentence ("on 21 September 2026"), move
   the current totals to Chapter 4 (§10), and drop "the same total of 3,227", which no longer
   holds.
-- **NOW, NEW 10-10 (T86 D15). Requirement 9, "open-source software components only", and the
-  model.** 3.3 Analysis of Design Constraints names a Kimi subscription, a proprietary service,
-  so an examiner can set the two side by side. Suggested sentence after "adds no proprietary
-  service or dependency": "The language model is an external service that the operator chooses
-  and is not a component of the system; the layer works with any OpenAI-compatible endpoint,
-  including a locally hosted open-weight model." (Checked: the QA fixtures run against a local
-  OpenAI-compatible mock; T86 D15 option B would add a run with an open-weight model as
-  evidence.)
 
 ### 3.3 Section 3.3, Analysis of Design Constraints
 
@@ -325,6 +357,53 @@ Two things run alongside this list:
 
 ### 3.7 Section 3.5.2, Policy Engine and its subsections
 
+- **NOW, NEW 10-10 (T86 D3, built). 3.5.2.1 Rule Model, the browser is a network access.** After
+  the paragraph on network rules: "A browser instruction to open or navigate to an address is
+  also a network access: the host it loads is checked against the network rules, so allowing the
+  browser does not allow every site. An address with no host, such as a local file, matches no
+  network rule." Limit, here or in System Security: "A link the agent follows by clicking, or a
+  request made by a page's own script, is not a navigation the agent names and is not checked
+  against these rules; nor is the target of a redirect from an allowed host." (QA of 2026-10-11:
+  the web fetch tool follows up to three redirects and the browser follows them as a browser
+  does, and neither re-checks the target against the network rules, only against the private
+  address protection. The two shipped redirectors that look obvious, Google's `/url` and
+  DuckDuckGo's `/l/`, did not redirect an unsigned request when tried, so no shipped host is
+  known to bypass the list; the sentence states the general case.) (`resolveGovernedToolForCall`,
+  `src/governance/resource-extraction.ts`; the address is read as the browser reads it,
+  `targetUrl` before `url`, since finding 428.)
+- **NOW, rewritten 10-12 against the export (T86 D3, built 2026-10-10, and D2-A, built
+  2026-10-11). 3.5.2.4 Baseline Policy: the baseline now holds thirteen rules.** Five passages of
+  the export change (`src/governance/baseline-policy.ts`, read 2026-10-12):
+  1. "The \texttt{baseline} tier contains built-in allowances for a small set of inspection
+     operations." becomes "… for a small set of inspection operations and a short list of network
+     hosts."
+  2. "\texttt{loadPolicy} materializes them only when it creates an organization's first policy.
+     An Administrator may later remove or narrow a baseline allowance, and subsequent loads
+     preserve that change." Add after it: "When a later version of the layer adds or narrows a
+     baseline rule, a policy written earlier gains or changes that rule once. A baseline rule an
+     Administrator has changed or removed is left as it is." (Policy document version 4:
+     version 3 added the hosts, version 4 the narrowed listing rule.)
+  3. "The six current baseline rules are listed below" becomes "The thirteen current baseline
+     rules are listed below", or keep the list of six and add one sentence after it for the seven
+     host rules (suggested below).
+  4. **The listing rule** (item "List a directory with constrained arguments"): the pattern is now
+     `^ls( -[a-zA-Z]{1,8})?( (?!/)(?!\.\.(?:/|$))(?!.*/\.\.(?:/|$))[A-Za-z0-9._/-]{1,200})?$` and
+     the description "Directory listing inside the project, with simple flags and one relative
+     path". Add to the item: "The path must be relative and may not contain a \texttt{..} step, so
+     the listing stays inside the project. An absolute path, such as \texttt{/etc}, matches no
+     baseline rule and is put to a person." (The pattern needs `\lstinline` with a delimiter that
+     does not occur in it, as the export's other patterns use `~`.)
+  5. "The baseline does not grant general shell execution, network access, project writes, …"
+     becomes "… general shell execution, network access beyond the listed hosts, project writes,
+     …". Then the host rules: "Seven baseline rules allow a short list of hosts that most work
+     needs: Wikipedia, Google search, GitHub, the main package registries (npm, PyPI, crates.io,
+     RubyGems, Maven Central, Go, NuGet), documentation for the main programming languages, the
+     OpenClaw website and its documentation, Stack Overflow and DuckDuckGo. Local and private
+     addresses, cloud metadata endpoints, the model provider's interface and file-sharing sites are
+     left out, and for Google only search is allowed. An Administrator may remove any of them."
+     Optional: "An allowed host can still carry data out in its address, so the list narrows where
+     data can go and does not stop it." (Kinan's list of 2026-10-10.)
+
 - **NOW, NEW. 3.5.2 Policy Engine, "immutable core denials".** Root can switch off five of the ten core
   denials, as 3.5.2.1 Rule Model and 3.5.2.4 Baseline Policy say. Write "core denials, rebuilt from source whenever the
   policy is loaded".
@@ -377,20 +456,11 @@ Two things run alongside this list:
   events that belong to no organization (`INSTALLATION_LEDGER_GROUP`, stored under
   `groups/installation/`). Suggested: "… the engine writes an \texttt{agent-not-registered} entry
   to the installation ledger, a separate chain kept for events that belong to no organization."
-- **NOW, NEW 10-08. 3.5.2.2 Evaluation Order, which posture is read.** "For a registered agent, the policy engine
-  loads the organization policy and checks its posture. The \texttt{off} posture returns at this
-  point …" The posture read is the agent's own override when an Administrator has set one, and
-  the installation posture otherwise (`doc.agentMode[agentId] ?? doc.mode`). An override can only
-  be `enforce` or `monitor` (`policy/agent-mode` refuses `off`), so an agent with an override
-  keeps its gate and ledger records while the installation is `off`. Suggested: "For a registered
-  agent, the policy engine loads the organization policy and reads the posture that applies to
-  the agent: its own override, which an Administrator may set to \texttt{enforce} or
-  \texttt{monitor}, or else the installation posture. The \texttt{off} posture, which only the
-  installation can take, returns at this point …". The same qualification applies to three other
-  places: `tab:gov-unmatched-outcomes` (the `off` column is "the installation is off and the
-  agent has no override of its own"), the 3.5.3 Audit Ledger sentence "The \texttt{off} posture returns before
-  resource extraction", and 3.5.6.1 Agent Lockdown (§3.10). Also make the `monitor` paragraph say "when the
-  posture that applies to the agent is \texttt{monitor}".
+- **NOW, NEW 10-08, rewritten 10-12. 3.5.2.2 Evaluation Order, which posture is read.** The
+  posture read is the agent's own when an Administrator has set one, and the installation posture
+  otherwise (`doc.agentMode[agentId] ?? doc.mode`). The wording is in §3.1 item 2, which replaces
+  the `off` sentence it used to qualify. Also make the `monitor` paragraph say "when the posture
+  that applies to the agent is \texttt{monitor}".
 - **NOW, NEW 10-08 (findings 385, 408). 3.5.2.2 Evaluation Order or 3.5.2.3 Path Canonicalization, what an uncovered path in another
   agent's workspace leads to.** **Rewritten 2026-10-08 after Kinan's decision (ii).** Under the
   default Ask-a-human setting such a read is not refused: it becomes an escalation, shown to the
@@ -439,17 +509,14 @@ Two things run alongside this list:
   tool invocation before it returns a decision." One refusal happens before the policy engine:
   OpenClaw's tool-loop detector, when enabled, stops a call that repeats without progress, above
   the gate in `runBeforeToolCallHook`. That refusal is recorded by `recordLoopDetectorBlock`
-  (`policy-engine.ts`) with rule `loop-detector` and decision `deny`. Until 2026-10-08 that record
-  read the installation posture alone, so for an agent an Administrator had pinned to `enforce`
-  or `monitor` while the installation was `off`, those refusals were not recorded although the
-  gate was governing the agent. It now reads the posture through the same `effectivePosture`
-  helper as the gate (`qa-round9.test.ts`, red first; `GOVERNANCE.md` row 417). **Where it
-  goes:** this paragraph of 3.5.3 Audit Ledger, after the sentence quoted above, because it is
-  about what the ledger records (Requirement 5). Suggested: "A call that OpenClaw's tool-loop
-  detector refuses before it reaches the gate is recorded as well, with the rule identifier
-  \texttt{loop-detector} and the decision \texttt{deny}. It is recorded whenever the posture that
-  applies to the agent is \texttt{enforce} or \texttt{monitor}, the same test the gate applies, so
-  the ledger shows a repeated attempt that the host stopped." Optionally also add
+  (`policy-engine.ts`) with rule `loop-detector` and decision `deny`, for every registered agent
+  in either posture (finding 417 made it read the agent's own posture; since D4 removed `off`
+  there is no posture in which it is skipped). **Where it goes:** this paragraph of 3.5.3 Audit
+  Ledger, after the sentence quoted above, because it is about what the ledger records
+  (Requirement 5); "When governance is active" in that sentence can go, since governance is always
+  active. Suggested: "A call that OpenClaw's tool-loop detector refuses before it reaches the gate
+  is recorded as well, with the rule identifier \texttt{loop-detector} and the decision
+  \texttt{deny}, so the ledger shows a repeated attempt that the host stopped." Optionally also add
   `loop-detector` beside `no-extractor` and `no-resource-extracted` in the paragraph "Reserved
   values mark gaps …", and in the `ruleId` row of `tab:gov-ledger-required-fields` ("Reserved
   values identify results such as …"). The one-clause mention in 3.4.1 Gate Placement is in
@@ -516,7 +583,12 @@ Two things run alongside this list:
   which is itself recorded. The list is derived from the authenticated chain, and an alert or
   acknowledgment without a valid digest is ignored, so an entry added without the key can neither
   raise nor clear an alert. Acknowledging an alert removes nothing. The alert stays in the chain
-  and in every verification."
+  and in every verification." **NEW 10-12 (T86 D9-A):** add "A policy file changed outside the
+  governance store raises an alert of the same kind, shown and acknowledged in the same way
+  (Section~\ref{sec:gov-security}). The chain itself is intact in that case, so verification
+  does not count it among the chain's alerts." (`POLICY_FILE_ALERT_ACTION`,
+  `isGovernanceIntegrityAlert` in `src/governance/audit-ledger.ts`; the dashboard banner is titled
+  "Integrity alert".)
 - **NOW, NEW 10-08 (moved from Chapter 2, 2.1.5 Auditability and System Telemetry; T79 item
   1). What detection does and does not give.** Chapter 2 promises that a modified or deleted
   entry is caught with "immediate detection", that the verifier "identifies the exact timestamp of
@@ -545,6 +617,20 @@ Two things run alongside this list:
 
 **3.5.3.3 Administrative Logging.**
 
+- **NOW, NEW 10-10 (T86 D12, built). Who sees installation-wide entries.** The export says: "An
+  organization-wide or installation-wide operation records "\texttt{-}". Only Administrator and
+  Root accounts have the unrestricted scope needed to receive such entries. The ordinary ledger
+  projection applies the existing agent-scope rules to administrative records, so a second
+  access-control mechanism is not required." Replace the last two sentences with: "Administrator
+  and Root accounts receive every such entry. Users and Viewers receive six kinds of them: changes
+  to the posture, to what happens on an unlisted action, to the installation's approval timeout,
+  to a core rule's switch, and the addition or removal of a rule that binds every agent, which are
+  the facts they already read on the Policy page; a Viewer receives them masked like every entry.
+  Every other installation-wide entry, such as account changes and sign-ins, stays with
+  Administrators and Root, and a kind of entry added later stays there until it is placed on that
+  list." (`projectLedgerForActor`, `src/governance/ledger-view.ts`; Kinan's decision of
+  2026-10-10.)
+
 - **NOW. Reserved labels.** The list "\texttt{bootstrap}, \texttt{unauthenticated}, or
   \texttt{hitl-approval}" gains \texttt{ledger-integrity}, the ledger's own alerts, reserved like
   the others (`RESERVED_ACTOR_NAMES`). The same list appears in
@@ -552,8 +638,14 @@ Two things run alongside this list:
   (prompts from the host's own surfaces, which 3.5.5 Prompt Execution Path names) and `cli` and `unknown`
   (`admin-audit.ts`; `cli` stays reserved because entries written before the command line was
   removed on 2026-09-07 carry it). The sentence says "such as", so naming `host-prompt` is
-  enough: "\texttt{bootstrap}, \texttt{unauthenticated}, \texttt{hitl-approval},
-  \texttt{host-prompt}, or \texttt{ledger-integrity}".
+  enough. **Revised 10-12 (T86 D7):** `hitl-approval` no longer labels a new entry. It stood for
+  an approval answered on a chat surface by someone with no governance account; since D7 every
+  escalation is answered on the dashboard, and the request it files is recorded against the
+  account that answered (`submitRuleRequest`, `src/governance/rule-requests.ts`). The label is
+  still reserved, because older entries carry it. Suggested list: "\texttt{bootstrap},
+  \texttt{unauthenticated}, \texttt{host-prompt}, or \texttt{ledger-integrity}", in the sentence
+  and in `fig:gov-administrative-logging-system`'s "Labelled origin" box (which today reads
+  "\texttt{bootstrap}, \texttt{unauthenticated}, or \texttt{hitl-approval}").
 - **NOW, NEW 10-08. Rule-request decisions carry an optional note (QA 2026-10-07 part 2 §1.1).**
   An Administrator or Root deciding a rule request may add a note of up to 500 characters
   (refused, not cut, past that), for either outcome. The requester's row shows it, and the
@@ -563,9 +655,10 @@ Two things run alongside this list:
   rule requests and deciding them, with the decider's note when one was given". The main text
   belongs in 3.5.7.2 Persistent Approvals (§3.10).
 - **NOW. `tab:gov-admin-audit-actions`.** "Accounts and authentication" gains "finishing an account
-  deletion that left work incomplete" (`governance.account.delete-finish`). New row "Ledger
-  integrity: gap lines and witness contradictions written by the ledger itself, and Root's
-  acknowledgment of each" (`governance.ledger.gap`, `governance.ledger.witness-contradiction`,
+  deletion that left work incomplete" (`governance.account.delete-finish`). New row "Integrity
+  alerts: gap lines and witness contradictions written by the ledger itself, a policy file changed
+  outside the governance store, and Root's acknowledgment of each" (`governance.ledger.gap`,
+  `governance.ledger.witness-contradiction`, `governance.policy.file-changed` since T86 D9,
   `governance.ledger.alert-acknowledge`).
 
 **3.5.3.4 Data Sanitization.**
@@ -712,8 +805,9 @@ Two things run alongside this list:
     live QA's observation O1, `mg/WORK-LOG-2026-10-10.md` §2.5 D7 and §7.2: the quoted phrase is now
     masked; the unquoted phrase, field names and split records are the stated boundary; on the
     Windows development machine every ledger path read `C:/Users…de/…` because
-    `/Users/kinan/AppData/Local/Temp/claude` is exactly such a run. T86 D11 asks whether to keep
-    that trade-off.)
+    `/Users/kinan/AppData/Local/Temp/claude` is exactly such a run. **T86 D11, decided 2026-10-12
+    (option A):** the detector stays, and the report says what happens, as in the sentence above,
+    and does **not** present it as a trade-off.)
   - **CHECK when writing:** the item above says the second pass "never masks a value that names
     where a secret is kept". True of that pass, but the host redactor runs first and does mask some
     configuration-syntax references: `api_key: os.environ/ANTHROPIC_API_KEY` became
@@ -811,8 +905,9 @@ Two things run alongside this list:
   accounts": Administrator "Owned" becomes "Owned, to own staff". Row "Read policy and effective
   permissions": Viewer and User "Assigned" become "Assigned and global" (they read the global
   rules and their assigned agents' rules, `GET policy` in `governance-dashboard-api.ts`). New rows
-  (T73): "See ledger integrity alerts" (Administrator, Root) and "Acknowledge a ledger integrity
-  alert" (Root only). Witnessing needs no row: every tier does it, and it discloses only a number
+  (T73, worded for D9's policy-file alerts too): "See integrity alerts" (Administrator, Root) and
+  "Acknowledge an integrity alert" (Root only). (D9's live check: a User and a Viewer got 403 on
+  `integrity/alerts`, an Administrator's acknowledgment 403.) Witnessing needs no row: every tier does it, and it discloses only a number
   and a hash.
 - **NOW (finding 397).** "assign eligible agents to User and Viewer accounts" becomes "assign
   eligible agents to the User and Viewer accounts that answer to it". Optional sentence after the
@@ -951,6 +1046,35 @@ older open and optional ones).
 
 **3.5.5 Prompt Execution Path and 3.5.6 Session Control.**
 
+- **NOW, NEW 10-10 (T86 D1, finding 426). 3.5.6.2 Kill Switch, background processes.** After the
+  sentence on aborting the agent's runs: "OpenClaw's run control deliberately leaves running a
+  shell command that the agent moved to the background, and a command still running after ten
+  seconds is moved there automatically. The kill switch therefore also ends the agent's
+  background shell processes, forcefully and at once rather than with the operating system's
+  usual grace period, and reports the stop as confirmed only after each has exited."
+  `fig:gov-killswitch` (checked against the export 2026-10-12): step 2 "abort signal to every
+  running task" becomes "abort signal to every running task; background processes ended"; step 3
+  "registries checked every 10\,ms for up to 2\,s" can stay (one 2-second deadline covers runs and
+  processes, `CONFIRM_STOPPED_TIMEOUT_MS` in `src/governance/agent-terminator.ts`); the caption's
+  "reported as confirmed only when every signaled run has left the run registries" gains "and
+  every background process has exited". In the confirmed-stop paragraph, "until every signaled run
+  has left the run registries" gains the same clause. Figure for Chapter 4 in §7.
+- **NOW, NEW 10-12 (T86 D6, measured 2026-10-10). 3.5.6.2 Kill Switch, the last paragraph.**
+  "During creation the Gateway does not respond to any request for about six seconds" is an old
+  figure (5.4–6.4 s on 2026-09-28). Measured on 2026-10-10 on the laptop (`/healthz` unanswered):
+  3.2 and 3.3 seconds for a warm creation, 12.1 seconds for the first creation after the Gateway
+  started (`mg/WORK-LOG-2026-10-10.md` §8). Not yet measured on the VPS. Suggested:
+  "During creation the Gateway does not respond to any request, for about three seconds once it
+  has created an agent before and for about twelve seconds the first time after it starts, and a
+  stop pressed in that interval takes effect when the Gateway responds again." The same figures
+  replace "about six seconds" in the Kill switch row of `tab:gov-security-limits` (below). D6-A,
+  moving that work off the event loop, is decided and not built; until it is, this is a limit and
+  Chapter 5's future work (§7). Qualifier from the QA of 2026-10-11, for
+  3.5.12 System Security if the export wants one: "These are the processes the Gateway host
+  runs. A command the agent sends to a paired node runs on that node, and a sandboxed command
+  runs inside its container, where ending the local process is all OpenClaw's own process
+  control does."
+
 - **NOW, NEW 10-08 (finding 418 and T75's B). The last paragraph of 3.5.5 overclaimed, and now
   describes a rule that was built.** The paste says: "Prompts that enter OpenClaw from other
   channels pass through a separate ingress-audit hook. The ledger records them under the reserved
@@ -1001,8 +1125,6 @@ older open and optional ones).
   was cancelled by admin1." (`cancelPromptRun` keeps `cancelledBy`). In the Cancel paragraph of
   3.5.6 Session Control, after "so the conversation shows whether a person or the time limit stopped it", add:
   ", and, when the person was not the account that sent the prompt, which account it was".
-- **NOW, NEW 10-08 (from §3.7). 3.5.6.1 Agent Lockdown, "When the installation posture is \texttt{off}, the
-  tool-call gate does not run."** Add "for agents that have no posture override of their own".
 - **OPTIONAL, NEW 10-08 (finding 415).** 3.5.5 Prompt Execution Path, "A prompt to a locked agent is recorded as a
   denied attempt and does not reach the model": add "The dashboard keeps the typed prompt and
   shows the reason." (Before 415 the box emptied and nothing appeared.)
@@ -1044,27 +1166,88 @@ older open and optional ones).
   other accounts that see the request may deny it. The files belong to the other agent, so the
   people responsible for them decide, rather than whoever manages the agent that asked. A
   request that timed out is treated the same way under \textit{Awaiting your decision}."
-  Limits to state in 3.5.12 System Security (§3.10 below): a chat-started run's request is
-  answered on OpenClaw's own surfaces, where governance cannot apply this rule; and rule writing
-  is separate, so an account allowed to write rules for the reading agent can still write a rule
-  covering the path (Root can withhold a User's rule writing).
+  Limit to state in 3.5.12 System Security (§3.10 below): rule writing is separate, so an account
+  allowed to write rules for the reading agent can still write a rule covering the path (Root can
+  withhold a User's rule writing). (A second limit listed here until 2026-10-12, that a
+  chat-started run's request is answered on OpenClaw's own surfaces, ended with T86 D7: such a
+  request is now on the dashboard too, where this rule applies.)
 - **NOW, NEW 10-08 (decision (ii)). 3.5.7.2 Persistent Approvals.** After the paragraph on what
   \textit{Always allow} files: "For a read inside another agent's workspace, \textit{Always
   allow} is available only to that agent's owner and Root, like \textit{Allow once}. The rule
   request it files is decided in \textit{Rule requests} like any other." (Any Administrator can
   decide that rule request; stated as a limit in 3.5.12 System Security.)
-- **OPTIONAL, NEW 10-08 (QA part 2, low 7).** Each card now says whose conversation it came from
-  ("Asked while user1 was talking to main:", or "Asked in your conversation with main:" on the
-  asker's own page).
+- **OPTIONAL, NEW 10-08 (QA part 2, low 7; extended 10-12 by D7).** Each card says where the
+  request came from: "Asked while user1 was talking to main:", "Asked in your conversation with
+  main:" on the asker's own page, or, for a chat run, "Asked through a telegram chat with main:"
+  (`governance.approvals.askedFromChat`).
 - **NOW, NEW 10-08 (QA part 2 §1.1). 3.5.7.2 Persistent Approvals, decision notes.** "An Administrator or Root approves
   or rejects the request in the \textit{Rule requests} section." Add: "The decider may add a note
   of up to 500 characters, for example to explain a rejection. The requester sees it beside the
   decision, and the ledger records it with the decision." (Ledger side in §3.8, 3.5.3.3 Administrative Logging.)
-- **WAIT T86 D5, NEW 10-10. 3.5.7.2 Persistent Approvals, the rule has no lifetime.** Approving a
-  request creates a rule that never expires: the approval offers Approve and Reject only (shown
-  live on 2026-10-10, ledger #129 "(agent main, indefinite)"). Unless D5's option A or B is
-  built, add after the approval sentence: "The rule it creates has no expiry; a time-limited
-  permission is written by hand in the Policy section."
+- **NOW, NEW 10-11 (T86 D5, option A, built). 3.5.7.2 Persistent Approvals, the lifetime of the
+  rule.** Until 2026-10-11 approving a request created a rule that never expired (shown live on
+  2026-10-10, ledger #129 "(agent main, indefinite)"). Now the approver chooses. Add after the
+  approval sentence: "The Administrator also chooses how long the rule lasts, from one hour to
+  thirty days, or without a limit, which is the default. A request can ask for a lifetime, and an
+  operator who presses \textit{Always allow} can choose one beside the button; the Administrator
+  sees it already selected and may shorten it or remove it. The lifetime counts from the approval,
+  so a request that waits in the queue does not lose time. The ledger entry for the approval
+  records when the rule expires." Evidence: `mg/WORK-LOG-2026-10-11.md`. Limit, for 3.5.12 System
+  Security or Chapter 5 (T86 D5's other half, not in option A): "Folder grants and agent
+  assignments have no lifetime; they last until they are removed."
+  **The card's quoted sentence changed with it.** The section quotes the card: "An Administrator
+  must approve the request before permission becomes permanent." Since 2026-10-11 the card reads
+  "… before the action is allowed again without asking." (an approval need not be permanent any
+  more). Replace the quote's last clause in the export; Kinan's repository copy
+  `docs-notes/report/ch3-3.5.6-to-3.6.tex` still has the old one. (The sentence before the quote
+  changes too, for D7: next item.) Two more places say "permanent" for the same reason: the
+  3.5.7 introduction, "\textit{Always allow} lets it run this time and asks an Administrator to
+  make the permission permanent", becomes "… and asks an Administrator to add a rule for it"; and
+  the `fig:gov-alwaysallow` caption, "A permanent rule exists only after an Administrator or Root
+  approves …", becomes "A rule exists only after …".
+- **NOW, NEW 10-12 (T86 D7-A, built 2026-10-12; finding 429). 3.5.7.1 Escalation Routing and
+  3.5.7.2 Persistent Approvals: a chat run's request now waits on the dashboard.** Every
+  escalation the gate raises carries a governance marker (`pluginId` `openclaw-governance`,
+  `src/governance/approval-origin.ts`) and is handled as a dashboard prompt's always was: hidden
+  from OpenClaw's approval surfaces, forwarded to no channel, listed in _Waiting for your answer_
+  for the accounts that manage the agent, and resolvable only through the governance route
+  (finding 429: before the fix, a chat's `/approve` command could resolve one through the shared
+  approval principal if it knew the request's id). The chat receives one message through the
+  Gateway's `send`: the agent is waiting for approval on the governance dashboard, what it asked,
+  and that nobody answering within the waiting time means refused. OpenClaw's own Control UI chat
+  gets no message (`send` does not deliver into it). A run that nobody is waiting on (a scheduled
+  job, the heartbeat, memory dreaming) is refused at once, as before, and the request is kept
+  under _Awaiting your decision_ (ledger `hitl-cancelled`). Other plugins' approvals and
+  OpenClaw's exec approvals keep OpenClaw's own surfaces. Four passages change:
+  1. **3.5.7.1 Escalation Routing**, the first paragraph: replace "A run started from a chat
+     channel produces a request on OpenClaw's own approval surfaces, the Control UI and the
+     channel. There, anyone holding the Gateway credential or access to the channel can answer, as
+     Section~\ref{sec:gov-security} notes." with "A run started from a chat channel produces the
+     same request, in the same section, for the same accounts, and the channel receives a message
+     saying that the request waits on the governance dashboard. A run that nobody is waiting on,
+     such as a scheduled job, is refused at once, and its request is kept in \textit{Awaiting your
+     decision}." The paragraph's first sentence, "The place where an approval request appears
+     depends on where the run started", is no longer true: delete it, or write "Every approval
+     request appears on the governance dashboard."
+  2. **3.5.7.2 Persistent Approvals**, the reason given for filing a request: "A chat approval can
+     be answered by a person with no governance account, and a permanent change to the policy needs
+     an approver who is signed in and named in the ledger." The first half is no longer true.
+     Suggested: "A User assigned the agent may answer a request, and a change to the policy that
+     outlasts the request is an Administrator's decision, recorded against the Administrator who
+     made it."
+  3. **3.5.7.2 Persistent Approvals**, "When an account answered from the dashboard, the request
+     names that account. A request answered on a chat surface is labeled \texttt{hitl-approval},
+     because no governance account authored it." becomes "The request names the account that
+     answered." (`submitRuleRequest` records the answering account as the request's author;
+     §3.8 has the reserved-label consequence.)
+  4. **3.5.7.2 Persistent Approvals**, the last paragraph: "The warning appears in the dashboard
+     and the Control UI. Chat channels show only the original answer." becomes "The warning appears
+     on the dashboard, where the request was answered." (The outcome is reported to the surface that
+     resolved the approval, `plugin.approval.reportOutcome`, and only the governance route may
+     resolve one now. **CHECK** in a live run: not driven since D7.)
+  The two "first answer" sentences, the escalation settings and their table stay true: "For a run
+  that nobody started by name, such as a chat message, the settings of every account assigned the
+  agent are considered" is unchanged by D7. Evidence for Chapter 4 in §7.
 - **OPTIONAL, NEW 10-08 (finding 413).** `tab:gov-escalation-settings`: per-agent waiting times
   are now listed in the Policy section, one row per agent ("Approval timeout: scout · 120
   seconds · Use default"); before 413 one could be set and never seen.
@@ -1156,18 +1339,85 @@ older open and optional ones).
 - **OPTIONAL, NEW 10-08 (decision C).** The _Delete the agent…_ button of an agent whose folder
   is inside another agent's workspace carries a tooltip saying the deletion will ask about the
   folder.
+- **NOW, NEW 10-12 (T86 D4 and D9-A). The deployment report paragraph** ("The deployment report
+  is Root's checklist …"; this is where the export describes it, not System Security). Two
+  changes (`src/governance/deployment-status.ts`, read 2026-10-12):
+  1. "``Governance is enforcing'' fails when governance is off, warns when the installation or any
+     agent is in \texttt{monitor} and names them, and passes only when every agent enforces."
+     becomes "``Governance is enforcing'' warns when the installation or any agent is in
+     \texttt{monitor}, naming them, and passes when every agent enforces." (No posture fails it
+     now: `off` is gone.)
+  2. "whether any ledger integrity alert is still unacknowledged" becomes "whether any integrity
+     alert, the ledger's own or one for a policy file changed outside the governance store, is
+     still unacknowledged". The next sentence ("Administrators and Root also see each such alert
+     at the top of the dashboard …") stays true for both kinds.
 
 **3.5.12 System Security.**
 
-- **NOW, NEW 10-08 (findings 408, 416; decisions (ii) and C).** `tab:gov-security-limits` has
-  no row for agent workspaces, although 3.5.9 Tenancy and Agent Registry claims a protection
-  there. Suggested row: Area "Other agents' workspaces"; Protection "A read inside another
-  configured agent's workspace is never allowed by a workspace rule; it becomes a question that
-  only that agent's owner or Root may allow. Deleting an agent asks whether its folder goes to
-  the trash"; Limit "A rule written for the reading agent can still allow the path, and any
-  Administrator can approve such a rule request. A chat-started run's question is answered on
-  OpenClaw's own surfaces. A folder left in place, by choice or by deleting the organization,
-  is readable by the enclosing agent".
+- **NOW, NEW 10-08 (findings 408, 416; decisions (ii) and C; revised 10-12 for D7).**
+  `tab:gov-security-limits` has no row for agent workspaces, although 3.5.9 Tenancy and Agent
+  Registry claims a protection there. Suggested row: Area "Other agents' workspaces"; Protection
+  "A read inside another configured agent's workspace is never allowed by a workspace rule; it
+  becomes a question that only that agent's owner or Root may allow. Deleting an agent asks
+  whether its folder goes to the trash"; Limit "A rule written for the reading agent can still
+  allow the path, and any Administrator can approve such a rule request. A folder left in place,
+  by choice or by deleting the organization, is readable by the enclosing agent". (The limit
+  "a chat-started run's question is answered on OpenClaw's own surfaces" was dropped on
+  2026-10-12: since D7 it is answered on the dashboard.)
+- **NOW, NEW 10-10, rewritten 10-12 (every T86 row decided). `tab:gov-security-limits`, the rows
+  T86 changed, and the interpreter paragraph.**
+  - **Kill switch row (D1 built, D6-A not built).** Protection: "Available during every other
+    dashboard operation, and ends the shell processes the agent left running in the background".
+    Limit: "about six seconds" becomes "about three seconds, and about twelve the first time after
+    the Gateway starts" (§3.10, 3.5.6.2 Kill Switch item, and §7). D1's stop is confirmed in
+    267–325 ms unloaded; under heavy load the confirmation can outlast its 2-second wait and the
+    stop is then reported unconfirmed (`mg/WORK-LOG-2026-10-12.md` §14), which is the reporting the
+    section already describes.
+  - **A new row (D2-A and D3 built).** Area "Shell commands and the browser"; Protection "Every
+    command is checked against the command rules and the core denials, and the folder it runs in
+    against the path rules (a folder no rule covers is refused); a browser navigation the agent
+    names is checked against the network rules"; Limit "Path and network rules do not judge a
+    command's own arguments, so a permitted command can reach what a path or network rule would
+    refuse (the shipped listing rule stays inside the project, but a link inside it can point
+    out). The folder of a command sent to a paired node or run in a sandbox is judged as a path on
+    the Gateway host. A link the agent clicks, a request a page's script makes, or a redirect from
+    an allowed host is not a navigation it names".
+  - **Chat approvals row (D7-A built).** Area "Approvals" (or keep "Chat approvals"); Protection
+    "Every escalation, from any channel, is answered on the governance dashboard by an account
+    that manages the agent and is recorded against it; \textit{Always allow} only files a rule
+    request"; Limit "The Control UI's own chat is not told where the request waits. Who may talk to
+    a chat agent is decided by the channel's own access settings". The prose for 3.5.7.1 and
+    3.5.7.2 is in the 3.5.7 item above. Facts: `mg/WORK-LOG-2026-10-12.md` §11–§13,
+    `docs-notes/CHAPTER3-MATERIAL.md` §3.5.113.
+  - **Interpreter rules row and paragraph (D9-A built).** Protection: "A warning when a rule
+    allows running arbitrary code. A policy file changed outside the governance store is detected
+    at the next load, recorded in the ledger, and raised as an integrity alert until Root
+    acknowledges it". Limit: "Detected, not prevented: the changed file stays in force until an
+    Administrator corrects it. A holder of the ledger key can seal its own edit, and an earlier
+    copy put back, or the file deleted, together with a Gateway restart is not noticed". In the
+    paragraph below the table ("The second explained limit concerns rules that allow an
+    interpreter …"), replace "so the code can then set its own agent to \texttt{monitor} or the
+    installation to \texttt{off}. The ledger records the interpreter command and no posture
+    change, because the edit does not pass through the governance functions that record
+    administrative actions." with "so the code can then set its own agent to \texttt{monitor} or
+    give it a rule of its own. The edit does not pass through the governance functions that
+    record administrative actions, so the store detects it instead. Every write seals the file
+    with an HMAC under the ledger key over the organization's identifier, a write counter and
+    the content, and a load that finds a seal that does not match, no seal, an earlier copy, or
+    no file writes a sealed integrity alert into the ledger, which the dashboard shows to
+    Administrators and Root until Root acknowledges it with a reason
+    (\texttt{src/governance/policy-seal.ts}). The changed file stays in force, because refusing
+    it would let anything able to write the file stop every agent. An operator editing the file by
+    hand raises the same alert." Keep the rest of the paragraph (the warning, and the separate
+    account as future work). Facts: `mg/WORK-LOG-2026-10-12.md` §1–§8,
+    `docs-notes/CHAPTER3-MATERIAL.md` §3.5.112. Optional, if the report covers upgrading: every
+    installation made before D9 shows one such alert after the upgrade, because its file carries
+    no seal yet.
+  - **No row for D4, D10, D11, D14, D15.** D4's consequence is §3.1's list. D10 (option A) is
+    wording only, in 3.5.3.4 Data Sanitization (§3.8, what counts as a log). D11 (option A) is the
+    path-masking sentence in §3.8, stated as behaviour and not as a trade-off. D14 (option A)
+    keeps the two path cases the table already states. D15 is closed with no sentence about the
+    model provider; the Linux run is T83.
 
 **Older open and optional items:**
 
@@ -1185,23 +1435,11 @@ older open and optional ones).
   readable by whoever controls the host, because the Gateway must use them. Diagnostics written
   before the fix keep what they hold until they age out (T84)". Chapter 5 sentence in §7.
 - **WAIT T74.** 3.5.12 System Security's audit-ledger row once an off-host witness exists.
-- **WAIT T86, NEW 10-10. 3.5.12 System Security, `tab:gov-security-limits`, the rows T86
-  changes.** Each is a row to add (or a limit to add to an existing row) if Kinan chooses to
-  state rather than build; if he builds, the row's protection column gains the built behaviour.
-  - **D1, Kill switch row:** append to the Limit "A shell process the agent moved to the
-    background keeps running after a lockdown; the agent can no longer reach it".
-  - **D2 and D3, a new row** Area "Shell commands"; Protection "Every command is checked against
-    the command rules and the core denials"; Limit "Path and network rules do not judge a
-    command's arguments or the folder it runs in, so a permitted command can list or reach what a
-    path or network rule would refuse; the shipped listing rule accepts any path". With D2's
-    option A built, the Limit loses its last clause.
-  - **D4, Reaching the dashboard row or a new row** "Switching governance off": Protection "The
-    change is recorded and the deployment report shows it as a failure"; Limit "Any
-    Administrator can do it, and nothing is recorded while it is off".
-  - **D7:** the Chat approvals row already says anyone with the Gateway credential or channel
-    access can answer; add "and the record does not name who did".
-  - **D9:** the Interpreter rules row already states the policy-file edit; unchanged unless
-    option A (detection) is built.
+- **OPTIONAL (T86 D13, option B, 2026-10-11: no change).** The export's `tab:gov-ungoverned`
+  already gives each excluded tool's reason, and its caption says outbound messaging "uses channel
+  integrations that the operator has already authorized". If wanted, one sentence beside it:
+  "These tools run without a rule check and are recorded as ungoverned; the messaging tools among
+  them can carry what an agent has read out of the host."
 - **OPTIONAL. 3.5.8.1 Task and Slot Model.** If the code names are wanted as presentation anchors: "In the code,
   \texttt{settlePromptRun} marks the run as saving and frees its slot, and
   \texttt{finishPromptRun} removes it from the registry."
@@ -1217,8 +1455,11 @@ older open and optional ones).
 ### 3.11 Figures
 
 All design figures planned for Chapter 3 are now placed, and `fig:gov-killswitch` was added. The
-only figure changes owed are the two ledger figures (§3.8: F25 and F26) and the optional folder
-grant line (§3.7). Delete the stale map (§3.1) instead of renumbering it. `docs-notes/FIGURES.md`
+figure changes owed are the two ledger figures (§3.8: F25 and F26), the optional folder grant
+line (§3.7), and, **since 10-12**: `fig:gov-killswitch`'s termination step and caption (D1,
+§3.10), `fig:gov-alwaysallow`'s caption ("A permanent rule", D5, §3.10),
+`fig:gov-administrative-logging-system`'s "Labelled origin" box (D7, §3.8), and the
+`fig:gov-pathnorm` caption's `off` sentence (D4, §3.1). Delete the stale map (§3.1) instead of renumbering it. `docs-notes/FIGURES.md`
 cites every figure by label since 2026-10-10 (T81) and repeats the F25 and F26 changes under
 their headings. **NEW 10-10, optional:** finding 421's write path (log record → pattern pass →
 free-form pass → file, console, telemetry; the conversation store beside it, unmasked) would fit
@@ -1237,8 +1478,15 @@ host's owner can read the conversation and the secrets the Gateway uses (finding
 boundary); a rule for the reading agent can still allow a path in another agent's folder
 (decision (ii)); a folder left in place after deletion is readable by the enclosing agent
 (decision C); key, checkpoint and ledger on one host (until T74). **Added 2026-10-10, late:**
-the Codex wrapper's own error file and the detection boundary as restated in §3.8 (T85);
-whichever T86 rows Kinan decides to state rather than build (D1 to D15).
+the Codex wrapper's own error file and the detection boundary as restated in §3.8 (T85).
+**Added 2026-10-12, the T86 limits that stay after the decisions:** a command's own arguments are
+not judged by path or network rules, and a browser's clicked links, page scripts and redirects
+are not navigations the agent names (D2-A, D3); folder grants and agent assignments have no
+lifetime (D5-A); the Gateway answers nothing while an agent is created (D6-A, decided and not
+built); the Control UI's own chat is not told where its request waits (D7-A); a policy file
+edited outside the store is detected, not prevented, and its seal is only as strong as the
+ledger key (D9-A); the path cases of D14. The masking of a path that looks like a cloud key
+(D11) is described as behaviour, not kept here as a limitation.
 
 ## 7. Chapters 4 and 5
 
@@ -1253,19 +1501,39 @@ whichever T86 rows Kinan decides to state rather than build (D1 to D15).
   making a form-reset defect visible.
 - **Chapter 4:** the kill-switch timings (dispatch in milliseconds; confirmed stop 2.2 s and 2.8 s on
   2026-09-19, 1,623 ms with dispatch 3.5 ms on 2026-09-27, both on the laptop; not yet timed on the
-  VPS) and the about-6-second window while an agent is created (finding 395); the current suite totals
-  (§10) in place of Requirement 9's.
-- **Chapter 5 (future work), updated 2026-10-10 (late):** T74 (an off-host witness and key
-  separation; options A–F in `mg/REMAINING-WORK.md` §"T74"); the agent-creation window off the
-  event loop (finding 395, also T86 D6); search withholding on the Codex harness; T84
-  (diagnostics written before finding 421); and whichever T86 rows Kinan decides not to build,
-  above all D1 (a lockdown leaves backgrounded shell processes running), D2 and D3 (shell
-  commands and the browser reach paths and hosts the path and network rules would refuse; the
-  complete answer is a separate operating-system account or container for tools, which is
-  already this chapter's interpreter-rule future work) and D4 (recording while governance is
-  off). No longer future work: T73 was built on 2026-10-04 as a recording design, T75 closed on
-  2026-10-08, and **T77 was built on 2026-10-10** (one consistency owner for authority changes;
-  §3.9 has its Chapter 3 wording). Their remaining limits are in the items below.
+  VPS) and the window while an agent is created (finding 395; about 6 s on 2026-09-28, 3.2–3.3 s
+  warm and 12.1 s for the first creation after a start on 2026-10-10, T86 D6); the current suite
+  totals (§10) in place of Requirement 9's. All of these are laptop figures taken before or after
+  finding 406 as the next items say; none is from the VPS yet.
+- **Chapter 5 (future work), rewritten 2026-10-12 (every T86 row decided):**
+  1. **T74**, an off-host witness and key separation (options A–F in `mg/REMAINING-WORK.md`
+     §"T74"; Kinan's to choose).
+  2. **D6-A, decided on 2026-10-12 and not built:** move agent creation's blocking work off the
+     Gateway's event loop. Measured: 3.2–3.3 s warm and 12.1 s for the first creation after a
+     start, 3.0 s of the warm figure in upstream OpenClaw's model-runtime build for the new
+     workspace (its plugin scan, mostly synchronous file checks). It is upstream code on the path
+     of every agent start, which is why it was not built with D7. Suggested: "Agent creation
+     still blocks the Gateway for about three seconds, during which no request is answered,
+     the kill switch included. The planned change moves that work off the Gateway's event loop."
+  3. **A separate operating-system account or container for tools**, the complete answer to
+     three stated limits: interpreter rules (the governance files are reachable by the tools'
+     account; D9-A detects a policy edit and does not prevent one), a command's own arguments
+     (D2-A checks the folder a command runs in and narrows the listing rule, not what the command
+     names), and the in-place append-only protection Linux lacks (§11.10).
+  4. **The browser beyond navigation** (D3): links the agent clicks, a page's own requests, and
+     redirects from an allowed host are not checked against the network rules.
+  5. **Lifetimes for folder grants and agent assignments** (D5's other half, not in option A).
+  6. **Search withholding on the native Codex harness.**
+  7. **T84**, diagnostics written before finding 421 (Kinan's to decide; the sentence either way
+     is below).
+  8. **The Control UI's own chat** is not told where its request waits (D7-A: OpenClaw's `send`
+     does not deliver into it). Optional; small.
+
+  **No longer future work:** T73 (built 2026-10-04 as a recording design), T75 (closed
+  2026-10-08), T77 (built 2026-10-10), and from T86: D1 (background processes), D2-A, D3, D4
+  (`off` removed), D5-A, D7-A (chat approvals), D9-A (policy file edits detected) and D12. D8 was
+  deleted in favour of T74, and D10, D11, D13, D14 and D15 need no future-work sentence. Their
+  remaining limits are in the items below and in §3.12.
 - **NEW 10-08. Chapter 4 timings: use only numbers measured after finding 406.** Every dashboard
   response or kill-switch figure taken through the page before the 2026-10-07 fix includes up to
   5 s of the Gateway's brute-force penalty per read (406), including the 2026-09-27 figures above
@@ -1299,10 +1567,10 @@ whichever T86 rows Kinan decides to state rather than build (D1 to D15).
   reach into another agent's workspace: a rule written for the reading agent can still allow
   such a path, and any Administrator can approve such a rule request; restricting rule writing
   by the other agent's ownership would need the policy engine to judge what a pattern covers.
-  (b) Chat-started runs: their questions are answered on OpenClaw's own surfaces, where the
-  folder owner's say cannot be applied. (c) Deleting the organisation leaves nested folders in
-  place. (The two items listed here before, keeping a deleted agent's root withheld and
-  rerouting the question to the other agent's managers, were settled by decisions C and (ii).)
+  (b) Deleting the organisation leaves nested folders in place. (Settled since: keeping a
+  deleted agent's root withheld and rerouting the question to the other agent's managers, by
+  decisions C and (ii); chat-started runs' questions answered on OpenClaw's own surfaces, where
+  the folder owner's say could not apply, by T86 D7 on 2026-10-12.)
 - **NEW 10-08. Chapter 4 evidence for decisions (ii) and C.** Tests, each written against the
   new behaviour and checked by mutation (9 of 9 mutations caught, one per protection):
   `src/gateway/governance-foreign-folder-approval.test.ts` (10: the engine's text read back,
@@ -1426,6 +1694,113 @@ whichever T86 rows Kinan decides to state rather than build (D1 to D15).
   against the account changes while building T77, not by a test; it is T76's class (a
   revocation or check that ran outside the commit it protects), and 425 is the same class in
   two operations T76 did not sweep. Record: `mg/WORK-LOG-2026-10-10.md` §3 and §4.
+- **NEW 10-10 (late). Chapter 4 evidence for the T86 build (D1, D4, D3, D12) and the D6
+  measurement.** Record: `mg/WORK-LOG-2026-10-10.md` §8.
+  - **D1, finding 426:** found by reading the kill switch against OpenClaw's abort while writing
+    T86, not by a test or a run; proved with a real background child driven through the real exec
+    tool and the Gateway's real terminator (`src/gateway/governance-kill-background.test.ts`, 3,
+    red first). Measured: OpenClaw's graceful tree kill took 5.3 s to end a plain `node` child on
+    Windows; with the forced kill, a confirmed stop in 267–325 ms (signal sent in 30–59 ms). A
+    Chapter 4 point, if wanted: the stop reported "confirmed" because it measured the runs it
+    knew about, the same shape as finding A3 (dispatch reported as a stop). **Shown live on
+    2026-10-11** (QA, `mg/QA-SESSION-2026-10-11.md`): the agent ran a heartbeat command through
+    the Gateway, it was moved to the background (pid 8736), the lockdown reported "ended 1
+    background process(es); signalled in 32.2 ms, confirmed stopped in 432.4 ms" (ledger #212),
+    the heartbeat stopped and the process was gone.
+  - **Finding 428 (QA of 2026-10-11), D3's bypass:** the check read the browser's address
+    parameters in a different order from the browser (`url` before `targetUrl`, never
+    `target_url`, the action untrimmed), so a call naming an allowed host and a second address
+    loaded the second unchecked. Found by reading the browser tool against the check; fixed by
+    reading the parameters exactly as the browser does; four tests, three red first; shown on the
+    fixture's real policy (ledger #218–#221). A Chapter 4 point: a check is only as good as its
+    agreement with the code that acts on what it checked.
+  - **D4:** 18 test sites in 13 files tested `off`; each now tests its removal. A mutation that
+    put back the loader's `off` and the gate's early return turned five red. Live: `off` refused
+    with a 400 for Root and an Administrator.
+  - **D3:** `src/governance/browser-network-allowlist.test.ts` (9, five red first): a rule
+    allowing `browser:navigate` no longer allows every site; every agreed host allowed and nine
+    kept-out hosts not (`localhost`, `127.0.0.1`, `169.254.169.254`, `api.openai.com`,
+    `pastebin.com`, `drive.google.com`, `docs.google.com`, `evil.example.net`,
+    `wikipedia.org.evil.example.net`); every shipped host rule passes the operator's own pattern
+    validation (the first Wikipedia pattern did not, and was rewritten); the one-time upgrade and
+    a later removal. Live, against the fixture's real version-2 policy: loaded as version 3 with
+    the seven rules; Wikipedia and the OpenClaw docs allowed, `evil.example.net` and a `file://`
+    address put to a person.
+  - **D12:** `ledger-view.test.ts` (+4, three red first). Live: lina's view shows the two
+    installation posture entries she could not see before, vic's the same masked.
+  - **D6 (measured, not built):** three creations on the fixture, 13.1 s / 3.8 s / 3.8 s with
+    `/healthz` unanswered for 12.1 s / 3.2 s / 3.3 s; a CPU profile of a warm creation puts 3.0 s
+    in `buildSnapshotBatch` (plugin runtime 1.6 s, plugin metadata 1.4 s; `lstat` 1.25 s,
+    `existsSync` 0.55 s). On 2026-09-28 the same window measured 5.4–6.4 s, with 2.6 s in the
+    skill command list, which is 21 ms now.
+  - **D1 under load (2026-10-12):** `governance-kill-background.test.ts` "confirms the stop only
+    once it has exited" failed in 2 of the 4 full-suite runs of 2026-10-12 and passed 3 of 3 alone,
+    four times: under the suite's load, Windows' forced tree kill can outlast the 2-second
+    confirmation window, and the stop is then reported as not confirmed. The test was not loosened,
+    because it pins Requirement 7's bound. For Chapter 4: 267–325 ms is the unloaded figure.
+- **NEW 10-12. Chapter 4 evidence for T86 D5-A (2026-10-11; finding 427).** Record:
+  `mg/WORK-LOG-2026-10-11.md` §1–§7. Tests: `src/gateway/governance-rule-request-lifetime.test.ts`
+  (12; 8 of the first 10 red before the change, the 2 that passed being the guards for the
+  unchanged behaviour), +2 in `escalation-request-author.test.ts` and +2 in
+  `governance-approvals.test.ts` (3 red with the committed files put back),
+  `ui/src/pages/governance/rule-lifetime-ui.test.ts` (9, proved by mutation: 3 turned red).
+  Live on the fixture: a request asking for 60 minutes approved with no choice became a rule
+  expiring an hour after the approval (ledger #172–#174); one made permanent with `null`; four
+  invalid lifetimes refused with their reasons; on ada's page, _Always allow_ with "Lasts 1 day"
+  filed a request for 1,440 minutes, approved from the page, and the same request then ran with no
+  question (#180–#189). The live check found two defects in the new code (a decision entry that
+  said nothing of a lifetime the approver removed, and the card's sentence "before permission
+  becomes permanent") and finding 427, older than D5 (the notice after _Always allow_ named the
+  question's internal id when a refresh removed the card mid-answer), each fixed red first. A
+  Chapter 4 point, if wanted: on 2026-10-12 D5's own UI test failed because it used a fixed
+  expiry, 2026-10-12 09:00 UTC, that had passed; a test that writes a date in the future
+  expires with it. It now uses a time relative to the run.
+- **NEW 10-12. Chapter 4 evidence for T86 D2-A (2026-10-11).** Record:
+  `mg/WORK-LOG-2026-10-11.md` §8. Tests: `src/governance/command-working-folder.test.ts` (16; 9 of
+  the first 15 red before the build, the 6 that passed being guards). 8 of 8 mutations caught.
+  Live against the fixture's real version-2 policy, upgraded on load: `ls /etc` and `ls ../..`
+  asked (#228, #229), `ls` allowed (#230), `pwd` in the agent's own folder allowed (#231, #232),
+  `pwd` in `C:/Windows` refused with the explanation (#233), the terminal opening there refused
+  (#234); through the real Gateway, lina's agent asked to run `ls /etc` and ada denied it (#239–#241),
+  which the shipped rule had allowed with no question before. The QA's review found one defect in
+  the new code (the refused folder was recorded without the command), fixed red first.
+- **NEW 10-12. Chapter 4 evidence for T86 D9-A (2026-10-12).** Record:
+  `mg/WORK-LOG-2026-10-12.md` §1–§9. Tests: `src/governance/policy-file-seal.test.ts` (17 at
+  first, 12 red before the build; 23 after the review) and `src/governance/policy-seal-race.test.ts`
+  (one deterministic race test). 19 of 19 mutations caught; M12, a race, survived the first sweep
+  because 12 writes against 40 loads did not hit its window, and was closed by holding the file read
+  open while a write lands. Live through the real Gateway: the fixture's pre-seal file raised one
+  upgrade alert (#243), Root acknowledged it and an Administrator's acknowledgment was refused; an
+  Administrator allowed `main` to run one node script, which assembled the path to `policy.json`
+  from fragments and gave `main` a new rule; the ledger held no policy entry for that rule, and the
+  agent's next tool call recorded the alert (#256) before anyone opened the dashboard; an earlier
+  copy put back (#264) and the file deleted (#265) were caught the same way; the dashboard banner
+  showed them. Chapter 4 points, if wanted: the first full suite run caught two defects in the first
+  version, both about the key (the store created the ledger key, which made older unkeyed chains read
+  as downgraded, and an unusable key stopped every policy write, the kill switch's included); the
+  review found that a sealed file copied from another organization passed, so the seal now covers
+  the organization's identifier.
+- **NEW 10-12. Chapter 4 evidence for T86 D7-A and finding 429 (2026-10-12).** Record:
+  `mg/WORK-LOG-2026-10-12.md` §10–§14. Tests: `src/gateway/governance-approvals.test.ts` (20, with
+  a "T86 D7" group: a Telegram run's escalation listed to no Gateway connection, refused to the
+  Control UI's resolve, forwarded nowhere, waiting on the dashboard for the managing User and
+  recorded against that account; one notice to the chat; none for a dashboard prompt, the Control UI's
+  chat or another plugin's approval), `policy-engine.test.ts` (the marker),
+  `agent-tools.before-tool-call.e2e.test.ts` (a cron run still refused at once), the dashboard card
+  test, and `src/gateway/server-methods/approval.governance.test.ts` (5, for 429). Red before the
+  build: 4 gateway tests, the policy-engine test and 1 e2e test. 14 of 14 mutations caught (N8 and
+  N9 survived the first sweep, because the route only hears governance approvals and the test's
+  dashboard prompt had no address; closed by tests that hand the route such requests directly).
+  Live through the real Gateway: a Control UI chat run's question waited on the dashboard for lina,
+  was invisible to the Gateway credential's list and refused to its resolve, and lina's denial was
+  recorded against lina (#274–#277); a Telegram turn's question was the same, ada denied it
+  (#279–#282), and the notice reached OpenClaw's outbound delivery queue for that chat (the fixture
+  has no Telegram account, so it went no further). **Finding 429** (low, in committed T68 code) was
+  found by reading every caller of the resolve methods: a chat's `/approve <id>` resolved through the
+  same trusted in-process principal as the governance route, so a chat sender who knew a request's
+  id could have answered it outside the dashboard; fixed red first (1 + 2 tests). A Chapter 4 point,
+  if wanted: T68's own test had asserted that the shared principal could answer, so a test pinned
+  the weakness as behaviour, the shape of §11.9's T73 test.
 - **NEW 10-10. Chapter 4 evidence: the live dashboard QA by role (2026-10-10).** On the rebuilt
   Gateway with the mock model: Root (create a Viewer, a per-account escalation override and its
   effect, chain verification, the deployment report, lockdown and release), an Administrator
@@ -1452,6 +1827,18 @@ whichever T86 rows Kinan decides to state rather than build (D1 to D15).
 
 ## 8. Repository documents (not the report)
 
+**Nothing owed (2026-10-12, evening).** T86 D5 and D2 were applied to the specification documents
+on 2026-10-11, and D9, D7 and finding 429 on 2026-10-12 (`PERMISSION-SPEC.md`, `ROLE-MODEL.md`,
+`CHAT-DEPLOYMENTS.md`, `BASELINE-RULES.md`, `WRITING-PERMISSIONS.md`, `T47-TEST-PLAN.md`,
+`CHAPTER3-MATERIAL.md` §3.5.109–§3.5.113, `QA-IN-PLAIN-TERMS.md` §5.136–§5.140, `GOVERNANCE.md`
+rows 426–429). A sweep of the documents for text the 10-12 decisions made false found four places,
+all written before D7, all corrected the same evening: `GOVERNANCE.md`'s "Who answers depends on
+where the run came from" paragraph (said a chat run's approval is answered outside the governance
+tiers); `CHAPTER3-MATERIAL.md` §3.5.101's limits (a chat-started run's question answered on
+OpenClaw's surfaces); three rows of `docs-notes/WRITING-GUIDE.md` (§4 "Escalations always reach a
+person" and "Only a governance account can answer an approval", §5's C15 row); and the comment at
+the top of `src/governance/approval-answerers.ts`. Dated history in `mg/` was left as it was.
+
 **Applied (2026-10-10, late): T85, T77 and findings 422–425 in the contract documents.** The
 registers already carry them (`GOVERNANCE.md` rows 422–425, `CHAPTER3-MATERIAL.md` §3.5.106 and
 §3.5.107, `QA-IN-PLAIN-TERMS.md` §5.133 and §5.134). Applied on 2026-10-10 (late):
@@ -1473,14 +1860,10 @@ entries `CHAPTER3-MATERIAL.md` §3.5.105 and `QA-IN-PLAIN-TERMS.md` §5.132. The
 
 ## 9. Open questions for Kinan
 
-**Open (2026-10-10, late).**
+**Open (2026-10-12).** No T86 question is left: every row is decided (the record below).
 
-1. **T86, fifteen requirement gaps** (`mg/REMAINING-WORK.md` §"T86"): for each, build an option
-   or state the limit. The ones that matter most: D1 (a lockdown leaves the agent's backgrounded
-   shell processes running), D2 and D3 (shell commands and the browser reach paths and hosts the
-   rules would refuse; the shipped listing rule accepts any folder), D4 (an Administrator can
-   switch governance off, and nothing is recorded meanwhile) and D5 (approved requests never
-   expire). The report text each answer leads to is in the **WAIT T86** items of §3.
+1. **D6-A, when to build it** (decided on 2026-10-12, not built; large and upstream). Until it is,
+   the report states the agent-creation window as a limit and Chapter 5 names the change (§7).
 2. **T74, which off-host witness** (options A–F in `mg/REMAINING-WORK.md` §"T74"), with its
    cadence, behaviour when the witness is down, retention, and whether a SQLite schema change is
    acceptable. The report's System Security and Chapter 5 text waits on it.
@@ -1498,6 +1881,27 @@ entries `CHAPTER3-MATERIAL.md` §3.5.105 and `QA-IN-PLAIN-TERMS.md` §5.132. The
 
 **Decided, kept for the record.**
 
+- **2026-10-12, the last T86 rows** (Kinan): D9's follow-up "no dont seal. dont mention as a
+  limit either, simply close it" (the other governance files: nothing built, nothing stated);
+  D15 "close it; kimi being proprietary is fine, and testing on the vps will come later" (no
+  report sentence on the model; the Linux run stays T83); D14 "A, keep it as stated" (nothing
+  changes); D11 "a, keep it; it should be mentioned in the report but not as a tradeoff" (the
+  §3.8 sentence states it as behaviour); D7 option A and D6 option A decided, "choose only one to
+  implement": **D7-A chosen** (governance's own code; D6-A is a large upstream change).
+
+- **2026-10-11, T86 D2, D9, D13:** "for D2, lets do A. for D13, choose B; leave it as is. for D9,
+  choose A." D2-A built 2026-10-11; D9-A built 2026-10-12 (`mg/WORK-LOG-2026-10-12.md`); D13
+  closed with no change.
+
+- **2026-10-11, T86 D5:** option A ("do option A for D5"): a lifetime chosen on the approval of
+  a rule request and beside "Always allow", "never expires" by default. Built the same day
+  (`mg/WORK-LOG-2026-10-11.md`); the §3 items for Requirements 3 and 4 and for 3.5.7.2 Persistent
+  Approvals turned NOW.
+
+- **2026-10-10 (late), T86's first decisions:** D3 build with his host list; D4 remove `off`
+  from the dashboard and the project; D8 deleted (T74); D10 stored conversations are not log
+  files (D21 stands); D12 show the installation-policy entries, a fixed list. Built in his order
+  D1, D4, D3, D12, then the D6 measurement (§3, §7).
 - **2026-10-10, Kinan's revised order:** suite re-run, live dashboard QA by role, T86, this
   file, then commit and push (authorised in the same message). He removed the QA of 2026-10-08
   to 10-10, its backlog update, and the `reportcodebox` question.
@@ -1521,12 +1925,31 @@ entries `CHAPTER3-MATERIAL.md` §3.5.105 and `QA-IN-PLAIN-TERMS.md` §5.132. The
 
 ## 10. Counts to quote (re-derive before use)
 
-**The figures to quote now (2026-10-10, late):** governance suite **3,743 / 22 / 0** (241 files
-passed, 2 skipped); findings **425 / 425 / 0** (169 closed as not reproducible); the build passes
-(2026-10-10, late), and the full lint gate passed on the tree before the QA's review fixes (it is
-re-run before the commit; §"After T85 and T77" below). Chapter 4 should quote the newest entry
-below and say how the suite is counted (the scrubber's 73 own tests and the 20 log tests run in
-their own shards since finding 421). The history follows.
+**The figures to quote now (re-derived 2026-10-12, evening, on the whole uncommitted tree after
+T86 D9-A and D7-A):**
+
+- **Governance suite**, documented command, Windows laptop: **3,905 passed / 22 skipped / 0
+  failed, 253 files passed and 2 skipped**, 988 s (run at the start of this file's update; the
+  only change to the tree since the gates of `mg/WORK-LOG-2026-10-12.md` §14 is one code comment).
+  The run of the same afternoon gave 3,904 / 22 / 1 on 252 files: the one failure was
+  `governance-kill-background.test.ts`, which is load-sensitive on this laptop (it failed in 2 of
+  4 full runs that day and passes alone; §7 has what that means for Requirement 7). Same total,
+  3,927 tests, in both runs.
+- **Findings: 429 found, 429 closed, 0 open.** One of the closed findings, 169, was closed as not
+  reproducible rather than fixed, so write "every finding was closed", never "all fixed". The
+  newest is 429 (2026-10-12): a chat's `/approve` command could answer a governance escalation
+  through the shared approval principal if it knew the request's id; found by the QA of T86 D7
+  and fixed. (Re-derived from `GOVERNANCE.md`, whose index runs from 1 to 429, and the handoff's
+  state table.)
+- **Typechecks, build and the full lint gate:** exit 0 on this tree on 2026-10-12
+  (`mg/WORK-LOG-2026-10-12.md` §14; lint as `OPENCLAW_OXLINT_SHARD_CONCURRENCY=1 node
+  scripts/run-lint.mjs --split-core`). Not re-run for this update: nothing but a comment changed.
+- **Mutation sweeps of the T86 builds:** D2-A 8 of 8, D9-A 19 of 19, D7-A 14 of 14 caught (§7).
+- **Linux:** last full run 2026-09-21 at `0a7d51f1c12`; the VPS still runs `3d647af9b07`; T83
+  owes the four audit-store test files.
+
+Chapter 4 should quote the newest entry and say how the suite is counted (the scrubber's 73 own
+tests and the 20 log tests run in their own shards since finding 421). The history follows.
 
 - Governance suite, Windows, 2026-10-07 (committed as `c09e1c9f7ab`, findings 406–416 included):
   **3,609 passed / 22 skipped / 0 failed** (237 files passed, 2 skipped); the full lint gate
@@ -1575,9 +1998,36 @@ ui/src/pages/governance/`): **3,696 passed / 22 skipped / 1 failed, 239 files**;
   for the logging changes, with this machine's known failures (identical with the committed files
   restored): logging 521/523, trajectory 71/75, `logs-cli` 39/39, OTEL extension 323/323, node
   host 170/180. On Linux, owed: T83.
-- Findings: **425 found, 425 closed, 0 open** (406–416 on 2026-10-07, 417 and 418 on 2026-10-08,
-  419 and 420 in the QA of 2026-10-09, 421 later the same day, 422 and 423 in T85 and 424 and 425
-  in T77 on 2026-10-10); 169 closed as not reproducible, so never "all fixed".
+- After the T86 build (D1, D4, D3, D12; 2026-10-10, night; uncommitted): governance suite,
+  documented command, **3,769 passed / 22 skipped / 0 failed, 246 files passed, 2 skipped**
+  (first run 2 failed, both tests asserting the replaced behaviour, rewritten; record
+  `mg/WORK-LOG-2026-10-10.md` §8.6). Typechecks core, core-test, UI 0; build exit 0; full lint
+  gate exit 0 run as `OPENCLAW_OXLINT_SHARD_CONCURRENCY=1 node scripts/run-lint.mjs --split-core`
+  (the unsplit core shard runs out of memory on the laptop).
+- After T86 D5 option A and finding 427 (2026-10-11; uncommitted): governance suite, documented
+  command, **3,824 passed / 22 skipped / 0 failed, 250 files passed, 2 skipped** (record
+  `mg/WORK-LOG-2026-10-11.md` §5–§7). Typechecks core, core-test, UI 0; build exit 0; full lint
+  gate exit 0 (split core, concurrency 1; its first run failed on `api.ts`'s 700-line limit, fixed
+  by moving the monitoring types to `api.monitoring.ts`).
+- After the QA of 2026-10-08 to 10-11 (finding 428 and the review fixes; uncommitted):
+  governance suite, documented command, **3,838 passed / 22 skipped / 0 failed, 250 files passed,
+  2 skipped**; one guard test added afterwards and run on its own (the D3 file, 14/14);
+  typechecks core, core-test, UI 0; 7 of 7 mutations of the QA's tests caught. Build and lint
+  gate: `mg/QA-SESSION-2026-10-11.md` §5.
+- After T86 D2-A (2026-10-11; uncommitted): governance suite **3,855 passed / 22 skipped / 0
+  failed, 251 files passed, 2 skipped**; typechecks 0; build exit 0; full lint gate exit 0 (split
+  core); 8 of 8 mutations caught. Record: `mg/WORK-LOG-2026-10-11.md` §8.
+- After T86 D9-A (2026-10-12; uncommitted): governance suite **3,881 passed / 22 skipped / 0
+  failed, 253 files passed, 2 skipped**; typechecks, build and the full lint gate exit 0
+  (`mg/WORK-LOG-2026-10-12.md` §9).
+- After T86 D7-A and finding 429 (2026-10-12; uncommitted): **3,904 / 22 / 1**, 252 files, the
+  load-sensitive kill-switch test failing (§14 of the same log); re-run for this file the same
+  evening, **3,905 / 22 / 0**, 253 files (top of this section). The same 255 files and 3,927
+  tests both times: the first run counted the kill-switch file and test as failed.
+- Where the findings came from, since 2026-10-07: 406–416 in the QA of 2026-10-07; 417 and 418 on
+  2026-10-08; 419 and 420 in the QA of 2026-10-09 and 421 later that day; 422 and 423 in T85; 424
+  and 425 in T77; 426 in the T86 build (2026-10-10); 427 in the live check of D5 and 428 in the
+  QA of four days (both 2026-10-11); 429 in the QA of D7 (2026-10-12).
 
 ## 11. 2026-10-04: T73, T76 and T78 built (what the report now owes)
 
@@ -1656,6 +2106,7 @@ tests and a live run, so §3.8 and §3.9 now hold that wording. Two of T79's ite
 - **"The standalone verifier's archive-input boundary"** (in T79's list of limitations to
   preserve). Fixed by finding 403; replace that paragraph as §3.8 says rather than preserving it.
 - T79's other items (Chapter 2's absolute claims, "Independent checkpoint" → "Local checkpoint",
-  the `off` posture qualifier, T77's successful-path wording, T74's off-host remedies) are
-  unaffected by this work and stand as T79 states them. One consequence for §3.8's wording: where
+  T77's successful-path wording, T74's off-host remedies) are unaffected by this work and stand
+  as T79 states them. (T79's `off` posture qualifier was withdrawn on 2026-10-10, when T86 D4
+  removed the posture: §3.1 lists the passages to delete instead.) One consequence for §3.8's wording: where
   it says "independent" about the checkpoint, follow T79 and say "local".

@@ -1,6 +1,11 @@
 # Handoff: read this first
 
-> **2026-10-10: the current entry point is `mg/HANDOFF-2026-10-10.md`** (it supersedes the
+> **Superseded on 2026-10-12: start at `mg/HANDOFF-2026-10-12.md`**, then
+> `mg/SESSION-LOG-2026-10-12.md` (updated at the end of 2026-10-12). Everything since `3d647af9b07`
+> (the T86 build, D5, the QA of four days, D2-A, D9-A, D7-A) is uncommitted; findings 429 / 429 / 0;
+> the next task is bringing `docs-notes/report/DOCUMENTATION-UPDATES.md` fully up to date.
+
+> **2026-10-10 (updated the night of 10-10): the current entry point is `mg/HANDOFF-2026-10-10.md`**, then `mg/SESSION-LOG-2026-10-10-LATE.md` (it supersedes the
 > 2026-10-08 and 2026-10-09 handoffs). This file remains the
 > long engineering history (the snapshot below is as of 2026-09-27; §6's counts are superseded
 > by `mg/REMAINING-WORK.md` §"Where this file stands").

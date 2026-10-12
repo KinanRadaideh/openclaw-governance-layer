@@ -1,6 +1,11 @@
 # Prompt for the next agent
 
-> **Superseded: start at `mg/HANDOFF-2026-10-10.md`** (the entry point since 2026-10-10; it
+> **Superseded on 2026-10-12: start at `mg/HANDOFF-2026-10-12.md`**, then
+> `mg/SESSION-LOG-2026-10-12.md` (updated at the end of 2026-10-12). Everything since `3d647af9b07`
+> (the T86 build, D5, the QA of four days, D2-A, D9-A, D7-A) is uncommitted; findings 429 / 429 / 0;
+> the next task is bringing `docs-notes/report/DOCUMENTATION-UPDATES.md` fully up to date.
+
+> **Superseded: start at `mg/HANDOFF-2026-10-10.md`** (updated the night of 2026-10-10; findings now 426 / 426 / 0, the T86 build uncommitted) (the entry point since 2026-10-10; it
 > supersedes `mg/HANDOFF-2026-10-08.md`). Everything below is as of
 > 2026-09-29: Chapter 3 is now fully written, Chapters 1 and 2 are frozen, findings stand at
 > 417 / 417 / 0, and the 2026-10-08 work is uncommitted. The report-writing rules further down
