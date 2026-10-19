@@ -11,19 +11,19 @@ specification (`Kimi_QA_1.md`, removed 2026-09-13 once every item was checked; s
 §"The independent review, checked item by item"), and from Kinan's requests. Nothing
 here is speculative.
 
-### Where this file stands (updated 2026-10-10, late evening; start line 2026-10-12)
+### Where this file stands (updated 2026-10-13)
 
-**Start at `mg/HANDOFF-2026-10-12.md`** (its task of 2026-10-12, bringing `docs-notes/report/DOCUMENTATION-UPDATES.md`
-fully up to date, was done that evening, `mg/WORK-LOG-2026-10-13.md`; next: Kinan's word on committing the six layers), then `mg/SESSION-LOG-2026-10-12.md` and `mg/WORK-LOG-2026-10-12.md`
-(T86 D9-A and D7-A, built and QA'd on 2026-10-12). T86 stays open for D6-A only (decided, not
-built); every other row is built or closed. **Added 2026-10-12: T87** (why the project takes so much disk space; Claude measures, Kinan decides what to do), so **fifteen** rows are open now.
-Counted from the rows of §"The numbered backlog" on 2026-10-10 (late evening): **fourteen
-unstruck, all actionable**: T13, T17, T18, T47, T58, T59, T70 (built, open only for Kinan's
-acceptance QA), T72, T74, T79, T82, T83, T84, and **T86** (added late on 2026-10-10: fifteen
-places where the system falls short of a requirement, each with options, for Kinan to decide;
-nothing built). **Closed on 2026-10-10:** T81 (morning), **T85** (the QA of finding 421: findings
-422 and 423) and **T77** (one consistency owner for authority changes: findings 424 and 425; no
-SQLite schema change was needed).
+**Start at `mg/HANDOFF-2026-10-13.md`**, then `mg/SESSION-LOG-2026-10-13.md`. Everything through
+T86 D7-A and finding 429 is committed and pushed (`79e1deb1b30`, 2026-10-12); findings 429 / 429 /
+0; governance suite 3,905 / 22 / 0. **Fifteen rows open**, counted from the main table of
+§"The numbered backlog" on 2026-10-13: T13, T17, T18, T47, T58, T59, T70 (built, open only for
+Kinan's acceptance QA), T72, T74, T79, T82, T83, T84, **T86** (every row decided; open only for
+D6-A's build) and **T87** (disk space, added 2026-10-12). The report work of T72, T79 and T82 is
+now the 148 numbered changes of `docs-notes/report/DOCUMENTATION-UPDATES.md` §0; T18 includes
+Chapters 4 and 5, which do not exist in the report yet. Work that is not a row (a live check, a
+dashboard observation, a load-sensitive test, options never decided, housekeeping) is listed in
+`mg/HANDOFF-2026-10-13.md` §4 item 7. **Closed on 2026-10-10:** T81, T85 (findings 422 and 423)
+and T77 (findings 424 and 425).
 
 Who moves first:
 
@@ -50,11 +50,11 @@ of 2026-10-08 to 10-10, the update of this file from that QA, and the `reportcod
 2. **Live dashboard QA by role: DONE.** Root, Administrator, User and Viewer, 24 features, every
    one working for its role and every action outside a role refused; no dashboard defect; two
    observations and two requirement gaps passed to T86 (§7.2).
-3. **T86: DONE as a table** (§"T86" above); its decisions are Kinan's.
-4. **Bring `docs-notes/report/DOCUMENTATION-UPDATES.md` fully up to date** (T85, T77, findings
-   422–425, T86 and the QA).
-5. **Commit and push** (authorised by Kinan in the same message); then the VPS
-   (`mg/HANDOFF-2026-10-10.md` §6).
+3. **T86: DONE as a table** (§"T86" above); every row decided by 2026-10-12, all but D6-A built.
+4. **Bring `docs-notes/report/DOCUMENTATION-UPDATES.md` fully up to date: DONE 2026-10-12/13**
+   (`mg/WORK-LOG-2026-10-13.md`; checked again and numbered C1–C148 on 10-13).
+5. **Commit and push: DONE 2026-10-12** (`79e1deb1b30`, `9c8679a99d1`, `a2b897f19d1`). **The VPS
+   is still to do** (`mg/HANDOFF-2026-10-10.md` §6; `mg/HANDOFF-2026-10-13.md` §4 item 2).
 
 - Upstream's `ui/src/components/board/board-widget-cell-plugin.test.ts` fails on its own (1 or 2
   of 4 tests); it is not governance's and was not changed.

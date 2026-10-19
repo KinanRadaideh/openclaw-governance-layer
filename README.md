@@ -20,12 +20,12 @@ An agent that can run shell commands and read files is an agent that can do dama
 
 This fork adds exactly that, in four parts:
 
-|                                 | What it does                                                                                                                                                                                                                                       |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Default-deny policy gate**    | Every tool call passes through one function before it runs. Anything not explicitly allowed is refused. Rules come in three tiers: immutable core denials, a shipped baseline that makes an agent usable on first boot, and operator rules on top. |
-| **Tamper-evident audit ledger** | An HMAC-keyed hash chain, with a separate checkpoint, recording agent actions, policy decisions, and who changed the rules. Altering or truncating an entry is detectable without trusting the file it is stored in.                               |
-| **Four-tier RBAC**              | Root manages people, an Administrator manages agents, a User operates the agents assigned to them, and a Viewer watches with resource details masked.                                                                                              |
-| **Emergency kill switch**       | Stops an agent, keeps it stopped, reaches work it spawned under another identity, and reports whether it actually stopped rather than assuming.                                                                                                    |
+|                                 | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Default-deny policy gate**    | Every tool call passes through one function before it runs. Anything not explicitly allowed is refused. Rules come in three tiers: core denials rebuilt from source on every load (five of them protect governance itself and can never be switched off), a shipped baseline that makes an agent usable on first boot, and operator rules on top. Governance cannot be switched off; `monitor` lets unlisted actions through and records them. |
+| **Tamper-evident audit ledger** | An HMAC-keyed hash chain, with a separate checkpoint, recording agent actions, policy decisions, and who changed the rules. Altering or truncating an entry is detectable without trusting the file it is stored in.                                                                                                                                                                                                                           |
+| **Four-tier RBAC**              | Root manages people, an Administrator manages agents, a User operates the agents assigned to them, and a Viewer watches with resource details masked.                                                                                                                                                                                                                                                                                          |
+| **Emergency kill switch**       | Stops an agent, keeps it stopped, reaches work it spawned under another identity, and reports whether it actually stopped rather than assuming.                                                                                                                                                                                                                                                                                                |
 
 ### How it works
 
@@ -35,7 +35,7 @@ It attaches at `runBeforeToolCallHook`, the single function every tool call pass
 
 Around that core the layer adds an agent registry (an agent with no record is refused on every call), per-organisation storage so one installation's data is a property of the filesystem rather than a rule every reader must remember, and attachments recorded by hash and never by content.
 
-**One surface sits on top: a web dashboard**, and the HTTP control plane it is built on. Everything the layer does — accounts and roles, the policy and its rules, the agent registry, the audit ledger, escalations and the emergency stop — is administered there and nowhere else. _(There was a third surface, `openclaw governance …` on the command line, removed on 2026-09-07: it was never asked for by the design requirements, and it was carrying its own defects. The complete source, its tests, and instructions for restoring it are kept in [`old-docs/removed-cli-surface/`](old-docs/removed-cli-surface/README.md).)_
+**One surface sits on top: a web dashboard**, and the HTTP control plane it is built on. Everything the layer does — accounts and roles, the policy and its rules, the agent registry, the audit ledger, escalations and the emergency stop — is administered there and nowhere else. That includes the questions an agent asks when no rule covers an action: whether the run started on the dashboard or in a chat channel such as Telegram or Discord, the question waits on the dashboard for the people responsible for that agent, and the ledger records which of them answered. _(There was a third surface, `openclaw governance …` on the command line, removed on 2026-09-07: it was never asked for by the design requirements, and it was carrying its own defects. The complete source, its tests, and instructions for restoring it are kept in [`old-docs/removed-cli-surface/`](old-docs/removed-cli-surface/README.md).)_
 
 ---
 
@@ -131,13 +131,13 @@ surfaces above.)_
 
 ## Status
 
-_Current as of 2026-09-14._
+_Current as of 2026-10-13._
 
 **The layer has been demonstrated, not only built.** On 2026-09-06, on a Linux
 VPS, a language model driving a registered agent was asked for a credential file,
 attempted the read, and **the gate refused it**. Audit ledger entry #25 records
 the attempt, the decision `deny`, and the name of the rule that produced it; the
-chain verified intact with its independent checkpoint agreeing. Until that run
+chain verified intact with its checkpoint agreeing. Until that run
 every proof in this repository was a test calling the gate directly.
 
 _(The attempt that failed first is the more useful one. Asked for `~/.ssh/id_rsa`
@@ -146,15 +146,15 @@ gate and nothing was recorded — and the ledger's silence was correct. A reques
 that sounds like a secret tests the model's training; a boring-looking file that
 is actually a credential tests this layer.)_
 
-Built and verified: **3,099 passing tests across 179 files in the governance
-suite** (plus 21 skipped by design), four typechecks clean, and the full lint gate
-green end to end. Repeated QA sweeps on rotating axes, one real deployment, an
-operator using the dashboard, and a scripted browser driving it from every tier have
-found **368 defects: 367 fixed and one open**, an unexplained observation nobody has
-been able to reproduce. Figures re-measured 2026-09-14; the register in
-[`GOVERNANCE.md`](GOVERNANCE.md) and the backlog in `mg/REMAINING-WORK.md` are the
-authorities, and both are meant to be re-derived rather than quoted. **Picking the
-project up?** Start at `mg/HANDOFF.md`.
+Built and verified: **3,905 passing tests across 253 files in the governance
+suite** (plus 22 skipped by design), the typechecks clean, and the full lint gate
+green end to end (measured 2026-10-12). Repeated QA sweeps on rotating axes, one real
+deployment, live runs with a model connected, an operator using the dashboard, and a
+scripted browser driving it from every tier have found **429 defects, all 429 closed**:
+428 fixed, and one, an unexplained observation nobody could reproduce, closed as not
+reproducible. The register in [`GOVERNANCE.md`](GOVERNANCE.md) and the backlog in
+`mg/REMAINING-WORK.md` are the authorities, and both are meant to be re-derived rather
+than quoted. **Picking the project up?** Start at `mg/HANDOFF-2026-10-13.md`.
 
 _(This section once described the layer as "built and verified" for a day after it had
 been demonstrated, and it has carried stale counts more than once. Re-measure before

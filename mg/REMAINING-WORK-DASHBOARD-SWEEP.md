@@ -1,5 +1,10 @@
 # Remaining work after the dashboard sweep
 
+> **Superseded as the short answer on 2026-10-13.** What is left, and whose it is, is now
+> `mg/HANDOFF-2026-10-13.md` §4 (in order, including the work that is not a backlog row) and
+> `mg/REMAINING-WORK.md` §"Where this file stands" (the fifteen open rows). This file stays as the
+> record of the dashboard sweep and the passes after it; its state below is as of 2026-09-27.
+
 **Written 2026-09-08 (vii), at the end of the pass that drove the remaining eight
 dashboard sections. Its tables and §"Where this pass got to" were re-derived against
 the code on 2026-09-14**; the dated sections at the foot of the file are the record

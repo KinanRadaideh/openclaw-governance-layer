@@ -5,13 +5,15 @@ T13 beside it). Start here if you are writing the report. This file does not hol
 the material — it says **where the material is**, **which numbers you may quote and
 how to re-derive them**, and **which claims the evidence does not support**.
 
-> **Current report state (re-run 2026-09-28):** Kinan's report-so-far is
-> synchronized into `docs-notes/report/main-reference.tex` and
-> `docs-notes/report/chapter3.tex` (his 2026-09-27 paste). Chapter 3 is written
-> through Section 3.5.2.3, Path Canonicalization; the next stub is 3.5.2.4 Baseline
-> Policy. `node docs-notes/report/section-status.mjs` should report
-> `written 17 | stub 26 | total 43`. What T70 and findings 381–396 change in each
-> heading: `docs-notes/report/DOCUMENTATION-UPDATES.md` (since 2026-10-03 the one file).
+> **Current report state (2026-10-13):** Kinan's Overleaf is the master; his newest export is
+> `C:\Users\kinan\OneDrive\Desktop\Uni\GradProj\complete_report.txt` (2026-10-12, unchanged since
+> 2026-10-08). Chapters 1 and 2 are frozen, **Chapter 3 is fully written, and Chapters 4 and 5 are
+> not written yet**. Everything the report owes is `docs-notes/report/DOCUMENTATION-UPDATES.md`,
+> numbered C1 to C148 in its §0. The repository's `docs-notes/report/chapter3.tex` and
+> `main-reference.tex` are a stale sync of 2026-09-27, so `section-status.mjs` still prints
+> `written 17 | stub 26`; do not quote it. The numbers table in §3 below and its "last re-derived"
+> note carry September figures: re-derive (the newest figures are in `DOCUMENTATION-UPDATES.md`
+> §10).
 
 > **Source-authority rule:** Begin with the material mapped to the report
 > section, including `CHAPTER3-MATERIAL.md`, `GOVERNANCE.md`, and the relevant

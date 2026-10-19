@@ -1,8 +1,61 @@
 # Project summary: Policy-Based Secure Governance Layer for OS-Level Agents
 
-**Current as of 2026-09-20.** A single place to understand what this
-project is, where everything lives, what has been built, and how it was arrived
-at. Written for someone joining the work or picking it up after a break.
+A single place to understand what this project is, where everything lives, what has been built,
+and how it was arrived at. Written for someone joining the work or picking it up after a break.
+**§0 and §3 are current as of 2026-10-13; §1, §2 and §4 to §6 were written as of 2026-09-20** and
+are kept as the record (the dated boxes below §0 are history). For the state and the next work,
+`mg/HANDOFF-2026-10-13.md` is the entry point.
+
+## 0. The state in one screen, and what changed since 2026-09-20 (written 2026-10-13)
+
+**State.** Built, verified and demonstrated; everything committed and pushed to
+`personal/governance-layer` (code through `79e1deb1b30`, 2026-10-12). Governance suite 3,905
+passed / 22 skipped / 0 failed (253 files); typechecks, build and the full lint gate pass.
+Findings **429 found, 429 closed, 0 open**, one of them (169) closed as not reproducible rather
+than fixed. The project is in its report phase: Kinan's Chapters 1 and 2 are frozen, Chapter 3
+is written, Chapters 4 and 5 are not; `docs-notes/report/DOCUMENTATION-UPDATES.md` lists the 148
+numbered changes the report owes. The VPS runs an older build (`3d647af9b07`) until it is updated.
+
+**What the system does now that it did not on 2026-09-20**, oldest first (detail in
+`docs-notes/CHAPTER3-MATERIAL.md` §3.5.95 onward and the work logs in `mg/`):
+
+- **Every rule carries a written purpose** (T70, 2026-09-27): a description is required when a
+  rule or folder grant is written, shown as the rule's title, and carried into the ledger.
+- **The ledger keeps the evidence of its own shortening** (T73, 2026-10-04): an append that finds
+  the chain disagreeing with its checkpoint first writes a sealed "gap line"; each dashboard keeps a
+  signed receipt of the last ledger head it saw and reports a contradiction; such integrity alerts
+  are shown to Administrators and Root until Root acknowledges each with a reason. On Windows the
+  ledger files are made append-only for the Gateway's own account. The standalone verifier reads
+  the archives too (finding 403).
+- **Accounts and sessions stay consistent** (T76, T78, 2026-10-04; T77, findings 424 and 425,
+  2026-10-10): deleting an account, demoting it or resetting its password changes its sessions in
+  the same step; a sign-in confirms its session against the account as it is at that moment.
+- **Another agent's folder** (decisions (ii) and C, 2026-10-08): only the Administrator who owns an
+  agent, or Root, may allow another agent to read inside its workspace; deleting an agent whose
+  folder sits inside another's asks whether the folder goes to the trash or stays.
+- **Prompts and secrets** (T75, 2026-10-08; findings 418 to 423, 2026-10-08 to 10-10): every
+  prompt that starts a turn is recorded once, wherever it came from; a prompt the host writes for
+  itself (memory dreaming, heartbeats) is recorded as a described fact with a keyed fingerprint,
+  never its words; a second scrubbing pass masks secrets written as prose; both passes now protect
+  OpenClaw's own log files too, not only the ledger.
+- **The requirement gaps of T86** (2026-10-10 to 10-12):
+  - the kill switch also ends the shell processes an agent left running in the background (D1);
+  - the shipped `ls` rule stays inside the project, and the folder a command runs in is judged as a
+    path read (D2-A);
+  - a browser navigation is checked against the network rules, and the baseline allows seven
+    groups of common hosts (D3);
+  - **the `off` posture is gone**: governance cannot be switched off; `monitor` still lets an
+    unlisted action through and records it (D4);
+  - an approved rule request can be given a lifetime, one hour to thirty days or none (D5-A);
+  - **every question to a person waits on the governance dashboard**, from any channel, and is
+    answered by an account that manages the agent; the chat is told where (D7-A; finding 429 closed
+    a chat `/approve` path to it);
+  - `policy.json` is sealed with the ledger key, and an edit made outside the store raises an
+    integrity alert (D9-A);
+  - Users and Viewers see the installation-wide policy changes that affect their agents (D12).
+- **Decided and not built:** D6-A, removing the 3–12 second pause while an agent is created.
+  **Open with Kinan:** T74, a witness off the host so that whoever controls the machine cannot
+  rewrite the ledger unnoticed.
 
 > **Newest, 2026-09-19 (latest).** Kinan decided **C15** and asked for **A13**, and both are built: a
 > request filed by answering an escalation names the account that answered, and agents are renamed and
@@ -31,9 +84,10 @@ at. Written for someone joining the work or picking it up after a break.
 
 **Companion documents:**
 
-- `mg/HANDOFF.md`, **read it first if you are picking this up cold.** State,
-  next actions, and how to verify. This file is the reference beneath it
-- `mg/REMAINING-WORK.md`. The long-form backlog, T1–T64 with T68 and T69 (T65–T67 and the A-tasks live in the sweep register), plus the M-series (M1–M6, complete). **Count the unstruck rows of `mg/HANDOFF.md` §6 rather than quoting a total from any document** — every total written into these files has gone stale at least once. `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` is the short answer to "what is left, and whose is it"
+- `mg/HANDOFF-2026-10-13.md`, **read it first if you are picking this up cold** (since
+  2026-10-13; `mg/HANDOFF.md` is the long engineering history). State, next actions, rules and
+  traps. This file is the reference beneath it
+- `mg/REMAINING-WORK.md`. The long-form backlog, T1–T87 (T65–T67 and the A-tasks live in the sweep register), plus the M-series (M1–M6, complete). **Count the unstruck rows of its main table (§"The numbered backlog") rather than quoting a total from any document** — every total written into these files has gone stale at least once. `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` is the short answer to "what is left, and whose is it"
 - `old-docs/SESSION-LOG-2026-08.md`, what the August 2026 session changed, and why
 
 > **Committed and pushed (2026-09-03).** T44 and findings 194–224 landed in
@@ -372,25 +426,40 @@ governance check was inserted there, and deliberately **before** an existing
 shortcut that skips policy work when no plugins are installed. Putting it after
 that shortcut would have meant a default installation was never governed at all.
 
-For each tool call the gate, in this order (`policy-engine.ts`, read against the
-code on 2026-09-14):
+For each tool call the gate, in this order (`policy-engine.ts`; re-read against the
+code on 2026-10-13):
 
 1. Finds which organisation the agent belongs to, from the agent registry. An
    agent with no record is refused, and the refusal is recorded.
-2. Stops here if the installation's posture is `off`; nothing is checked or
-   recorded.
-3. Checks whether the agent, or an agent that started it, is locked down; if so,
-   refuses immediately.
-4. On the native Codex backend, refuses an agent not permitted to run there.
-5. Works out what resource is being touched (a command string, a file path, a
-   hostname). A tool it does not know how to judge is recorded `ungoverned` and
-   allowed, so gaps in coverage are visible rather than silent.
-6. Looks for a **deny** rule that matches, and refuses if one does, whatever else
+2. Checks whether the agent, or an agent that started it, is locked down; if so,
+   refuses immediately. (Until 2026-10-10 an installation-wide `off` posture made
+   the gate return before this step. T86 D4 removed it: there is no posture in
+   which the gate stops checking or recording. The one exemption left is
+   OpenClaw's own test processes that name no governance directory,
+   `isUnconfiguredTestRun`, which no installation can set.)
+3. On the native Codex backend, refuses an agent not permitted to run there.
+4. Works out what resource is being touched: a command string, a file path, or a
+   hostname, including the host of a browser navigation (D3, 2026-10-10). For a
+   shell command, the folder it runs in is first judged as a path read, and a
+   folder no rule covers is refused (D2-A, 2026-10-11). A tool it does not know how
+   to judge is recorded `ungoverned` and allowed, so gaps in coverage are visible
+   rather than silent.
+5. Looks for a **deny** rule that matches, and refuses if one does, whatever else
    is allowed and even in `monitor`.
-7. Looks for an allow rule that matches.
-8. Records the verdict in the audit log, **always**, then allows, blocks, or
+6. Looks for an allow rule that matches.
+7. Records the verdict in the audit log, **always**, then allows, blocks, or
    escalates to a human when no rule allows it, depending on the escalation
    setting; in `monitor` a missing allowance is recorded and not acted on.
+
+**Escalations go to the governance dashboard, whatever started the run** (T86 D7-A,
+2026-10-12). The question waits in _Waiting for your answer_ for the accounts that
+manage the agent (a User assigned it, its Administrators, Root); the answer is
+recorded against the account that gave it; a chat run's channel gets one message
+saying where the question waits. A run nobody is waiting on (a scheduled job, the
+heartbeat) is refused at once and the question kept in _Awaiting your decision_.
+_Always allow_ files a rule request that an Administrator decides, optionally with
+a lifetime (D5-A). Only the Administrator who owns another agent, or Root, may
+allow a read inside that agent's folder (decision (ii)).
 
 **Two ways in, and the second one used to be optional.** OpenClaw can also run an
 agent inside a _separate helper process_ (the Codex native harness), which
@@ -409,8 +478,10 @@ something that could not see it.
 
 Each rule says: what kind of thing (`command`, `path`, or `network`), which
 specific ones (a regular expression), whether it grants or forbids, for how long,
-which tier it belongs to, optionally which single agent it applies to, and, for
-paths, whether it covers reading, writing, or both.
+which tier it belongs to, optionally which single agent it applies to, for
+paths whether it covers reading, writing, or both, and, since T70, a required
+description of its purpose. A network rule matches the destination's hostname,
+never a port or a path.
 
 **Evaluation order matters and is the whole design:** the kill switch, then
 denials, then allowances, then the installation default. Denials are checked
@@ -424,13 +495,18 @@ so rules written before the change are unaffected.
 
 Full rationale and every shipped rule: `docs-notes/BASELINE-RULES.md`.
 
-### The three postures
+### The two postures
 
 | Posture   | Decides? | Acts on it? | Records it? |
 | --------- | -------- | ----------- | ----------- |
-| `off`     | no       | no          | no          |
 | `monitor` | yes      | no          | yes         |
 | `enforce` | yes      | yes         | yes         |
+
+_(A third posture, `off`, which neither decided nor recorded, was removed on
+2026-10-10 at Kinan's decision, T86 D4: it was the one way to suspend the gate, the
+forbid rules and the record together. A policy file that still says `off` loads as
+`enforce`, and every surface refuses to set it.)_ Either posture can be set for the
+installation or for one agent.
 
 A fresh install starts in `enforce`, with the shipped baseline rules already in
 it (`docs-notes/BASELINE-RULES.md`). It once started in `monitor`, which ran the
@@ -484,22 +560,38 @@ command by the Root the entries would incriminate, while the ledger itself was
 deliberately retained: a trail kept without its evidence still reads as
 complete, which is worse than either whole answer.
 
-Remaining limit, stated plainly: both the key and the checkpoint live on the same
-host, so full filesystem access still defeats them. What changed is that reading
-the ledger is no longer sufficient. Closing it properly needs an off-host
-verifier. Deployment rather than code.
+**A shortened ledger leaves evidence** (T73, 2026-10-04). An append that finds the chain
+disagreeing with its checkpoint first writes a sealed gap line, and numbering continues from the
+checkpoint, so no sequence number is reused. Each dashboard keeps a receipt (an HMAC) for the last
+ledger head it showed, and a receipt naming an entry the ledger no longer holds records a witness
+contradiction. These integrity alerts, and since D9 an alert for a `policy.json` changed outside
+the governance store (the store seals the file with the ledger key on every write), are shown to
+Administrators and Root until Root acknowledges each with a written reason, which is itself
+recorded.
+
+**What reaches the ledger is scrubbed twice**: OpenClaw's maintained redactor (122 patterns for
+credential formats and positions), then a second pass for secrets written as prose ("the password
+is …", random-looking tokens). Both run before an entry is hashed, and since finding 421 on
+OpenClaw's own log files as well. A prompt the host writes for itself is recorded as a described
+fact with a keyed fingerprint, never its words. The conversation itself is not a log and is not
+masked, so that an agent can use a value it was given.
+
+Remaining limit, stated plainly: the key, the checkpoint and the ledger live on the same host, so
+whoever controls that host can still rewrite all three. What changed is that reading the ledger
+is not enough, and that a cut leaves a sealed record the next append writes. Closing it properly
+needs an off-host witness: backlog T74, options with Kinan.
 
 ### The four roles
 
 The hierarchy is by _subject_, not merely by strength, each tier governs a
 different thing and inherits everything below it:
 
-| Role              | Governs                                                                 |
-| ----------------- | ----------------------------------------------------------------------- |
-| **Root**          | People, accounts, roles, agent assignments, and the organisation itself |
-| **Administrator** | All agents, global policy, posture, any agent                           |
-| **User**          | The specific agents an Administrator assigned them                      |
-| **Viewer**        | The same assignment, read-only, with audit detail masked                |
+| Role              | Governs                                                                                                                                                                                   |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Root**          | People, accounts, roles, agent assignments, and the organisation itself                                                                                                                   |
+| **Administrator** | Every agent in the organisation, global policy, posture; the agents it owns it also renames, transfers, deletes, and lets other agents read into; it assigns agents only to its own staff |
+| **User**          | The specific agents an Administrator assigned them                                                                                                                                        |
+| **Viewer**        | The same assignment, read-only, with audit detail masked                                                                                                                                  |
 
 Every request answers **three independent questions**: is the caller's tier high
 enough, is this agent inside their remit, and is it in their organisation?
@@ -753,9 +845,9 @@ conclusion.
 
 ## 6. Current state
 
-> **Picking this up cold? Read `mg/HANDOFF.md` first.** It gives the state in a
-> paragraph, what to do before anything else, and how to verify nothing is
-> broken. This file is the reference beneath it.
+> **Picking this up cold? Read `mg/HANDOFF-2026-10-13.md` first, and §0 of this file for the
+> state as of 2026-10-13.** What follows in this section is the state as it was recorded from
+> 2026-09-02 to 2026-09-20, kept as history.
 >
 > **The state in one line, as of 2026-09-14:** built, verified and
 > **demonstrated** (T2, on the VPS, 2026-09-06); the dashboard driven section by
@@ -961,7 +1053,7 @@ node node_modules/vitest/vitest.mjs run src/governance/ src/gateway/governance-*
 node scripts/run-tsgo.mjs -p tsconfig.core.json
 node scripts/run-tsgo.mjs -p tsconfig.ui.json
 node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.test.ts src/plugins/contracts/host-hooks.contract.test.ts
-OPENCLAW_OXLINT_SHARD_TIMEOUT_MS=2700000 node scripts/run-lint.mjs   # the GATE, cap raised (HANDOFF §4). NOT `oxlint … src ui/src`. See below
+OPENCLAW_OXLINT_SHARD_CONCURRENCY=1 node scripts/run-lint.mjs --split-core   # the GATE (since 2026-10-10: the unsplit core shard runs out of memory on the laptop). NOT `oxlint … src ui/src`. Run it alone, 40-50 min. See below
 node scripts/run-tsgo.mjs -p test/tsconfig/tsconfig.core.test.json
 node scripts/run-tsgo.mjs -p test/tsconfig/tsconfig.test.ui.json
 node node_modules/vitest/vitest.mjs run --config test/vitest/vitest.ui.config.ts   # five known jsdom failures (A10)
@@ -983,8 +1075,10 @@ node node_modules/vitest/vitest.mjs run --config test/vitest/vitest.ui.config.ts
 > written to distrust (**finding 237**). Nothing automatic enforces the
 > type-aware rules, `scripts/`, or the CSS check.
 
-**`HANDOFF.md` §4 is where the expected values live**, and `GOVERNANCE.md` §"Testing"
-lists the same commands. Measured 2026-09-14 (later): 3,123 / 21 skipped / 0 failed across
+**`mg/HANDOFF-2026-10-13.md` §2 holds the newest expected values** (`mg/HANDOFF.md` §4 the older ones), and `GOVERNANCE.md` §"Testing"
+lists the same commands. **Newest, 2026-10-12: 3,905 / 22 skipped / 0 failed, 253 files;
+typechecks, build and the full lint gate 0** (`mg/WORK-LOG-2026-10-12.md` §14,
+`mg/WORK-LOG-2026-10-13.md` §4). Measured 2026-09-14 (later): 3,123 / 21 skipped / 0 failed across
 187 files · four typechecks 0 · host 263 · the full lint gate 0 · whole `ui/src` 8,211
 with A10's five jsdom failures · browser project 199. (Until 2026-09-14 this read "Six
 commands", measured 2026-09-02: 2,679 / 143 (Windows, in two shards, 89/1,219+5 skipped for
@@ -993,11 +1087,11 @@ last both-platforms figure) · both typechecks clean · 263 / 0 host · oxlint-a
 **Finding 221's 38 errors closed on 2026-09-03**, and the gate itself was found
 broken and unenforced the same day. Findings 233 and 237, above.
 
-A fifth check exists as of A7 and is worth running on any host you deploy to:
-
-```bash
-node scripts/run-node.mjs governance deployment
-```
+A fifth check exists as of A7 and is worth running on any host you deploy to: the
+deployment report, which Root reads in the dashboard's _Deployment and network posture_
+section. _(It was `node scripts/run-node.mjs governance deployment` until the command line
+was removed on 2026-09-07; the report itself is `readDeploymentStatus` in
+`src/governance/deployment-status.ts`.)_
 
 It reports whether the running installation matches the architecture Chapter 1
 describes. On a workstation expect warnings; on the VPS it should be clean, and

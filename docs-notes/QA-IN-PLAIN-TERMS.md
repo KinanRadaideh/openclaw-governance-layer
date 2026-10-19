@@ -8929,3 +8929,59 @@ somehow knew a question's code could have approved it there, without the dashboa
 record naming them. Nobody in a chat is ever sent that code, so it would have needed a leak, but the
 door now opens only for the dashboard's own answers; the approve command is told the question is
 answered on the governance dashboard.
+
+## 5.141 Making the dashboard easier to use (findings 430 to 436, 19 October)
+
+Earlier checks made sure each kind of account sees the right things and is refused the wrong ones.
+This check asked a different question: is the dashboard easy and natural to use? It was driven as
+each kind of account (Root, an Administrator, a User and a Viewer), with two people signed in at
+once so one could answer the other's question, and on a laptop-sized and a phone-sized screen. The
+permissions all held. Seven things made the page harder to use than it should be, and all seven
+are fixed:
+
+- **The conversation with an agent was hard to read.** Every message started with an empty line
+  and a large indent (finding 430), all of it was centred in faint grey like a "nothing here yet"
+  note (432), and it opened on the oldest message, eleven days back, so the answer you were
+  waiting for arrived out of sight below (431). Messages now read normally, from the left, and the
+  box opens at the newest message and follows new ones unless you scrolled up to read older ones.
+  The first problem had a hidden cause: the tool that tidies the code's layout kept putting the
+  empty line back, so the fix had to be made in a way that tool leaves alone.
+- **One explanation used names that no longer exist** (433). The setting for "what happens when an
+  agent tries something no rule covers" has buttons called Ask a human and Deny, but its
+  explanation talked about "Ask on miss" and "Off".
+- **Two password forms disagreed with the server.** Creating an account let you send a password
+  that was too short and then showed the complaint at the top of the page, far from the form (434);
+  now the form says so before you send it. Setting someone's password quietly removed spaces at
+  either end, so the password stored was not the one you typed and handed on (435); now it is
+  stored exactly as typed.
+- **People using the keyboard lost their place after every action** (436). After pressing a button
+  such as Lock down, the next press of Tab started again at the very top of the app. Now the
+  keyboard stays where you were working, or moves to the error message if the action was refused,
+  and opening a conversation puts the cursor in the message box.
+
+Sixteen further suggestions need a decision rather than a fix, and are listed in
+`mg/QA-SESSION-2026-10-19.md` §4. The two that matter most: a warning that a new rule allows more
+than it seems to is shown only after the rule is already in force, when it should be shown before;
+and when a question waits for an Administrator, nothing tells them if the dashboard is open in a
+background tab, so with a five-minute limit it can run out unseen.
+
+## 5.142 Checking the newest parts (findings 437 to 439, 19 and 20 October)
+
+Two of the suggestions from the check above were built the same day: the dashboard now checks a
+new rule before saving it and asks "Add anyway, or change it?" when the rule allows more than it
+seems to, and a question waiting for an answer now shows in the browser tab's title even when the
+dashboard is in a background tab. Nobody but their builders had checked them. This check did, on
+the running system with two people signed in, and found the new features working: the check before
+saving refuses exactly what saving refuses, for exactly the same people, and writes nothing to the
+policy or the audit record. It also found three smaller things, all fixed:
+
+- **A warning stayed on screen about a rule that was gone** (finding 437). The warning about a new
+  rule disappeared if you removed that rule yourself, but not if a colleague removed it or if the
+  rule's time limit ran out. Now it goes within a few seconds either way.
+- **The "set password" box complained in the wrong place, and kept complaining** (438). A password
+  that was too short was reported at the very top of the page, far from the box, and the complaint
+  stayed even after a long enough password was typed and the confirmation cancelled. Now the box
+  itself says the password is too short, and its button waits until it is long enough, the same as
+  the "create account" form.
+- **Every "are you sure?" window started with an empty line** (439), for the same hidden reason as
+  finding 430's conversation messages, in a part of the screen that check did not reach.

@@ -1,9 +1,7 @@
 # Handoff: read this first
 
-> **Superseded on 2026-10-12: start at `mg/HANDOFF-2026-10-12.md`**, then
-> `mg/SESSION-LOG-2026-10-12.md` (updated at the end of 2026-10-12). Everything since `3d647af9b07`
-> (the T86 build, D5, the QA of four days, D2-A, D9-A, D7-A) is uncommitted; findings 429 / 429 / 0;
-> the next task is bringing `docs-notes/report/DOCUMENTATION-UPDATES.md` fully up to date.
+> **Superseded on 2026-10-13: start at `mg/HANDOFF-2026-10-13.md`**, then
+> `mg/SESSION-LOG-2026-10-13.md`. Everything through T86 D7-A and finding 429 is committed and pushed (`79e1deb1b30`, 2026-10-12); findings 429 / 429 / 0; governance suite 3,905 / 22 / 0; the report owes the 148 numbered changes of `docs-notes/report/DOCUMENTATION-UPDATES.md`, and Chapters 4 and 5 are not written yet. This file is the long engineering history.
 
 > **2026-10-10 (updated the night of 10-10): the current entry point is `mg/HANDOFF-2026-10-10.md`**, then `mg/SESSION-LOG-2026-10-10-LATE.md` (it supersedes the
 > 2026-10-08 and 2026-10-09 handoffs). This file remains the

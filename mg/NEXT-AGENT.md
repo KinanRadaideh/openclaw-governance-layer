@@ -1,9 +1,43 @@
 # Prompt for the next agent
 
-> **Superseded on 2026-10-12: start at `mg/HANDOFF-2026-10-12.md`**, then
-> `mg/SESSION-LOG-2026-10-12.md` (updated at the end of 2026-10-12). Everything since `3d647af9b07`
-> (the T86 build, D5, the QA of four days, D2-A, D9-A, D7-A) is uncommitted; findings 429 / 429 / 0;
-> the next task is bringing `docs-notes/report/DOCUMENTATION-UPDATES.md` fully up to date.
+> **Superseded on 2026-10-13: start at `mg/HANDOFF-2026-10-13.md`**, then
+> `mg/SESSION-LOG-2026-10-13.md`. Everything through T86 D7-A and finding 429 is committed and pushed (`79e1deb1b30`, 2026-10-12); findings 429 / 429 / 0; governance suite 3,905 / 22 / 0; the report owes the 148 numbered changes of `docs-notes/report/DOCUMENTATION-UPDATES.md`, and Chapters 4 and 5 are not written yet. The prompt below is the current one; the older prompts after it are history.
+
+## The current prompt (2026-10-13)
+
+Give the next agent this, with the task Kinan names in place of the last paragraph:
+
+```text
+You are picking up Kinan's graduation project: a governance layer built into a fork of OpenClaw
+(the open-source agent Gateway), in C:\Users\kinan\openclaw, branch governance-layer. It adds a
+default-deny policy gate on every agent tool call, a keyed hash-chained audit ledger, an emergency
+kill switch, four account tiers (Root, Administrator, User, Viewer) and a governance dashboard.
+The report is Kinan's, written in his Overleaf project.
+
+READ FIRST, in order:
+1. mg/HANDOFF-2026-10-13.md: the entry point (§2 state, §4 open work, §5 rules and traps).
+2. mg/SESSION-LOG-2026-10-13.md: the last session in plain terms.
+3. mg/PROJECT-SUMMARY.md §0 and §3: what the system is and how it works now.
+4. mg/REMAINING-WORK.md §"Where this file stands" and the main table.
+5. For report work: docs-notes/report/DOCUMENTATION-UPDATES.md (§0 lists C1-C148) and
+   docs-notes/WRITING-GUIDE.md. For code work: mg/HANDOFF-2026-10-10.md §5 (every trap).
+
+STATE (2026-10-13): everything through T86 D7-A and finding 429 is committed and pushed to
+personal/governance-layer (79e1deb1b30 code). Governance suite 3,905 passed / 22 skipped / 0
+failed; typechecks, build and the full lint gate pass. Findings 429 / 429 / 0 (169 closed as not
+reproducible: never write "all fixed"). Every T86 row is decided; only D6-A is unbuilt. The report:
+Chapters 1-2 frozen, Chapter 3 written, Chapters 4 and 5 not written; DOCUMENTATION-UPDATES.md
+holds 148 numbered changes. The VPS still runs 3d647af9b07.
+
+RULES: commit and push only on Kinan's word (push only to "personal", never commit .codex/,
+code and documents as separate commits); decide by precedent and record the decision; fix errors
+on sight and sweep the class; prove a defect with a failing test first; keep a dated log in mg/;
+explain in plain terms (Mohammad reads too); re-derive every count before quoting it. Write
+scripts containing backslashes or backticks with the Write tool. Never git stash. Check free space
+on C: before a build or a suite and delete %TEMP%\openclaw-test-* after it.
+
+YOUR TASK: <Kinan's task here, or mg/HANDOFF-2026-10-13.md §4 in order>
+```
 
 > **Superseded: start at `mg/HANDOFF-2026-10-10.md`** (updated the night of 2026-10-10; findings now 426 / 426 / 0, the T86 build uncommitted) (the entry point since 2026-10-10; it
 > supersedes `mg/HANDOFF-2026-10-08.md`). Everything below is as of
