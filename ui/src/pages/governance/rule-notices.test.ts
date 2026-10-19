@@ -24,7 +24,7 @@ function noticeText(conflicts: GovernanceRuleConflict[]): string {
   document.body.append(container);
   render(
     renderConflictNotice({
-      conflictNotice: conflicts,
+      conflictNotice: { ruleIds: ["rule-new"], pattern: "^ls( .*)?$", conflicts },
       onDismissConflict: vi.fn(),
     } as unknown as PolicyPanelProps),
     container,
@@ -54,6 +54,11 @@ describe("the heading over a rule write's clashes", () => {
 
   it("keeps the redundancy heading for a rule that adds nothing", () => {
     expect(noticeText([conflict("duplicate")])).toContain("an earlier rule already covers it");
+  });
+
+  // QA of 2026-10-19, R3: the notice said "this rule" without saying which.
+  it("names the rule it is about", () => {
+    expect(noticeText([conflict("duplicate")])).toContain("Rule pattern: ^ls( .*)?$");
   });
 });
 

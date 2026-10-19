@@ -414,6 +414,17 @@ openclaw-governance-page .settings-empty.governance-rule-notice[role="alert"] {
   background: color-mix(in srgb, var(--warn, #fbbf24) 10%, transparent);
 }
 
+/* The conversation with an agent (QA of 2026-10-19). It sat in `.settings-empty`,
+   the empty-state style, which centres and mutes its text, so the transcript read
+   as placeholder copy. Same padding and size, read from the start edge in the body
+   colour. */
+openclaw-governance-page .governance-conversation {
+  padding: var(--space-5) var(--space-4);
+  font-size: var(--control-ui-text-sm);
+  color: var(--text);
+  text-align: start;
+}
+
 /* Escalations from dashboard prompts waiting for this account's answer (T68). */
 .governance-approvals {
   display: grid;

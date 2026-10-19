@@ -63,6 +63,7 @@ import {
 } from "../identity.ts";
 import type { KillNotice } from "../kill-notice.ts";
 import type { PanelEffects } from "./account-panels.ts";
+import { streamText, turnText } from "./conversation-text.ts";
 import { foreignFolderWithheldTip, foreignFolderWords } from "./foreign-folder.ts";
 import { formatAttachmentSize, formatTurnTime, unassignedAgentsHint } from "./format.ts";
 import {
@@ -642,9 +643,14 @@ export function renderConversation(
   // claim and the composer row needed 412px in the 392px it had. The host's
   // own chat box on the same page is 648px. `min-width:0` so a long
   // transcript line shrinks the block rather than pushing it past the cell.
+  //
+  // **Its own class, not `.settings-empty`** (QA of 2026-10-19). That one is the
+  // empty-state style: centred and muted, so a conversation set in it read as
+  // placeholder text. Each text box below is one short line, with its content built
+  // in `conversation-text.ts`, which says why the formatter makes that matter.
   return html`
     <div
-      class="settings-empty"
+      class="governance-conversation"
       style="display:flex;flex-direction:column;gap:0.5rem;flex:1;min-width:0"
     >
       ${recovered}
@@ -673,22 +679,7 @@ export function renderConversation(
                     >${turn.role === "user" ? t("governance.conversation.you") : agentId}</strong
                   >
                   <span style="opacity:0.6"> · ${formatTurnTime(turn.at)}</span>
-                  <div style="white-space:pre-wrap">
-                    ${turn.error
-                      ? html`<em>${t("governance.conversation.failed")}: ${turn.error}</em>`
-                      : turn.body
-                        ? turn.body
-                        : // **An agent turn with no text used to render as a
-                          // blank line.** Empty is a real outcome and the
-                          // runner says so in its own comment — it is what
-                          // happens when every tool call the agent tried was
-                          // refused — but the panel drew nothing at all, so the
-                          // one case this layer exists to produce looked like
-                          // the page had broken. Said in words instead.
-                          html`<em style="opacity:0.75"
-                            >${t("governance.conversation.emptyReply")}</em
-                          >`}
-                  </div>
+                  <div style="white-space:pre-wrap">${turnText(turn)}</div>
                 </div>`,
               )
             }
@@ -710,11 +701,7 @@ export function renderConversation(
                   : "governance.conversation.working",
               )}</span
             >
-            <div style="white-space:pre-wrap">
-              ${props.promptStream
-                ? props.promptStream
-                : html`<em>${t("governance.conversation.thinking")}</em>`}
-            </div>
+            <div style="white-space:pre-wrap">${streamText(props.promptStream)}</div>
             ${(props.waitingForMyAnswer ?? 0) > 0 && !props.promptStopping
               ? html`<div class="settings-empty" role="status" style="margin-top:0.35rem">
                   ${t("governance.conversation.waitingForYou")}

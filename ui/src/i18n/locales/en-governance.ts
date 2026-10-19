@@ -130,8 +130,10 @@ export const enGovernance: TranslationMap = {
       modeEnforce: "Enforce",
       modeMonitor: "Monitor",
       ask: "On an unlisted action",
+      // Named in the buttons' own words (QA of 2026-10-19): it explained "Ask on miss"
+      // and "Off" beside buttons labelled Ask a human and Deny.
       askHint:
-        "Ask on miss pauses and requests human approval. Off denies outright (strict default-deny).",
+        "Ask a human pauses the agent and waits for a person to approve or refuse. Deny refuses outright (strict default-deny).",
       askOnMiss: "Ask a human",
       askOff: "Deny",
       noRules: "No allow rules yet",
@@ -261,6 +263,13 @@ export const enGovernance: TranslationMap = {
       warningTitle: "This rule is broader than it looks",
       extendsTitle: "Rule added. It extends an earlier temporary rule",
       requestPreviewTitle: "If this is approved",
+      ruleCheckTitle: "Check this rule before it is added",
+      ruleCheckLead: "Before this {effect} rule for {scope} is added:",
+      ruleCheckScopeAll: "every agent",
+      ruleCheckScopeAgent: "agent {agent}",
+      ruleCheckAddAnyway: "Add anyway",
+      ruleCheckChange: "Change it",
+      ruleNoticePattern: "Rule pattern:",
       denyBadge: "DENY",
       effectLabel: "Allow or forbid",
       effectAllow: "allow",
@@ -571,6 +580,9 @@ export const enGovernance: TranslationMap = {
         "“{title}” was allowed this time. Allowing it every time is a request under Rule requests: once an Administrator approves it, the agent stops asking.",
       answerNotUsed:
         "Your answer to “{title}” was not used: the question had already been answered by another account, cancelled, or had expired. The agent's conversation and the audit ledger show the answer that was.",
+      // R2 of the QA of 2026-10-19: a system notification while the dashboard tab is hidden,
+      // shown only where the browser already allows them. Its body is the question itself.
+      notifyTitle: "An agent is waiting for your answer on the governance dashboard",
     },
     pending: {
       title: "Awaiting your decision",

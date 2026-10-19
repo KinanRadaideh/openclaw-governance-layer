@@ -6,6 +6,7 @@
 // own, on `ConversationController`'s pattern, because the subject owns its state, its
 // poll and its effects, and the page is at its line limit.
 import type { ReactiveController, ReactiveControllerHost } from "lit";
+import { reportPageAttention } from "../../app/page-attention.ts";
 import { t } from "../../i18n/index.ts";
 import {
   GovernanceApiError,
@@ -26,6 +27,13 @@ import { lifetimeMinutes, NEVER } from "./panels/rule-lifetime.ts";
  * short escalation expire before its card appeared.
  */
 export const APPROVAL_POLL_MS = 2_000;
+/**
+ * The same read while the tab is hidden (R2 of the QA of 2026-10-19). Slower, never stopped:
+ * since T86 D7 every channel's question waits here, and a poll that stood down let a
+ * five-minute question expire unseen behind another tab. Browsers may stretch it further
+ * (Chrome wakes a long-hidden tab's timers about once a minute), still inside that timeout.
+ */
+export const HIDDEN_APPROVAL_POLL_MS = 10_000;
 
 export type ApprovalSlice = {
   approvals: readonly GovernanceApproval[];
@@ -67,6 +75,26 @@ async function revealWaitingApprovals(host: ApprovalHost): Promise<void> {
   }
 }
 
+/**
+ * A system notification for questions that arrived while the tab was hidden, only where this
+ * site may already show them (the Control UI's notification setting asks; this never does).
+ * Best effort: some browsers (Android Chrome) refuse the page-side constructor.
+ */
+function notifyArrivedApprovals(arrived: readonly GovernanceApproval[]): void {
+  const newest = arrived.at(-1);
+  if (!newest || typeof Notification === "undefined" || Notification.permission !== "granted") {
+    return;
+  }
+  try {
+    const body = newest.description || newest.title;
+    const tag = "openclaw-governance-approvals";
+    const shown = new Notification(t("governance.approvals.notifyTitle"), { body, tag });
+    shown.addEventListener("click", () => window.focus());
+  } catch {
+    // The tab title still carries the count.
+  }
+}
+
 export class ApprovalController implements ReactiveController {
   private approvals: GovernanceApproval[] = [];
   private notices: GovernanceApprovalNotice[] = [];
@@ -84,6 +112,9 @@ export class ApprovalController implements ReactiveController {
   private readonly lifetimes = new Map<string, string>();
   private timer: ReturnType<typeof setInterval> | undefined;
   private reading = false;
+  private lastReadAt = 0;
+  /** The count the shell last heard; unset at first, so a page with none waiting still says so. */
+  private reportedWaiting: number | undefined;
   /**
    * Bumped by `forget`. A read or an answer that straddles a sign-out must not write
    * the previous account's cards back behind the sign-in form (finding 280's shape).
@@ -106,13 +137,36 @@ export class ApprovalController implements ReactiveController {
   }
 
   hostConnected(): void {
-    this.timer = setInterval(() => void this.refresh(), APPROVAL_POLL_MS);
+    this.timer = setInterval(() => this.tick(), APPROVAL_POLL_MS);
+    document.addEventListener("visibilitychange", this.readOnReturn);
   }
 
   hostDisconnected(): void {
     clearInterval(this.timer);
     this.timer = undefined;
+    document.removeEventListener("visibilitychange", this.readOnReturn);
   }
+
+  /** Every change to the cards re-renders the host, so the tab title follows them all. */
+  hostUpdated(): void {
+    if (this.approvals.length !== this.reportedWaiting) {
+      this.reportedWaiting = this.approvals.length;
+      reportPageAttention(this.host, this.reportedWaiting);
+    }
+  }
+
+  private tick(): void {
+    if (!document.hidden || Date.now() - this.lastReadAt >= HIDDEN_APPROVAL_POLL_MS) {
+      void this.refresh();
+    }
+  }
+
+  /** Up to ten seconds old on return otherwise, and the person has just looked. */
+  private readonly readOnReturn = (): void => {
+    if (!document.hidden) {
+      void this.refresh();
+    }
+  };
 
   slice(): ApprovalSlice {
     return {
@@ -162,7 +216,7 @@ export class ApprovalController implements ReactiveController {
   }
 
   async refresh(): Promise<void> {
-    if (this.reading || document.hidden) {
+    if (this.reading) {
       return;
     }
     // A card must not outlive the account's right to answer it. Demoted to Viewer while
@@ -174,13 +228,14 @@ export class ApprovalController implements ReactiveController {
     }
     const generation = this.generation;
     this.reading = true;
+    this.lastReadAt = Date.now();
     try {
       const view = await this.bridge.api().listApprovals();
       if (generation !== this.generation) {
         return;
       }
       const known = new Set(this.approvals.map((approval) => approval.id));
-      const arrived = view.approvals.some((approval) => !known.has(approval.id));
+      const arrived = view.approvals.filter((approval) => !known.has(approval.id));
       const waiting = new Set(view.approvals.map((approval) => approval.id));
       for (const id of this.errors.keys()) {
         if (!waiting.has(id)) {
@@ -195,7 +250,10 @@ export class ApprovalController implements ReactiveController {
       this.approvals = view.approvals;
       this.notices = view.notices.filter((notice) => !this.dismissed.has(notice.id));
       this.host.requestUpdate();
-      if (arrived) {
+      if (arrived.length > 0) {
+        if (document.hidden) {
+          notifyArrivedApprovals(arrived);
+        }
         await revealWaitingApprovals(this.host);
       }
     } catch (err) {

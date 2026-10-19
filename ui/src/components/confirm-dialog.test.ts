@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getRenderedModalDialog, installDialogPolyfill } from "../test-helpers/modal-dialog.ts";
-import { showConfirmDialog } from "./confirm-dialog.ts";
+import { showChoiceDialog, showConfirmDialog } from "./confirm-dialog.ts";
 
 let restoreDialogPolyfill: () => void;
 
@@ -77,5 +77,45 @@ describe("showConfirmDialog", () => {
     await expect(second).resolves.toBe(false);
     findButton("Cancel").click();
     await expect(first).resolves.toBe(false);
+  });
+
+  // The message box keeps line breaks (`white-space: pre-line`) so a message can be laid out
+  // in paragraphs, and the template's own line break before the message was inside it: every
+  // confirmation opened with an empty line above its text. Measured on a running Gateway:
+  // the first word 21.5 px below the box's top, one line height (QA of 2026-10-19, part 2).
+  it("draws the message and nothing else in its line-keeping box", async () => {
+    const result = showConfirmDialog({ message: "First paragraph.\n\nSecond paragraph." });
+    const { modal } = await getRenderedModalDialog(document.body);
+
+    const box = modal.querySelector(".exec-approval-sub");
+    expect(box?.textContent).toBe("First paragraph.\n\nSecond paragraph.");
+
+    findButton("Cancel").click();
+    await expect(result).resolves.toBe(false);
+  });
+});
+
+describe("showChoiceDialog", () => {
+  beforeEach(() => {
+    restoreDialogPolyfill = installDialogPolyfill();
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    restoreDialogPolyfill();
+  });
+
+  it("draws the message and each choice's description with no added line breaks", async () => {
+    const result = showChoiceDialog({
+      message: "Delete this agent?",
+      choices: [{ value: "keep", label: "Keep files", description: "Line one.\nLine two." }],
+    });
+    const { modal } = await getRenderedModalDialog(document.body);
+
+    expect(modal.querySelector(".exec-approval-sub")?.textContent).toBe("Delete this agent?");
+    expect(modal.querySelector(".exec-approval-command")?.textContent).toBe("Line one.\nLine two.");
+
+    findButton("Cancel").click();
+    await expect(result).resolves.toBeNull();
   });
 });

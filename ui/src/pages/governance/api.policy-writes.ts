@@ -5,7 +5,22 @@
 // throughout: move a subject out whole rather than suppress the rule, and
 // **types before behaviour**. The client method stays with its siblings so
 // there is still one place to look for "what can this dashboard call".
-import type { GovernancePolicyRule, GovernanceRuleCreation } from "./api.ts";
+import type {
+  GovernancePolicyRule,
+  GovernanceRuleConflict,
+  GovernanceRuleCreation,
+  GovernanceRuleWarning,
+} from "./api.ts";
+
+/**
+ * What writing a rule would report, answered without writing it (QA of 2026-10-19, R1):
+ * `policy/rules` with `dryRun: true`, under the same checks and authorization.
+ */
+export type GovernanceRuleCheck = {
+  dryRun: true;
+  conflicts: GovernanceRuleConflict[];
+  warnings: GovernanceRuleWarning[];
+};
 
 /**
  * The longest rule description the server accepts, mirrored as the inputs'

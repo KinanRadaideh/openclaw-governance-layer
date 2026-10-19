@@ -182,6 +182,11 @@ function roleOptionsFor(
  */
 export const MIN_PASSWORD_LENGTH = 8;
 
+/** Something typed, and shorter than the server accepts. An empty field is not "too short". */
+function passwordTooShort(password: string): boolean {
+  return password.length > 0 && password.length < MIN_PASSWORD_LENGTH;
+}
+
 /**
  * What `setAccountPassword` needs. Its own type rather than `AccountsPanelProps`
  * because it is an *action*, not a view: it reads two fields and reports two
@@ -611,11 +616,24 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
             />
             <button
               class="btn"
-              ?disabled=${props.busy || !(props.drafts.passwordEdits[user.id] ?? "").trim()}
+              ?disabled=${props.busy ||
+              !(props.drafts.passwordEdits[user.id] ?? "").trim() ||
+              passwordTooShort(props.drafts.passwordEdits[user.id] ?? "")}
               @click=${() => props.setPassword(user.id, user.username)}
             >
               ${t("governance.users.setPassword")}
             </button>
+            ${
+              // Said in the row, as Create account says it (finding 438): the page banner
+              // was far from the row and outlived a later, valid attempt's Cancel.
+              passwordTooShort(props.drafts.passwordEdits[user.id] ?? "")
+                ? html`<span class="settings-hint" role="status"
+                    >${t("governance.login.passwordTooShort", {
+                      min: String(MIN_PASSWORD_LENGTH),
+                    })}</span
+                  >`
+                : nothing
+            }
             ${props.drafts.passwordSetFor === user.id
               ? renderSettingsStatus({ kind: "ok", label: t("governance.users.passwordSet") })
               : nothing}
@@ -736,11 +754,24 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
                 >`
               : nothing
           }
+          ${
+            // The rule said before the request, as the first-Root and Set password forms
+            // already did (QA of 2026-10-19): this form sent a short password and the
+            // refusal arrived in the banner at the top of the page, far above the form.
+            passwordTooShort(props.drafts.newUserPassword)
+              ? html`<span class="settings-hint" role="status"
+                  >${t("governance.login.passwordTooShort", {
+                    min: String(MIN_PASSWORD_LENGTH),
+                  })}</span
+                >`
+              : nothing
+          }
           <button
             class="btn primary"
             ?disabled=${props.busy ||
             !props.drafts.newUserName ||
             !props.drafts.newUserPassword ||
+            passwordTooShort(props.drafts.newUserPassword) ||
             ((props.drafts.newUserRole === "user" || props.drafts.newUserRole === "viewer") &&
               !props.drafts.newUserManagedBy)}
             @click=${() =>
@@ -792,8 +823,11 @@ export async function setAccountPassword(
   username: string,
   ctx: SetPasswordContext,
 ): Promise<void> {
-  const password = (ctx.drafts.passwordEdits[userId] ?? "").trim();
-  if (!password) {
+  // Sent as typed (QA of 2026-10-19). The server stores a password exactly and
+  // sign-in compares it exactly, so trimming here made the stored password a
+  // different one from the one the operator typed and handed on.
+  const password = ctx.drafts.passwordEdits[userId] ?? "";
+  if (!password.trim()) {
     return;
   }
   if (password.length < MIN_PASSWORD_LENGTH) {

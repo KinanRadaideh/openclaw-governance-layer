@@ -15,6 +15,10 @@ export type ConfirmDialogOptions = {
 
 let confirmationActive = false;
 
+// The message boxes keep line breaks (`white-space: pre-line`), so their text is set as
+// `.textContent` rather than written between the tags: the template's own line break before
+// it was drawn too, and every dialog opened with an empty line above its message.
+
 function presentConfirmDialog(options: ConfirmDialogOptions): Promise<boolean> {
   if (options.signal?.aborted) {
     return Promise.resolve(false);
@@ -47,9 +51,11 @@ function presentConfirmDialog(options: ConfirmDialogOptions): Promise<boolean> {
             <div class="exec-approval-header">
               <div>
                 <div class="exec-approval-title">${title}</div>
-                <div class="exec-approval-sub" style="white-space: pre-line">
-                  ${options.message}
-                </div>
+                <div
+                  class="exec-approval-sub"
+                  style="white-space: pre-line"
+                  .textContent=${options.message}
+                ></div>
               </div>
             </div>
             ${options.details
@@ -135,16 +141,20 @@ function presentChoiceDialog<T extends string>(options: ChoiceDialogOptions<T>):
             <div class="exec-approval-header">
               <div>
                 <div class="exec-approval-title">${title}</div>
-                <div class="exec-approval-sub" style="white-space: pre-line">
-                  ${options.message}
-                </div>
+                <div
+                  class="exec-approval-sub"
+                  style="white-space: pre-line"
+                  .textContent=${options.message}
+                ></div>
               </div>
             </div>
             ${options.choices.map(
               (choice) => html`
-                <div class="exec-approval-command" style="white-space: pre-line">
-                  ${choice.description}
-                </div>
+                <div
+                  class="exec-approval-command"
+                  style="white-space: pre-line"
+                  .textContent=${choice.description}
+                ></div>
                 <div class="exec-approval-actions">
                   <button
                     type="button"

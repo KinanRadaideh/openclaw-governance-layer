@@ -33,8 +33,6 @@ import {
   type GovernanceAgentPolicyView,
   type GovernanceRuleTargets,
   type GovernancePendingDecision,
-  type GovernanceRuleConflict,
-  type GovernanceRuleWarning,
   type GovernanceRuleRequest,
   type GovernanceDeploymentStatus,
   type GovernanceSystemStatus,
@@ -46,6 +44,8 @@ import { canAdminister, canManageAnyAgent, isSessionLost, panelCapabilities } fr
 import { IntegrityController } from "./integrity-controller.ts";
 import { keptKillNotice, revealKillNotice, type KillNotice } from "./kill-notice.ts";
 import type { LedgerFilter } from "./ledger-filter.ts";
+import { afterPageUpdate } from "./page-focus.ts";
+import { PageRefreshController } from "./page-refresh.ts";
 import { accountsInReach, MIN_PASSWORD_LENGTH } from "./panels/account-panels.ts";
 import {
   AccountsController,
@@ -91,10 +91,11 @@ import {
   renderRuleWarnings,
   type PolicyPanelProps,
 } from "./panels/policy-panels.ts";
+import { noticeInForce, type ConflictNotice, type WarningNotice } from "./panels/rule-check.ts";
 import { RuleRequestDraftsController } from "./panels/rule-request-drafts.ts";
 import { renderSectionNav, SectionNavController } from "./panels/section-nav.ts";
 import { renderGovernanceGate, renderIdentityRow } from "./panels/session-panels.ts";
-import { errorAfterRefresh, focusNewRefusal, revealRuleNotices } from "./refusal-focus.ts";
+import { errorAfterRefresh, revealRuleNotices } from "./refusal-focus.ts";
 import "../../styles/governance.css";
 import { EMPTY_RULE_FILTER, type RuleFilter } from "./rule-filter.ts";
 
@@ -119,14 +120,6 @@ import { EMPTY_RULE_FILTER, type RuleFilter } from "./rule-filter.ts";
 i18n.registerLocaleStrings("en", enGovernance);
 
 /** Ordered least- to most-privileged so the control reads as a ladder. */
-
-/**
- * How often the page reloads itself.
- *
- * Short enough that the live-session panel is worth trusting during an
- * incident, long enough not to hammer the Gateway from an idle tab.
- */
-const AUTO_REFRESH_MS = 15_000;
 
 /**
  * Where "Learn more" points.
@@ -199,14 +192,6 @@ class GovernancePage extends OpenClawLightDomElement {
   /** Set when some panels failed to reload, so the page can say which state it is in. */
   @state() private partialFailure = false;
   @state() private lastRefreshedAt: number | null = null;
-  private refreshTimer: ReturnType<typeof setInterval> | undefined;
-  /**
-   * Whether a *polled* refresh batch is still in the air.
-   *
-   * Deliberately a plain field and not `@state()`: nothing renders from it, and
-   * making it reactive would put a re-render at each end of every tick.
-   */
-  private refreshing = false;
 
   @state() private loginUsername = "";
   @state() private loginPassword = "";
@@ -286,6 +271,12 @@ class GovernancePage extends OpenClawLightDomElement {
     identity: () => this.identity,
     onSessionLost: () => this.markSessionExpired(),
   });
+  /** The page's fifteen-second reload of everything else it shows. See `page-refresh.ts`. */
+  readonly autoRefresh = new PageRefreshController(this, {
+    ready: () => !this.busy && this.identity !== null,
+    refresh: () => this.refreshData(),
+    onSessionLost: () => this.markSessionExpired(),
+  });
 
   /**
    * Test-only forwarding of the conversation fields onto their controller.
@@ -340,9 +331,9 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private ruleRequests: GovernanceRuleRequest[] = [];
   @state() private activeSessions: GovernanceActiveSessionsView | null = null;
   /** Clash notice shown after adding a rule that an earlier rule already covers. */
-  @state() private conflictNotice: GovernanceRuleConflict[] | null = null;
+  @state() private conflictNotice: ConflictNotice | null = null;
   /** Advisory notes about a just-created rule being looser than it looks. */
-  @state() private ruleWarnings: GovernanceRuleWarning[] | null = null;
+  @state() private ruleWarnings: WarningNotice | null = null;
   @state() private killNotice: KillNotice | null = null;
   @state() private pendingDecisions: GovernancePendingDecision[] = [];
   /**
@@ -380,7 +371,6 @@ class GovernancePage extends OpenClawLightDomElement {
       this.needsBootstrap = false;
       this.sessionExpired = false;
       await this.refreshData();
-      this.startAutoRefresh();
     } catch (err) {
       this.identity = null;
       // A 409 from bootstrap-root means an account exists; a 401 from whoami
@@ -584,9 +574,10 @@ class GovernancePage extends OpenClawLightDomElement {
   }
 
   private async refreshData(): Promise<void> {
-    // The stop notice this refresh may retire: one set after it began is newer
-    // than the policy it is about to read.
+    // The stop and rule notices this refresh may retire (finding 437): one set after
+    // it began is newer than the policy it is about to read.
     const killNoticeAtStart = this.killNotice;
+    const [conflictAtStart, warningsAtStart] = [this.conflictNotice, this.ruleWarnings];
     const api = this.api();
     // `allSettled`, not `all`. Eight requests load this page, and with `all` a
     // single failure rejected the whole refresh, which the caller treated as
@@ -727,6 +718,8 @@ class GovernancePage extends OpenClawLightDomElement {
     if (policy.status === "fulfilled") {
       this.policy = policy.value;
       this.killNotice = keptKillNotice(this.killNotice, killNoticeAtStart, policy.value);
+      this.conflictNotice = noticeInForce(this.conflictNotice, conflictAtStart, policy.value.rules);
+      this.ruleWarnings = noticeInForce(this.ruleWarnings, warningsAtStart, policy.value.rules);
     }
     if (codexBackend.status === "fulfilled") {
       this.codexBackend = codexBackend.value;
@@ -916,58 +909,9 @@ class GovernancePage extends OpenClawLightDomElement {
     this.agentRegistry.reset();
     this.loginPassword = "";
     this.loginConfirm = "";
-    this.stopAutoRefresh();
-  }
-
-  /**
-   * Polls while the page is open.
-   *
-   * Nothing refreshed on its own before, so "no agent sessions running" could be
-   * hours old: on the panel whose job is catching a runaway agent. Skipped
-   * while a mutation is in flight (so a refresh cannot race a write) and while
-   * the tab is hidden (so a backgrounded dashboard is not polling all day).
-   */
-  private startAutoRefresh(): void {
-    this.stopAutoRefresh();
-    this.refreshTimer = setInterval(() => {
-      // **And not while the previous tick is still in the air** (2026-09-08).
-      // `busy` covers a mutation, not a refresh, so a batch slower than the
-      // fifteen-second interval was joined by the next one and the queue only
-      // grew: the browser holds six connections per origin and this dispatches
-      // eleven requests a tick. Measured after one slow first load, from the
-      // page's own resource timings, on routes `curl` was answering in 0.25s:
-      // 0.26s, then 5.3s, then 10.2s, then **44.3s**. An operator reads that
-      // as a dashboard stuck on "Loading...".
-      if (this.busy || this.refreshing || !this.identity || document.hidden) {
-        return;
-      }
-      // **The guard belongs to the timer, not to `refreshData`.** A refresh
-      // that follows a mutation is asked for and must never be skipped; only
-      // the poll should stand down while one is still in the air.
-      this.refreshing = true;
-      void this.refreshData()
-        .catch((err: unknown) => {
-          if (isSessionLost(err)) {
-            this.markSessionExpired();
-          }
-          // Any other failure is left to the next tick: a transient network
-          // blip should not put an error banner over a working page.
-        })
-        .finally(() => {
-          this.refreshing = false;
-        });
-    }, AUTO_REFRESH_MS);
-  }
-
-  private stopAutoRefresh(): void {
-    if (this.refreshTimer !== undefined) {
-      clearInterval(this.refreshTimer);
-      this.refreshTimer = undefined;
-    }
   }
 
   override disconnectedCallback(): void {
-    this.stopAutoRefresh();
     this.stopOverflowTitles?.();
     this.stopOverflowTitles = undefined;
     super.disconnectedCallback();
@@ -980,15 +924,14 @@ class GovernancePage extends OpenClawLightDomElement {
     // The subject moved out whole when this file crossed the 700-line limit,
     // which is T16's rule; `refusal-focus.ts` carries the reasoning and the two
     // measurements behind it.
-    focusNewRefusal(this, this.error);
+    afterPageUpdate(this, this.error, this.busy);
   }
 
   private async run(action: () => Promise<unknown>): Promise<void> {
     // Counted, not a flag (finding 384): the stop controls stay pressable while a slow
     // action runs, and a lockdown finishing first must not re-enable every other control
     // while the slow one is still in flight.
-    this.runsInFlight += 1;
-    this.busy = true;
+    this.busy = ++this.runsInFlight > 0;
     this.error = null;
     try {
       await action();
@@ -1055,7 +998,6 @@ class GovernancePage extends OpenClawLightDomElement {
       this.loginPassword = "";
       this.loginConfirm = "";
       this.needsBootstrap = false;
-      this.startAutoRefresh();
     });
   }
 

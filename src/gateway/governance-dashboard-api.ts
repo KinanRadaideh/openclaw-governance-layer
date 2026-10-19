@@ -42,6 +42,7 @@ import {
 } from "../governance/policy-store.js";
 import { isGovernanceMode, type ResourceKind } from "../governance/policy-types.js";
 import { roleAtLeast, type GovernanceRole } from "../governance/roles.js";
+import { detectRuleConflicts } from "../governance/rule-conflicts.js";
 import {
   describeRuleRisks,
   isRuleAccess,
@@ -51,6 +52,7 @@ import {
   validateRulePattern,
 } from "../governance/rule-validation.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 import { handleGovernanceAccountRoutes } from "./governance-dashboard-accounts.js";
 import { handleGovernanceAgentControlRoutes } from "./governance-dashboard-agent-control.js";
 import { handleGovernanceAgentRoutes } from "./governance-dashboard-agents.js";
@@ -687,15 +689,22 @@ export async function handleGovernanceApiRequest(
     if (body === undefined) {
       return true;
     }
-    const { resourceKind, pattern, description, ttlMinutes, agentId, effect, access } = body as {
-      resourceKind?: unknown;
-      pattern?: unknown;
-      description?: unknown;
-      ttlMinutes?: unknown;
-      agentId?: unknown;
-      effect?: unknown;
-      access?: unknown;
-    };
+    const { resourceKind, pattern, description, ttlMinutes, agentId, effect, access, dryRun } =
+      body as {
+        resourceKind?: unknown;
+        pattern?: unknown;
+        description?: unknown;
+        ttlMinutes?: unknown;
+        agentId?: unknown;
+        effect?: unknown;
+        access?: unknown;
+        dryRun?: unknown;
+      };
+    // Refused rather than read loosely: a check sent as `"true"` must not become a write.
+    if (dryRun !== undefined && typeof dryRun !== "boolean") {
+      sendInvalidRequest(res, "dryRun must be true or false");
+      return true;
+    }
     const ruleActor = toActor(session);
     const scopedAgentId =
       typeof agentId === "string" && agentId.trim() ? agentId.trim() : undefined;
@@ -779,21 +788,34 @@ export async function handleGovernanceApiRequest(
     // write, meant two administrators adding the same rule at the same instant
     // both read a ruleset without it, both saw no clash, and both wrote. The
     // duplicate was harmless, the silence was not.
+    const candidate = {
+      resourceKind,
+      pattern: validatedRulePattern.pattern,
+      description: validatedDescription.description,
+      ...(ttl.expiresAt ? { expiresAt: ttl.expiresAt } : {}),
+      ...(scopedAgentId ? { agentId: scopedAgentId } : {}),
+      ...(isRuleEffect(effect) ? { effect } : {}),
+      ...(isRuleAccess(access) ? { access } : {}),
+    };
+    const warnings = describeRuleRisks(candidate.pattern, resourceKind, candidate);
+    // **A check before the write (QA of 2026-10-19, R1).** Every check above has run, under
+    // the same authorization; this answers what the write would report and stops. The
+    // dashboard asks the operator before writing a rule with something to report, which
+    // the write's own answer could only say once the rule was already in force. Read
+    // outside the write lock, so it is advice: the write detects clashes again inside it.
+    if (dryRun === true) {
+      const { rules } = await loadPolicy(groupId);
+      const folded = scopedAgentId ? { agentId: normalizeAgentId(scopedAgentId) } : {};
+      const conflicts = detectRuleConflicts(rules, { ...candidate, ...folded });
+      sendJson(res, 200, { dryRun: true, conflicts, warnings });
+      return true;
+    }
     let rule;
     let conflicts;
     try {
       ({ rule, conflicts } = await addRuleChecked(
         groupId,
-        {
-          resourceKind,
-          pattern: validatedRulePattern.pattern,
-          description: validatedDescription.description,
-          ...(ttl.expiresAt ? { expiresAt: ttl.expiresAt } : {}),
-          ...(scopedAgentId ? { agentId: scopedAgentId } : {}),
-          ...(isRuleEffect(effect) ? { effect } : {}),
-          ...(isRuleAccess(access) ? { access } : {}),
-          createdBy: session.username,
-        },
+        { ...candidate, createdBy: session.username },
         auditActor(session),
       ));
     } catch (err) {
@@ -807,14 +829,7 @@ export async function handleGovernanceApiRequest(
     }
     // Warnings ride alongside conflicts: both are "this is not what you
     // probably think it is", and neither blocks the write.
-    sendJson(res, 200, {
-      ...rule,
-      conflicts,
-      warnings: describeRuleRisks(validatedRulePattern.pattern, resourceKind, {
-        ...(isRuleEffect(effect) ? { effect } : {}),
-        ...(isRuleAccess(access) ? { access } : {}),
-      }),
-    });
+    sendJson(res, 200, { ...rule, conflicts, warnings });
     return true;
   }
 

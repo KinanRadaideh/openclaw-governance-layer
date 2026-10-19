@@ -2,7 +2,8 @@ import { html, nothing, type TemplateResult } from "lit";
 import { renderSettingsRow } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
 import { MAX_RULE_DESCRIPTION_LENGTH } from "../api.policy-writes.ts";
-import type { GovernanceApi, GovernanceRuleConflict, GovernanceRuleWarning } from "../api.ts";
+import type { GovernanceApi } from "../api.ts";
+import { ruleNoticesFor, type RuleNotices } from "./rule-check.ts";
 
 /**
  * The folder-grant form and the explainer beside it.
@@ -58,12 +59,6 @@ export const EMPTY_FOLDER_GRANT = {
   exceptions: "",
   agentId: "",
   written: null,
-};
-
-/** What a policy write reported beyond success, for the page's notice band. */
-export type RuleNotices = {
-  conflictNotice: GovernanceRuleConflict[] | null;
-  ruleWarnings: GovernanceRuleWarning[] | null;
 };
 
 /**
@@ -197,11 +192,10 @@ export function renderFolderGrantPanel(
                 });
                 // The notice the add-rule form raises, for the same reason: a
                 // grant that clashes with an existing rule was written in silence.
-                props.onRuleNotices({
-                  conflictNotice:
-                    result.conflicts && result.conflicts.length > 0 ? result.conflicts : null,
-                  ruleWarnings: null,
-                });
+                // About every rule the grant wrote, so removing any of them clears it.
+                const ruleIds = [result.grant, ...result.exceptions].map((rule) => rule.id);
+                const subject = { ruleIds, pattern: result.grant.pattern };
+                props.onRuleNotices(ruleNoticesFor(subject, { conflicts: result.conflicts }));
                 // The agent deliberately survives the reset, matching the
                 // add-rule form: somebody granting one folder to an agent is
                 // usually granting several.

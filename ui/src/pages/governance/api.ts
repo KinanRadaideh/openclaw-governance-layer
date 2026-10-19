@@ -153,6 +153,7 @@ import type {
   AddRuleRequest,
   FolderGrantRequest,
   FolderGrantResponse,
+  GovernanceRuleCheck,
 } from "./api.policy-writes.ts";
 
 export type GovernanceRuleCreation = GovernancePolicyRule & {
@@ -451,6 +452,12 @@ export class GovernanceApi {
 
   addRule(rule: AddRuleRequest): Promise<GovernanceRuleCreation> {
     return this.request<GovernanceRuleCreation>("policy/rules", { method: "POST", body: rule });
+  }
+
+  /** What `addRule` would report for this rule, with nothing written. */
+  checkRule(rule: AddRuleRequest): Promise<GovernanceRuleCheck> {
+    const body = { ...rule, dryRun: true };
+    return this.request<GovernanceRuleCheck>("policy/rules", { method: "POST", body });
   }
 
   /**

@@ -151,6 +151,13 @@ function ruleRows(): Array<{ title: string; desc: string; pattern: string }> {
     }));
 }
 
+/**
+ * The check before a write (R1, `rule-check-before-write.test.ts`) finding nothing, so the
+ * form writes at once. A clash the write itself reports is still shown: one can arrive
+ * between the check and the write, which detects again inside its lock.
+ */
+const NOTHING_TO_REPORT = async () => ({ dryRun: true, conflicts: [], warnings: [] });
+
 beforeEach(() => {
   document.body.replaceChildren();
 });
@@ -192,6 +199,7 @@ describe("the add-rule form requires a description", () => {
     });
     page.api = () =>
       fakeApi({
+        checkRule: NOTHING_TO_REPORT,
         addRule: async (request: AddRuleRequest) => {
           sent.push(request);
           return { ...OPERATOR, conflicts: [], warnings: [] };
@@ -225,7 +233,10 @@ describe("the add-rule form requires a description", () => {
       newRuleAgentId: "agent-a",
     });
     page.api = () =>
-      fakeApi({ addRule: async () => ({ ...OPERATOR, conflicts: [], warnings: [] }) });
+      fakeApi({
+        checkRule: NOTHING_TO_REPORT,
+        addRule: async () => ({ ...OPERATOR, conflicts: [], warnings: [] }),
+      });
     button("Add rule")?.click();
     await vi.waitFor(() => expect(page.newRuleDescription).toBe(""));
     expect(page.newRuleAgentId).toBe("agent-a");

@@ -69,6 +69,7 @@ import {
 import { postNativeNavState, type NativeNavState } from "./native-nav-state.ts";
 import { readNativeHistoryState, type NativeHistoryState } from "./native-web-chrome.ts";
 import { resolveOnboardingMode } from "./onboarding-mode.ts";
+import { PAGE_ATTENTION_EVENT } from "./page-attention.ts";
 import {
   changedServerUiPrefs,
   isApplyingServerUiPrefs,
@@ -127,6 +128,9 @@ class OpenClawShell
   @state() settingsSearchQuery = "";
   @state() routeState: ShellRouteState = {};
   @state() nativeHistoryState: NativeHistoryState = readNativeHistoryState();
+  // A page's own waiting count (page-attention.ts), held with the route it came from so the
+  // title drops it the moment that route is left, before the page itself is torn down.
+  @state() private pageAttention: { routeId: RouteId | undefined; count: number } | null = null;
   readonly commandPaletteElement = COMMAND_PALETTE_ELEMENT;
   readonly terminalPanelElement = TERMINAL_PANEL_ELEMENT;
   readonly browserPanelElement = BROWSER_PANEL_ELEMENT;
@@ -223,6 +227,10 @@ class OpenClawShell
 
   constructor() {
     super();
+    this.addEventListener(PAGE_ATTENTION_EVENT, (event) => {
+      const count = (event as CustomEvent<number>).detail;
+      this.pageAttention = { routeId: this.routeState.routeId, count };
+    });
     this.subscriptions
       .effect(
         () => this.context,
@@ -497,9 +505,10 @@ class OpenClawShell
     } else if (routeId === "custodian") {
       primaryContext = t("nav.askOpenClaw");
     }
+    const pageCount = this.pageAttention?.routeId === routeId ? this.pageAttention.count : 0;
     const title = formatDocumentTitle({
       context: primaryContext,
-      attentionCount: context.overlays.snapshot.approvalQueue.length,
+      attentionCount: context.overlays.snapshot.approvalQueue.length + pageCount,
       offline: context.gateway.snapshot.phase !== "connected",
       queuedCount: this.outboxStoreRuntime?.summarizeStoredChatOutboxes(outboxScopeHost).total ?? 0,
     });

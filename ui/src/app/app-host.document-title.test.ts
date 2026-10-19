@@ -5,6 +5,7 @@ import type { AgentsListResult, GatewayAgentRow, GatewaySessionRow } from "../ap
 import type { RouteId } from "../app-routes.ts";
 import "./app-host.ts";
 import type { ApplicationContext } from "./context.ts";
+import { reportPageAttention } from "./page-attention.ts";
 
 type ShellDocumentTitleState = {
   activeSessionKey: string;
@@ -140,6 +141,29 @@ describe("OpenClaw shell document title", () => {
     shell.syncDocumentTitle();
 
     expect(document.title).toBe("(2) Usage — OpenClaw");
+  });
+
+  // R2 of the governance QA of 2026-10-19: the dashboard's questions wait only there (T86 D7),
+  // so a background tab showed nothing until one had expired.
+  it("adds a page's own waiting count while its route is open, and drops it when left", () => {
+    const shell = createShell(createContext({ approvalCount: 1 })) as ShellDocumentTitleState &
+      HTMLElement;
+    shell.routeState = { routeId: "governance" };
+    const page = document.createElement("div");
+    shell.append(page);
+
+    reportPageAttention(page, 2);
+    shell.syncDocumentTitle();
+    expect(document.title).toBe("(3) Governance — OpenClaw");
+
+    reportPageAttention(page, 0);
+    shell.syncDocumentTitle();
+    expect(document.title).toBe("(1) Governance — OpenClaw");
+
+    reportPageAttention(page, 2);
+    shell.routeState = { routeId: "usage" };
+    shell.syncDocumentTitle();
+    expect(document.title).toBe("(1) Usage — OpenClaw");
   });
 
   it("shows offline instead of a stale approval count", () => {

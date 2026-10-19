@@ -46,9 +46,7 @@ import type {
   GovernanceIdentity,
   GovernancePolicyDocument,
   GovernancePolicyRule,
-  GovernanceRuleConflict,
   GovernanceRuleTargets,
-  GovernanceRuleWarning,
   GovernanceUserRecord,
 } from "../api.ts";
 import { canManageAgent, canRemoveRule, canWritePolicy, hasAgentToGovern } from "../identity.ts";
@@ -62,13 +60,21 @@ import {
 import type { PanelEffects } from "./account-panels.ts";
 import { renderRuleTargets } from "./agent-policy-lookup.ts";
 import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend-panel.ts";
-import { renderFolderGrantPanel, type RuleNotices } from "./folder-grant-panel.ts";
+import { renderFolderGrantPanel } from "./folder-grant-panel.ts";
 import { formatDuration, unassignedAgentsHint } from "./format.ts";
 import { renderAgentAskRow, renderObserveAgentRow } from "./policy-agent-overrides.ts";
 import { renderAgentTimeoutOverrides, renderAgentTimeoutRow } from "./policy-agent-timeout.ts";
 import type { PolicyDrafts } from "./policy-drafts.ts";
 import { renderPolicyReadingNotes } from "./policy-reading-notes.ts";
 import { renderRootPolicySettings } from "./policy-root-settings.ts";
+import {
+  addRuleAfterCheck,
+  noticesAfterRemoval,
+  ruleNoticesFor,
+  type ConflictNotice,
+  type RuleNotices,
+  type WarningNotice,
+} from "./rule-check.ts";
 
 /**
  * Core rules Root may not switch off, matched by id fragment.
@@ -160,8 +166,8 @@ export type PolicyPanelProps = PanelEffects & {
   agentPolicyError: string | null;
   agentAccess: GovernanceAgentAccess | null;
   ruleTargets: Record<string, GovernanceRuleTargets>;
-  conflictNotice: GovernanceRuleConflict[] | null;
-  ruleWarnings: GovernanceRuleWarning[] | null;
+  conflictNotice: ConflictNotice | null;
+  ruleWarnings: WarningNotice | null;
   drafts: PolicyDrafts;
   onDraft: (patch: Partial<PolicyDrafts>) => void;
   /** Clears a conflict notice the operator has read. State the page owns. */
@@ -182,27 +188,32 @@ export type PolicyPanelProps = PanelEffects & {
 };
 
 export function renderRuleWarnings(
-  ruleWarnings: GovernanceRuleWarning[] | null,
+  notice: WarningNotice | null,
   onDismiss: () => void,
 ): TemplateResult | typeof nothing {
-  const warnings = ruleWarnings;
-  if (!warnings || warnings.length === 0) {
+  if (!notice || notice.warnings.length === 0) {
     return nothing;
   }
   return html`
     <div class="settings-empty governance-rule-notice" role="alert">
       <strong>${t("governance.policy.warningTitle")}</strong>
+      ${renderNoticePattern(notice.pattern)}
       <ul style="margin:0.5rem 0 0.5rem 1rem">
-        ${warnings.map((warning) => html`<li>${warning.message}</li>`)}
+        ${notice.warnings.map((warning) => html`<li>${warning.message}</li>`)}
       </ul>
       <button class="btn" @click=${onDismiss}>${t("governance.policy.conflictDismiss")}</button>
     </div>
   `;
 }
 
+/** Which rule a notice is about (R3): it used to say only "this rule". */
+function renderNoticePattern(pattern: string): TemplateResult {
+  return html`<div>${t("governance.policy.ruleNoticePattern")} <code>${pattern}</code></div>`;
+}
+
 export function renderConflictNotice(props: PolicyPanelProps): TemplateResult | typeof nothing {
-  const conflicts = props.conflictNotice;
-  if (!conflicts || conflicts.length === 0) {
+  const conflicts = props.conflictNotice?.conflicts;
+  if (!props.conflictNotice || !conflicts || conflicts.length === 0) {
     return nothing;
   }
   return html`
@@ -221,6 +232,7 @@ export function renderConflictNotice(props: PolicyPanelProps): TemplateResult | 
               : t("governance.policy.conflictTitle")
         }</strong
       >
+      ${renderNoticePattern(props.conflictNotice.pattern)}
       <ul style="margin:0.5rem 0 0.5rem 1rem">
         ${conflicts.map(
           (conflict) => html`<li><code>${conflict.existingPattern}</code>-${conflict.message}</li>`,
@@ -679,7 +691,13 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                       details: `${rule.description}: ${rule.resourceKind} ${rule.pattern}`,
                       confirmLabel: t("governance.policy.removeRule"),
                     },
-                    () => props.api().removeRule(rule.id),
+                    async () => {
+                      await props.api().removeRule(rule.id);
+                      const left = noticesAfterRemoval(props, rule.id);
+                      if (left) {
+                        props.onRuleNotices(left);
+                      }
+                    },
                   )}
               >
                 ${t("governance.policy.removeRule")}
@@ -861,7 +879,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                   props.run(async () => {
                     const ttl = Number.parseInt(props.drafts.newRuleTtl, 10);
                     const agentId = props.drafts.newRuleAgentId.trim();
-                    const created = await props.api().addRule({
+                    const rule = {
                       resourceKind: props.drafts.newRuleKind,
                       pattern: props.drafts.newRulePattern,
                       description: props.drafts.newRuleDescription.trim(),
@@ -874,7 +892,12 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                       ...(props.drafts.newRuleKind === "path" && props.drafts.newRuleAccess
                         ? { access: props.drafts.newRuleAccess }
                         : {}),
-                    });
+                    };
+                    const created = await addRuleAfterCheck(props.api(), rule, props.agentLabel);
+                    // "Change it": nothing written, and the form kept for the change.
+                    if (!created) {
+                      return;
+                    }
                     props.onDraft({ newRulePattern: "" });
                     props.onDraft({ newRuleDescription: "" });
                     props.onDraft({ newRuleTtl: "" });
@@ -891,14 +914,8 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                     // **Through the page, never onto `props`**: this object is
                     // rebuilt on every render, so assigning to it drew nothing
                     // and both notices were lost.
-                    props.onRuleNotices({
-                      conflictNotice:
-                        created.conflicts && created.conflicts.length > 0
-                          ? created.conflicts
-                          : null,
-                      ruleWarnings:
-                        created.warnings && created.warnings.length > 0 ? created.warnings : null,
-                    });
+                    const subject = { ruleIds: [created.id], pattern: created.pattern };
+                    props.onRuleNotices(ruleNoticesFor(subject, created));
                   })}
               >
                 ${t("governance.policy.addRuleButton")}
