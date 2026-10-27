@@ -8985,3 +8985,42 @@ policy or the audit record. It also found three smaller things, all fixed:
   the "create account" form.
 - **Every "are you sure?" window started with an empty line** (439), for the same hidden reason as
   finding 430's conversation messages, in a part of the screen that check did not reach.
+
+## 5.143 Checking the dashboard against common practice (findings 440 to 448, 27 October)
+
+This check asked two questions of the dashboard as a whole: does it behave the way people expect
+web pages to behave, and does everything on it work? Everything tried worked: signing in, adding
+and removing rules, stopping an agent and letting it go again, creating and deleting accounts,
+checking the audit record, the conversation with an agent, a phone-sized screen, and the light and
+dark colour themes. Nine smaller things were wrong, all in how the page treats the person using it,
+and all are fixed:
+
+- **After some actions, the keyboard lost its place** (finding 440). A person who works with the
+  keyboard rather than a mouse is always "at" one control on the page. After adding a rule,
+  creating an account, removing a rule or deleting an account, that place was lost: the next key
+  press started again from the top of the whole app, or jumped to the emergency-stop box two
+  sections away. An earlier fix (436) had covered most actions but not these, because these forms
+  are redrawn when the list above them changes. Now the keyboard stays in the form, or moves to
+  the next item in the list.
+- **Removing a "forbid" rule was described as removing a permission** (441). The "are you sure?"
+  message said "the agent will no longer be allowed to do this", which is the opposite of what
+  removing a forbid rule does: it stops blocking the agent. It now says so.
+- **The result of an emergency stop looked like an empty placeholder** (442): small grey text,
+  centred, with no box around it. It now looks like a message.
+- **Some grey text was too faint to read comfortably** (443), below the contrast the web
+  accessibility guidelines ask for. Fixed in both colour themes.
+- **Pressing Enter did nothing in most forms** (444). On most websites, pressing Enter after typing
+  in a form sends it. Here only the sign-in form did. Now every form does, and forms that ask
+  "are you sure?" still ask.
+- **The list of sections moved the screen but not the keyboard** (445). Choosing "Policy" showed
+  Policy, but the next key press went back to the list. Now it goes into Policy.
+- **A blind user heard nothing after "Verify chain integrity"** (446). Screen readers read out
+  changes only from places marked for it; the result now is.
+- **Some audit record entries were walls of text** (447): a scheduled job's entry printed about a
+  thousand characters in bold. Very long entries now show the start, with the whole text one click
+  away.
+- **One box ended in three dots instead of the proper "…" character** (448).
+
+Ten further suggestions need a decision rather than a fix, and are listed in
+`mg/QA-SESSION-2026-10-27.md` §4: for example, most boxes show their label only until you start
+typing in them, and releasing a stopped agent does not ask "are you sure?" while stopping it does.
