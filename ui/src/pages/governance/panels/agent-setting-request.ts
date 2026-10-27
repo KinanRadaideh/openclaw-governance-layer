@@ -171,6 +171,7 @@ export function renderAgentSettingRequestRow(props: AgentSettingRequestProps): T
         />
         <button
           class="btn primary"
+          data-enter-submits
           ?disabled=${props.busy || !input}
           @click=${() =>
             props.run(async () => {

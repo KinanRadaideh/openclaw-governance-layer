@@ -97,6 +97,7 @@ export function renderAgentTimeoutRow(props: PolicyPanelProps): TemplateResult |
             />
             <button
               class="btn"
+              data-enter-submits
               ?disabled=${props.busy ||
               !props.drafts.agentTimeoutAgentId.trim() ||
               !secondsInRange(props.drafts.agentTimeoutSeconds)}

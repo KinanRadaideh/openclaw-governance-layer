@@ -682,10 +682,16 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
           ${canEditRules && rule.tier !== "core" && canRemoveRule(props.identity, rule)
             ? html`<button
                 class="btn danger"
+                ?disabled=${props.busy}
                 @click=${() =>
                   props.confirmThen(
                     {
-                      message: t("governance.confirm.removeRule"),
+                      // Said by what removing it does (finding 441): a forbid rule's
+                      // removal lets the agent through where it was stopped.
+                      message:
+                        rule.effect === "deny"
+                          ? t("governance.confirm.removeDenyRule")
+                          : t("governance.confirm.removeRule"),
                       // Named by what it is for as well as what it matches,
                       // so the operator confirms the rule they meant (T70).
                       details: `${rule.description}: ${rule.resourceKind} ${rule.pattern}`,
@@ -870,6 +876,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
               />
               <button
                 class="btn primary"
+                data-enter-submits
                 ?disabled=${!props.drafts.newRulePattern ||
                 !props.drafts.newRuleDescription.trim() ||
                 // Blank means every agent, which the server refuses below Administrator.

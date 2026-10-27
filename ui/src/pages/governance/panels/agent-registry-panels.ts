@@ -648,6 +648,7 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
         : nothing}
       <button
         class="btn primary"
+        data-enter-submits
         ?disabled=${props.busy || !name || ownerMissing}
         @click=${() =>
           void props.run(async () => {

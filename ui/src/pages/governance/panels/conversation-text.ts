@@ -23,9 +23,10 @@ export function turnText(turn: GovernanceConversationTurn): TemplateResult | str
   // **An agent turn with no text used to render as a blank line.** Empty is a real
   // outcome and the runner says so in its own comment: it is what happens when every
   // tool call the agent tried was refused. The panel drew nothing at all, so the one
-  // case this layer exists to produce looked like the page had broken. Said in words.
+  // case this layer exists to produce looked like the page had broken. Said in words,
+  // muted by colour: `opacity` put the turn times beside it under 4.5:1 (finding 443).
   const empty = t("governance.conversation.emptyReply");
-  return html`<em style="opacity:0.75">${empty}</em>`;
+  return html`<em style="color:var(--muted)">${empty}</em>`;
 }
 
 /** The reply as it streams in, or a placeholder until its first words arrive. */

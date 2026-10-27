@@ -77,6 +77,7 @@ export function renderRootPolicySettings(
               />
               <button
                 class="btn"
+                data-enter-submits
                 ?disabled=${props.busy || !props.drafts.hitlTimeoutDraft.trim()}
                 @click=${() => {
                   const seconds = Number(props.drafts.hitlTimeoutDraft);

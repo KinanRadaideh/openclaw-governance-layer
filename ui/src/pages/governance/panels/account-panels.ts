@@ -616,6 +616,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
             />
             <button
               class="btn"
+              data-enter-submits
               ?disabled=${props.busy ||
               !(props.drafts.passwordEdits[user.id] ?? "").trim() ||
               passwordTooShort(props.drafts.passwordEdits[user.id] ?? "")}
@@ -768,6 +769,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
           }
           <button
             class="btn primary"
+            data-enter-submits
             ?disabled=${props.busy ||
             !props.drafts.newUserName ||
             !props.drafts.newUserPassword ||

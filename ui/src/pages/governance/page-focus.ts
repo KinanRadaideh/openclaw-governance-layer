@@ -17,6 +17,17 @@
 // One module, called from the page's `updated()`, for the reason `refusal-focus.ts`
 // gives: `governance-page.ts` sits on the 700-line limit, and T16's answer is to move a
 // subject out whole. The subject is "where the reader is left after an update".
+//
+// **A control that was rebuilt is found again by where it sat** (QA of 2026-10-27,
+// finding 440). The 2026-10-19 fix returned focus to the remembered control itself, and
+// most of the forms that matter sit under a list: Add rule under the rules, Create account
+// under the accounts. When the list grows or shrinks the form moves one place in the
+// section, Lit builds it anew, and every remembered control was gone. Measured live: after
+// Add rule focus fell to the document, and after Create account it went to the newest
+// remembered control still on the page, the kill switch's field two sections away. So
+// each control is also remembered by what it is (its name) and which of that name it
+// was, and a control no longer on the page is stood in for by the one now in its place.
+import { submitOnEnter } from "./enter-submits.ts";
 import { focusNewRefusal } from "./refusal-focus.ts";
 
 type PageReader = {
@@ -41,6 +52,44 @@ type PageReader = {
 };
 
 const readers = new WeakMap<HTMLElement, PageReader>();
+
+/** What a remembered control was called, and which of the controls so called it was. */
+type Place = { name: string; nth: number };
+
+const places = new WeakMap<HTMLElement, Place>();
+
+const CONTROLS = "button, input, select, textarea, summary, a[href], [tabindex]";
+
+/** A control's name for finding it again: its label, or what it says. */
+function nameOf(control: HTMLElement): string {
+  const label =
+    control.getAttribute("aria-label") ||
+    (control instanceof HTMLInputElement ? control.placeholder : "");
+  return `${control.tagName}|${label || control.textContent?.trim().replace(/\s+/g, " ")}`;
+}
+
+function sameNamed(host: HTMLElement, name: string): HTMLElement[] {
+  return [...host.querySelectorAll<HTMLElement>(CONTROLS)].filter(
+    (control) => nameOf(control) === name,
+  );
+}
+
+/**
+ * The control now where `control` was: itself while it is on the page, else the control
+ * of the same name at the same position among those so named, or the last of them when
+ * the list shrank (a removed rule's Remove stands in as the next rule's).
+ */
+function standIn(host: HTMLElement, control: HTMLElement): HTMLElement | null {
+  if (control.isConnected) {
+    return control;
+  }
+  const place = places.get(control);
+  if (!place) {
+    return null;
+  }
+  const named = sameNamed(host, place.name);
+  return named[Math.min(place.nth, named.length - 1)] ?? null;
+}
 
 /**
  * How close to the bottom counts as "reading the latest". A reader a line or two short
@@ -70,6 +119,8 @@ function readerFor(host: HTMLElement): PageReader {
     host.addEventListener("focusin", (event) => {
       const target = event.target;
       if (target instanceof HTMLElement) {
+        const name = nameOf(target);
+        places.set(target, { name, nth: sameNamed(host, name).indexOf(target) });
         created.recent = [...created.recent.filter((seen) => seen !== target), target].slice(
           -RECENT_CONTROLS,
         );
@@ -95,6 +146,9 @@ function readerFor(host: HTMLElement): PageReader {
       }
     };
     document.addEventListener("focusout", onFocusOut);
+    // Installed here because this is where the page's own listeners are set up, once per
+    // page, without a line in `governance-page.ts`; the subject is `enter-submits.ts`'s.
+    host.addEventListener("keydown", submitOnEnter);
     readers.set(host, created);
     reader = created;
   }
@@ -108,7 +162,7 @@ function focusLost(): boolean {
   return !active || active === document.body || (active as HTMLButtonElement).disabled;
 }
 
-function usable(element: HTMLElement | null): element is HTMLElement {
+function usable(element: HTMLElement | null | undefined): element is HTMLElement {
   return Boolean(element?.isConnected) && !(element as HTMLButtonElement).disabled;
 }
 
@@ -116,7 +170,8 @@ function usable(element: HTMLElement | null): element is HTMLElement {
  * Puts focus on the refusal, or back where it was.
  *
  * "Where it was" is the newest remembered control still usable: the button pressed,
- * or, when the result cleared its form and so disabled it, the field typed in before.
+ * or, when the result cleared its form and so disabled it, the field typed in before;
+ * each one itself, or the control now in its place when the form was rebuilt.
  * `preventScroll`, because where the page scrolls after an action is already decided
  * (`focusNewRefusal`, the kill notice), and this only decides where the next Tab starts.
  */
@@ -130,7 +185,10 @@ function restoreFocus(host: HTMLElement, reader: PageReader, error: string | nul
     refusal.focus({ preventScroll: true });
     return;
   }
-  const control = reader.recent.findLast(usable);
+  const control = reader.recent
+    .toReversed()
+    .map((seen) => standIn(host, seen))
+    .find(usable);
   control?.focus({ preventScroll: true });
 }
 

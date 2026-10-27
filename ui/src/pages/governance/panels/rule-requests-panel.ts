@@ -322,6 +322,7 @@ export function renderRuleRequestsSection(
               })}
               <button
                 class="btn primary"
+                data-enter-submits
                 ?disabled=${props.busy ||
                 !props.drafts.requestPattern ||
                 !props.drafts.requestReason}

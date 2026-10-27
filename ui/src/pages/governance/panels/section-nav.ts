@@ -59,10 +59,31 @@ export function sectionsDiffer(
   );
 }
 
-/** Scrolls the nth section into view. */
+/**
+ * Scrolls the nth section into view and takes keyboard focus there.
+ *
+ * **Focus goes with the view** (QA of 2026-10-27, finding 445). The list only scrolled,
+ * so focus stayed on the button pressed: a keyboard user who chose Policy saw Policy,
+ * and their next Tab went to the next item in the list, then through every control of
+ * every section above Policy. The heading takes focus, as a skip link's target does,
+ * without a second scroll. The smooth scroll is skipped for a reader who asked the
+ * system for reduced motion.
+ */
 export function scrollToSection(body: ParentNode | null, index: number): void {
   const target = body?.querySelectorAll(SECTION_SELECTOR)[index];
-  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!target) {
+    return;
+  }
+  const still = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  // Guarded: jsdom has no scrollIntoView.
+  target.scrollIntoView?.({ behavior: still ? "auto" : "smooth", block: "start" });
+  const heading = target.querySelector<HTMLElement>(HEADING_SELECTOR);
+  if (heading) {
+    if (!heading.hasAttribute("tabindex")) {
+      heading.setAttribute("tabindex", "-1");
+    }
+    heading.focus({ preventScroll: true });
+  }
 }
 
 export function renderSectionNav(props: {

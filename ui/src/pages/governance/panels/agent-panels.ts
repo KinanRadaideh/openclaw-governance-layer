@@ -204,34 +204,55 @@ export function renderKillNotice(
   if (notice.auditError) {
     return html`<div id="governance-kill-notice" class="settings-empty" role="alert">
       ${named}${t("governance.kill.noticeAuditFailed", { reason: notice.auditError })}
+      ${killTimings(notice)}
     </div>`;
   }
   if (notice.inFlightTerminationSupported === false) {
     return html`<div id="governance-kill-notice" class="settings-empty" role="alert">
-      ${named}${t("governance.kill.noticeNoTermination")}
+      ${named}${t("governance.kill.noticeNoTermination")} ${killTimings(notice)}
     </div>`;
   }
   if (aborted === 0) {
     // A status, not an alert: the stop did everything asked of it.
     return html`<div id="governance-kill-notice" class="settings-empty" role="status">
-      ${named}${t("governance.kill.noticeNoRuns")}
+      ${named}${t("governance.kill.noticeNoRuns")} ${killTimings(notice)}
     </div>`;
   }
-  // Distinguish "confirmed stopped" from "signal sent". Reporting one number
-  // for both let an operator read "we asked in 4ms" as "the agent stopped in
-  // 4ms". The claim requirement #7 actually makes.
   if (notice.stoppedConfirmed === false) {
     return html`<div id="governance-kill-notice" class="settings-empty" role="alert">
-      ${named}${t("governance.kill.noticeUnconfirmed")} ${aborted}
-      ${notice.dispatchMs === undefined
-        ? nothing
-        : html`(${t("governance.kill.signalled")} ${notice.dispatchMs}ms)`}
+      ${named}${t("governance.kill.noticeUnconfirmed")} ${aborted} ${killTimings(notice)}
     </div>`;
   }
   return html`<div id="governance-kill-notice" class="settings-empty" role="status">
-    ${named}${t("governance.kill.noticeStopped")} ${aborted}
-    ${notice.elapsedMs === undefined ? nothing : html`(${notice.elapsedMs}ms)`}
+    ${named}${t("governance.kill.noticeStopped")} ${aborted} ${killTimings(notice)}
   </div>`;
+}
+
+/**
+ * Both measurements, in every notice that has them (2026-10-22).
+ *
+ * The time the stop signal took and the time to a confirmed stop answer different
+ * questions (QA finding A3), and the notice used to show one or the other: the
+ * total when the stop was confirmed, the signal time when it was not, and neither
+ * on the other branches. The second number is labelled by what it measured: a
+ * confirmed stop, or the point at which confirming was given up.
+ */
+function killTimings(notice: KillNotice["result"]): TemplateResult | typeof nothing {
+  const parts: string[] = [];
+  if (notice.dispatchMs !== undefined) {
+    parts.push(t("governance.kill.timingSignalled", { ms: String(notice.dispatchMs) }));
+  }
+  if (notice.elapsedMs !== undefined) {
+    parts.push(
+      t(
+        notice.stoppedConfirmed === false
+          ? "governance.kill.timingUnconfirmed"
+          : "governance.kill.timingConfirmed",
+        { ms: String(notice.elapsedMs) },
+      ),
+    );
+  }
+  return parts.length === 0 ? nothing : html`(${parts.join("; ")})`;
 }
 
 /**
@@ -534,6 +555,7 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
           </datalist>
           <button
             class="btn danger"
+            data-enter-submits
             ?disabled=${
               // **Not `props.busy`** (finding 384). `busy` is page-wide, so creating an
               // agent (35 to 77 s) disabled the emergency stop for the whole wait. The
@@ -678,7 +700,7 @@ export function renderConversation(
                   <strong
                     >${turn.role === "user" ? t("governance.conversation.you") : agentId}</strong
                   >
-                  <span style="opacity:0.6"> · ${formatTurnTime(turn.at)}</span>
+                  <span style="color:var(--muted)"> · ${formatTurnTime(turn.at)}</span>
                   <div style="white-space:pre-wrap">${turnText(turn)}</div>
                 </div>`,
               )
@@ -693,7 +715,7 @@ export function renderConversation(
       ${props.promptPending && (props.promptRunId || props.promptSent)
         ? html`<div>
             <strong>${agentId}</strong>
-            <span style="opacity:0.6">
+            <span style="color:var(--muted)">
               ·
               ${t(
                 props.promptStopping
@@ -1013,6 +1035,7 @@ export function renderAgentsSection(props: AgentsSectionProps): TemplateResult |
                   />
                   <button
                     class="btn"
+                    data-enter-submits
                     ?disabled=${props.busy || !props.conversationAgentDraft.trim()}
                     @click=${() => {
                       void props.showConversation(props.conversationAgentDraft.trim());

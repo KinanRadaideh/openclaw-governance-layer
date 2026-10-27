@@ -149,6 +149,54 @@ const LEDGER_ROWS = 50;
  */
 const LEDGER_PAGE = 200;
 
+/**
+ * How much of an entry's subject its bold title shows (QA of 2026-10-27, finding 447).
+ *
+ * A scheduled job's prompt is recorded with the scheduler's whole preamble, about a
+ * thousand characters, and the title printed all of it: eight bold lines per entry on
+ * a laptop, with the entry's kind badge pushed underneath, so the trail read as a wall.
+ * The title keeps the start, which names the job; the whole text is one click below.
+ * Only the walls are cut: on the QA fixture's 200 newest entries nine in ten were 385
+ * characters or fewer, and a 266-character heartbeat entry ends in the hash that
+ * identifies it. Sixteen were over 500, up to 961.
+ */
+const LEDGER_TITLE_LIMIT = 500;
+/** How much of a cut subject the title keeps. */
+const LEDGER_TITLE_KEEP = 240;
+
+function ledgerTitleSubject(entry: GovernanceLedgerEntry): string {
+  return entry.resource.length > LEDGER_TITLE_LIMIT
+    ? `${entry.resource.slice(0, LEDGER_TITLE_KEEP).trimEnd()}…`
+    : entry.resource;
+}
+
+function renderWholeSubject(entry: GovernanceLedgerEntry): TemplateResult | typeof nothing {
+  if (entry.resource.length <= LEDGER_TITLE_LIMIT) {
+    return nothing;
+  }
+  const count = String(entry.resource.length);
+  return html`<details class="governance-ledger-whole">
+    <summary>${t("governance.ledger.wholeEntry", { count })}</summary>
+    <span>${entry.resource}</span>
+  </details>`;
+}
+
+/** What a chain verification found, in the words its row and the live region both use. */
+function verdictLabel(verification: GovernanceLedgerVerification): string {
+  if (verification.ok) {
+    return verification.alerts?.length
+      ? `${t("governance.ledger.intactWithAlerts", { count: String(verification.alerts.length) })} (${verification.entriesChecked})`
+      : `${t("governance.ledger.intact")} (${verification.entriesChecked})`;
+  }
+  // No sequence number when the failure is not tied to one entry. An unparseable line,
+  // or a checkpoint saying the file is short. Printing "#undefined" in exactly the
+  // situation the feature exists for undermined the one message an operator most
+  // needs to trust.
+  return verification.brokenAtSeq === undefined
+    ? `${t("governance.ledger.tampered")}: ${verification.reason}`
+    : `${t("governance.ledger.tampered")} #${verification.brokenAtSeq}: ${verification.reason}`;
+}
+
 export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
   const { verification, ledger, ledgerFilter, busy, onFilter, onVerify } = props;
   // Administrative entries and agent entries answer different questions, and
@@ -181,18 +229,20 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
   const newestFirst = visibleLedger.toReversed();
   const renderEntry = (entry: GovernanceLedgerEntry): TemplateResult =>
     renderSettingsRow({
-      title: html`<code>#${entry.seq} ${entry.toolName}</code> ${entry.resource}`,
+      title: html`<code>#${entry.seq} ${entry.toolName}</code> ${ledgerTitleSubject(entry)}`,
       // The intent rides *under* the description rather than inside it,
       // and is omitted entirely when absent. Two reasons, both learned
       // here: absence is the common case, so a row must not grow an empty
       // "Intent:" label that reads as the model having said nothing when
       // in fact nothing was captured; and this is model-authored text
       // beside a decision the model is the subject of, so it should never
-      // be mistaken for something the layer concluded.
-      description: html`${describeLedgerEntry(entry, {
+      // be mistaken for something the layer concluded. Not dimmed with
+      // `opacity` (finding 443): over the already muted description colour it
+      // measured 4.12:1 on dark and 3.96:1 on light, under the 4.5:1 minimum.
+      description: html`${renderWholeSubject(entry)}${describeLedgerEntry(entry, {
         by: t("governance.ledger.by"),
       })}${entry.intent
-        ? html`<span style="display:block;margin-top:0.25rem;opacity:0.85">
+        ? html`<span style="display:block;margin-top:0.25rem">
             <em>${t("governance.ledger.intent")}:</em> ${entry.intent}
           </span>`
         : nothing}`,
@@ -239,7 +289,16 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
         ${filterButton("auth", t("governance.ledger.filterAuth"))}
         <button class="btn" ?disabled=${busy} @click=${onVerify}>
           ${t("governance.ledger.verify")}
-        </button>`,
+        </button>
+        ${
+          // **The verdict is read out when it arrives** (finding 446). It renders as a
+          // new row above the list and focus stays on the button, so a screen reader
+          // heard nothing after Verify. A live region only speaks when its text changes,
+          // so it is here, in the section's header, from before the first verification.
+          html`<span class="governance-visually-hidden" role="status"
+            >${verification ? verdictLabel(verification) : ""}</span
+          >`
+        }`,
     },
     [
       verification
@@ -275,7 +334,7 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
                           })
                       : nothing}
                   </span>
-                  <span style="display:block;margin-top:0.35rem;opacity:0.85">
+                  <span style="display:block;margin-top:0.35rem">
                     ${
                       // **The second witness, and it changed on 2026-09-07.**
                       // This row is finding 268's fix: the whole point of it is
@@ -305,18 +364,7 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
             control: renderSettingsStatus({
               // T73: intact *since* the ledger's own alerts is not "intact".
               kind: verification.ok && !verification.alerts?.length ? "ok" : "warn",
-              label: verification.ok
-                ? verification.alerts?.length
-                  ? `${t("governance.ledger.intactWithAlerts", { count: String(verification.alerts.length) })} (${verification.entriesChecked})`
-                  : `${t("governance.ledger.intact")} (${verification.entriesChecked})`
-                : verification.brokenAtSeq === undefined
-                  ? // No sequence number when the failure is not tied to one
-                    // entry. An unparseable line, or a checkpoint saying the
-                    // file is short. Printing "#undefined" in exactly the
-                    // situation the feature exists for undermined the one
-                    // message an operator most needs to trust.
-                    `${t("governance.ledger.tampered")}: ${verification.reason}`
-                  : `${t("governance.ledger.tampered")} #${verification.brokenAtSeq}: ${verification.reason}`,
+              label: verdictLabel(verification),
             }),
           })
         : nothing,

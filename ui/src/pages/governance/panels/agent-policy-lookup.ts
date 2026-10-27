@@ -136,6 +136,7 @@ export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResul
         </datalist>
         <button
           class="btn primary"
+          data-enter-submits
           ?disabled=${props.busy || !props.drafts.agentPolicyAgentId.trim()}
           @click=${() =>
             props.run(() => props.loadAgentPolicy(props.drafts.agentPolicyAgentId.trim()))}

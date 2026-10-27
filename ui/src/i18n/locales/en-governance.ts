@@ -348,6 +348,7 @@ export const enGovernance: TranslationMap = {
     ledger: {
       title: "Audit ledger",
       intent: "Agent said",
+      wholeEntry: "Show the whole entry ({count} characters)",
       verify: "Verify chain integrity",
       integrity: "Chain integrity",
       integrityHow:
@@ -414,6 +415,9 @@ export const enGovernance: TranslationMap = {
     confirm: {
       title: "Are you sure?",
       removeRule: "Remove this permission? The agent will no longer be allowed to do this.",
+      // A forbid rule's removal lifts a restriction; "no longer be allowed" said the opposite.
+      removeDenyRule:
+        "Remove this restriction? The agent will no longer be stopped by it: whether it may then do this depends on the rules that remain.",
       disableCoreRule:
         "Switch off this shipped protection? It is part of the security floor every installation ships with. It stays declared and can be switched back on, the change is recorded against your account, and the deployment report will report this installation as failing while it is off.",
       setPassword:
@@ -727,7 +731,7 @@ export const enGovernance: TranslationMap = {
       workspaceLabel: "Workspace",
       workspacePlaceholder: "Working directory — optional, OpenClaw chooses one",
       ownerLabel: "Owning account",
-      ownerPlaceholder: "Choose who owns this agent...",
+      ownerPlaceholder: "Choose who owns this agent…",
       ownerRootSuffix: "{username} (you, Root)",
       // Root's owner choice beside Register (finding 407); names the row's agent.
       registerOwnerLabel: "Who will own {agent} once registered",
@@ -949,7 +953,11 @@ export const enGovernance: TranslationMap = {
       title: "Emergency kill switch",
       noticeUnconfirmed:
         "Stop signal sent, but the agent was not confirmed to have stopped. Runs and background processes signalled:",
-      signalled: "signalled in",
+      // Both numbers, labelled by what they measured (2026-10-22). The second runs from
+      // the button press, so it includes saving the lockdown and the signal itself.
+      timingSignalled: "stop signal sent in {ms} ms",
+      timingConfirmed: "confirmed stopped {ms} ms after the request",
+      timingUnconfirmed: "gave up confirming {ms} ms after the request",
       noticeStopped: "Lockdown engaged. Runs and background processes stopped:",
       // Not a warning (2026-10-03). It used to tell the operator to "check whether the
       // id is correct", from before the route refused an id that is not registered
@@ -959,7 +967,7 @@ export const enGovernance: TranslationMap = {
       noticeNoTermination:
         "Lockdown engaged, but in-flight termination is unavailable here. Anything the agent is doing right now continues until it finishes. Further actions are blocked.",
       noticeAuditFailed:
-        "Lockdown engaged and the agent IS stopped, but this stop could not be written to the audit ledger, so the trail has no record of it: {reason}. Check the governance directory is writable, then note the stop by hand.",
+        "Lockdown engaged and in force, but this stop could not be written to the audit ledger, so the trail has no record of it: {reason}. Check the governance directory is writable, then note the stop by hand.",
       engage: "Lock down an agent",
       /**
        * ~~"Root only."~~ **Wrong on every surface, and wrong for the life of the

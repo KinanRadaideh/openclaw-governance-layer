@@ -408,6 +408,35 @@ openclaw-governance-page .settings-empty[role="alert"] {
   background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
+/* The same for the page's reports (QA of 2026-10-27, finding 442). Every status this page
+   writes into `.settings-empty` is a notice, never an empty list: the kill switch's
+   "Locked down … confirmed stopped in 18.8 ms", the lockdown field's warnings, "waiting
+   for your answer". The rule above covered alerts only, so the outcome of an emergency
+   stop was drawn small, grey and centred, above the page, like "nothing here yet". The
+   information colour, not the accent: the accent is OpenClaw's red, and a stop that did
+   everything asked of it is not an error. */
+openclaw-governance-page .settings-empty[role="status"] {
+  color: var(--text);
+  text-align: start;
+  border-left: 3px solid var(--info);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--info) 8%, transparent);
+}
+
+/* Read by a screen reader, not drawn (finding 446: the ledger's verdict, announced). The
+   app has no shared class for this; the usual clip pattern. */
+.governance-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* A rule write's warnings are a caution about a write that succeeded, not a failure. */
 openclaw-governance-page .settings-empty.governance-rule-notice[role="alert"] {
   border-left-color: var(--warn, #fbbf24);

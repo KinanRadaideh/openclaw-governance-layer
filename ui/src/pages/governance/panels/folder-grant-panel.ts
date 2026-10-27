@@ -177,6 +177,7 @@ export function renderFolderGrantPanel(
         <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
           <button
             class="btn primary"
+            data-enter-submits
             ?disabled=${busy ||
             !draft.folder.trim() ||
             !draft.description.trim() ||
