@@ -222,11 +222,16 @@ Run as one sequential chain (21:04–21:13), then the three failing steps again 
 outside `ui/` changed); the full 52-minute lint gate (only the `core:ui` shard covers these files).
 Run the full gates before committing if Kinan wants the same evidence as 2026-10-20.
 
-## 8. Committed (2026-10-28)
+## 8. Committed and pushed (2026-10-28)
 
-At Kinan's word ("Commit, don't push"): code `f7dc7c03705`, then this record and the registers in
-the documents commit after it. **Not pushed.** The 2026-10-22 kill-notice timings went into the code
+At Kinan's word ("Commit, don't push", then "Run full lint first"): code `f7dc7c03705`, then this
+record and the registers in `9c42c4b905d`. The 2026-10-22 kill-notice timings went into the code
 commit with their test and note, because they share `agent-panels.ts` and `en-governance.ts` with this
 session's fixes; the governance UI tests that passed (587) include their six. Left uncommitted on
 purpose: `.codex/` and the report strand (`docs-notes/report/*`, `docs-notes/CHAPTER4-MATERIAL.md`,
-`docs-notes/WRITING-GUIDE.md`). The full lint gate was still not run (§7).
+`docs-notes/WRITING-GUIDE.md`).
+
+**Full lint gate** (`OPENCLAW_OXLINT_SHARD_CONCURRENCY=1 OPENCLAW_OXLINT_SHARD_TIMEOUT_MS=2700000
+node scripts/run-lint.mjs --split-core`, alone, on `9c42c4b905d`): **exit 0**; the i18n check, every
+oxlint shard and the stylelint step ran. Then both commits were **pushed** to `personal/governance-layer`
+(`18ce724caf3..9c42c4b905d`).
