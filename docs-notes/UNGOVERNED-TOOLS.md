@@ -25,6 +25,15 @@ Counted with the session tool barrel included, which is how `qa-round11.test.ts`
 itself counts, it is 22 of 56, because `bash`, `grep`, `find` and `ls` are
 governed and are not catalog entries.
 
+**Re-derived 2026-10-28 (finding 450):** the core figures above are unchanged. The
+**bundled plugins** add their own tools, which the guard did not read until that
+day: 27 plugins declare 96, of which 7 share a core name (`browser`, `canvas`,
+`show_widget`, `memory_get`, `memory_search`, `code_execution`, `x_search`) and
+are counted above. The other **89: 11 governed, 78 declined** (§"The 78 plugin
+tools", below). In all, **145 tools: 33 governed, 112 declined.** Plugins
+installed from outside the repository are not in any of these figures; their
+calls are recorded as `ungoverned` and they are listed nowhere.
+
 ---
 
 ## The 34, by reason
@@ -49,6 +58,53 @@ Two notes that matter when this is discussed rather than tabulated:
   still produces a ledger entry carrying the decision `ungoverned`, which is what
   makes the coverage boundary auditable rather than invisible. `qa-round12.test.ts`
   pins that for the messaging tools, destination included.
+
+---
+
+## The 78 plugin tools, by reason (Kinan's decision, 2026-10-28)
+
+The groups and the argument for each are in `mg/FINDING-450-DECISION.md`.
+**Governed instead (11):** `lobster`, `file_fetch`, `dir_list`, `dir_fetch`,
+`file_write`, `codex_threads`, `codex_session_send`, `codex_session_interrupt`,
+`voice_call`, `firecrawl_scrape`, `tavily_extract`.
+
+| Reason                                                                                                                                                       | Tools                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **No hostname to match (2)**, as `web_search`                                                                                                                | `firecrawl_search`, `tavily_search`                                                                                                                 |
+| **Reads of another agent's Codex sessions (3).** Owner-only, present only once an operator configures the plugin                                             | `codex_sessions_list`, `codex_session_read`, `codex_endpoint_probe`                                                                                 |
+| **Meetings, and a call back to the requester (4).** The integration is the permission (T8); meetings accept only their vendor's addresses                    | `google_meet`, `teams_meetings`, `zoom_meetings`, `whatsapp_call`                                                                                   |
+| **Chat integrations the operator connected (5)** (T8)                                                                                                        | `qqbot_channel_api`, `qqbot_remind`, `zalouser`, `discord_widget`, `discussion`                                                                     |
+| **The workplace app the operator connected (14).** Feishu/Lark documents, wiki, tables and drive, within the app's granted scopes; sharing is off by default | the 14 `feishu_*` tools                                                                                                                             |
+| **A secrets broker with its own policy (1).** Per secret auto, approve or deny, default approve, with its own audit                                          | `onepassword`                                                                                                                                       |
+| **OpenClaw's own records, models and display (47)**                                                                                                          | the 35 `workboard_*` tools, `memory_store`, `memory_recall`, `memory_forget`, the 5 `wiki_*` tools, `intent`, `llm-task`, `diffs`, `node_inference` |
+| **The QA test plugin, not packaged (2)**                                                                                                                     | `qa_restart_wait`, `qa_restart_unsafe_probe`                                                                                                        |
+
+### Rows for Table 3.1, ready to paste
+
+Plugin tools are named by family where a plugin has many, so the table stays one
+page. Not compiled.
+
+```latex
+Plugin web searches &
+\texttt{firecrawl\_search}, \texttt{tavily\_search} \\
+Reads of Codex sessions &
+\texttt{codex\_sessions\_list}, \texttt{codex\_session\_read},
+\texttt{codex\_endpoint\_probe} \\
+Meetings and calls to the requester &
+\texttt{google\_meet}, \texttt{teams\_meetings}, \texttt{zoom\_meetings},
+\texttt{whatsapp\_call} \\
+Connected chat and workplace apps &
+\texttt{qqbot\_channel\_api}, \texttt{qqbot\_remind}, \texttt{zalouser},
+\texttt{discord\_widget}, \texttt{discussion}, and 14 \texttt{feishu\_*} tools \\
+Secrets broker with its own policy &
+\texttt{onepassword} \\
+Plugin records and models &
+35 \texttt{workboard\_*} tools, 5 \texttt{wiki\_*} tools,
+\texttt{memory\_store}, \texttt{memory\_recall}, \texttt{memory\_forget},
+\texttt{intent}, \texttt{llm-task}, \texttt{diffs}, \texttt{node\_inference} \\
+Test plugin, not shipped &
+\texttt{qa\_restart\_wait}, \texttt{qa\_restart\_unsafe\_probe} \\
+```
 
 ---
 

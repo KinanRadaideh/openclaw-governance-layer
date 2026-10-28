@@ -55,7 +55,7 @@ give the report section they cover.
 
 ## 0. Every change, numbered (2026-10-13)
 
-**148 changes**: 102 required corrections to the report, 14 optional, 1 waiting on T74, and 31 items of material for Chapters 4 and 5 (which the report does not have yet). Each item below carries its number (**C1.** …); when one is done in Overleaf, delete the item and leave its number unused, so the numbers stay stable. An item may name several passages (C6 lists nine); it is one change because one decision causes it. Kinds: **required** means the export is wrong or silent where the system has changed; **optional** means the report is correct without it; the **material** items are evidence and sentences to use when Chapters 4 and 5 are written.
+**149 changes** (C149 added 2026-10-28): 103 required corrections to the report, 14 optional, 1 waiting on T74, and 31 items of material for Chapters 4 and 5 (which the report does not have yet). Each item below carries its number (**C1.** …); when one is done in Overleaf, delete the item and leave its number unused, so the numbers stay stable. An item may name several passages (C6 lists nine); it is one change because one decision causes it. Kinds: **required** means the export is wrong or silent where the system has changed; **optional** means the report is correct without it; the **material** items are evidence and sentences to use when Chapters 4 and 5 are written.
 
 | # | Kind | Where | Item |
 | --- | --- | --- | --- |
@@ -78,6 +78,7 @@ give the report section they cover.
 | C17 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirement 7, a sentence with no verb |
 | C18 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirements 3 and 4, how far each kind of rule reaches |
 | C19 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirement 9 (test counts) |
+| C149 | required | 3.2 Analysis of Design Requirements (§3.2), Table 3.1, Security boundaries | Tool coverage includes bundled plugins (finding 450) |
 | C20 | required | 3.3 Analysis of Design Constraints (§3.3) | "as described in Chapter \ref{ch:dsn-cs_1}" prints "Chapter 1.4", because the label is on a section |
 | C21 | required | 3.3 Analysis of Design Constraints (§3.3) | "Deployment on this server was validated by completing the governance test suite without failure." The run was on 21 Sep |
 | C22 | required | 3.4.1 Gate Placement (§3.3a) | "The gate was therefore placed above the short-circuit as the outer governance boundary |
@@ -439,6 +440,18 @@ Two things run alongside this list:
 - **C19.** **NOW. Requirement 9 (test counts).** Date the Linux sentence ("on 21 September 2026"), move
   the current totals to Chapter 4 (§10), and drop "the same total of 3,227", which no longer
   holds.
+- **C149.** **NOW, NEW 10-28 (finding 450, Kinan's decision 2026-10-28). Tool coverage includes
+  the bundled plugins.** "Every host tool is either governed or listed with a reason" (Table
+  `tab:gov-ungoverned`, the Requirements 5 and 6 paragraph, and the "Security boundaries" row Tool
+  coverage) was true of the core tools only. It is now true of every tool OpenClaw ships: of the
+  89 tools bundled plugins add, 11 are governed and 78 listed. Three changes: (1) say "every tool
+  OpenClaw ships, including its bundled plugins", because a plugin installed from elsewhere is
+  recorded as `ungoverned` but listed nowhere; (2) add the seven plugin rows to Table 3.1, LaTeX
+  in `docs-notes/UNGOVERNED-TOOLS.md` §"Rows for Table 3.1"; (3) where the chapter names what is
+  governed, `lobster` workflows are governed as commands, file transfer to a paired device as
+  `<tool>:<device>:<path>`, phone calls by action and number, and the two scraping services by
+  host. Supersedes row 1 of the 2026-10-28 QA's Chapter 3 table (`mg/QA-SESSION-2026-10-28.md`
+  §4).
 
 ### 3.3 Section 3.3, Analysis of Design Constraints
 

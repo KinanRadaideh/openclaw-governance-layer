@@ -9024,3 +9024,36 @@ and all are fixed:
 Ten further suggestions need a decision rather than a fix, and are listed in
 `mg/QA-SESSION-2026-10-27.md` §4: for example, most boxes show their label only until you start
 typing in them, and releasing a stopped agent does not ask "are you sure?" while stopping it does.
+
+## 5.144 Checking yesterday's fixes, and Chapter 3 against the system (findings 449 and 450, 28 October)
+
+A second look at the nine fixes of 27 October, using every form on the dashboard with the
+keyboard. They work. One small thing was off and is fixed:
+
+- **Opening a conversation with Enter left the cursor in the wrong box** (finding 449). Pressing
+  the Talk button put the cursor in the message box, ready to type; typing the agent's name and
+  pressing Enter (new since yesterday) opened the same conversation but left the cursor where the
+  name was typed. Now both put it in the message box.
+
+Checking Chapter 3 against the system found one thing that is not a dashboard question and is
+**not fixed yet**, because it needs a decision:
+
+- **Some tools added by plugins are not checked by the governance layer, and are not on the list
+  of tools it deliberately leaves alone** (finding 450). Chapter 3 says every tool is either checked
+  or listed with a reason. That is true of OpenClaw's own tools, but not of tools that come with
+  its built-in plugins, such as tools that copy files to and from another computer paired with the
+  system. Those are refused by their own plugin unless an operator turns them on, and every use is
+  written in the audit record, and the emergency stop still blocks them, but the governance
+  rules do not apply to them. The choice is to check them or to list them with a reason; either way, the test that is
+  meant to catch this must start looking at plugin tools too.
+
+**Later the same day, Kinan decided, and finding 450 is closed.** There were 89 such tools, not
+nine; the nine were the ones switched on without any setup. Eleven are now checked like any other
+action, because they reach the machine or the outside world in ways the rules are for: running a
+Lobster workflow (it can run shell commands), copying files to and from a paired device, steering
+another coding agent, placing a phone call (now the number has to be allowed too), and fetching a
+web page through a scraping service (judged by the website's address, as the ordinary web fetch
+is). The other 78 are on the list of tools left alone, each with its reason: joining meetings,
+chat and workplace apps the operator connected, a password manager with its own stricter
+approvals, and OpenClaw's own records such as the task board. The test now reads every built-in
+plugin's list of tools, so a new plugin tool cannot arrive unnoticed again.
