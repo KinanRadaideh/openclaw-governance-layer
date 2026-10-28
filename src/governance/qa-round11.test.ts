@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { allToolNames } from "../agents/sessions/tools/index.js";
 import { listCoreToolSections } from "../agents/tool-catalog.js";
 import { normalizeToolName } from "../agents/tool-policy.js";
+import { BUNDLED_PLUGIN_CONTRACT_SNAPSHOTS } from "../plugins/contracts/inventory/bundled-capability-metadata.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
 import { resolveGovernedTool } from "./resource-extraction.js";
@@ -163,6 +164,133 @@ const DELIBERATELY_UNGOVERNED: ReadonlyMap<string, string> = new Map([
   // protection and provide none.
   ["web_search", "no hostname to match: the resource model has no query axis"],
   ["x_search", "no hostname to match: as `web_search`"],
+
+  // =========================================================================
+  // Tools bundled plugins contribute (finding 450). **Decided by Kinan
+  // 2026-10-28**, taking the recommendations in mg/FINDING-450-DECISION.md:
+  // `lobster`, the four file-transfer tools, `codex_threads`,
+  // `codex_session_send`, `codex_session_interrupt`, `voice_call`,
+  // `firecrawl_scrape` and `tavily_extract` are governed
+  // (resource-extraction.ts); the rest are declared here.
+  // =========================================================================
+
+  // ---- Plugin web searches: no hostname to match, as `web_search` ----------
+  ["firecrawl_search", "no hostname to match: as `web_search`"],
+  ["tavily_search", "no hostname to match: as `web_search`"],
+
+  // ---- Reads of another agent's Codex sessions ----------------------------
+  // Owner-only, and present only once an operator configures the Codex
+  // plugin; raw transcripts need a further switch. Steering and changing a
+  // session are governed.
+  ["codex_sessions_list", "lists Codex sessions; owner-only, operator-configured"],
+  ["codex_session_read", "reads a Codex transcript; owner-only, raw text needs a switch"],
+  ["codex_endpoint_probe", "checks the configured Codex endpoints are reachable"],
+
+  // ---- Meetings and calls back to the requester: the integration is the
+  // permission (T8). Meetings accept only their vendor's addresses
+  // (meet.google.com, Teams, *.zoom.us); `whatsapp_call` rings only the person
+  // who wrote in. `voice_call`, which can ring any number, is governed.
+  ["google_meet", "joins a Google Meet the operator's account can reach (T8)"],
+  ["teams_meetings", "joins a Teams meeting as a browser guest (T8)"],
+  ["zoom_meetings", "joins a Zoom meeting as a browser guest (T8)"],
+  ["whatsapp_call", "calls back the WhatsApp requester only (T8)"],
+
+  // ---- Chat integrations the operator connected (T8) ----------------------
+  ["qqbot_channel_api", "QQ channel APIs under the connected bot's own authority (T8)"],
+  ["qqbot_remind", "schedules a QQ reminder; the later turn has no tools (T8)"],
+  ["zalouser", "messages through the connected Zalo account (T8)"],
+  ["discord_widget", "posts a widget to the connected Discord channel (T8)"],
+  ["discussion", "reads the ClickClack discussion bound to this session"],
+
+  // ---- The workplace app the operator connected (Feishu / Lark) -----------
+  // Beyond messaging, so its own reason rather than T8: these edit, move and
+  // delete documents, wiki pages, tables and drive files in the connected
+  // workspace, within the scopes the operator granted the app. Sharing
+  // (`feishu_perm`) is off by default.
+  ...[
+    "feishu_app_scopes",
+    "feishu_bitable_create_app",
+    "feishu_bitable_create_field",
+    "feishu_bitable_create_record",
+    "feishu_bitable_get_meta",
+    "feishu_bitable_get_record",
+    "feishu_bitable_list_fields",
+    "feishu_bitable_list_records",
+    "feishu_bitable_update_record",
+    "feishu_chat",
+    "feishu_doc",
+    "feishu_drive",
+    "feishu_perm",
+    "feishu_wiki",
+  ].map(
+    (name) =>
+      [name, "acts in the connected Feishu workspace, within the app's granted scopes"] as const,
+  ),
+
+  // ---- A secrets broker with its own, stricter policy ---------------------
+  // Only secrets the operator registered by name; each is auto, approve or
+  // deny, defaulting to approve (a human is asked), with expiring grants and
+  // the plugin's own audit history. The secret slug is not a path, command or
+  // address, so a gate rule could only be coarser than this.
+  ["onepassword", "per-secret auto/approve/deny policy, default approve, own audit"],
+
+  // ---- OpenClaw's own records, models and display -------------------------
+  // Each stays inside its own store: the workboard's database, long-term
+  // memory, the wiki folder the operator chose, standing reminders. Workboard
+  // is off by default and each of its tools must be allowed one by one.
+  ...[
+    "workboard_list",
+    "workboard_create",
+    "workboard_link",
+    "workboard_read",
+    "workboard_claim",
+    "workboard_heartbeat",
+    "workboard_complete",
+    "workboard_attachment_add",
+    "workboard_attachment_read",
+    "workboard_attachment_delete",
+    "workboard_block",
+    "workboard_boards",
+    "workboard_board_create",
+    "workboard_board_archive",
+    "workboard_board_delete",
+    "workboard_stats",
+    "workboard_runs",
+    "workboard_specify",
+    "workboard_decompose",
+    "workboard_notify_subscribe",
+    "workboard_notify_list",
+    "workboard_notify_events",
+    "workboard_notify_advance",
+    "workboard_notify_unsubscribe",
+    "workboard_promote",
+    "workboard_reassign",
+    "workboard_reclaim",
+    "workboard_dispatch",
+    "workboard_release",
+    "workboard_comment",
+    "workboard_proof",
+    "workboard_worker_log",
+    "workboard_protocol_violation",
+    "workboard_unblock",
+    "workboard_move",
+  ].map((name) => [name, "task-board records in the workboard's own database"] as const),
+  ["memory_store", "stores long-term memory; as `memory_search`"],
+  ["memory_recall", "reads long-term memory; as `memory_search`"],
+  ["memory_forget", "deletes long-term memory the agent stored"],
+  ["wiki_apply", "narrow edits inside the wiki folder the operator configured"],
+  ["wiki_get", "reads a page of that wiki"],
+  ["wiki_lint", "checks that wiki"],
+  ["wiki_search", "searches that wiki"],
+  ["wiki_status", "reports that wiki's state"],
+  ["intent", "in-conversation bookkeeping: standing reminders"],
+  ["llm-task", "asks a model for JSON, with no tools"],
+  ["diffs", "renders a diff of text it is given; `path` is a display label"],
+  ["node_inference", "runs a prompt on an Ollama model on a paired node; no files or commands"],
+
+  // ---- The QA test plugin, not shipped in packages ------------------------
+  ["qa_restart_wait", "QA test plugin, not packaged (NON_PACKAGED_BUNDLED_PLUGIN_DIRS)"],
+  ["qa_restart_unsafe_probe", "QA test plugin, not packaged"],
 ]);
 
 /**
@@ -194,15 +322,63 @@ function hostToolNames(): string[] {
   return [...new Set([...allToolNames, ...catalogue])];
 }
 
+/**
+ * Every agent tool a bundled plugin can contribute, as `plugin/tool`.
+ *
+ * **Finding 450 (2026-10-28): `hostToolNames` is the core's list, not the
+ * host's.** Bundled plugins add their own tools (`file_fetch`, `google_meet`,
+ * `node_inference`, ...), and on the QA fixture nine of them reached agents
+ * recorded as `ungoverned` (`no-extractor`) while this guard stayed green,
+ * because it never read them: finding 70 again, one level out.
+ *
+ * Read from the plugin manifests' `contracts.tools`, which is complete by the
+ * host's own rule: the loader refuses to register a plugin tool its manifest
+ * does not declare (`registerTool`, `src/plugins/registry-registrars-tools-hooks.ts`).
+ * Plugins installed from outside the repository are not in this list; nothing
+ * a test can read names them.
+ */
+function pluginToolNames(): string[] {
+  return BUNDLED_PLUGIN_CONTRACT_SNAPSHOTS.flatMap((plugin) =>
+    plugin.toolNames.map((toolName) => `${plugin.pluginId}/${toolName}`),
+  );
+}
+
+function isAccounted(toolName: string): boolean {
+  const normalized = normalizeToolName(toolName);
+  return resolveGovernedTool(normalized) !== undefined || DELIBERATELY_UNGOVERNED.has(normalized);
+}
+
 describe("qa round 11. The gate and the host must agree on which tools exist", () => {
   it("governs, or explicitly declines to govern, every tool the host declares", () => {
-    const unaccounted = hostToolNames().filter((toolName) => {
-      const normalized = normalizeToolName(toolName);
-      return (
-        resolveGovernedTool(normalized) === undefined && !DELIBERATELY_UNGOVERNED.has(normalized)
-      );
-    });
+    expect(hostToolNames().filter((toolName) => !isAccounted(toolName))).toEqual([]);
+  });
+
+  it("governs, or explicitly declines to govern, every tool a bundled plugin contributes", () => {
+    const unaccounted = pluginToolNames().filter(
+      (entry) => !isAccounted(entry.slice(entry.indexOf("/") + 1)),
+    );
     expect(unaccounted).toEqual([]);
+  });
+
+  it("compares against every bundled plugin's tools, not a subset of them", () => {
+    // The plugin guard's premise, asserted as the core one is below: the
+    // inventory read is the plugin manifests, not an empty or partial list, and
+    // it holds the nine tools the 2026-10-28 QA saw reach an agent unlisted.
+    const names = pluginToolNames().map((entry) => entry.slice(entry.indexOf("/") + 1));
+    expect(names.length).toBeGreaterThan(90);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "file_fetch",
+        "dir_list",
+        "dir_fetch",
+        "file_write",
+        "teams_meetings",
+        "zoom_meetings",
+        "google_meet",
+        "node_inference",
+        "qqbot_remind",
+      ]),
+    );
   });
 
   it("compares against the host's whole catalogue, not a subset of it", () => {

@@ -235,7 +235,15 @@ function followTranscripts(host: HTMLElement, reader: PageReader): void {
   }
 }
 
-/** A conversation that has just opened takes the cursor, if nothing else holds it. */
+/**
+ * A conversation that has just opened takes the cursor, if nothing else holds it, or if
+ * what holds it is the control in its section that opened it.
+ *
+ * **Opened by Enter, not only by Talk** (QA of 2026-10-28, finding 449). Talk is
+ * replaced by the conversation, so focus is lost and the old rule moved it. Enter in
+ * the agent-id field (finding 444) opens the same conversation and leaves that field
+ * focused, so the cursor stayed in it and the operator had to Tab to the message box.
+ */
 function focusOpenedConversation(host: HTMLElement, reader: PageReader): void {
   for (const conversation of host.querySelectorAll<HTMLElement>(".governance-conversation")) {
     if (reader.conversations.has(conversation)) {
@@ -243,7 +251,12 @@ function focusOpenedConversation(host: HTMLElement, reader: PageReader): void {
     }
     reader.conversations.add(conversation);
     const composer = conversation.querySelector<HTMLTextAreaElement>("textarea");
-    if (focusLost() && usable(composer)) {
+    const active = document.activeElement;
+    const openedHere =
+      active instanceof HTMLElement &&
+      !active.closest(".governance-conversation") &&
+      active.closest(".settings-section") === conversation.closest(".settings-section");
+    if ((focusLost() || openedHere) && usable(composer)) {
       composer.focus({ preventScroll: true });
     }
   }

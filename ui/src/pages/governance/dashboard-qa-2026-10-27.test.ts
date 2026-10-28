@@ -121,6 +121,44 @@ describe("finding 440: focus returns into a form the page rebuilt", () => {
   });
 });
 
+describe("finding 449: a conversation opened by Enter takes the cursor", () => {
+  // QA of 2026-10-28, live: Enter in "Or type an agent id" opened the conversation and
+  // left the cursor in that field; Talk, which the conversation replaces, moved it.
+  function setUp() {
+    const host = document.createElement("div");
+    host.innerHTML = `<div class="governance-page__body">
+      <section class="settings-section" id="agents"><input aria-label="Or type an agent id" /></section>
+      <section class="settings-section" id="policy"><input aria-label="Rule pattern" /></section></div>`;
+    document.body.replaceChildren(host);
+    afterPageUpdate(host, null, false);
+    return host;
+  }
+
+  function open(host: HTMLElement): HTMLTextAreaElement {
+    const conversation = document.createElement("div");
+    conversation.className = "governance-conversation";
+    conversation.innerHTML = `<div role="log"></div><textarea aria-label="Message to the agent"></textarea>`;
+    host.querySelector("#agents")!.append(conversation);
+    afterPageUpdate(host, null, false);
+    return conversation.querySelector("textarea")!;
+  }
+
+  it("moves the cursor from the field that opened it to the message box", () => {
+    const host = setUp();
+    host.querySelector<HTMLInputElement>('[aria-label="Or type an agent id"]')!.focus();
+    const composer = open(host);
+    expect(document.activeElement).toBe(composer);
+  });
+
+  it("leaves an operator working in another section where they are", () => {
+    const host = setUp();
+    const elsewhere = host.querySelector<HTMLInputElement>('[aria-label="Rule pattern"]')!;
+    elsewhere.focus();
+    open(host);
+    expect(document.activeElement).toBe(elsewhere);
+  });
+});
+
 describe("finding 441: removing a forbid rule is not called removing a permission", () => {
   function rule(effect: "allow" | "deny"): GovernancePolicyRule {
     return {
@@ -301,6 +339,34 @@ describe("finding 444: Enter in a form's field presses the form's button", () =>
     }
     // Each one is the first button after a field of its own row, so Enter reaches it.
     for (const button of page.querySelectorAll<HTMLButtonElement>(`button[${ENTER_SUBMITS}]`)) {
+      const own = button.closest(".settings-row")!;
+      const reaches = [...own.querySelectorAll("input")].some(
+        (field) =>
+          [...own.querySelectorAll("button")].find(
+            (candidate) =>
+              field.compareDocumentPosition(candidate) & Node.DOCUMENT_POSITION_FOLLOWING,
+          ) === button,
+      );
+      expect(reaches, button.textContent?.trim()).toBe(true);
+    }
+  });
+
+  it("reaches each opted-in button on a User's page too, where the forms differ", async () => {
+    // QA of 2026-10-28: the check above renders Root's page. A User is shown the
+    // rule-request and setting-request forms and its own variants of the others.
+    const page = await mount({
+      identity: {
+        username: "lina",
+        role: "user",
+        assignedAgents: ["main"],
+        canAuthorPolicy: true,
+      },
+      policy: policy(),
+      knownAgentIds: ["main"],
+    });
+    const marked = [...page.querySelectorAll<HTMLButtonElement>(`button[${ENTER_SUBMITS}]`)];
+    expect(marked.length).toBeGreaterThan(2);
+    for (const button of marked) {
       const own = button.closest(".settings-row")!;
       const reaches = [...own.querySelectorAll("input")].some(
         (field) =>

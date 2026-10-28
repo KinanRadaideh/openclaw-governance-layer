@@ -422,6 +422,63 @@ function extractControlSurface(
 }
 
 /**
+ * A file-transfer call on a paired node (finding 450): one resource,
+ * `<tool>:<node>:<path>`, governed as a control surface the way `nodes` is.
+ *
+ * The node is named as the agent wrote it (an id or a display name; the plugin
+ * resolves either) and the path is a path **on that device**, not canonicalised
+ * here, because the gate cannot see the other machine's filesystem. So a rule
+ * should narrow by tool and node (`^file_fetch:laptop:`); narrowing by path is
+ * the plugin's own folder policy, which canonicalises on the node and still
+ * applies after the gate. A rule written against a path prefix can be walked
+ * out of with `..`, which is why this comment says so rather than inviting it.
+ */
+function extractNodeFile(toolName: string): (event: ToolCallLike) => Promise<string[]> {
+  return async (event: ToolCallLike) => {
+    const node = typeof event.params.node === "string" ? event.params.node.trim() : "";
+    const path = typeof event.params.path === "string" ? event.params.path.trim() : "";
+    return [clamp(`${toolName}:${node}:${path}`)];
+  };
+}
+
+/**
+ * A phone call (finding 450). `voice_call:<action>`, or the older
+ * `voice_call:<mode>` form the schema still accepts, plus `voice_call:to:<number>`
+ * when the agent names one, so an operator can allow calling and still decide
+ * who may be called. With no number the plugin rings its configured default,
+ * which the operator chose. The spoken text is not a resource: it executes
+ * nothing, and making a rule match it would turn every call into a question.
+ */
+async function extractVoiceCall(event: ToolCallLike): Promise<string[]> {
+  const action = asString(event.params.action) ?? asString(event.params.mode);
+  const resources = [action ? `voice_call:${action}` : "voice_call"];
+  const to = typeof event.params.to === "string" ? event.params.to.trim() : "";
+  if (to) {
+    resources.push(clamp(`voice_call:to:${to}`));
+  }
+  return resources;
+}
+
+/**
+ * The hosts of the addresses a scraping service is asked to fetch (finding 450),
+ * judged by the network rules exactly as `web_fetch` is. Each named parameter
+ * may hold one address or a list of them.
+ */
+function extractUrlHosts(
+  paramNames: readonly string[],
+): (event: ToolCallLike) => Promise<string[]> {
+  return async (event: ToolCallLike) =>
+    paramNames
+      .flatMap((name) => {
+        const value = event.params[name];
+        return Array.isArray(value) ? value : [value];
+      })
+      .map((value) => asString(value))
+      .filter((url): url is string => url !== undefined)
+      .map((url) => extractNetworkResource(url));
+}
+
+/**
  * Registry of governed tools. Tools not listed here are not touched by the
  * governance gate (they are still recorded as `ungoverned`).
  *
@@ -562,6 +619,53 @@ export const GOVERNED_TOOLS: Record<string, GovernedToolSpec> = Object.assign(
       resourceKind: "command",
       extract: extractControlSurface("code_execution", ["code", "input"]),
     },
+    // ---------------------------------------------------------------------
+    // Tools bundled plugins contribute (finding 450, decided by Kinan
+    // 2026-10-28; the groups and reasons are in mg/FINDING-450-DECISION.md).
+    // Parameter names read from each plugin's own schema:
+    //
+    //   lobster                  extensions/lobster/src/lobster-tool.ts
+    //                            (action run|resume, pipeline, argsJson)
+    //   file_fetch, dir_list,    extensions/file-transfer/src/tools/descriptors.ts
+    //   dir_fetch, file_write    (node, path; both trimmed, readRequiredNodePath)
+    //   codex_threads            extensions/codex/src/native-thread-tool.ts (action)
+    //   codex_session_send,      extensions/codex/src/supervision-tools.ts
+    //   codex_session_interrupt  (thread_id, text)
+    //   voice_call               extensions/voice-call/index.ts
+    //                            (action, or the older `mode`; to)
+    //   firecrawl_scrape         extensions/firecrawl/src/firecrawl-scrape-tool.ts (url)
+    //   tavily_extract           extensions/tavily/src/tavily-extract-tool.ts (urls[])
+    // ---------------------------------------------------------------------
+    // A pipeline runs shell steps (`exec --shell '…'`) on the Gateway host, so
+    // it is governed as the command it is. The pipeline text and its arguments
+    // are resources, so a core denial on command text sees them. **Stated
+    // limit:** a pipeline that names a workflow file (`flow.lobster`) is judged
+    // by that name; the steps inside the file are not visible to the gate.
+    lobster: {
+      resourceKind: "command",
+      extract: extractControlSurface("lobster", ["pipeline", "argsJson"]),
+    },
+    file_fetch: { resourceKind: "command", extract: extractNodeFile("file_fetch") },
+    dir_list: { resourceKind: "command", extract: extractNodeFile("dir_list") },
+    dir_fetch: { resourceKind: "command", extract: extractNodeFile("dir_fetch") },
+    file_write: { resourceKind: "command", extract: extractNodeFile("file_write") },
+    // Steering or changing another agent's Codex session. The three read-only
+    // Codex tools are declared instead (qa-round11.test.ts).
+    codex_threads: {
+      resourceKind: "command",
+      extract: extractControlSurface("codex_threads", []),
+    },
+    codex_session_send: {
+      resourceKind: "command",
+      extract: extractControlSurface("codex_session_send", ["text"]),
+    },
+    codex_session_interrupt: {
+      resourceKind: "command",
+      extract: extractControlSurface("codex_session_interrupt", []),
+    },
+    voice_call: { resourceKind: "command", extract: extractVoiceCall },
+    firecrawl_scrape: { resourceKind: "network", extract: extractUrlHosts(["url"]) },
+    tavily_extract: { resourceKind: "network", extract: extractUrlHosts(["urls"]) },
   } satisfies Record<string, GovernedToolSpec>,
 );
 
