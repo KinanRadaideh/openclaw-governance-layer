@@ -118,5 +118,5 @@ gate was not re-run (one UI file changed; the `core:ui` shard covers it). The fo
 | `ui/src/pages/governance/page-focus.ts`                   | 449.                                                    |
 | `ui/src/pages/governance/dashboard-qa-2026-10-27.test.ts` | 449's two tests; the User-page Enter-reachability test. |
 
-Committed with finding 450 at Kinan's word, 2026-10-28: code `df7b4c332a2`, not pushed (the
-450 log has the gates).
+Committed with finding 450 at Kinan's word, 2026-10-28: code `df7b4c332a2`, docs `f2487198c0e`,
+pushed to `personal` (the 450 log has the gates).
