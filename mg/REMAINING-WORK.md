@@ -11,6 +11,335 @@ specification (`Kimi_QA_1.md`, removed 2026-09-13 once every item was checked; s
 §"The independent review, checked item by item"), and from Kinan's requests. Nothing
 here is speculative.
 
+### New open tasks (2026-11-04)
+
+**T88 is open:** threat-model execution of attacker-influenced code through an
+allowed command. Added at Kinan's request while studying Chapter 3. The dated
+counts below predate these additions; T88 is not a confirmed vulnerability.
+**T89 is also open:** research established ways to use the ledger key without
+exposing its plaintext value to those controlling the server or other runtime
+host. Same-server protection is preferred; self-hosted OpenBao on a separate
+operator-controlled server is an alternative. Open-source options only; no
+outsourced key storage.
+**T90 is also open:** explore and verify complete agent lockdown across all
+work entry points and ongoing activity, building on the existing tool-wide block.
+**T91 is also open:** explain OpenTelemetry and telemetry export in Chapter 3.
+**T92 is also open (added 2026-11-07):** at the end of the project, update
+`README.md` and delete the documentation that is no longer wanted.
+**T93 is built (added and built 2026-11-08, uncommitted):** a separate `url` rule kind
+beside hostname rules; see §"T93" for the decisions and evidence.
+**T94 is also open (added 2026-11-08):** extend network-policy coverage to
+redirects, clicked links and page-script requests, coordinated with T93.
+**T95 is also open (added 2026-11-08):** check whether adding a rule deletes
+expired rules and, if confirmed, remove that automatic deletion behavior.
+
+### T88: threat-model instructions inside an allowed script (added 2026-11-04)
+
+**Open, investigation first; Kinan decides on remediation after the findings.**
+Chapter 3 states that the ledger records tool calls and policy decisions, not
+operating-system calls inside a permitted tool. Investigate whether an attacker
+can place instructions in a script, dependency, or other executable input that an
+allowed command runs, thereby performing operations that direct tool calls would
+be denied. File-read permission alone does not execute a file; establish the
+separate execution permission and attacker control required for every scenario.
+
+- **Threat model and attack paths:** identify assets, trust boundaries, attacker
+  capabilities and prerequisites. Cover attacker-supplied or modified scripts,
+  agent-written code following prompt injection, imported modules, sourced shell
+  files, build/package hooks, child processes, and a script changed after approval.
+  Compare broad interpreter allowances with an exact command naming a mutable
+  script. Distinguish intentional code-execution authority from a policy bypass
+  or misleading operator expectation.
+- **Actual enforcement boundary:** trace command matching, working-folder checks,
+  approvals, tool execution and child-process creation. Determine whether nested
+  operations encounter governance again, and whether file/network forbids apply
+  inside the process. Compare applicable execution runtimes and host/sandbox
+  arrangements; inspect upstream contracts directly before drawing conclusions.
+- **Existing defenses:** verify defaults and configured behavior separately.
+  Examine command restrictions, approval scope, arbitrary-code risk warnings,
+  file-write restrictions, sandbox/container isolation, OS account permissions,
+  network controls, governance-storage protection, integrity alerts, audit
+  coverage and termination controls. Classify each as prevention, detection,
+  response or documentation; record its limitations and evidence. Do not assume
+  that an audit entry, warning or tamper-evident ledger prevents execution.
+- **Impact and severity:** assess unauthorized reads/writes, credential access,
+  outbound data transfer, governance-policy or ledger-key access, persistence and
+  availability. Rate each reproducible scenario using required access, likelihood,
+  scope, defaults versus explicit grants, and effective OS privileges. Record
+  whether this is a known documented limitation, a configuration hazard, or a
+  defect in the claimed security boundary; leave unverified cases explicit.
+- **Safe verification:** use an isolated test installation, temporary files,
+  dummy secrets and controlled network endpoints. Compare a directly denied
+  operation with the same harmless operation attempted inside an allowed script;
+  capture actual effects, policy decisions and what the ledger does and does not
+  show. Include negative cases with execution disallowed and relevant defenses
+  enabled. Never test against live governance state or real credentials.
+- **Deliverable and completion:** produce an evidence-backed threat model with
+  source/test references, reproducible cases, severity rationale, current defenses,
+  residual risks and prioritized mitigation options. Check existing maintained
+  isolation mechanisms before proposing custom enforcement; explain usability
+  tradeoffs and the architectural owner of any proposed fix. Identify Chapter 3/5
+  wording or operator guidance needing correction. Bring recommendations to Kinan;
+  recording this task does not authorize implementation or deployment changes.
+
+### T89: research protected use of the ledger key (added 2026-11-04)
+
+**Open, research and comparison first; Kinan decides before implementation.**
+Kinan requests ways to secure the installation key used for HMAC so the system
+can use it without exposing its plaintext value to those with control of the
+server or whatever hosts the system. **Scope clarified 2026-11-08: only
+open-source options may be considered, as required by Requirement 9. Prefer
+keeping the key on the same server, protected from plaintext disclosure to any
+human, including host administrators. Include self-hosted OpenBao on a separate
+operator-controlled server as an alternative; outsourced storage, third-party
+custodians and proprietary managed key services remain excluded.** Define that
+goal precisely: distinguish permission to
+request a cryptographic operation from permission to extract the secret, and
+state which trusted component must still hold or internally use it. Relate the
+design to T88's attacker-controlled execution scenarios.
+
+- **Existing techniques and research first:** review multiple relevant research
+  papers, official documentation and maintained open-source implementations
+  before proposing a custom design. Prioritize same-server approaches: examine
+  research on hardware-backed non-exportable keys (TPM/HSM), trusted execution
+  environments, protected memory and local isolated cryptographic services.
+  Compare each paper's attacker model, assumptions, demonstrated protection,
+  limitations and available open-source implementation with the actual host.
+  Do not assume any candidate prevents plaintext disclosure to a host
+  administrator. Check support for
+  the ledger's actual HMAC operation and verification flow; separately assess
+  whether asymmetric signatures with public-key verification offer a better
+  boundary and what changing the scheme would require.
+- **Self-hosted alternative:** include OpenBao's Transit engine for HMAC
+  generation and verification, on the same server and on a separate
+  operator-controlled server. Use its official documentation
+  (`https://openbao.org/docs/secrets/transit/` and
+  `https://openbao.org/docs/internals/security/`) as starting points. Establish
+  which administrators remain trusted in each deployment; a separate service
+  does not itself prove protection from administrators of its host. This is an
+  option to investigate, not a selected architecture or authorization to deploy.
+- **Threat model:** compare protection against other users, malicious code under
+  the Gateway account, a compromised Gateway, OS-root access and host compromise.
+  Key non-extractability alone is insufficient: determine whether an attacker
+  could use the legitimate operation interface to authenticate forged history.
+  Examine caller authorization, append-only operation constraints, freshness,
+  rollback resistance, checkpoints and independent witnesses. Distinguish
+  protecting the key, protecting recorded history and proving events actually
+  happened; state residual trust assumptions explicitly. Establish whether the
+  requested guarantee is achievable against full host control under the preferred
+  same-server arrangement, and identify any required hardware or trust
+  assumptions; do not
+  present encryption at rest alone as proof of that guarantee.
+- **Practical comparison:** evaluate compatibility with the Linux VPS and local
+  development, available hardware, open-source licensing of required software
+  components (mandatory, not a preference), cost (no spend authorized), deployment
+  burden, latency, availability, failure behavior,
+  backup/recovery, rotation, revocation and independent/offline verification.
+  Identify implications for existing ledgers and keys without changing them.
+- **Deliverable and completion:** provide cited evidence, a comparison of viable
+  options, a recommended architecture and its owner boundary, remaining risks,
+  and a safe proof-of-concept plan using disposable keys and isolated state.
+  Explicitly answer who can extract the key, who can request its use, and what
+  each attacker can still forge. Bring findings and tradeoffs to Kinan before
+  building, migrating keys, changing cryptography or altering deployment.
+
+### T90: explore complete agent lockdown (added 2026-11-04)
+
+**Open, investigate and propose; Kinan decides before implementation.** Kinan
+asks whether lockdown covers only governed actions or all actions, and requests
+exploration of locking down the agent entirely. Initial source inspection shows
+that the tool gate already blocks calls regardless of resource classification:
+`src/governance/policy-engine.ts` checks lockdown before the `!spec` ungoverned
+return. `src/governance/qa-round5.test.ts` contains an explicit regression for
+blocking `image_generate` while locked. The dashboard's `promptAgent` also
+rejects locked agents before invoking the runner. These establish broader
+coverage than Chapter 3's phrase "new governed actions", but do not establish
+that every possible agent activity is stopped. Tests inspected are not proof
+of every runtime or entry point.
+
+- **Define the intended guarantee:** no new model work, tool execution or outgoing
+  delivery for the locked agent; stop existing runs and associated work, with
+  confirmation distinguishing requested cancellation from observed completion.
+  Specify treatment of delegated agents, queued work and external jobs already
+  submitted. Preserve authorized operator inspection, auditing and release.
+- **Map all entry points and continuations:** dashboard and other chat/channel
+  prompts, scheduled jobs, heartbeat, hooks, inter-agent messages, retries, queued
+  prompts, resumed sessions, pending approvals and work admitted concurrently
+  with the lock. Verify persistence across restart and explicit release behavior;
+  decide whether queued work should be discarded, held or require renewed consent.
+- **Verify execution and delivery boundaries:** cover governed and ungoverned
+  tools, streaming/final replies without tools, in-flight tool calls, background
+  and detached processes, descendant runs and remote work. Compare runtimes and
+  transports using direct dependency contracts where applicable. Establish what
+  can actually be stopped and what irreversible/external effects can only be
+  reported; do not claim that a tool gate alone freezes the entire agent.
+- **Assess existing mechanisms first:** compare current tool-gate checks,
+  dashboard prompt admission, lineage restrictions, run abortion and registered
+  background-process termination. Seek one canonical lifecycle/admission owner
+  and reuse maintained cancellation/isolation mechanisms before proposing custom
+  systems. Identify bypasses only with source and safe reproduction evidence.
+- **Proof and deliverable:** produce an evidence map of covered paths, gaps,
+  races and residual limits; exercise isolated state with harmless tools and
+  disposable processes, including lockdown before admission, during execution,
+  during approval, after restart and after release. Verify unrelated agents keep
+  working and blocked activity has a visible outcome or recorded reason. Report
+  observed stop times, proposed architecture, tradeoffs and Chapter 3 wording
+  corrections to Kinan. No runtime, protocol or deployment changes are authorized
+  by this research task alone. Relate process-isolation concerns to T88/T89.
+
+### T91: explain telemetry export in Chapter 3 (added 2026-11-04)
+
+**Open, report writer with Kinan.** The supplied Chapter 3 export mentions
+"exported telemetry" but never names or explains OpenTelemetry or the
+`diagnostics-otel` plugin. Add a brief explanation near Requirement 8 or Data
+Sanitization: telemetry means operational metrics, traces and log records;
+OpenClaw's diagnostics plugin exports enabled signals to a local or remote
+OpenTelemetry-compatible collector/backend at operator-configured endpoints.
+Explain that destinations are configured through settings or environment
+variables, and that export is conditional on enablement. Distinguish upstream
+diagnostics/export facilities from this project's additional free-form scrubbing.
+Use `docs/gateway/opentelemetry.md` and the plugin implementation as evidence;
+verify claims against the report's evaluated version. Do not imply this project's
+VPS actually exports to any particular service without checking its configuration
+with Kinan. Include a concise copyable sentence and public documentation reference;
+completion requires incorporating the explanation into the report.
+
+### T92: update README.md and prune unwanted documentation (added 2026-11-07)
+
+**Open, deferred to the end of the project; nothing is to be changed before
+then.** Recorded at Kinan's request on 2026-11-07. Two parts:
+
+1. **Update `README.md`** so it describes the fork as it stands at the end
+   (what the governance layer is, how to install and run it, where the main
+   documents are), checked against the code and the other docs.
+2. **Select the documentation we no longer want and delete it.** The
+   repository holds about 1,287 `.md` files: roughly 1,180 come from
+   upstream OpenClaw (`docs/`, `extensions/`, `.agents/`, `skills/`, `apps/`,
+   and the `AGENTS.md`/`CLAUDE.md` files in `src/`, `test/`, `ui/` and
+   `scripts/`), and about 100 are this project's own (root files, `mg/`,
+   `docs-notes/`, `old-docs/`).
+
+**How the task is to be done:** whoever picks it up first gives Kinan a
+**list of the `.md` files recommended for deletion**, each with a one-line
+reason (for example outdated, superseded by a newer handoff, describes
+removed code, duplicated elsewhere, or a working note whose content has
+reached the report). Likely candidates include the superseded dated handoffs,
+session and work logs in `mg/`, `old-docs/`, the Chapter 3 working files in
+`docs-notes/report/` once the report is final, and `REPORT.md`. Each
+candidate must be checked first: is it linked from another document or the
+code, and is it still raw material for Chapter 4? **Nothing is deleted until
+Kinan approves the list.** Deletions are done with git, so they can be
+recovered from history. Then fix any links that pointed at the deleted files.
+
+### T93: investigate full-URL network policy (added 2026-11-08)
+
+**Built 2026-11-08, uncommitted (Kinan: "Separate url kind", then "design it, build it, then
+test it, including through the live dashboard").** Design and decisions:
+`mg/T93-URL-RULES-DESIGN.md` (D1–D7 taken as recommended: deny wins across both kinds; the ledger
+records the masked address beside the host; the query takes part in the match; _Always allow_
+still proposes a hostname rule; hostless addresses unchanged; a stored denial of an unknown kind
+refuses every governed call; same roles as network rules). Code: `src/governance/url-rules.ts`
+(new), `resource-extraction.ts`, `policy-engine.ts`, `policy-types.ts` (kind `url`, policy
+version 5), `rule-validation.ts`, `rule-conflicts.ts`, `audit-ledger.ts` and
+`scripts/verify-ledger.mjs` (field `url`, hashed by presence), `ledger-view.ts` (masked for a
+Viewer), the three gateway kind checks (now `isResourceKind`), and the dashboard
+(`rule-kind-hints.ts`, the kind selects, the ledger's Address line). Tests:
+`src/governance/url-rules.test.ts`, `ui/src/pages/governance/url-rules-ui.test.ts`. Operator
+guide: `docs-notes/WRITING-PERMISSIONS.md` §2.3. Report: C150 in `DOCUMENTATION-UPDATES.md`;
+limits L49–L50 in `CH4-LIMITATIONS.md`. Redirects, clicked links and page scripts stay T94.
+
+The original task text follows. Requested by Kinan while studying
+Chapter 3. Current network extraction returns a canonical hostname for URLs
+with a host (`src/governance/resource-extraction.ts:187`), so matching cannot
+distinguish schemes, ports, paths or queries. Rule-authoring warnings explain
+this hostname-only contract (`src/governance/rule-validation.ts`). Full-URL
+matching is technically feasible; this task records the proposed capability,
+not authorization to change runtime behavior or the policy schema now.
+
+- Inspect existing URL parsing, network-policy seams and maintained open-source
+  mechanisms before choosing an implementation. Define separate, explicit
+  hostname and URL matching semantics; do not silently reinterpret stored
+  hostname rules or weaken core destination denials.
+- **Required capability, clarified by Kinan:** retain simple hostname-wide
+  permissions alongside optional fine-grained URL permissions. Operators must
+  still be able to allow or deny a host without specifying paths, schemes,
+  ports or queries. Fine-grained matching supplements rather than replaces
+  hostname matching; define interactions and denial precedence explicitly.
+- Define scheme, effective port, path boundaries, query and fragment handling,
+  encoding, normalization and invalid/hostless address behavior. Hostnames are
+  case-insensitive; URL paths must not be indiscriminately lower-cased. Avoid
+  leaking credentials or sensitive query values through audit and dashboard text.
+- Compare web-fetch and browser named-navigation entry points. Treat redirect
+  targets, clicked links, page-script requests and shell-command traffic as
+  separate enforcement-coverage questions: full-URL matching alone does not
+  intercept them. Inspect the actual execution owners and dependency contracts
+  before claiming coverage.
+- Propose rule representation and any required migration, dashboard authoring
+  help/warnings, approval behavior and audit representation. Preserve existing
+  hostname grants and denial precedence. Bring compatibility and security
+  tradeoffs to Kinan before implementation.
+- Verify the selected design with focused tests and isolated controlled endpoints:
+  same host/different paths and ports, scheme differences, encoding variants,
+  query handling, existing hostname rules, core denials and redirects. Record
+  tested coverage and residual limits; update Chapter 3/5 accordingly.
+- Coordinate request interception with T94. Reflect every network-policy change
+  across affected core denials, baseline allowances, admin rules, policy types
+  and validation, storage/migration, approvals, audit, dashboard help/warnings,
+  tests and operator documentation. Update the report's requirements analysis,
+  Rule Model, Baseline Policy, security limits and Chapter 4/5 evidence wherever
+  affected; do not leave hostname-only statements describing expanded behavior.
+
+### T94: enforce network policy beyond named navigation (added 2026-11-08)
+
+**Open, investigate and design before implementation.** Kinan requests policy
+checks for redirect targets, destinations reached through clicked links, and
+page-script network requests, so coverage can extend beyond addresses explicitly
+named by the agent. This is a distinct request-interception task linked to T93:
+matching full URLs does not itself cause subsequent requests to be intercepted.
+The goal is to check covered destinations before their requests are sent, not
+merely record them afterward. Feasibility must be established per execution path;
+do not claim universal coverage until proven.
+
+- Trace the actual web-fetch redirect and browser request owners. Inspect
+  dependency source/contracts and existing maintained interception mechanisms;
+  prefer existing supported hooks over custom parallel networking machinery.
+- Cover each redirect hop, link-triggered navigation and page-script request,
+  including cross-host destinations. Inventory frames, subresources, workers,
+  service workers, WebSockets and cached requests, and explicitly document which
+  are intercepted, require another mechanism, or remain outside scope.
+- Carry authoritative agent/organization identity to the request boundary and
+  apply the canonical network-policy decision there. Support both hostname-wide
+  rules and T93's optional fine-grained rules. Preserve core denials and denial
+  precedence; define approval, expiry, cancellation and visible refusal behavior
+  without prompting indiscriminately for every incidental browser request.
+- Reflect changed network access throughout the project: inspect and update
+  core network denials, baseline host allowances, administrator rule semantics,
+  defaults, validation, migrations where needed, dashboard guidance, approvals,
+  audit representation and relevant sibling execution paths. A page allowance
+  must not silently authorize unrelated third-party requests. Identify policy
+  changes needed for ordinary sites to remain usable and bring those tradeoffs
+  to Kinan before implementation.
+- Use isolated controlled endpoints to prove allowed and denied redirects,
+  clicked links and script requests, including actual destination-side evidence
+  that denied requests were not sent. Test existing hostname permissions,
+  fine-grained restrictions, core denials, agent isolation and operator-visible
+  outcomes. Audit matching alone is insufficient proof of interception.
+- Update the report wherever affected: requirements analysis, architecture and
+  Rule Model, Baseline Policy, browser/network security limits, and Chapter 4/5
+  tests and remaining work. Replace the earlier coverage table's negative entries
+  only for paths verified to be enforced; state residual gaps explicitly.
+
+### T95: stop rule creation from deleting expired rules (added 2026-11-08)
+
+**Open, verify the behavior first.** Requested by Kinan while studying Chapter 3.
+Check whether adding a rule automatically deletes existing expired rules. If
+confirmed, remove that deletion behavior from rule creation. Expired rules must
+remain ineffective during policy matching; retaining them must not reactivate
+their permissions. Verify the original sequence with focused tests: retain an
+expired rule, add another rule, and check both stored rules and policy outcomes.
+If the reported behavior does not exist, record the evidence instead of making
+a speculative runtime change.
+
 ### Where this file stands (updated 2026-10-13)
 
 **Start at `mg/HANDOFF-2026-10-13.md`**, then `mg/SESSION-LOG-2026-10-13.md`. Everything through
@@ -2639,6 +2968,10 @@ four (T29–T32) after two investigations and a request. What is open:
 | ~~**T85**~~ | **DONE 2026-10-10 (Claude).** ~~**Claude: QA finding 421 against Requirement 8** (added 2026-10-10 at Kinan's request). Find every place OpenClaw still writes a secret in plaintext to a log, fix each red first, keep D21 (the conversation itself stays unmasked). §"T85" above.~~ Record: `mg/WORK-LOG-2026-10-10.md` §2; findings 422, 423.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | **T86**     | **Open only for D6-A's build** (added 2026-10-10 at Kinan's request: where the system's application of the nine requirements falls short). **Every row decided by 2026-10-12; committed and pushed in `79e1deb1b30`** (D1, D2-A, D3, D4, D5-A, D7-A, D9-A, D12 built; D10, D11, D13, D14, D15 closed with no build; D8 deleted, folded into T74). **D6-A, decided and not built:** move agent creation's blocking work off the Gateway's event loop (upstream; measure first). §"T86" above.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | **T87**     | **Claude finds out, then Kinan decides: why the project takes so much disk space** (added 2026-10-12 at Kinan's request: "figure out and address why/how our project takes so much space and reduce it. (what to do about it will come after)"). Measure where the space goes on this laptop: the checkout and its `.git`, `node_modules`, `dist` and other build output, caches, the test runs' `%TEMP%\openclaw-test-*` folders, the session scratchpads and QA fixtures, and the WSL disk image (drive C: filled up twice: the WSL clone of 2026-10-10, after which Kinan compacted the disk image with diskpart, and leftover test folders). Say why each is the size it is and what can be reduced, then put the options to Kinan; nothing is deleted or changed until he decides.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **T88**     | **Open: threat-model attacker-influenced code inside allowed commands** (2026-11-04, Kinan's request). Establish attack prerequisites, real enforcement boundaries, severity, existing defenses and safe reproductions; deliver evidence and mitigation options before Kinan decides on remediation. See the T88 section near the top.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **T89**     | **Open: research protected use of the ledger key** (2026-11-04, Kinan's request). Prioritize established techniques and research for non-exportable or isolated key use; assess unauthorized use as well as extraction, compatibility, cost, verification and recovery. See the T89 section near the top; Kinan decides before implementation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **T90**     | **Open: explore complete agent lockdown** (2026-11-04, Kinan's request). Existing gate already blocks governed and ungoverned tool calls; verify and propose coverage for every work entry point, ongoing execution, delivery, queues, descendants and restart/release behavior. See the T90 section near the top; Kinan decides before implementation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **T91**     | **Open: explain OpenTelemetry and export destinations in Chapter 3** (2026-11-04, Kinan's request). Define the diagnostics plugin, exported signals, configured local/remote destinations and enablement; distinguish upstream export from project-added scrubbing. See the T91 section near the top.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 **"Blocked on the host" was recorded three times and was true zero times, and
 then a fourth was recorded on 2026-08-30 that is true.** The fourth is T7's

@@ -4,58 +4,33 @@
 master) and the repository's own documents. **Chapters 1 and 2 are frozen (Kinan, 2026-10-08):
 anything they need is said in Chapter 3.**
 
-**Brought up to date on 2026-10-12 (evening; record `mg/WORK-LOG-2026-10-13.md`).** Every item
-was re-read against Kinan's latest export, `complete_report.txt`, exported again on 2026-10-12 at
-18:00 (byte for byte the size of the 2026-10-08 export, and every passage this file quotes is
-still in it, so Overleaf has not moved since 10-08; every Chapter 3 section written, none a
-stub), and against the code as it stands: everything through T86 D7-A and finding 429,
-committed and pushed to `personal/governance-layer` on 2026-10-12 (`79e1deb1b30` code,
-`9c8679a99d1` and `a2b897f19d1` documents). **Re-checked on 2026-10-13** at Kinan's request:
-every backticked code name and file path resolved against the repository, every fixed value and
-test count re-derived from the code (`mg/WORK-LOG-2026-10-13.md` §6), and the changes numbered
-(§0). Items are marked **NEW 10-08** to **NEW 10-12** by the day they were
-added; the logs are `mg/WORK-LOG-2026-10-08.md` to `mg/WORK-LOG-2026-10-12.md`,
-`mg/QA-SESSION-2026-10-09.md` and `mg/QA-SESSION-2026-10-11.md`. **Anything already done in an
-export has been deleted from this file** (on 2026-10-12 nothing was: no item had been applied).
-When an item is done, delete it; when something new is owed, add it here and nowhere else.
+**Brought up to date on 2026-11-08** against Kinan's export of that day
+(`C:\Users\kinan\OneDrive\Desktop\complete_rep_nov8.txt`). Every Chapter 3 item was read
+against the export: Kinan has applied almost all of them, in his own words, so they were
+deleted (the list is in §3.0 below, by number). What remains for Chapter 3 is five items the
+export does not yet carry (C4, C5, C20, C21, C149), one waiting on T74 (C112), and T93's new
+`url` rule kind (C150). §1 (front matter) is unchanged. §7 onward (Chapters 4 and 5, the
+repository documents, open questions, counts) was not part of this pass and is kept as it was.
+When an item is done, delete it and leave its number unused; when something new is owed, add it
+here and nowhere else.
 
-**What is left, in one view (2026-10-12):** §1, the front matter; §3, the Chapter 3
-corrections, section by section (T72, T79), including T82's scrubber table (§3.8), the
-Requirement 8 paragraph (§3.2), and the text that **T86** changed: every requirement gap is now
-decided, so every T86 item is NOW (D1, D2-A, D3, D4, D5-A, D7-A, D9-A and D12 built; D11 stated
-as behaviour; D10, D13, D14 and D15 need nothing; D8 deleted). The largest single change is that
-the `off` posture no longer exists, and nine passages of the export still describe it (§3.1).
-§7 holds the material for Chapters 4 and 5, including D6-A, decided and not built, which stays
-future work until it is. §9 holds the questions only Kinan can answer. Still waiting on open
-tasks: T74 (an off-host witness) and T84 (one Chapter 5 sentence). **Removed at Kinan's word
-(2026-10-10):** the `reportcodebox` question (dark or light code panels) and its compile item.
-
-It replaces six files, deleted on 2026-10-03 (all but the last are in git at `0b477ce46db`):
-`CH3-EDIT-COMMENTS-2026-09-28.md`, `QA-2026-09-27-FOR-THE-REPORT.md`, `T70-FOR-THE-REPORT.md`,
-`DOC-CHANGES-AFTER-T70.md`, `DIVERGENCES.md` and `REPORT-CHANGES-2026-10-03.md`. Older logs still
-name them; this file is their successor.
+**Limitations rule (Kinan, 2026-10-24):** do not add new limitation sentences to Chapter 3.
+Each limitation is removed (fixed, or shown not to be one) or moved to Chapter 4, decided with
+the supervisor; record them in `CH4-LIMITATIONS.md` beside this file. A rule doing what it says
+is not a limitation.
 
 Rules: do not edit `docs-notes/report/chapter3.tex` (stale, 2026-09-27 sync); Overleaf is the
-master. Each item says what the text says, what is true, and suggested wording. **CHECK** marks a
-claim not yet verified. Verify against the code before writing; code and tests win over notes.
-
-Contents: §0 every change, numbered (C1 to C148, added 2026-10-13); §1 compile and front matter; §2 Chapters 1 and 2 (frozen on 2026-10-08, items struck,
-with a map of where each went); §3 Chapter 3, section by section (rebuilt 2026-10-07 against
-Kinan's paste of that day, absorbing the former §4, §5, §6 and §11.1–§11.8, so §4 to §6 are retired
-numbers; §3.3a and §3.3b were inserted on 2026-10-08 for 3.4.1 Gate Placement and 3.4.3 Path
-Representation so that no existing number moved); §7 Chapters 4 and 5; §8 repository documents
-(applied 2026-10-10, T81; kept as a heading for new items); §9 open questions for Kinan; §10
-counts; §11 what T73, T76 and T78 (built 2026-10-04, committed in `8c266e44ee4`) owe outside
-Chapter 3.
+master. Each item says what the text says, what is true, and suggested wording. Verify against
+the code before writing; code and tests win over notes.
 
 **Numbering.** A number with **§** names a part of this file (§3.10). A number without it names a
-section of the report and always carries the section's title (3.5.5 Prompt Execution Path). This
-file's §3 subsections have numbers of their own that do not match the report's; their headings
-give the report section they cover.
+section of the report and always carries the section's title (3.5.5 Prompt Execution Path).
 
-## 0. Every change, numbered (2026-10-13)
+## 0. Every change still owed, numbered
 
-**149 changes** (C149 added 2026-10-28): 103 required corrections to the report, 14 optional, 1 waiting on T74, and 31 items of material for Chapters 4 and 5 (which the report does not have yet). Each item below carries its number (**C1.** …); when one is done in Overleaf, delete the item and leave its number unused, so the numbers stay stable. An item may name several passages (C6 lists nine); it is one change because one decision causes it. Kinds: **required** means the export is wrong or silent where the system has changed; **optional** means the report is correct without it; the **material** items are evidence and sentences to use when Chapters 4 and 5 are written.
+Numbers are stable: a done item is deleted and its number is never reused. Kinds: **required**
+means the export is wrong or silent where the system has changed; **optional** means the report
+is correct without it; the **material** items are evidence and sentences for Chapters 4 and 5.
 
 | # | Kind | Where | Item |
 | --- | --- | --- | --- |
@@ -64,119 +39,11 @@ give the report section they cover.
 | C3 | required | Front matter (§1) | \approveddate{7}{August}{2022}: the template's year |
 | C4 | required | Chapter 3, throughout (§3.1) | Stale figure map |
 | C5 | required | Chapter 3, throughout (§3.1) | \providecommand{\sectionstub}… and its comment can be deleted: no stub is left |
-| C6 | required | Chapter 3, throughout (§3.1) | The off posture no longer exists: nine passages still describe it |
-| C7 | required | Chapter 3, throughout (§3.1) | Chapter 3 introduction (the paragraphs before 3.1 Design Requirements), TOOLS.md |
-| C8 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirement 1 |
-| C9 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirement 1, what static types do |
-| C10 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirements 3 and 4, tenancy sentence (T79 item 7) |
-| C11 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirements 5 and 6: recorded in every posture, and removed entries recorded |
-| C12 | optional | 3.2 Analysis of Design Requirements (§3.2) | Requirements 5 and 6, "an independent verifier" |
-| C13 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirement 5, what is recorded (a Chapter 1 departure, 1.2 Objectives) |
-| C14 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirement 8, every log file (finding 421) |
-| C15 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirement 3, the gate cannot be switched off |
-| C16 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirement 7, what termination reaches |
-| C17 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirement 7, a sentence with no verb |
-| C18 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirements 3 and 4, how far each kind of rule reaches |
-| C19 | required | 3.2 Analysis of Design Requirements (§3.2) | Requirement 9 (test counts) |
 | C149 | required | 3.2 Analysis of Design Requirements (§3.2), Table 3.1, Security boundaries | Tool coverage includes bundled plugins (finding 450) |
 | C20 | required | 3.3 Analysis of Design Constraints (§3.3) | "as described in Chapter \ref{ch:dsn-cs_1}" prints "Chapter 1.4", because the label is on a section |
 | C21 | required | 3.3 Analysis of Design Constraints (§3.3) | "Deployment on this server was validated by completing the governance test suite without failure." The run was on 21 Sep |
-| C22 | required | 3.4.1 Gate Placement (§3.3a) | "The gate was therefore placed above the short-circuit as the outer governance boundary |
-| C23 | required | 3.4.3 Path Representation (§3.3b) | "The absolute form is also used for a path inside another agent's workspace, even when that workspace is nested within t |
-| C24 | required | 3.4.4 Log Integrity (§3.4) | The decision T73 took |
-| C25 | required | 3.4.4 Log Integrity (§3.4) | The last paragraph (key, checkpoint and ledger on one host) states a true boundary and stays |
-| C26 | required | 3.4.6 Management Surfaces (§3.5) | "The CLI provides a tool to verify the audit ledger" and "the CLI has no tools to …" describe a command line that was re |
-| C27 | optional | 3.4.7 Tenancy Model (§3.6) | "does not claim to provide simultaneous isolation between multiple organizations" uses the capability-claim construction |
-| C28 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2.1 Rule Model, the browser is a network access |
-| C29 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2.4 Baseline Policy: the baseline now holds thirteen rules (D2-A, D3) |
-| C30 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2 Policy Engine, "immutable core denials" |
-| C31 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2.1 Rule Model (finding 399) |
-| C32 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2.1 Rule Model, network rules (Chapter 1 and 2 departures) |
-| C33 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2.1 Rule Model, expiry (a Chapter 1 departure, 1.6 Preliminary Design) |
-| C34 | optional | 3.5.2 Policy Engine (§3.7) | Stored rules without a description |
-| C35 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2.2 Evaluation Order, unregistered agents |
-| C36 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2.2 Evaluation Order, which posture is read |
-| C37 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2.2 Evaluation Order or 3.5.2.3 Path Canonicalization, what an uncovered path in another agent's workspace leads to |
-| C38 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2.3 Path Canonicalization, the nested-workspace boundary lasts only while the other agent is configured |
-| C39 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2.4 Baseline Policy, core-rule table row 6 (finding 388) |
-| C40 | required | 3.5.2 Policy Engine (§3.7) | 3.5.2.5 Folder Grants (finding 399) |
-| C41 | required | 3.5.3 Audit Ledger (§3.8) | tab:gov-ledger-decisions, row ungoverned: add "It is also the decision on the ledger's own integrity records, which no p |
-| C42 | required | 3.5.3 Audit Ledger (§3.8) | Calls refused before the gate |
-| C43 | required | 3.5.3 Audit Ledger (§3.8) | Inside the lock (after the readChainHead paragraph) |
-| C44 | required | 3.5.3 Audit Ledger (§3.8) | The checkpoint paragraph |
-| C45 | required | 3.5.3 Audit Ledger (§3.8) | The rotation paragraph |
-| C46 | required | 3.5.3 Audit Ledger (§3.8) | New paragraph, append-only files |
-| C47 | required | 3.5.3 Audit Ledger (§3.8) | fig:gov-ledger-append (F25) |
-| C48 | required | 3.5.3 Audit Ledger (§3.8) | The sequence check |
-| C49 | required | 3.5.3 Audit Ledger (§3.8) | After "They cannot establish that the newest entries still exist." |
-| C50 | required | 3.5.3 Audit Ledger (§3.8) | Replace the paragraph "A checkpoint behind the ledger is accepted …" |
-| C51 | required | 3.5.3 Audit Ledger (§3.8) | New paragraphs, the witness and the alerts |
-| C52 | required | 3.5.3 Audit Ledger (§3.8) | What detection does and does not give |
-| C53 | required | 3.5.3 Audit Ledger (§3.8) | "Successful server-side verification returns …" |
-| C54 | required | 3.5.3 Audit Ledger (§3.8) | Replace the paragraph "\texttt{scripts/verify-ledger.mjs} reads each organization's active \texttt{audit-ledger.jsonl}.  |
-| C55 | required | 3.5.3 Audit Ledger (§3.8) | fig:gov-ledger-verify (F26) |
-| C56 | required | 3.5.3 Audit Ledger (§3.8) | Who sees installation-wide entries |
-| C57 | required | 3.5.3 Audit Ledger (§3.8) | Reserved labels |
-| C58 | required | 3.5.3 Audit Ledger (§3.8) | Rule-request decisions carry an optional note (QA 2026-10-07 part 2 §1.1) |
-| C59 | required | 3.5.3 Audit Ledger (§3.8) | tab:gov-admin-audit-actions |
-| C60 | required | 3.5.3 Audit Ledger (§3.8) | Last sentence, "an authoritative ledger with verifiable integrity", becomes "an authoritative ledger with locally verifi |
-| C61 | required | 3.5.3 Audit Ledger (§3.8) | Two changes to what the section describes |
-| C62 | required | 3.5.3 Audit Ledger (§3.8) | T82: show the scrubber's real patterns (Kinan, 2026-10-08; mg/REMAINING-WORK.md T82) |
-| C63 | required | 3.5.3 Audit Ledger (§3.8) | The second pass also protects OpenClaw's own logs (finding 421) |
-| C64 | required | 3.5.3 Audit Ledger (§3.8) | What the QA of 421 changed (T85, findings 422 and 423) |
-| C65 | required | 3.5.3 Audit Ledger (§3.8) | How far the build meets the earlier chapters |
-| C66 | required | 3.5.3 Audit Ledger (§3.8) | What a masked value looks like |
-| C67 | required | 3.5.4 Access Control Model (§3.9) | "As described in \ref{sec:prelim-des}" prints "As described in 1.6" |
-| C68 | required | 3.5.4 Access Control Model (§3.9) | One projection for every policy response |
-| C69 | required | 3.5.4 Access Control Model (§3.9) | tab:gov-role-capabilities (finding 397) |
-| C70 | required | 3.5.4 Access Control Model (§3.9) | "assign eligible agents to User and Viewer accounts" becomes "assign eligible agents to the User and Viewer accounts tha |
-| C71 | required | 3.5.4 Access Control Model (§3.9) | Viewer scope (a Chapter 1 departure, 1.6 Preliminary Design) |
-| C72 | required | 3.5.4 Access Control Model (§3.9) | Last-Root paragraph |
-| C73 | required | 3.5.4 Access Control Model (§3.9) | Departure from Chapter 1 (1.6 Preliminary Design) on User rule authoring |
-| C74 | required | 3.5.4 Access Control Model (§3.9) | Wrong cross-reference |
-| C75 | required | 3.5.4 Access Control Model (§3.9) | Replace "The individual account-deletion route revokes all sessions associated with the account after the deletion opera |
-| C76 | required | 3.5.4 Access Control Model (§3.9) | After the cookie paragraph, add: "A session cookie whose value is not validly encoded is treated as absent, so the reque |
-| C77 | required | 3.5.4 Access Control Model (§3.9) | The Gateway gate and its brute-force throttle |
-| C78 | required | 3.5.4 Access Control Model (§3.9) | Password reset clears the lockout |
-| C79 | required | 3.5.4 Access Control Model (§3.9) | The session mirror |
-| C80 | required | 3.5.4 Access Control Model (§3.9) | A sign-in confirms its session |
-| C81 | required | 3.5.4 Access Control Model (§3.9) | Password reset revokes inside the change |
-| C82 | required | 3.5.4 Access Control Model (§3.9) | Replace the consistency-limitation paragraph |
-| C83 | required | 3.5.4 Access Control Model (§3.9) | Ownership now also decides reads into the agent's folder |
-| C84 | required | 3.5.4 Access Control Model (§3.9) | 3.5.4.1 Role Hierarchy, what a User may answer |
-| C85 | required | 3.5.5 Prompt Execution Path and 3.5.6 Session Control (§3.10) | 3.5.6.2 Kill Switch, background processes |
-| C86 | required | 3.5.5 Prompt Execution Path and 3.5.6 Session Control (§3.10) | 3.5.6.2 Kill Switch, the last paragraph |
-| C87 | required | 3.5.5 Prompt Execution Path and 3.5.6 Session Control (§3.10) | The last paragraph of 3.5.5 overclaimed, and now describes a rule that was built |
-| C88 | required | 3.5.5 Prompt Execution Path and 3.5.6 Session Control (§3.10) | A stopped run closes its conversation turn |
-| C89 | required | 3.5.5 Prompt Execution Path and 3.5.6 Session Control (§3.10) | The conversation names who cancelled |
-| C90 | optional | 3.5.5 Prompt Execution Path and 3.5.6 Session Control (§3.10) | 3.5.5 Prompt Execution Path, "A prompt to a locked agent is recorded as a denied attempt and does not reach the model":  |
-| C91 | optional | 3.5.5 Prompt Execution Path and 3.5.6 Session Control (§3.10) | 3.5.6.2 Kill Switch, signals |
-| C92 | required | 3.5.7 Human-in-the-Loop Approvals (§3.10) | 3.5.7.1 Escalation Routing, the departure from Chapter 1 (1.6 Preliminary Design, HITL) |
-| C93 | required | 3.5.7 Human-in-the-Loop Approvals (§3.10) | 3.5.7.1 Escalation Routing, a read inside another agent's folder |
-| C94 | required | 3.5.7 Human-in-the-Loop Approvals (§3.10) | 3.5.7.2 Persistent Approvals |
-| C95 | optional | 3.5.7 Human-in-the-Loop Approvals (§3.10) | Each card says where the request came from: "Asked while user1 was talking to main:", "Asked in your conversation with m |
-| C96 | required | 3.5.7 Human-in-the-Loop Approvals (§3.10) | 3.5.7.2 Persistent Approvals, decision notes |
-| C97 | required | 3.5.7 Human-in-the-Loop Approvals (§3.10) | 3.5.7.2 Persistent Approvals, the lifetime of the rule |
-| C98 | required | 3.5.7 Human-in-the-Loop Approvals (§3.10) | 3.5.7.1 Escalation Routing and 3.5.7.2 Persistent Approvals: a chat run's request now waits on the dashboard |
-| C99 | optional | 3.5.7 Human-in-the-Loop Approvals (§3.10) | tab:gov-escalation-settings: per-agent waiting times are now listed in the Policy section, one row per agent ("Approval  |
-| C100 | required | 3.5.9 Tenancy and Agent Registry (§3.10) | 3.5.9 Tenancy and Agent Registry, the last paragraph (another agent's folder) |
-| C101 | required | 3.5.10 Agent Lifecycle (§3.10) | tab:gov-agent-lifecycle, row "Register an existing agent": Root now chooses the owner beside each _Register_ button (def |
-| C102 | required | 3.5.10 Agent Lifecycle (§3.10) | Deleting an agent whose folder is inside another agent's workspace |
-| C103 | optional | 3.5.10 Agent Lifecycle (§3.10) | "the confirmation states before the change that the previous owner's Users and Viewers will lose the agent": it now name |
-| C104 | required | 3.5.11 Management Interface (§3.10) | The warning paragraph gives two examples (a pattern matching every command, an interpreter rule) |
-| C105 | required | 3.5.11 Management Interface (§3.10) | A control shown disabled, with its reason |
-| C106 | optional | 3.5.11 Management Interface (§3.10) | The _Delete the agent…_ button of an agent whose folder is inside another agent's workspace carries a tooltip saying the |
-| C107 | required | 3.5.11 Management Interface (§3.10) | The deployment report paragraph |
-| C108 | required | 3.5.12 System Security (§3.10) | tab:gov-security-limits has no row for agent workspaces, although 3.5.9 Tenancy and Agent Registry claims a protection t |
-| C109 | required | 3.5.12 System Security (§3.10) | tab:gov-security-limits: the rows T86 changed, and the interpreter paragraph (D1, D2-A, D3, D6, D7-A, D9-A) |
-| C110 | required | 3.5.5 to 3.6, older items (§3.10) | 3.5.5 Prompt Execution Path's sentence on host-generated prompts: see the first item of this section |
-| C111 | required | 3.5.5 to 3.6, older items (§3.10) | 3.5.12 System Security, tab:gov-security-limits, a row for logs and stored secrets |
+| C150 | required | 3.5.2 Policy Engine (§3.7), and 3.2, 3.5.3.1, 3.5.11 | The `url` rule kind beside hostname rules (T93, built 2026-11-08) |
 | C112 | waits (T74) | 3.5.5 to 3.6, older items (§3.10) | 3.5.12 System Security's audit-ledger row once an off-host witness exists |
-| C113 | optional | 3.5.5 to 3.6, older items (§3.10) | The export's tab:gov-ungoverned already gives each excluded tool's reason, and its caption says outbound messaging "uses |
-| C114 | optional | 3.5.5 to 3.6, older items (§3.10) | 3.5.8.1 Task and Slot Model |
-| C115 | optional | 3.5.5 to 3.6, older items (§3.10) | 3.5.7.1 Escalation Routing (finding 402) |
-| C116 | optional | 3.5.5 to 3.6, older items (§3.10) | 3.5.11 Management Interface (T76, T73) |
-| C117 | optional | 3.5.5 to 3.6, older items (§3.10) | 3.5.12 System Security table |
 | C118 | Ch 4/5 material | Chapters 4 and 5 (§7) | Chapter 4 evidence for T70 |
 | C119 | Ch 4/5 material | Chapters 4 and 5 (§7) | Chapter 4 examples of finding classes |
 | C120 | Ch 4/5 material | Chapters 4 and 5 (§7) | Chapter 4: the kill-switch timings and the agent-creation window |
@@ -207,6 +74,7 @@ give the report section they cover.
 | C145 | Ch 4/5 material | Chapter 5 (T73) (§11.10) | Chapter 5: a dedicated Gateway user, and witnessing on every refresh |
 | C146 | Ch 4/5 material | Chapter 4 (T73, T76, T78) (§11.12) | Mutation check: 31 of 31 killed |
 | C147 | Ch 4/5 material | Chapter 4 (T73, T76, T78) (§11.12) | Live, on a rebuilt Gateway |
+| C151 | Ch 4/5 material | Chapter 4 (T93) (§7) | Chapter 4 evidence for the `url` rule kind: tests, mutations, the live run, the bug found live |
 | C148 | Ch 4/5 material | Chapter 4 (T73, T76, T78) (§11.12) | A Chapter 4 point worth one sentence: the first attempt to make the purge fail live (a read-only policy file) did not fa |
 
 ## 1. Compile and front matter
@@ -226,220 +94,35 @@ Struck on 2026-10-08 with the rest of Chapters 1 and 2 (see §2): the "Lonely \i
 and two typed figure references. The two `\item` errors stay in the log as compile errors; Overleaf
 still produces the PDF, so they are accepted.
 
-## 2. Chapters 1 and 2 (frozen 2026-10-08; items struck)
+## 2. Chapters 1 and 2 (frozen 2026-10-08)
 
-**Kinan's decision of 2026-10-08: Chapters 1 and 2 will not change any more. Anything necessary
-is said in Chapter 3.** Every item this section held was struck. The table records where each one
-went, so nothing is lost silently. "Moved" items are in §3 under the named Chapter 3 section;
-"dropped" items need no Chapter 3 text.
+Every item that moved from Chapters 1 and 2 into Chapter 3 is in the 2026-11-08 export (Node.js
+version, `TOOLS.md`, static types, system calls, the port example, task-bound expiry, Viewer
+scope, User rule authoring, the HITL routing, the signal-based kill, the entropy filter, the
+tamper-evidence wording, agents' folders). The map that tracked them was deleted on 2026-11-08.
 
-| Former item (chapter, section)                                                                                | Outcome                                                                                                                     |
-| ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Ch1 1.2 Objectives: "records … system calls"                                                                  | Moved: §3.2, 3.2 Analysis of Design Requirements (Requirement 5)                                                            |
-| Ch1 1.2 Objectives and 1.6 Preliminary Design: "immutable", "strictly preventing", "ensures"                  | Moved: §3.8, 3.5.3.4 Data Sanitization ("how far the build meets Chapters 1 and 2")                                         |
-| Ch1 1.6 Preliminary Design, Table 1.2: network example with port `:443`                                       | Moved: §3.7, 3.5.2.1 Rule Model (network rules)                                                                             |
-| Ch1 1.6 Preliminary Design: Viewer reads logs "permitted by the Root"                                         | Moved: §3.9, 3.5.4.1 Role Hierarchy                                                                                         |
-| Ch1 1.6 Preliminary Design: Users given scoped permissions by the Administrator                               | Moved: §3.9, 3.5.4.1 Role Hierarchy                                                                                         |
-| Ch1 1.6 Preliminary Design: HITL prompt forwarded to the Administrator                                        | Moved: §3.10, 3.5.7.1 Escalation Routing                                                                                    |
-| Ch1 1.6 Preliminary Design: permissions end "upon task completion"                                            | Moved: §3.7, 3.5.2.1 Rule Model (expiry)                                                                                    |
-| Ch1 1.6 Preliminary Design and Ch2 2.1.3 Core Development Technologies: SIGTERM/SIGKILL                       | Moved (optional): §3.10, 3.5.6.2 Kill Switch                                                                                |
-| Ch1 1.6 Preliminary Design: "OAuth-based connection … such as Kimi" (unverified)                              | Dropped: Chapter 3 (3.3 Analysis of Design Constraints) only names a Kimi subscription, which is true                       |
-| Ch1 1.6 Preliminary Design: tier descriptions not read against `ROLE-MODEL.md`                                | Dropped: 3.5.4.1 Role Hierarchy describes the built tiers; the two departures are moved above                               |
-| Ch1 1.6 Preliminary Design: identity of the human approver                                                    | Dropped (revised 2026-10-12): since T86 D7 every escalation is answered on the dashboard by a named account, §3.10 3.5.7.2 |
-| Ch1 Table 1.1: illustrative rule identifier, and the year 2030 in its timestamp                               | Dropped: `tab:gov-ledger-decisions` in 3.5.3 Audit Ledger shows the built form                                              |
-| Ch1 1.1 Introduction and Ch2 2.1.1 The OpenClaw Framework: figure references typed without `\ref` or "Figure" | Dropped (cosmetic)                                                                                                          |
-| Ch2 2.1.1 The OpenClaw Framework: Node.js "version 18+"                                                       | Moved: §3.2, 3.2 Analysis of Design Requirements (Requirement 1)                                                            |
-| Ch2 2.1.1 The OpenClaw Framework: `TOOLS.md` grants and revokes permissions                                   | Moved: §3.1, the chapter introduction                                                                                       |
-| Ch2 2.1.3 Core Development Technologies: TypeScript types "prevent malicious payloads"                        | Moved: §3.2, 3.2 Analysis of Design Requirements (Requirement 1)                                                            |
-| Ch2 2.1.4 Linux OS: application-layer filtering inspects URLs and payloads                                    | Moved: §3.7, 3.5.2.1 Rule Model (network rules)                                                                             |
-| Ch2 2.1.5 Auditability: "immediate detection", "exact timestamp of the breach", "perfect", "immutable"        | Moved: §3.8, 3.5.3.2 Hash Chaining and Verification                                                                         |
-| Ch2 2.1.5 Auditability: entropy analysis, `[REDACTED_SECRET]`, "strictly preventing"                          | Moved: §3.8, 3.5.3.4 Data Sanitization                                                                                      |
-| Ch1 or Ch2: agents isolated from one another's files                                                          | Moved: §3.10, 3.5.9 Tenancy and Agent Registry (findings 408, 416)                                                          |
-| §3.1 item "typed section numbers": add `\label{sec:requirements-ch1}` to Chapter 1                            | Dropped: Chapter 1 will not change, so the typed "Section~1.3" and "Section~1.4" in the chapter introduction stay correct |
+## 3. Chapter 3, section by section (checked against the 2026-11-08 export)
 
-## 3. Chapter 3, section by section (rebuilt against the 2026-10-07 paste; re-checked against the 2026-10-08 export on 2026-10-10)
+### 3.0 Deleted on 2026-11-08 because the export carries them
 
-**Rebuilt 2026-10-07.** This section replaces the former §3 (reviewed sections), §4 (3.5.4 Access Control Model to
-3.5.6.1 Agent Lockdown), §5 (stub material), §6 (figures) and §11.1 to §11.8 (what T73, T76 and T78 owe the
-report). Each item was read against the full report Kinan pasted on 2026-10-07, which has 3.5.5 Prompt Execution Path
-shortened and 3.5.6 Session Control to 3.6 Summary taken from `docs-notes/report/ch3-3.5.6-to-3.6.tex`. Items already
-present in that paste were deleted rather than listed. New items found on 2026-10-07 are marked
-**NEW** and were checked against the code that day.
-
-Markers: **NOW** means the code supports the change today. **WAIT T74** means the task is
-open and the text owed depends on how it closes (T75 closed on 2026-10-08, T77 on 2026-10-10,
-and every T86 row was decided by 2026-10-12, so their items are NOW). A **Dn** in an item names
-the row of the T86 table in `mg/REMAINING-WORK.md` it comes from. **OPTIONAL** means the report
-is correct without it. **CHECK** marks a claim not yet verified against the code or a live run.
-Suggested wording follows `docs-notes/WRITING-GUIDE.md`.
-
-Two things run alongside this list:
-
-- **The shortening pass.** Sections 3.1 Design Requirements to 3.5.5 Prompt Execution Path are due to be rewritten shorter to the section
-  formula (`WRITING-GUIDE.md`, "Section formula"). Apply these items during that rewrite so the
-  shorter text starts correct. An item that names a paragraph the rewrite deletes is still owed
-  wherever the fact ends up.
-- **The QA of 2026-10-07** (findings 406 to 416, `mg/QA-SESSION-2026-10-07.md` §11 and
-  `mg/QA-SESSION-2026-10-07-PART2.md` §7): folded in on 2026-10-08, by section, marked
-  **NEW 10-08**. Those two lists need not be read again.
+Read one by one against `complete_rep_nov8.txt` on 2026-11-08; each is in the export, mostly in
+Kinan's own words: C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16, C17, C18, C19, C22, C23, C24, C25, C26, C27, C28, C29, C30, C31, C32, C33, C34, C35, C36, C37, C38, C39, C40, C41, C42, C43, C44, C45, C46, C47, C48, C49, C50, C51, C52, C53, C54, C55, C56, C57, C58, C59, C60, C61, C62, C63, C64, C65, C66, C67, C68, C69, C70, C71, C72, C73, C74, C75, C76, C77, C78, C79, C80, C81, C82, C83, C84, C85, C86, C87, C88, C89, C90, C91, C92, C93, C94, C95, C96, C97, C98, C99, C100, C101, C102, C103, C104, C105, C106, C107, C108, C109, C110, C111, C113, C114, C115, C116, C117. Also deleted: the former §3.11 (figure changes;
+all made in the export except the stale figure map, which is C4), and the former §3.12 ("Keep
+these limitations"), superseded by the limitations rule above and by `CH3-LIMITATIONS-AUDIT.md`
+and `CH4-LIMITATIONS.md`. C108 (a new limitations row for other agents' workspaces) was dropped
+under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boundary in prose.
 
 ### 3.1 The whole chapter
 
 - **C4.** **NOW. Stale figure map.** The comment block before `\chapter{System Design}` ("WHERE EACH
   FIGURE GOES", "Prints as Fig 3.1 | F1 …") gives numbers that no longer print: there are now 25
   or so Chapter 3 figures, code figures included. Delete the block. Every citation is a `\ref`,
-  so nothing depends on it. Delete the inline `% FIGURE NOTE` comments under 3.4.4 Log Integrity, 3.4.5 Operator Identity, 3.4.6 Management Surfaces,
-  3.4.7 Tenancy Model and 3.5.1 System Architecture for the same reason.
+  so nothing depends on it. (Still in the 2026-11-08 export, lines 740–770; the inline
+  `% FIGURE NOTE` comments this item also named are gone.)
 - **C5.** **NOW.** `\providecommand{\sectionstub}…` and its comment can be deleted: no stub is left.
-- **C6.** **NOW, NEW 10-12 (T86 D4, built 2026-10-10). The `off` posture no longer exists: nine
-  passages still describe it.** The postures are `enforce` and `monitor`, for the installation
-  and for one agent; `off` is refused from every surface and by every tier
-  (`POSTURE_OFF_REFUSED`, `src/governance/policy-store.ts`), and a policy file that still says
-  `off` loads as `enforce`. Neither posture suspends the forbid rules, the kill switch or the
-  record. (`\texttt{off}` as the escalation setting, "deny outright", is a different thing and
-  stays.) Found by searching the export on 2026-10-12; each place, in order:
-  1. **`tab:gov-ungoverned` caption** (3.2 Analysis of Design Requirements): delete "In
-     \texttt{off}, the policy engine records no tool-call decision." and begin the sentence
-     before it "In either posture, calls from a registered agent …".
-  2. **3.5.2.2 Evaluation Order**, the paragraph "For a registered agent, the policy engine loads
-     the organization policy and checks its posture. The \texttt{off} posture returns at this
-     point …": replace the paragraph with "For a registered agent, the policy engine loads the
-     organization policy and reads the posture that applies to the agent: the agent's own posture
-     when an Administrator has set one, and the installation posture otherwise. Registration is
-     checked first because the engine must identify the organization policy before it can read
-     its posture." (This replaces the NEW 10-08 item "which posture is read" in §3.7.)
-  3. **`tab:gov-unmatched-outcomes`** (3.5.2.2 Evaluation Order): delete the `off` column, and the
-     `p{2.8cm}` column it used; the caption "under each posture" stays true.
-  4. **3.5.2.2 Evaluation Order**, end of the `monitor` paragraph: delete "Under \texttt{off}, in
-     contrast, the engine returns after loading the policy, so tool calls are neither evaluated nor
-     recorded as policy decisions. Other aspects are still recorded in the audit ledger however."
-  5. **`fig:gov-pathnorm` caption** (3.5.2.3 Path Canonicalization): delete "Installation-wide
-     \texttt{off} bypasses this policy pipeline."
-  6. **3.5.3 Audit Ledger**, after `tab:gov-ledger-decisions`: delete the paragraph "The
-     \texttt{off} posture returns before resource extraction and creates no policy-decision entry.
-     …". Optional replacement: "Neither posture skips this record. \texttt{monitor} records the
-     decision \texttt{enforce} would have taken and lets the call proceed."
-  7. **3.5.5 Prompt Execution Path**: "The lockdown check comes next. It also applies when the
-     installation posture is \texttt{off}, because the dashboard route is itself a governance
-     control." becomes "The lockdown check comes next."
-  8. **3.5.6.1 Agent Lockdown**: delete "When the installation posture is \texttt{off}, the
-     tool-call gate does not run. The dashboard's prompt route still checks the list in that
-     posture and rejects a prompt to a locked agent." (Replaces the NEW 10-08 item in §3.10.)
-  9. **3.5.12 System Security**, the interpreter paragraph: "set its own agent to
-     \texttt{monitor} or the installation to \texttt{off}" (the D9 item in §3.10 has the wording).
-
-  And one sentence in 3.5.11 Management Interface, the deployment report ("fails when governance
-  is off", §3.10). Every other mention of a posture in the export is already true. The one exception
-  to governance that is left, OpenClaw's own test processes that name no governance directory
-  (`isUnconfiguredTestRun`, `src/governance/paths.ts`), is not a posture, cannot be set from any
-  surface and never applies to an installation; the report need not name it.
-- **C7.** **NOW, NEW 10-08 (moved from Chapter 2, 2.1.1 The OpenClaw Framework). Chapter 3
-  introduction (the paragraphs before 3.1 Design Requirements), `TOOLS.md`.** Chapter 2 says
-  `TOOLS.md` "defines the agent's exact capabilities" and that modifying it "is how an
-  administrator grants or revokes the agent's system permissions". It is model-facing notes
-  (`DEFAULT_TOOLS_FILENAME`, `src/agents/workspace.ts`; current OpenClaw migrates it into
-  `AGENTS.md`, `src/commands/doctor-tools-md-migration.ts`) and enforces nothing. The
-  introduction's first paragraph already argues that "any control that is built inside the model
-  … inherits the weakness it is meant to correct", so the correction fits there. After that
-  sentence, add: "OpenClaw's own permission file is an example. \texttt{TOOLS.md}, described in
-  Chapter~2, tells the model which tools it has, and the model may disregard it; nothing in the
-  host enforces it."
 
 ### 3.2 Section 3.2, Analysis of Design Requirements
 
-- **C8.** **NOW. Requirement 1.** Add: "The fork requires Node.js 22.22.3 or later on the 22 line, 24.15
-  or later on the 24 line, or 25.9 or later, inherited from OpenClaw, which satisfies the
-  version requirement." (`package.json` `engines`, re-read 2026-10-10:
-  `>=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0`.) Chapter 2
-  (2.1.1 The OpenClaw Framework) says OpenClaw runs on "version 18+"; this sentence is where the
-  report gives the true figure.
-- **C9.** **NOW, NEW 10-08 (moved from Chapter 2, 2.1.3 Core Development Technologies). Requirement 1,
-  what static types do.** Chapter 2 says TypeScript's static type definitions "prevent malicious
-  payloads from reaching the execution layer". Types are erased at compile time and say nothing
-  about whether a well-formed call is safe. The Requirement 1 paragraph ends "provides the type
-  checks required for security-sensitive policy and audit operations"; add: "Static types keep
-  that code consistent, and runtime schema validation rejects malformed tool arguments. Neither
-  can judge whether a well-formed request is safe, which is the role of the policy engine
-  (Section~\ref{sec:gov-gate})."
-- **C10.** **NOW. Requirements 3 and 4, tenancy sentence (T79 item 7).** "Building a robust RBAC system
-  implied a multi-tenancy system alongside it … A version of this system was built." Replace
-  with: "Each installation serves one organization, so the Root, Administrators, Users, and
-  Viewers of that organization can sign in from their own computers to one Gateway on a Linux
-  server. The records stay labeled with the organization's identifier, which scopes them and the
-  authorization checks (Section~\ref{sec:gov-tenancy-model})."
-- **C11.** **NOW. Requirements 5 and 6 (T79 item 7, T73), REVISED 10-10 after T86 D4 removed `off`.**
-  "Every agent tool invocation, policy decision, and administrative approval is recorded" is now
-  true in every posture: there is no `off` (the qualifier this item used to suggest, "while
-  governance is in the enforce or monitor posture", and its NEW 10-08 nuance below, are
-  withdrawn). Suggested sentence after the first one: "There is no posture in which the gate
-  stops recording: \texttt{monitor} lets an action no rule covers go ahead and records the
-  decision \texttt{enforce} would have taken." After "a means of detecting modification", add: "Entries removed
-  from the end of the ledger are also recorded. The next append compares the ledger with its
-  checkpoint and, if they disagree, first writes a sealed record of the disagreement into the
-  ledger itself (Section~\ref{sec:gov-ledger-verification})." Change "a complete account of
-  activity" to "a complete account of governed activity" (governed: the tools the gate
-  evaluates, and the \texttt{ungoverned} record of the rest).
-- **C12.** **NEW 10-08, OPTIONAL. Requirements 5 and 6, "an independent verifier".** Accurate in the
-  sense meant (the script shares no code with the Gateway), but T79 asks that nothing local be
-  called independent. Suggested: "a standalone verifier".
-- **C13.** **NOW. Requirement 5, what is recorded (a Chapter 1 departure, 1.2 Objectives).** Chapter 1's objective says the log
-  records "all agent actions, system calls, and policy evaluations". The ledger records tool calls
-  and administrative actions, not operating-system calls. Say so once here: "The ledger records
-  each tool call an agent makes and each administrative action. It does not trace the
-  operating-system calls a permitted tool then makes."
-- **C14.** **NOW, NEW 10-09. Requirement 8, every log file (finding 421).** The paragraph ("Requirement 8
-  prevents secrets and credentials from being recorded in plaintext. The ledger uses the host
-  framework's existing redaction component …") speaks only of the ledger, and names only the
-  host redactor. Requirement 8 says "log files": OpenClaw's own logs are log files too, and on
-  2026-10-08 the rolling log held an agent's reply quoting a password from a file while the
-  ledger held none of it. Replace the paragraph with: "Requirement 8 prevents secrets and
-  credentials from being written in plaintext to log files. Two passes run wherever the system
-  writes a log: the host framework's maintained redactor, which recognises a credential by its
-  format or position, and a second pass for secrets written as prose (Section~\ref{sec:gov-ledger-sanitization}).
-  They run at the ledger's single entry-writing boundary, before an entry is hashed, and at the
-  host's own log outputs: the log file, console output, which becomes a log when the Gateway
-  runs as a service, exported telemetry, and the diagnostic files. The conversation itself is
-  not a log and is not masked, so that an agent can still use a value it was given; a
-  conversation stored on the host remains readable to whoever controls that host
-  (Section~\ref{sec:gov-security})." Both labels are in the 2026-10-08 export
-  (`sec:gov-ledger-sanitization` for 3.5.3.4 Data Sanitization, `sec:gov-security` for 3.5.12
-  System Security).
-  **NEW 10-10 (T85, findings 422 and 423): the list of outputs is longer than the paragraph
-  above names, and the paragraph stays true.** The QA of 421 found three more places a log was
-  written without both passes and fixed them: the fields an error object carries (a provider's
-  reply arrives on an error's `body`), the opt-in diagnostics timeline, and the node host's own
-  error output. Keep "and the diagnostic files" (it now covers the timeline) and add "including
-  the details carried by an error". "Wherever the system writes a log" is now true of every log
-  writer the sweep of 2026-10-10 found, with two deliberate exceptions stated in 3.5.3.4 Data
-  Sanitization (§3.8).
-- **C15.** **NOW, NEW 10-10 (T86 D4, built). Requirement 3, the gate cannot be switched off.** Where 3.2
-  or 3.5.2 Policy Engine names the postures, they are \texttt{enforce} and \texttt{monitor}.
-  Suggested sentence: "The posture is \texttt{enforce} or \texttt{monitor}. Neither suspends the
-  forbid rules, the kill switch or the record, so the gate cannot be switched off from any
-  surface, by any tier." (An `off` posture existed until 2026-10-10, when Kinan removed it. The
-  nine passages of the export that still describe it are listed in §3.1.)
-- **C16.** **NOW, NEW 10-10 (T86 D1 built, finding 426). Requirement 7, what termination reaches.** The
-  paragraph says an operator "can request termination of work already in progress through the
-  Gateway's run-control mechanism". After it, add: "Termination also ends the shell processes the
-  agent left running in the background, which that mechanism deliberately spares, and the stop
-  is confirmed only once they have exited." Chapter 4 figure in §7.
-- **C17.** **NOW, NEW 10-12. Requirement 7, a sentence with no verb.** The same paragraph ends "Confirmation
-  that work already in progress has terminated and the hardware capabilities of the host
-  machine." Suggested: "Confirmation that the work has ended is reported separately
-  (Section~\ref{sec:gov-kill-switch}), and how long it takes depends on that work and on the host
-  machine." (`sec:gov-kill-switch` is the label of 3.5.6.2 Kill Switch in the export.)
-- **C18.** **NOW, NEW 10-11 (T86 D2-A, D3 and D5 built). Requirements 3 and 4, how far each kind of rule
-  reaches.** The paragraph says rules support "path-level file permissions, command and network
-  allowlists, and permissions that expire". Suggested addition: "Path rules bind the file tools
-  and the folder a shell command runs in; network rules bind the web fetch tool and every browser
-  navigation the agent names. A command's own text is judged against command rules, so a
-  permitted command can still name a path or a host that no path or network rule allows;
-  Section~\ref{sec:gov-security} returns to this. A rule can be given a lifetime when it is
-  written, and when a request for it is approved." (D2 option A and D5 option A built
-  2026-10-11; `mg/WORK-LOG-2026-10-11.md` §8.)
-- **C19.** **NOW. Requirement 9 (test counts).** Date the Linux sentence ("on 21 September 2026"), move
-  the current totals to Chapter 4 (§10), and drop "the same total of 3,227", which no longer
-  holds.
 - **C149.** **NOW, NEW 10-28 (finding 450, Kinan's decision 2026-10-28). Tool coverage includes
   the bundled plugins.** "Every host tool is either governed or listed with a reason" (Table
   `tab:gov-ungoverned`, the Requirements 5 and 6 paragraph, and the "Security boundaries" row Tool
@@ -450,7 +133,9 @@ Two things run alongside this list:
   in `docs-notes/UNGOVERNED-TOOLS.md` §"Rows for Table 3.1"; (3) where the chapter names what is
   governed, `lobster` workflows are governed as commands, file transfer to a paired device as
   `<tool>:<device>:<path>`, phone calls by action and number, and the two scraping services by
-  host. Supersedes row 1 of the 2026-10-28 QA's Chapter 3 table (`mg/QA-SESSION-2026-10-28.md`
+  host and, since T93, by address (C150). Still absent from the 2026-11-08 export: line 5261
+  keeps "Every host tool is either governed or listed with a reason", and no plugin tool is
+  named. Supersedes row 1 of the 2026-10-28 QA's Chapter 3 table (`mg/QA-SESSION-2026-10-28.md`
   §4).
 
 ### 3.3 Section 3.3, Analysis of Design Constraints
@@ -461,1203 +146,88 @@ Two things run alongside this list:
   without failure." The run was on 21 September 2026 at `0a7d51f1c12`, and the code has changed
   since. Date it, or say "the governance test suite completed without failure on 21 September
   2026".
-- Verified 2026-10-07 and still true: the login-throttle bound of 1,000 entries
-  (`MAX_TRACKED_KEYS`) and ledger rotation at 8 MiB.
 
-### 3.3a Section 3.4.1, Gate Placement (NEW 10-08)
+### 3.7 Section 3.5.2, Policy Engine (and the passages elsewhere that T93 touches)
 
-- **C22.** **NOW.** "The gate was therefore placed above the short-circuit as the outer governance
-  boundary. It evaluates the attempted tool call before the optional policy stages." One host
-  check runs before the gate: the tool-loop detector, when it is enabled
-  (`runBeforeToolCallHook` in `src/agents/agent-tools.before-tool-call.policy.ts`; the gate is
-  called after it). A call that detector refuses never reaches the policy engine, and it is
-  still recorded, with rule `loop-detector` and decision `deny` (`recordLoopDetectorBlock` in
-  `policy-engine.ts`). Suggested addition after the paragraph: "Only the host's tool-loop
-  detector runs before the gate. A call it refuses is recorded in the governance ledger under
-  the rule identifier \texttt{loop-detector}
-  (Section~\ref{sec:gov-ledger})." Keep it to that one clause here: 3.4.1 Gate Placement
-  compares alternatives, and the description of the record belongs in 3.5.3 Audit Ledger (§3.8,
-  finding 417).
+- **C150.** **NOW (T93, built 2026-11-08; design `mg/T93-URL-RULES-DESIGN.md`). A fourth rule kind,
+  `url`, beside the hostname rules.** A `network` rule is still matched against the hostname
+  alone. A `url` rule is matched against the whole address in one canonical form,
+  `scheme://host:port/path?query`, built by `canonicalUrl` (`src/governance/url-rules.ts`): scheme
+  and host in lower case, the host normalized exactly as for hostname rules, **the port always
+  written** (`:443` for https, `:80` for http), user information and the fragment removed, dot
+  segments resolved, escaped unreserved characters decoded (`/%61dmin` is `/admin`) and other
+  escapes upper-cased; path and query keep their case. Every network call (`web_fetch`, a browser
+  open or navigate, `firecrawl_scrape`, `tavily_extract`) is judged by both kinds: a matching
+  denial of either kind refuses the call, and an allowance of either kind allows it. So a `url`
+  denial narrows a host-wide allowance, a `url` allowance opens one path of an unlisted host, and
+  no `url` allowance passes a hostname denial (the core metadata denial included). A hostless
+  address (`about:`, `data:`, `file:`) has no canonical form and matches no `url` rule. Kinan's
+  decisions of 2026-11-08 (the design's D1–D7, taken as recommended): deny wins across both
+  kinds; the ledger records the masked address beside the host; the query takes part in the
+  match; *Always allow* still proposes a hostname rule; a stored denial of a kind the running
+  build does not know refuses every governed call (D6, `unjudgeableDenial`). Passages of the
+  2026-11-08 export to change (line numbers are that export's):
+  1. **3.5.2.1 Rule Model**, line 1461: "\texttt{ResourceKind} (command, path, network)" becomes
+     "(command, path, network, url)". `fig:gov-code-rule-model`, line 1506:
+     "\texttt{resourceKind}: command, path, network" gains ", url".
+  2. **3.5.2.1 Rule Model**, the paragraph at lines 1571–1584. Replace "For URLs with a host,
+     network rules match only the hostname, excluding scheme, port, and URL path. Normalization
+     lower-cases hostnames, removes trailing dots, and converts alternative IPv4 spellings to
+     dotted decimal." with: "A \texttt{network} rule is matched against the destination's
+     hostname, so it covers every scheme, port, and path of that host. Normalization lower-cases
+     hostnames, removes trailing dots, and converts alternative IPv4 spellings to dotted decimal. A
+     \texttt{url} rule is matched against the whole address in one canonical form,
+     \texttt{scheme://host:port/path?query}. The scheme and host are lower-cased, the host is
+     normalized as for \texttt{network} rules, and the port is always written. User information
+     and the fragment are removed, dot segments are resolved, and an escaped unreserved character
+     is decoded. The path and query keep their case." Then replace "Chapter~1's port-bearing
+     example and Chapter~2's proposed full-URL and payload inspection are outside this model."
+     with "Chapter~1's port-bearing example is expressed as a \texttt{url} rule. The request
+     contents that Chapter~2 proposed to inspect remain outside this model." The dashboard
+     sentence after it gains: "A \texttt{url} pattern that names no port, is not anchored at its
+     start, or ends inside a path segment is also warned about."
+  3. **3.5.2.1 Rule Model**, the browser paragraph, lines 1586–1590: "URLs with a host use
+     hostname matching; hostless addresses, such as local files, are evaluated as raw addresses and
+     are not authorized by hostname allowances." becomes "URLs with a host are evaluated against
+     both \texttt{network} and \texttt{url} rules. Hostless addresses, such as local files, are
+     evaluated as raw addresses and are not authorized by either kind." Add after the paragraph:
+     "Every network call is evaluated against both kinds. A matching denial of either kind refuses
+     the call, so a \texttt{url} denial can narrow a host-wide allowance, and a hostname denial
+     cannot be passed by a \texttt{url} allowance."
+  4. **3.5.2.2 Evaluation Order**, line 1761: "The first pass selects every active denial of the
+     tool's resource kind and access direction" gains ", and for a network call also every
+     \texttt{url} denial, each matched against the canonical address".
+  5. **3.2 Analysis of Design Requirements**, Requirements 3 and 4, line 853: "Network hosts are
+     also covered." becomes "Network destinations are also covered, by host or by full address."
+     Line 859: "Network rules bind the web-fetch tool and every browser navigation that the agent
+     names." becomes "Network and URL rules bind the web-fetch tool, the scraping tools, and every
+     browser navigation that the agent names." `tab:gov-ungoverned` caption, line 907: "that
+     separate call receives a hostname check" becomes "that separate call receives a network check".
+  6. **3.5.3.1 Entry Structure**, `tab:gov-ledger-required-fields`, the conditional fields (after
+     \texttt{intent}, line 2835): new row "\texttt{url} & The canonical address of a network call,
+     with every query value replaced by \texttt{***}. \texttt{resource} keeps the hostname. A
+     Viewer receives it masked." And line 3224, the \texttt{canonicalPayload} sentence:
+     "\texttt{actorRole} and \texttt{intent} use the prefixes \texttt{role:} and \texttt{intent:}"
+     becomes "\texttt{actorRole}, \texttt{intent}, and \texttt{url} use the prefixes \texttt{role:},
+     \texttt{intent:}, and \texttt{url:}". (`scripts/verify-ledger.mjs` hashes it the same way;
+     entries written before T93 carry no `url` and verify unchanged.)
+  7. **3.5.7.1 Escalation Routing** (optional): the question for a network call names the masked
+     address beside the host, so the person deciding sees which page was asked for; *Always allow*
+     still proposes a rule for the host.
+  8. **3.5.11 Management Interface**, lines 5157–5159: "A URL-shaped network pattern also
+     triggers a warning because network policy uses the normalized hostname and excludes the
+     scheme and path." gains "The warning suggests a \texttt{url} rule instead."
 
-### 3.3b Section 3.4.3, Path Representation (NEW 10-08)
+  Unchanged and still true: 3.5.2.4 Baseline Policy (the seven host rules stay `network` rules,
+  matched against the normalized hostname, line 2235). **Not for Chapter 3** (the 2026-10-24
+  limitations rule): that a `url` denial is only as strong as the server's agreement with the
+  canonical spelling, and that redirects, clicked links and page scripts are not checked (T94),
+  are recorded in `CH4-LIMITATIONS.md`. Evidence for Chapter 4 is C151 (§7).
 
-- **C23.** **NOW (finding 416).** "The absolute form is also used for a path inside another agent's
-  workspace, even when that workspace is nested within the current one." True only while the
-  other agent is in OpenClaw's configuration: the nested roots come from the configured agents
-  (`nestedAgentWorkspaceRoots`). Once that agent is deleted, under either deletion choice, its
-  folder can stay inside the default agent's workspace (if, since 2026-10-08, the operator chose
-  to leave it there), and a path in it is then workspace-relative like any other project file.
-  Suggested: "… for a path inside the workspace
-  of another configured agent, even when …". The consequence belongs in 3.5.9 Tenancy and Agent Registry and 3.5.10 Agent Lifecycle (§3.10).
+### 3.10 Section 3.5.12, System Security
 
-### 3.4 Section 3.4.4, Log Integrity (T73, T79)
-
-- **C24.** **NOW. The decision T73 took.** The paragraph ending "exposes truncation that removes entries
-  covered by that checkpoint" is still true. Add after it: "A checkpoint is evidence only while
-  it survives, and the next append would otherwise replace it with the head of the shortened
-  chain. Four ways of keeping that evidence were considered. Refusing every further append until
-  Root intervened would keep it, and would also stop every agent on any disagreement, including
-  a ledger restored from backup. Copying the disputed files to a separate folder would leave the
-  copy as exposed as the original. Operating-system append-only permissions prevent truncation in
-  place, and they do not prevent deleting the file and writing a shortened copy. The selected
-  design combines three measures. The append records any disagreement in the ledger itself before
-  writing the next entry. The operating system is asked to make the ledger append-only where an
-  unprivileged process can do so. Each dashboard keeps a signed receipt for the last ledger head
-  it displayed. Disagreements are then shown to Administrators and Root until Root acknowledges
-  them."
-- **C25.** **NOW (T79).** The last paragraph (key, checkpoint and ledger on one host) states a true
-  boundary and stays. Its remedies ("storing the key outside the host, regularly exporting the
-  checkpoint … retained as future work") belong in Chapter 5 (T74). Keep the boundary, move the
-  remedies.
-
-### 3.5 Section 3.4.6, Management Surfaces (T79 item 7)
-
-- **C26.** **NOW.** "The CLI provides a tool to verify the audit ledger" and "the CLI has no tools to …"
-  describe a command line that was removed. Suggested: "One standalone utility was kept. The
-  Node.js script \texttt{scripts/verify-ledger.mjs} verifies the audit ledger independently of
-  the dashboard and of the running Gateway. It cannot create accounts, change policy, control
-  agents, or open a management session."
-
-### 3.6 Section 3.4.7, Tenancy Model
-
-- **C27.** **OPTIONAL (writing guide).** "does not claim to provide simultaneous isolation between
-  multiple organizations" uses the capability-claim construction the guide asks to avoid. Write:
-  "Isolation between organizations that exist at the same time is outside the supported
-  deployment." Also "the system refuses attempts" gives software a human verb; write "attempts to
-  create another organization within the same installation are rejected".
-
-### 3.7 Section 3.5.2, Policy Engine and its subsections
-
-- **C28.** **NOW, NEW 10-10 (T86 D3, built). 3.5.2.1 Rule Model, the browser is a network access.** After
-  the paragraph on network rules: "A browser instruction to open or navigate to an address is
-  also a network access: the host it loads is checked against the network rules, so allowing the
-  browser does not allow every site. An address with no host, such as a local file, matches no
-  network rule." Limit, here or in System Security: "A link the agent follows by clicking, or a
-  request made by a page's own script, is not a navigation the agent names and is not checked
-  against these rules; nor is the target of a redirect from an allowed host." (QA of 2026-10-11:
-  the web fetch tool follows up to three redirects and the browser follows them as a browser
-  does, and neither re-checks the target against the network rules, only against the private
-  address protection. The two shipped redirectors that look obvious, Google's `/url` and
-  DuckDuckGo's `/l/`, did not redirect an unsigned request when tried, so no shipped host is
-  known to bypass the list; the sentence states the general case.) (`resolveGovernedToolForCall`,
-  `src/governance/resource-extraction.ts`; the address is read as the browser reads it,
-  `targetUrl` before `url`, since finding 428.)
-- **C29.** **NOW, rewritten 10-12 against the export (T86 D3, built 2026-10-10, and D2-A, built
-  2026-10-11). 3.5.2.4 Baseline Policy: the baseline now holds thirteen rules.** Five passages of
-  the export change (`src/governance/baseline-policy.ts`, read 2026-10-12):
-  1. "The \texttt{baseline} tier contains built-in allowances for a small set of inspection
-     operations." becomes "… for a small set of inspection operations and a short list of network
-     hosts."
-  2. "\texttt{loadPolicy} materializes them only when it creates an organization's first policy.
-     An Administrator may later remove or narrow a baseline allowance, and subsequent loads
-     preserve that change." Add after it: "When a later version of the layer adds or narrows a
-     baseline rule, a policy written earlier gains or changes that rule once. A baseline rule an
-     Administrator has changed or removed is left as it is." (Policy document version 4:
-     version 3 added the hosts, version 4 the narrowed listing rule.)
-  3. "The six current baseline rules are listed below" becomes "The thirteen current baseline
-     rules are listed below", or keep the list of six and add one sentence after it for the seven
-     host rules (suggested below).
-  4. **The listing rule** (item "List a directory with constrained arguments"): the pattern is now
-     `^ls( -[a-zA-Z]{1,8})?( (?!/)(?!\.\.(?:/|$))(?!.*/\.\.(?:/|$))[A-Za-z0-9._/-]{1,200})?$` and
-     the description "Directory listing inside the project, with simple flags and one relative
-     path". Add to the item: "The path must be relative and may not contain a \texttt{..} step, so
-     the listing stays inside the project. An absolute path, such as \texttt{/etc}, matches no
-     baseline rule and is put to a person." (The pattern needs `\lstinline` with a delimiter that
-     does not occur in it, as the export's other patterns use `~`.)
-  5. "The baseline does not grant general shell execution, network access, project writes, …"
-     becomes "… general shell execution, network access beyond the listed hosts, project writes,
-     …". Then the host rules: "Seven baseline rules allow a short list of hosts that most work
-     needs: Wikipedia, Google search, GitHub, the main package registries (npm, PyPI, crates.io,
-     RubyGems, Maven Central, Go, NuGet), documentation for the main programming languages, the
-     OpenClaw website and its documentation, Stack Overflow and DuckDuckGo. Local and private
-     addresses, cloud metadata endpoints, the model provider's interface and file-sharing sites are
-     left out, and for Google only search is allowed. An Administrator may remove any of them."
-     Optional: "An allowed host can still carry data out in its address, so the list narrows where
-     data can go and does not stop it." (Kinan's list of 2026-10-10.)
-
-- **C30.** **NOW, NEW. 3.5.2 Policy Engine, "immutable core denials".** Root can switch off five of the ten core
-  denials, as 3.5.2.1 Rule Model and 3.5.2.4 Baseline Policy say. Write "core denials, rebuilt from source whenever the
-  policy is loaded".
-- **C31.** **NOW. 3.5.2.1 Rule Model (finding 399).** After "the policy engine considers the rule only
-  for the named agent", add: "A rule, folder grant, posture, or escalation override can be
-  written only for an agent registered in the organization. An identifier that names no
-  registered agent is rejected, so a typing error cannot leave a rule that binds nothing now and
-  would later bind whatever agent is registered under that name." (Verified 2026-10-07:
-  `requireRegisteredAgentForPolicy` in `src/gateway/governance-dashboard-group.ts`, called by the
-  rule, folder-grant, agent-ask and agent-mode routes.)
-- **C32.** **NOW. 3.5.2.1 Rule Model, network rules (Chapter 1 and 2 departures).** Network rules match the destination hostname
-  only (`extractNetworkResource` in `src/governance/resource-extraction.ts` keeps
-  `new URL(...).hostname`), so a port is never part of the match, and a tool such as `curl` is
-  governed as a command. After "a network rule against a normalized destination", add: "A network
-  rule matches the destination's hostname. The port is not part of the match."
-  **NEW 10-08 additions (finding 410, QA 2026-10-07 §11 item 3):** the hostname is lower-cased,
-  a trailing dot is dropped, and alternative spellings of an IPv4 address are folded to dotted
-  decimal (`canonicalHostname` in `resource-extraction.ts`), while patterns are compiled without
-  flags and are therefore case-sensitive. A pattern containing a scheme or a path
-  (`^https://api\.github\.com/`) can never match. Since 410 the add-rule form and the
-  rule-request preview warn about both: `network-not-a-hostname` for a pattern containing `/`,
-  `network-capitals` for literal capitals. Warnings, not refusals. Suggested continuation: "The
-  hostname is compared in lower case. A pattern that contains a scheme, a path, or a capital
-  letter can never match, and the dashboard warns when such a rule is written."
-  **NEW 10-08, the two earlier chapters (frozen):** Chapter 1's Table 1.2 (1.6 Preliminary
-  Design) gives the example `api.openweathermap.org:443`, and Chapter 2 (2.1.4 Linux OS and
-  System Administration Principles) describes application-layer filtering that inspects "the
-  actual URLs and payload content" of requests. Neither is what was built, so name the departure
-  in the same place: "Chapter~1's example rule names a port, and Chapter~2 describes filtering
-  that inspects whole addresses and request contents. The developed design matches the hostname
-  alone and does not inspect what is sent, so a rule written with a port never matches, and a
-  command such as \texttt{curl} is governed by command rules." (Checked: `:443` contains no `/`,
-  so 410's warning does not catch a port; the sentence is the only protection against that
-  mistake.)
-- **C33.** **NOW, NEW 10-08. 3.5.2.1 Rule Model, expiry (a Chapter 1 departure, 1.6 Preliminary Design).** After "so malformed data cannot transform a
-  temporary permission into a permanent one", add: "Expiry is by time only. Chapter~1 also
-  proposed ending a permission when its task completes; no rule is tied to a task in the
-  developed design, so a permission meant for one task is given an expiry time instead."
-- **C34.** **OPTIONAL (T70). Stored rules without a description.** A version-1 policy is repaired on load:
-  each such rule gets "No purpose was recorded for this rule (added by X on DATE, before
-  descriptions were required) …", and the next write stores version 2. In a version-2 document
-  such a rule can only come from a hand edit. A malformed allowance is dropped, and a malformed
-  denial is kept and enforced, labeled "This denial was stored without a description …". An
-  error in stored policy can narrow access and cannot widen it. One paragraph in 3.5.2.1 Rule Model or
-  3.5.2.4 Baseline Policy, or Chapter 4 only. The current-design-only rule applies: describe the repair as
-  present behavior, not as migration history.
-- **C35.** **NOW, NEW. 3.5.2.2 Evaluation Order, unregistered agents.** "Because no organization ledger
-  exists for that agent, the engine writes an \texttt{agent-not-registered} entry to the ledger"
-  does not say which ledger. The entry goes to the installation ledger, a separate chain for
-  events that belong to no organization (`INSTALLATION_LEDGER_GROUP`, stored under
-  `groups/installation/`). Suggested: "… the engine writes an \texttt{agent-not-registered} entry
-  to the installation ledger, a separate chain kept for events that belong to no organization."
-- **C36.** **NOW, NEW 10-08, rewritten 10-12. 3.5.2.2 Evaluation Order, which posture is read.** The
-  posture read is the agent's own when an Administrator has set one, and the installation posture
-  otherwise (`doc.agentMode[agentId] ?? doc.mode`). The wording is in §3.1 item 2, which replaces
-  the `off` sentence it used to qualify. Also make the `monitor` paragraph say "when the posture
-  that applies to the agent is \texttt{monitor}".
-- **C37.** **NOW, NEW 10-08 (findings 385, 408). 3.5.2.2 Evaluation Order or 3.5.2.3 Path Canonicalization, what an uncovered path in another
-  agent's workspace leads to.** **Rewritten 2026-10-08 after Kinan's decision (ii).** Under the
-  default Ask-a-human setting such a read is not refused: it becomes an escalation, shown to the
-  accounts that manage the **reading** agent, and the question names the other agent ("Agent
-  "main" wants to run "read" against a path inside the workspace of another agent, "epsilon":
-  …", finding 408). **Since 2026-10-08 only the Administrator who owns that other agent, or
-  Root, may allow it**; the reading agent's User and other Administrators may only deny it
-  (`foreign-folder-approval.ts`; full description in 3.5.7.1 Escalation Routing, §3.10). It is
-  refused outright when escalation is off for the reading agent. Suggested sentence for the end
-  of the nested-workspace paragraph in 3.5.2.3 Path Canonicalization: "Such a path matches no
-  workspace allowance, so under the default settings the read becomes a question. Only the
-  Administrator who owns the agent whose workspace holds the path, or Root, may allow it
-  (Section~\ref{sec:gov-escalation-routing})."
-- **C38.** **NOW, NEW 10-08 (finding 416). 3.5.2.3 Path Canonicalization, the nested-workspace boundary lasts only while the
-  other agent is configured.** Every sentence in 3.5.2.3 Path Canonicalization about "another agent's workspace" (the
-  `formatPathRelativeToCwdOrAbsolute` paragraph, the `resolveGovernedPathForms` paragraphs, the
-  search paragraph and the `fig:gov-pathnorm` caption) assumes the other agent is still in
-  OpenClaw's configuration. After it is deleted its folder, if it stays, is an ordinary folder
-  of the default agent's workspace. **Since 2026-10-08 (decision C) the deletion asks whether
-  the folder goes to the trash or stays**, so it stays only when someone chose that, or when the
-  whole organisation was deleted (3.5.10 Agent Lifecycle, §3.10). Suggested sentence after the
-  paragraph that introduces the exception: "The exception applies to agents in OpenClaw's
-  current configuration. Deleting an agent therefore asks whether its folder is moved to the
-  trash, and a folder that is left in place becomes part of the enclosing workspace
-  (Section~\ref{sec:gov-lifecycle})."
-- **C39.** **NOW. 3.5.2.4 Baseline Policy, core-rule table row 6 (finding 388).** The purpose cell
-  ("Matches governance-related subcommands capable of changing policy, accounts, agents …")
-  describes a command line that no longer exists. The rule's description is now "The governance
-  command line, which can switch the gate off (removed from this build; kept as a backstop in
-  case it is restored)". Suggested cell: "A backstop against the governance command line, which
-  is removed from this build, in case it is restored."
-- Verified 2026-10-07 and still true: the default `ask: "on-miss"`, five self-protecting core
-  rules.
-- **C40.** **NOW. 3.5.2.5 Folder Grants (finding 399).** In the request-wide checks add "and, when an
-  agent is named, that it is registered in the organization". The check box in
-  `fig:gov-foldergrant` can gain the same line.
-
-### 3.8 Section 3.5.3, Audit Ledger and its subsections (T73, finding 403, T79)
-
-**3.5.3 Audit Ledger (introduction and decision table).**
-
-- **C41.** **NOW.** `tab:gov-ledger-decisions`, row `ungoverned`: add "It is also the decision on the
-  ledger's own integrity records, which no policy evaluated."
-- **C42.** **NOW, NEW 10-08 (finding 417, fixed 2026-10-08). Calls refused before the gate.** The
-  introduction says "When governance is active, the policy engine starts ledger writing for every
-  tool invocation before it returns a decision." One refusal happens before the policy engine:
-  OpenClaw's tool-loop detector, when enabled, stops a call that repeats without progress, above
-  the gate in `runBeforeToolCallHook`. That refusal is recorded by `recordLoopDetectorBlock`
-  (`policy-engine.ts`) with rule `loop-detector` and decision `deny`, for every registered agent
-  in either posture (finding 417 made it read the agent's own posture; since D4 removed `off`
-  there is no posture in which it is skipped). **Where it goes:** this paragraph of 3.5.3 Audit
-  Ledger, after the sentence quoted above, because it is about what the ledger records
-  (Requirement 5); "When governance is active" in that sentence can go, since governance is always
-  active. Suggested: "A call that OpenClaw's tool-loop detector refuses before it reaches the gate
-  is recorded as well, with the rule identifier \texttt{loop-detector} and the decision
-  \texttt{deny}, so the ledger shows a repeated attempt that the host stopped." Optionally also add
-  `loop-detector` beside `no-extractor` and `no-resource-extracted` in the paragraph "Reserved
-  values mark gaps …", and in the `ruleId` row of `tab:gov-ledger-required-fields` ("Reserved
-  values identify results such as …"). The one-clause mention in 3.4.1 Gate Placement is in
-  §3.3a. Chapter 4 evidence is in §7.
-
-**3.5.3.1 Entry Structure.**
-
-- **C43.** **NOW. Inside the lock (after the `readChainHead` paragraph).** Add: "Before the new entry is
-  built, the append compares that head with the organization's checkpoint. If the checkpoint
-  records a later entry than the ledger holds, records the same entry with a different hash,
-  names an entry no longer in the ledger, or is missing although the ledger is keyed, the append
-  first writes a gap line, described in Section~\ref{sec:gov-ledger-verification}, and continues
-  from it."
-- **C44.** **NOW. The checkpoint paragraph.** Add: "If the checkpoint cannot be written, the disagreement
-  this leaves is recorded once and not at every following append."
-- **C45.** **NOW. The rotation paragraph.** Add: "A rotation that cannot be performed does not fail the
-  append. The entry and its checkpoint are already written, the active file continues to grow,
-  and the deployment report states the failure."
-- **C46.** **NOW. New paragraph, append-only files.** "On Windows, each ledger file receives a permission
-  when it is created that lets its owner read, append, and rename it, and does not let it
-  truncate the file, overwrite it, or change the permission. Rotation continues to work, and an
-  archive keeps the permission it had as the active file. Two limits were measured. A process
-  running with elevated administrator rights is not bound by the permission, and deleting the
-  file and writing a shortened copy is still possible. The gap line and the dashboard witness
-  cover both. On Linux an unprivileged process cannot make a file append-only for itself. The
-  deployment report says so and names the root-only alternative, \texttt{chattr +a}, which also
-  prevents rotation."
-- **C47.** **NOW. `fig:gov-ledger-append` (F25).** Add a step between "Find the current chain head" and
-  "Build the canonical payload": "compare with the checkpoint, and on disagreement append a gap
-  line first". Caption addition: "If the checkpoint disagrees with the chain head, a gap line is
-  appended before the entry."
-
-**3.5.3.2 Hash Chaining and Verification.**
-
-- **C48.** **NOW. The sequence check.** After "the verifier checks the next expected sequence", add: "The
-  sequence may jump forward at exactly one kind of entry, a gap line, and only because that entry
-  is authenticated like every other. A jump at any other entry, or a gap line whose digest does
-  not match, fails verification."
-- **C49.** **NOW. After "They cannot establish that the newest entries still exist."** Add: "The checkpoint
-  comparison is also made at every append, because the append is the operation that would
-  otherwise overwrite the evidence. When the checkpoint and the chain disagree, the append writes
-  a gap line before the requested entry. A gap line is an administrative record attributed to the
-  reserved label \texttt{ledger-integrity}, with the action \texttt{governance.ledger.gap}, and it
-  states the checkpoint's sequence and hash and what the ledger held instead. When entries were
-  removed, numbering continues from the checkpoint's sequence, so a sequence number that once
-  identified an entry is never reused. The record is part of the authenticated chain, so removing
-  it requires removing entries again, which the next append records in turn."
-- **C50.** **NOW. Replace the paragraph "A checkpoint behind the ledger is accepted …".** With: "A
-  checkpoint behind the ledger is accepted when the entry it names is still in the chain with the
-  recorded hash. This is the state left when an entry is appended and the checkpoint write fails.
-  If the named entry has been replaced, or is no longer present, the append records that
-  disagreement as a gap line in the same way."
-- **C51.** **NOW. New paragraphs, the witness and the alerts.** "Each dashboard is also a witness. When an
-  account signs in, the browser returns the receipt it stored for the last chain head it was
-  shown, and receives one for the current head. A receipt is an HMAC over the organization,
-  sequence, and hash, computed with the ledger key under a separate label, so only the
-  installation can produce one, and a receipt can never be mistaken for an entry digest. If the
-  ledger no longer holds the entry a valid receipt names, with that hash, the server appends a
-  \texttt{governance.ledger.witness-contradiction} record naming the account whose browser held
-  the receipt. This detects a shortened ledger even when its checkpoint was rewound to match. A
-  receipt from another organization or another key is ignored." Then: "Gap lines and witness
-  contradictions are integrity alerts. Administrators and Root see every alert that Root has not
-  acknowledged at the top of the dashboard. Root acknowledges each one with a written reason,
-  which is itself recorded. The list is derived from the authenticated chain, and an alert or
-  acknowledgment without a valid digest is ignored, so an entry added without the key can neither
-  raise nor clear an alert. Acknowledging an alert removes nothing. The alert stays in the chain
-  and in every verification." **NEW 10-12 (T86 D9-A):** add "A policy file changed outside the
-  governance store raises an alert of the same kind, shown and acknowledged in the same way
-  (Section~\ref{sec:gov-security}). The chain itself is intact in that case, so verification
-  does not count it among the chain's alerts." (`POLICY_FILE_ALERT_ACTION`,
-  `isGovernanceIntegrityAlert` in `src/governance/audit-ledger.ts`; the dashboard banner is titled
-  "Integrity alert".)
-- **C52.** **NOW, NEW 10-08 (moved from Chapter 2, 2.1.5 Auditability and System Telemetry; T79 item
-  1). What detection does and does not give.** Chapter 2 promises that a modified or deleted
-  entry is caught with "immediate detection", that the verifier "identifies the exact timestamp of
-  the breach", a "perfect forensic timeline", and an "immutable record". Chapter 2 is frozen, so
-  this section states what the developed design gives instead. Put it after the paragraph "A
-  failure reports the first affected sequence when one is available and gives a concrete reason."
-  Suggested: "Chapter~2 described tamper-evident logging in general terms, as detection that is
-  immediate and that dates the change. In this design a change is detected when the next append
-  or a verification compares the chain with its evidence, and the result locates the first entry
-  that fails rather than the time at which the change was made. The ledger is tamper-evident, not
-  immutable: a change can be made, and it cannot be made without leaving that evidence, except by
-  someone who holds the ledger key (Section~\ref{sec:gov-security})."
-- **C53.** **NOW. "Successful server-side verification returns …".** Add "and every integrity alert found
-  in the chain, with the sequence numbers a gap line declares missing. The dashboard reports such
-  a chain as intact since those alerts."
-- **C54.** **NOW. Replace the paragraph "\texttt{scripts/verify-ledger.mjs} reads each organization's active
-  \texttt{audit-ledger.jsonl}. It does not read numbered archive files …"** (finding 403 fixed this
-  limitation). With: "The program reads each organization's numbered archives oldest first and
-  then the active ledger, the same order as \texttt{verifyLedgerChain}, and prints each integrity
-  alert with the entries it declares missing."
-- **C55.** **NOW. `fig:gov-ledger-verify` (F26).** The diamond "Sequence consecutive?" becomes "Sequence
-  consecutive, or a sealed gap line?". The INTACT box's second line becomes "count, head,
-  checkpoint, keyed status, and integrity alerts". The store "Independent checkpoint" becomes
-  "Local checkpoint" (T79: it shares the host with the ledger and the key). "Sequence gap" in the
-  failure note now means an undeclared one.
-
-**3.5.3.3 Administrative Logging.**
-
-- **C56.** **NOW, NEW 10-10 (T86 D12, built). Who sees installation-wide entries.** The export says: "An
-  organization-wide or installation-wide operation records "\texttt{-}". Only Administrator and
-  Root accounts have the unrestricted scope needed to receive such entries. The ordinary ledger
-  projection applies the existing agent-scope rules to administrative records, so a second
-  access-control mechanism is not required." Replace the last two sentences with: "Administrator
-  and Root accounts receive every such entry. Users and Viewers receive six kinds of them: changes
-  to the posture, to what happens on an unlisted action, to the installation's approval timeout,
-  to a core rule's switch, and the addition or removal of a rule that binds every agent, which are
-  the facts they already read on the Policy page; a Viewer receives them masked like every entry.
-  Every other installation-wide entry, such as account changes and sign-ins, stays with
-  Administrators and Root, and a kind of entry added later stays there until it is placed on that
-  list." (`projectLedgerForActor`, `src/governance/ledger-view.ts`; Kinan's decision of
-  2026-10-10.)
-
-- **C57.** **NOW. Reserved labels.** The list "\texttt{bootstrap}, \texttt{unauthenticated}, or
-  \texttt{hitl-approval}" gains \texttt{ledger-integrity}, the ledger's own alerts, reserved like
-  the others (`RESERVED_ACTOR_NAMES`). The same list appears in
-  `fig:gov-administrative-logging-system`. **NEW 10-08:** the set also holds `host-prompt`
-  (prompts from the host's own surfaces, which 3.5.5 Prompt Execution Path names) and `cli` and `unknown`
-  (`admin-audit.ts`; `cli` stays reserved because entries written before the command line was
-  removed on 2026-09-07 carry it). The sentence says "such as", so naming `host-prompt` is
-  enough. **Revised 10-12 (T86 D7):** `hitl-approval` no longer labels a new entry. It stood for
-  an approval answered on a chat surface by someone with no governance account; since D7 every
-  escalation is answered on the dashboard, and the request it files is recorded against the
-  account that answered (`submitRuleRequest`, `src/governance/rule-requests.ts`). The label is
-  still reserved, because older entries carry it. Suggested list: "\texttt{bootstrap},
-  \texttt{unauthenticated}, \texttt{host-prompt}, or \texttt{ledger-integrity}", in the sentence
-  and in `fig:gov-administrative-logging-system`'s "Labelled origin" box (which today reads
-  "\texttt{bootstrap}, \texttt{unauthenticated}, or \texttt{hitl-approval}").
-- **C58.** **NOW, NEW 10-08. Rule-request decisions carry an optional note (QA 2026-10-07 part 2 §1.1).**
-  An Administrator or Root deciding a rule request may add a note of up to 500 characters
-  (refused, not cut, past that), for either outcome. The requester's row shows it, and the
-  ledger entry for the decision ends ", saying: <note>" (`decideRuleRequest` in
-  `rule-requests.ts`), so the note passes the ordinary redaction and length controls. In
-  `tab:gov-admin-audit-actions`, "submitting or deciding rule requests" can become "submitting
-  rule requests and deciding them, with the decider's note when one was given". The main text
-  belongs in 3.5.7.2 Persistent Approvals (§3.10).
-- **C59.** **NOW. `tab:gov-admin-audit-actions`.** "Accounts and authentication" gains "finishing an account
-  deletion that left work incomplete" (`governance.account.delete-finish`). New row "Integrity
-  alerts: gap lines and witness contradictions written by the ledger itself, a policy file changed
-  outside the governance store, and Root's acknowledgment of each" (`governance.ledger.gap`,
-  `governance.ledger.witness-contradiction`, `governance.policy.file-changed` since T86 D9,
-  `governance.ledger.alert-acknowledge`).
-
-**3.5.3.4 Data Sanitization.**
-
-- **C60.** **NOW (T79).** Last sentence, "an authoritative ledger with verifiable integrity", becomes "an
-  authoritative ledger with locally verifiable chain integrity".
-- **C61.** **NOW, NEW 10-08 (T75 decided and built: B and D; replaces the "boundary only" and "WAIT T75"
-  items).** Two changes to what the section describes.
-  - **A second scrubbing pass (D).** After the paragraphs on `redactToolPayloadText`, add: "The
-    ledger applies a second pass, \texttt{redactFreeFormSecrets}
-    (\texttt{src/logging/redact-free-form.ts}), to every resource and intent value after the
-    host redactor and before the entry is hashed. It is aimed at secrets written as ordinary
-    text rather than in a recognised format. It masks a value introduced by a credential word,
-    such as `the password is hunter2' or `token-like value QA-GAMMA-SECRET-7731'. After a word
-    that only ever names a secret (password, passphrase, passcode, one-time or recovery code)
-    and a connector, it masks a value containing a digit, a symbol or a capital, and a plain
-    word only when the word ends its clause and does not read as a description. After a word
-    with an everyday meaning (token, key, secret, credential, PIN), it masks only a value that
-    contains a digit. It never masks a value that names where a secret is kept, such as an
-    environment variable or a configuration path. It masks a hyphen- or underscore-joined token
-    that names itself a secret and carries a number after the name, such as
-    \texttt{DB\_PASSWORD\_2024}, and a string in which one unbroken piece (between hyphens,
-    underscores or equals signs) is twenty or more letters and digits that mix upper case,
-    lower case and digits, switch between them at least 45 percent of the time and have a
-    character entropy of at least 3.5 bits, unless the piece is base64 for readable text, which
-    is left visible so that an encoded command stays readable. Every match becomes
-    \texttt{***}, never a partial value." Then correct
-    the sentence "Entropy is not used as an independent classification rule" to "Entropy is one
-    of the second pass's three tests, bounded so that identifiers the layer mints, hexadecimal
-    digests, UUIDs and camelCase names are not taken for secrets", and narrow the detection
-    boundary paragraph: "A secret that reads as an ordinary word and has no label, or the
-    second and later words of a multi-word passphrase, can still reach the ledger."
-    Measured 2026-10-08, after the QA of 2026-10-09 (finding 419), and again after finding 421
-    (re-derived 2026-10-09 from the test names; **76 on 2026-10-13**, 73 and 3, after T85): 69 tests, 66 in
-    `src/logging/redact-free-form.test.ts` (19 secret forms masked, 43 legitimate forms left
-    alone, the label kept, no partial value, the randomness bounds, idempotence) and 3 in
-    `src/governance/audit-ledger-free-form.test.ts` driving `appendLedgerEntry` (the earlier
-    "64" was one short: the file held 65 before 421 added four cases); over the project's own
-    805 documentation files the pass changes 45 lines, each a real or example secret, a
-    configuration placeholder in a credential field, or a random-looking identifier (34 on
-    2026-10-09 before the T82 table and the day's logs quoted the synthetic secrets again;
-    `mg/QA-SESSION-2026-10-09.md`, `mg/WORK-LOG-2026-10-09.md`); and live, a chat message carrying a
-    password, a PIN, a random token and a labelled code was sealed as "the staging password is
-    \*\*\*, the backup PIN is \*\*\*, and paste \*\*\* into the token box. Also note token-like value
-    \*\*\*" (live ledger #26).
-  - **Background prompts recorded as facts (B).** Add a short paragraph: "A prompt the host writes
-    for itself, such as a memory dreaming prompt, a heartbeat check-in or a plugin's background
-    run, is assembled from earlier conversations, memory files and pending events, and can quote
-    file contents. The ledger records such a prompt as a described fact: which part of the host
-    sent it, its purpose and shape, its length and a fingerprint of the exact text, an
-    HMAC-SHA256 under the ledger key, and never the words themselves. The fingerprint is keyed
-    so that a reader of the ledger cannot test guesses of a short secret inside a known
-    template; a holder of the key can show that a stored copy is the message recorded." Cross-reference 3.5.5 Prompt Execution Path, which states the
-    full rule. With both in place the section may say that a background prompt's quoted file
-    contents do not enter the ledger; it must still not say that no ledger entry ever contains
-    file contents, because a person's own prompt, and model narration, can quote them, and only
-    the two scrubbing passes stand between those and the chain.
-- **C62.** **NOW, NEW 10-09. T82: show the scrubber's real patterns (Kinan, 2026-10-08; `mg/REMAINING-WORK.md`
-  T82).** The section names the redactor and lists the kinds of value it recognises, but shows no
-  pattern, no example and no count. Measured on 2026-10-09 at `e3a61a8645a` by passing each input
-  through the ledger's own path, `redactLedgerText` in `src/governance/audit-ledger.ts`
-  (`redactFreeFormSecrets(redactToolPayloadText(text))`), with the default configuration. Every
-  value below is synthetic.
-  - **The count.** `DEFAULT_REDACT_PATTERNS` in `src/logging/redact-patterns.ts` holds **122**
-    patterns (re-derived 2026-10-09 with the command in `docs-notes/CHAPTER3-MATERIAL.md`
-    "Requirement 8", which still works; a script that also imports `redact.ts` needs
-    `node --import tsx` and a `.mts` file, because `redact.ts` imports the workspace package
-    `@openclaw/acp-core`). The second pass has three tests (labelled values,
-    credential-named codes, random-looking strings), each with the exclusions described in the
-    item above.
-  - **Where.** After the paragraph that begins "The maintained redactor recognizes structured
-    credential fields …" and its paragraph on component-prefixed flags, add one sentence and the
-    table: "Table~\ref{tab:gov-redaction-examples} shows one example of each kind, as the ledger
-    records it."
-  - **The table** (eleven rows; if space is short, keep rows 1, 3, 4, 7, 10 and 11; the quoted
-    passphrase row was added on 2026-10-10 after finding 423 and measured through the same path). It uses
-    `tabularx` and `booktabs`, which the report already loads:
-
-    ```latex
-    \begin{table}[htbp]
-    \centering
-    \caption{Examples of what the ledger's two scrubbing passes record. Every value is synthetic.}
-    \label{tab:gov-redaction-examples}
-    \small
-    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
-    \toprule
-    Kind & Input & Recorded in the ledger \\
-    \midrule
-    \multicolumn{3}{@{}l}{\textit{Host redactor, \texttt{redactToolPayloadText} (122 patterns)}} \\
-    Environment assignment & \texttt{export DB\_PASSWORD=Tr0ub4dorXyz2024} & \texttt{export DB\_PASSWORD=***} \\
-    Command-line flag & \texttt{mysql -u app --password=hunter2hunter2} & \texttt{mysql -u app --password=***} \\
-    Authorization header & \texttt{Authorization: Bearer EXAMPLEtokenabcdef0123456789} & \texttt{Authorization: Bearer EXAMPL\ldots{}6789} \\
-    Connection string & \texttt{postgres://app:S3cretPass99@db.internal:5432/prod} & \texttt{postgres://app:***@db.internal:5432/prod} \\
-    Provider token & \texttt{ghp\_EXAMPLE0123456789abcd} & \texttt{ghp\_EX\ldots{}abcd} \\
-    PEM private key & \texttt{-----BEGIN RSA PRIVATE KEY-----} and its body & body replaced by \texttt{\ldots{}redacted\ldots{}} \\
-    \midrule
-    \multicolumn{3}{@{}l}{\textit{Second pass, \texttt{redactFreeFormSecrets}}} \\
-    Labelled password & \texttt{the staging password is Sunrise-42} & \texttt{the staging password is ***} \\
-    Labelled PIN & \texttt{the backup PIN is 4417} & \texttt{the backup PIN is ***} \\
-    Quoted passphrase & \texttt{the passphrase is "correct horse battery staple"} & \texttt{the passphrase is ***} \\
-    Credential-named code & \texttt{token-like value QA-GAMMA-SECRET-7731} & \texttt{token-like value ***} \\
-    Random-looking string & \texttt{paste Xk9qLm2RtV8wNz4PbH7sJd3F into the box} & \texttt{paste *** into the box} \\
-    \bottomrule
-    \end{tabularx}
-    \end{table}
-    ```
-
-    The `--` in the flag and PEM rows prints as two hyphens in `\texttt` (typewriter fonts have no
-    dash ligature); check this once in the compiled PDF.
-  - **Optional, the patterns themselves.** If the section should show real regular expressions,
-    two short ones from `redact-patterns.ts` read well (quoted exactly; the first masks the
-    password in a database URL, the second a GitHub personal access token):
-
-    ```latex
-    \begin{lstlisting}[style=reportcode]
-    \b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?|amqps?):\/\/[^:\s/@]*:([^@\s]+)@
-    (ghp_[A-Za-z0-9]{10,})
-    \end{lstlisting}
-    ```
-
-  - **What stays visible, for the detection-boundary paragraph** (measured the same way, all
-    unchanged by both passes): "Root's password was compromised, so it was rotated" (a
-    description, not a value); "the password is in \$DB\_PASSWORD" and "the token is read from
-    process.env.GITHUB\_TOKEN" (references to where a secret is kept); "echo
-    Y2F0IH4vLnNzaC9pZF9yc2E= | base64 -d | sh" (base64 that decodes to a readable command, left so
-    an investigator can read it); "echo correcthorsebatterystaple" (an unlabelled ordinary word:
-    the boundary). Base64 that decodes to `user:password` is masked
-    (`dXNlcjpodW50ZXIyaHVudGVyMg==` became `***`).
-  - **Replace the detection-boundary paragraph** ("Pattern-based redaction has a defined detection
-    boundary …") as a whole, because its sentence "High apparent entropy does not trigger masking"
-    is now false as well as the earlier "Entropy is not used …": "Redaction has a defined
-    detection boundary. The host redactor masks exact values registered with the host and
-    credentials that match a recognised format or sit in a structured credential position. The
-    second pass masks a value introduced by a credential word, a quoted phrase introduced the
-    same way, a code whose name says it is a secret, and a long string that mixes letters and
-    digits at random. A secret that reads as an ordinary word and carries no label, such as a
-    passphrase typed on its own, can still reach the ledger, as can a passphrase of several words
-    written without quotation marks, a secret used as the name of a field, and a secret split
-    across two records. A long identifier that looks random, such as a voice or document id, is
-    masked although it is not a secret, and so is a 40-character run of mixed-case letters and
-    slashes, the shape of a cloud access key, even inside a file path. Both passes run on every
-    resource and intent field at the storage boundary." This supersedes the narrower boundary
-    sentence suggested in the item above. (**Updated 2026-10-10** after findings 423 and the
-    live QA's observation O1, `mg/WORK-LOG-2026-10-10.md` §2.5 D7 and §7.2: the quoted phrase is now
-    masked; the unquoted phrase, field names and split records are the stated boundary; on the
-    Windows development machine every ledger path read `C:/Users…de/…` because
-    `/Users/kinan/AppData/Local/Temp/claude` is exactly such a run. **T86 D11, decided 2026-10-12
-    (option A):** the detector stays, and the report says what happens, as in the sentence above,
-    and does **not** present it as a trade-off.)
-  - **CHECK when writing:** the item above says the second pass "never masks a value that names
-    where a secret is kept". True of that pass, but the host redactor runs first and does mask some
-    configuration-syntax references: `api_key: os.environ/ANTHROPIC_API_KEY` became
-    `api_key: os.env…_KEY`. Keep the sentence scoped to the second pass, and do not use that line
-    as an example of a reference left visible.
-- **C63.** **NOW, NEW 10-09. The second pass also protects OpenClaw's own logs (finding 421).** The
-  section describes sanitization as the ledger's. Since finding 421 the second pass lives in the
-  host's logging module (`src/logging/redact-free-form.ts`) and runs, after the host redactor,
-  wherever the host writes a log (`src/logging/redact-log.ts`). After the paragraph on the second
-  pass, add: "The same two passes protect the host's own logs. They are applied to every string a
-  log record carries before the record is serialised, to console output, which becomes a log
-  when the Gateway runs as a service, to exported telemetry, to the per-session trajectory record
-  and the debugging files, and to lines read back from older logs. They are not applied to the
-  conversation itself or to the tool results a model reads: masking a password there would hide
-  it from the agent asked to use it." Evidence for Chapter 4 is in §7. The description of the
-  random-string test stays true; it now judges the pieces between hyphens, underscores and equals
-  signs, after a health line's `eventLoopDelayP99Ms=42.8` was taken for a key.
-- **C64.** **NOW, NEW 10-10. What the QA of 421 changed (T85, findings 422 and 423).** Three facts the
-  paragraph suggested in the item above should carry, each verified against the code on
-  2026-10-10:
-  - **Errors.** "Every string a log record carries" now includes the fields of an error object.
-    Before 422 both passes stepped over anything that was not a plain object, and the logger keeps
-    an error whole, so a provider's reply on the error's `body` was written as "The password is
-    hunter2". The error is now copied with every string inside it scrubbed
-    (`redactErrorForLog`, `src/logging/redact-log.ts`). A value that is itself a JSON document,
-    such as a provider's error body kept as a string, is parsed and scrubbed value by value
-    (423, found live).
-  - **Length caps.** "Text over a log's length cap is scrubbed before it is cut" (423: the file
-    log cut a message to 4 KB first, which left the first 14 characters of a token straddling the
-    cut, too short to recognise). Text within the cap is untouched.
-  - **Two outputs added, two left by decision.** The diagnostics timeline (opt-in) and the node
-    host's error output now pass both passes. Left as they were, and worth one sentence among the
-    section's limits: the Codex wrapper's own error file, written by a separate process that
-    cannot load the logging module (its content reaches OpenClaw only as an error message, which
-    the logs scrub), and the conversation-class stores of decision D21.
-  Suggested sentence after the paragraph on the host's own logs: "This includes the details of
-  an error, a value that is itself encoded as JSON, and text longer than a log's length limit,
-  which is scrubbed before it is shortened."
-- **C65.** **NOW, NEW 10-08 (moved from Chapter 1, 1.2 Objectives and 1.6 Preliminary Design, and
-  Chapter 2, 2.1.5 Auditability and System Telemetry; T79 item 3). How far the build meets the
-  earlier chapters.** Chapter 1 asks for a log "strictly preventing the leakage of sensitive
-  data" and a filter that "ensure[s]" secrets are masked; Chapter 2 describes an engine using
-  "entropy analysis" that replaces a secret with `[REDACTED_SECRET]` and "strictly prevent[s]"
-  plaintext from reaching the log. The section says entropy is not used ("Chapter 2
-  proposed a separate preprocessing filter …"); **that is no longer true after T75's D (see the
-  item above)**, so that paragraph changes with it. After it, add: "Chapters~1 and~2
-  stated the goal in absolute terms. The developed ledger applies the host's maintained redactor
-  and a second pass of its own that uses labels, naming and a bounded entropy test, as described
-  below. Together they do not detect every sensitive value, and the host redactor masks a long
-  credential rather than replacing it with a fixed placeholder." The items above and the
-  masked-form item below supply the detail.
-- **C66.** **NOW, NEW 10-08. What a masked value looks like.** The section says values are "masked" but
-  not how, and Chapter 2 (2.1.5 Auditability and System Telemetry) gives the placeholder
-  `[REDACTED_SECRET]`. Measured on 2026-10-08 against
-  `redactToolPayloadText` with the default logging configuration: an exact registered value is
-  masked by `maskToken`, which keeps the first six and last four characters of a value of 18 or
-  more characters and writes `***` for a shorter one; a pattern match is masked the same way
-  where the redactor treats the field as hinted, and with `***` otherwise. Observed:
-  `Authorization: Bearer sk-proj-…0123456789` → `Bearer sk-pro…6789`;
-  `OPENAI_API_KEY=sk-proj-…` → `OPENAI_API_KEY=sk-pro…6789`; `ghp_…` → `ghp_ab…89AB`;
-  `--password=hunter2hunter2` → `--password=***`; `echo correcthorsebatterystaple` unchanged; a PEM
-  private-key block keeps its BEGIN and END lines and its body becomes `…redacted…` (measured
-  2026-10-09).
-  Suggested sentence after the paragraph listing what the redactor recognises: "A masked value
-  of 18 or more characters keeps its first six and last four characters, so an investigator can
-  tell two credentials apart without the ledger holding either, and a shorter value is replaced
-  by \texttt{***}. A private-key block keeps its first and last lines, and its body is replaced
-  by \texttt{\ldots{}redacted\ldots{}}." For Requirement 8 this means a long secret leaves ten characters in the
-  ledger; state it, rather than let "no plaintext secret" imply none.
-
-### 3.9 Section 3.5.4, Access Control Model and its subsections
-
-**3.5.4 Access Control Model.**
-
-- **C67.** **NOW.** "As described in \ref{sec:prelim-des}" prints "As described in 1.6". Write
-  "As described in Section~\ref{sec:prelim-des}".
-- **C68.** **NOW, NEW 10-08 (finding 412, QA part 2 §7 item 1). One projection for every policy
-  response.** The section says authorization decides "which agents those operations may affect"
-  but not what a reader receives when the answer is the policy itself. Before 412, `GET policy`
-  scoped each agent-keyed collection by hand and missed `agentHitlTimeout`, and the seven routes
-  that write the policy answered with the whole stored document (a User setting its own agent's
-  timeout received every agent's rules and overrides; an Administrator received `userAsk`).
-  Now every route that returns the policy passes it through `policyViewFor`
-  (`src/gateway/governance-policy-view.ts`): global rules plus the rules of agents in the
-  reader's scope; locked agents, escalation, posture and timeout overrides only for agents in
-  scope; the per-account escalation settings only for Root. Suggested sentence after the
-  paragraph on the two checks: "A response that contains the policy, including the response to a
-  policy change, passes through one projection. It keeps the global rules and the rules and
-  settings of agents within the reader's scope, and only Root receives the per-account
-  escalation settings."
-
-**3.5.4.1 Role Hierarchy.**
-
-- **C69.** **NOW. `tab:gov-role-capabilities` (finding 397).** Row "Register agents and assign them to
-  accounts": Administrator "Owned" becomes "Owned, to own staff". Row "Read policy and effective
-  permissions": Viewer and User "Assigned" become "Assigned and global" (they read the global
-  rules and their assigned agents' rules, `GET policy` in `governance-dashboard-api.ts`). New rows
-  (T73, worded for D9's policy-file alerts too): "See integrity alerts" (Administrator, Root) and
-  "Acknowledge an integrity alert" (Root only). (D9's live check: a User and a Viewer got 403 on
-  `integrity/alerts`, an Administrator's acknowledgment 403.) Witnessing needs no row: every tier does it, and it discloses only a number
-  and a hash.
-- **C70.** **NOW (finding 397).** "assign eligible agents to User and Viewer accounts" becomes "assign
-  eligible agents to the User and Viewer accounts that answer to it". Optional sentence after the
-  table: "Assignment is limited to the accounts an Administrator manages, so one Administrator
-  cannot change which agents another Administrator's staff may use."
-- **C71.** **NOW. Viewer scope (a Chapter 1 departure, 1.6 Preliminary Design).** Chapter 1 has Viewers reading "sanitized
-  audit logs permitted by the Root". Add to the Viewer paragraph: "Chapter 1 had Root decide what a
-  Viewer may read. In the built system a Viewer reads the entries of its assigned agents, with
-  resources and model intent masked, and its Administrator or Root makes the assignment."
-- **C72.** **NOW. Last-Root paragraph.** Add: "The only operation that removes the Root account is deletion
-  of the entire organization, which Root confirms by typing its username and which removes every
-  account and agent with it. The audit ledger is kept." **Optional, NEW 10-10 (finding 425):**
-  add "Every account's sessions end inside the deletion, before any account is removed; if they
-  cannot be ended, nothing is deleted." (Before 425 they were revoked only after the accounts
-  were gone, and a failure was reported as "stays signed in until the session expires".)
-- **C73.** **NOW, NEW 10-08. Departure from Chapter 1 (1.6 Preliminary Design) on User rule authoring.** After the
-  paragraph "Users may normally create agent-scoped rules … Root can set the account's
-  \texttt{canAuthorPolicy} field to \texttt{false}", add: "Chapter~1 had the Administrator decide
-  whether a User could change an agent's parameters. In the developed design a User may author
-  rules for its assigned agents unless Root withholds it, because withholding changes what a
-  person may do rather than what an agent may do, and account decisions belong to Root. A User
-  whose authoring is withheld asks through a rule request, which an Administrator decides."
-  (Verified 2026-10-08: `users/policy-authoring` requires Root.)
-
-**3.5.4.2 Two-Gate Authentication.**
-
-- **C74.** **NOW, NEW. Wrong cross-reference.** The first sentence, "As discussed in Section
-  \ref{sec:gov-host-interception} and shown in Figure \ref{fig:gov-twopaths}", points at the
-  section and figure about the two execution paths for agents. The two login gates are discussed
-  in Operator Identity and drawn in the architecture figure. Write "As discussed in
-  Section~\ref{sec:gov-operator-identity} and shown in Figure~\ref{fig:gov-architecture}".
-- **C75.** **NOW (T76). Replace "The individual account-deletion route revokes all sessions associated with
-  the account after the deletion operation finishes its cleanup and audit steps."** With: "Deleting
-  an account revokes its sessions inside the deletion itself, after every refusal has been decided
-  and before the account record is removed. If the sessions cannot be revoked, nothing is deleted
-  and the operator is told why. After the record is removed, the sessions are swept a second time,
-  and the stored conversations, escalation override, and audit record follow. A failure in any of
-  these is reported as a completed deletion with work left to finish, which Root can complete from
-  the dashboard. It never leaves the deleted account a working session. A sign-in that read the
-  account just before its deletion is rejected if the account no longer exists once its session is
-  issued."
-- **C76.** **NOW (T78).** After the cookie paragraph, add: "A session cookie whose value is not validly
-  encoded is treated as absent, so the request receives the governance sign-in response and no
-  server error."
-- **C77.** **NOW, NEW 10-08 (finding 406, QA §11 item 5). The Gateway gate and its brute-force
-  throttle.** "Depending on the Gateway configuration, the request uses the configured Gateway
-  credential or the device token associated with the authenticated Control UI connection." The
-  dashboard sends its paired-device token. Until 406 the Gateway tried that token as the shared
-  secret first, counted the mismatch as a failed attempt, and slept up to 5 seconds before
-  accepting it as a device token, so every governance read waited out a penalty. Now the
-  shared-secret failure is held back and applied only if the device-token check fails too
-  (`authorizeControlUiReadRequest`, `src/gateway/control-ui.ts`, an upstream file the fork
-  changed). Suggested sentence after the quoted one: "A valid device token is not counted as a
-  failed shared-secret attempt, so the Gateway's brute-force throttle delays only a request
-  whose credential is neither." This also explains why dashboard timings measured before
-  2026-10-07 are not usable (§7).
-- **C78.** **NOW, NEW 10-08 (finding 414, QA part 2 §7 item 1). Password reset clears the lockout.**
-  "A successful login clears the accumulated failures." Add: "Root setting a new password for
-  the account clears them as well, so a locked-out operator can sign in with the new password at
-  once." (`setUserPassword` calls `forgetLoginThrottle` after storing the password; a refused
-  reset keeps the failures.) The limiter sentence ("process-local … starts with an empty counter
-  after a Gateway restart") stays.
-- **C79.** **NOW, NEW 10-10 (T77 built; replaces the former "WAIT T77" item). The session mirror.** "On
-  the normal successful path, role changes, same-role management changes, assignment changes, and
-  policy-authoring changes update the corresponding active sessions. Promotion out of a managed
-  role also clears …" Keep the sentence listing the facts a session holds, and replace the two
-  sentences with: "The operation that changes an account also updates that account's sessions,
-  in one step under the account store's lock. Every session is first narrowed to the lesser of
-  the old and the new authority, then the account is written, then the sessions receive the new
-  authority. If the first update fails, nothing changes and the operator is told so. If the last
-  fails, the change stands and the sessions keep the narrower authority until their holder signs
-  in again, and the response, the ledger entry and the dashboard say so. No session is ever
-  broader than its account." (Code: `commitAuthorityChanges`, `src/governance/account-authority.ts`;
-  tests: `src/gateway/governance-authority-consistency.test.ts`, 24. Shown live on 2026-10-10:
-  with the sessions file locked, a demotion was refused with "Nothing was changed for lina", and
-  a grant of rule writing answered with the lag notice while her live session kept the narrower
-  setting; `mg/WORK-LOG-2026-10-10.md` §3.5.)
-- **C80.** **NOW, NEW 10-10 (finding 424). A sign-in confirms its session.** After "A successful login
-  creates a 256-bit random session token …", add: "Once the session exists, the sign-in checks the
-  account again under the account store's lock. If the account was deleted, or its password
-  changed after the one just verified, the session is revoked and the sign-in refused; otherwise
-  the session receives the account's authority as it is at that moment." (Before 424, a demotion
-  or a password reset landing between the password check and the session's creation gave the new
-  session the old authority or the old password's access.) This replaces the last sentence of the
-  T76 item above ("A sign-in that read the account just before its deletion is rejected …"),
-  which it generalises.
-- **C81.** **NOW, NEW 10-10 (finding 425). Password reset revokes inside the change.** Wherever the report
-  says a password reset ends the account's sessions (3.5.4.1 Role Hierarchy, Root's paragraph, or
-  this section), the order is now: "Setting a new password ends the account's sessions in the same
-  step, before the new password is stored. If they cannot be ended, the password is not changed."
-  (Before 425 the sessions were revoked afterwards, so a failure left the password changed and
-  every old cookie working, perhaps the attacker's that the reset was meant to end.)
-
-**3.5.4.3 Ownership and Assignment.**
-
-- The _Your accounts_ sentence (397) is in the paste. Verified 2026-10-07: "a transfer to Root
-  releases all existing managed-account assignments" is correct, because Root can never be a
-  User's or Viewer's manager (`createUser` in `user-store.ts`).
-- **C82.** **NOW, NEW 10-10 (T77). Replace the consistency-limitation paragraph** ("The account store,
-  agent registry, and active-session store use separate files and locks. … it does not provide
-  an atomic cross-store guarantee.") with: "The agent registry, the account store and the session
-  store are separate files, each with its own lock, and every change that checks one of them in
-  order to write another holds the locks in one fixed order: registry, then accounts, then
-  sessions. An assignment is checked against the account and the registry as they are inside
-  those locks. An ownership transfer releases the agent from the accounts that may no longer hold
-  it before it records the new owner, so a failure part-way leaves the old owner and the holders
-  as they were or narrower, never an agent of one Administrator held by another's staff. The
-  checks that an Administrator owns no agents before being demoted or deleted run inside the same
-  locks. Sessions follow their account as Section~\ref{sec:two-gt-auth} describes. The three
-  files are still not one transaction: a failure after the account is written leaves the
-  sessions narrower than the account until the next sign-in, and the operator is told." Also
-  change "\texttt{setAgentOwner} writes the new owner to the registry, records … and then calls
-  \texttt{revokeHoldersOutsideOwner}" to "\texttt{setAgentOwner} releases the agent from accounts
-  outside the new owner's staff (\texttt{releaseAgentFromAccounts}) and then writes the new owner
-  and records both owners in the ledger". (Verified 2026-10-10 in `agent-registry.ts` and
-  `user-store.ts`; `revokeHoldersOutsideOwner` no longer exists.)
-- **C83.** **NOW, NEW 10-08 (decision (ii)). Ownership now also decides reads into the agent's folder.**
-  The paragraph on `requireOwnership` lists what ownership controls: renaming, transfer,
-  unregistering or deleting, and the Codex permission. Add after it: "Ownership also decides who
-  may let another agent read inside this agent's workspace. When such a read is escalated, only
-  the owning Administrator or Root may allow it (Section~\ref{sec:gov-escalation-routing})."
-  Since a change of owner changes who may allow, a transfer also moves that authority, with no
-  further step.
-- **C84.** **NOW, NEW 10-08 (decision (ii)). 3.5.4.1 Role Hierarchy, what a User may answer.** The User
-  paragraph says a User may "answer their held actions"; add "except a request to read inside
-  another agent's workspace, which the User may only deny". The Administrator paragraph lists
-  organisation-wide operation; add "An Administrator may allow a read into another agent's
-  workspace only when it owns that agent."
-
-### 3.10 Sections 3.5.5 Prompt Execution Path to 3.6 Summary (rewritten 2026-10-04 and 2026-10-07)
-
-Written to the section formula against the code, and present in the paste. They were accurate on
-2026-10-07 before that day's QA. The QA's findings 407 to 416 changed behaviour these sections
-describe, and the 2026-10-08 check found the overclaims below (**NOW** items first, then the
-older open and optional ones).
-
-**3.5.5 Prompt Execution Path and 3.5.6 Session Control.**
-
-- **C85.** **NOW, NEW 10-10 (T86 D1, finding 426). 3.5.6.2 Kill Switch, background processes.** After the
-  sentence on aborting the agent's runs: "OpenClaw's run control deliberately leaves running a
-  shell command that the agent moved to the background, and a command still running after ten
-  seconds is moved there automatically. The kill switch therefore also ends the agent's
-  background shell processes, forcefully and at once rather than with the operating system's
-  usual grace period, and reports the stop as confirmed only after each has exited."
-  `fig:gov-killswitch` (checked against the export 2026-10-12): step 2 "abort signal to every
-  running task" becomes "abort signal to every running task; background processes ended"; step 3
-  "registries checked every 10\,ms for up to 2\,s" can stay (one 2-second deadline covers runs and
-  processes, `CONFIRM_STOPPED_TIMEOUT_MS` in `src/governance/agent-terminator.ts`); the caption's
-  "reported as confirmed only when every signaled run has left the run registries" gains "and
-  every background process has exited". In the confirmed-stop paragraph, "until every signaled run
-  has left the run registries" gains the same clause. Figure for Chapter 4 in §7.
-- **C86.** **NOW, NEW 10-12 (T86 D6, measured 2026-10-10). 3.5.6.2 Kill Switch, the last paragraph.**
-  "During creation the Gateway does not respond to any request for about six seconds" is an old
-  figure (5.4–6.4 s on 2026-09-28). Measured on 2026-10-10 on the laptop (`/healthz` unanswered):
-  3.2 and 3.3 seconds for a warm creation, 12.1 seconds for the first creation after the Gateway
-  started (`mg/WORK-LOG-2026-10-10.md` §8). Not yet measured on the VPS. Suggested:
-  "During creation the Gateway does not respond to any request, for about three seconds once it
-  has created an agent before and for about twelve seconds the first time after it starts, and a
-  stop pressed in that interval takes effect when the Gateway responds again." The same figures
-  replace "about six seconds" in the Kill switch row of `tab:gov-security-limits` (below). D6-A,
-  moving that work off the event loop, is decided and not built; until it is, this is a limit and
-  Chapter 5's future work (§7). Qualifier from the QA of 2026-10-11, for
-  3.5.12 System Security if the export wants one: "These are the processes the Gateway host
-  runs. A command the agent sends to a paired node runs on that node, and a sandboxed command
-  runs inside its container, where ending the local process is all OpenClaw's own process
-  control does."
-
-- **C87.** **NOW, NEW 10-08 (finding 418 and T75's B). The last paragraph of 3.5.5 overclaimed, and now
-  describes a rule that was built.** The paste says: "Prompts that enter OpenClaw from other
-  channels pass through a separate ingress-audit hook. The ledger records them under the reserved
-  actor \texttt{host-prompt}, with the channel when it is known. This includes prompts that the
-  host generates itself, such as memory consolidation prompts." Until finding 418 (fixed
-  2026-10-08) only the command line, the gateway \texttt{agent} method and the HTTP APIs reached
-  that recorder: OpenClaw's own chat, every messaging channel, the heartbeat and scheduled jobs
-  started their turns elsewhere and were not recorded at all, and memory consolidation prompts
-  were recorded in full under the misleading channel \texttt{webchat}. Replace the paragraph with:
-  "A prompt that enters OpenClaw outside the dashboard is recorded once, where the host starts the
-  turn, under the reserved actor \texttt{host-prompt}: from OpenClaw's own chat, a messaging
-  channel, the command line, an HTTP client, a scheduled job, a voice consult or a session
-  companion question. A prompt a person or a job's creator wrote is recorded in full, after
-  redaction, with its channel or the job's name. A prompt the host writes for itself, such as a
-  memory dreaming prompt, a heartbeat check-in, the memory flush before compaction, a skill
-  review or a plugin's background run, is recorded as a described fact with a fingerprint of
-  the text, keyed with the ledger key, and without the words, because it is assembled from earlier
-  conversations and files. Every tool call in either kind of turn passes the same governance
-  checks. A message one agent sends another, such as a sub-agent's report, keeps its text and
-  says that it declared itself a message from another session, written by an agent, not a
-  person." (Finding 420: those arrived on the internal channel, named \texttt{webchat}, and read
-  as typed in OpenClaw's chat.) Optional example for a figure or listing (live ledger #31,
-  2026-10-08, before the fingerprint was keyed on 2026-10-09): "background
-  prompt from plugin "memory-core" (memory dreaming, dream diary entry, light phase: 7 memory
-  fragments, 6 recurring themes, 0 promoted memories); 1,371 characters, 21 lines; HMAC-SHA256 …;
-  text not recorded, because a background prompt is assembled by the host and can quote earlier
-  conversations and file contents". Design reasons and the full list of entry points:
-  `docs-notes/CHAPTER3-MATERIAL.md` §3.5.102; `mg/WORK-LOG-2026-10-08.md` part 5.
-
-- **C88.** **NOW, NEW 10-08 (QA part 2 §1.5). A stopped run closes its conversation turn.** Before this
-  fix a dashboard task stopped before any reply streamed (Cancel, the five-minute limit, or the
-  kill switch) left the request as the last turn of the transcript, and OpenClaw's
-  `mergeOrphanedTrailingUserPrompt` merged it into the account's next message, so an
-  Administrator's cancel was undone by the User's next "hello" (seen live twice on 2026-10-07).
-  Now the governance runner, when the run's signal was aborted, appends an assistant turn marked
-  aborted: the streamed reply if any, else "(This request was stopped before it finished.)"
-  (`src/agents/governance-stopped-turn.ts`, called from `governance-agent-runner.ts`). Three
-  places in the report rely on this and should say it:
-  - 3.5.5 Prompt Execution Path, after "When the run ends, the conversation receives the redacted reply or the failure
-    reason": "A run that was stopped also closes its turn in the agent's transcript, so the
-    stopped request is not sent to the model again with the account's next prompt."
-  - `tab:gov-session-controls`, row "Later work", Cancel column: "Unaffected. The agent can
-    receive the next prompt, which does not carry the cancelled request".
-  - 3.5.6.1 Agent Lockdown, "Work stopped during the incident does not restart": now true; optional "…, and a
-    stopped request is not carried into the next prompt."
-- **C89.** **NOW, NEW 10-08 (finding 411, QA §11 item 4). The conversation names who cancelled.** When
-  an account other than the sender cancels a task, the sender's conversation reads "The prompt
-  was cancelled by admin1." (`cancelPromptRun` keeps `cancelledBy`). In the Cancel paragraph of
-  3.5.6 Session Control, after "so the conversation shows whether a person or the time limit stopped it", add:
-  ", and, when the person was not the account that sent the prompt, which account it was".
-- **C90.** **OPTIONAL, NEW 10-08 (finding 415).** 3.5.5 Prompt Execution Path, "A prompt to a locked agent is recorded as a
-  denied attempt and does not reach the model": add "The dashboard keeps the typed prompt and
-  shows the reason." (Before 415 the box emptied and nothing appeared.)
-- **C91.** **OPTIONAL, NEW 10-08 (moved from Chapter 1, 1.6 Preliminary Design, and Chapter 2, 2.1.3
-  Core Development Technologies). 3.5.6.2 Kill Switch, signals.** Chapter 1 proposes stopping an
-  agent with "SIGTERM followed by SIGKILL" on "the agent's Node.js process and all orphaned child
-  processes", and Chapter 2 says the backend "will utilize Node.js process management to send
-  SIGKILL". The agent runs inside the Gateway process, so the kill switch aborts the agent's runs;
-  3.5.6.2 Kill Switch already says tools end the processes they started "where the tool supports it" and
-  already names one departure ("This reporting departs from the way Chapter~1 stated the
-  target."). If the signal departure should be named too, add before that sentence: "Because the
-  agent runs inside the Gateway process, the kill switch aborts the agent's runs instead of
-  signalling a separate agent process as Chapter~1 proposed. Ending the Gateway would also stop
-  every other agent and the dashboard."
-
-**3.5.7 Human-in-the-Loop Approvals.**
-
-- **C92.** **NOW, NEW 10-08. 3.5.7.1 Escalation Routing, the departure from Chapter 1 (1.6 Preliminary Design, HITL).** After "These are a User
-  assigned the agent, and any Administrator or Root in the organization", add: "Chapter~1 sent
-  every request to an Administrator. The developed design also asks the User assigned the agent,
-  because the User is the person who started the work and is usually the one able to judge the
-  request; Administrators still see every request in their organization."
-- **C93.** **NOW, NEW 10-08 (finding 408, and Kinan's decision (ii) of 2026-10-08, built and tested that
-  day). 3.5.7.1 Escalation Routing, a read inside another agent's folder.** The section says
-  every request goes to "a User assigned the agent, and any Administrator or Root in the
-  organization" and that "the first answer is used". For one kind of request that is no longer
-  true. When the action reads a path inside the workspace of another configured agent (OpenClaw
-  nests later agents' workspaces inside the default agent's), the request is still shown to
-  everyone who manages the reading agent, but only the Administrator who owns the other agent,
-  or Root, may allow it; everyone else may deny it. The same holds for such a request under
-  _Awaiting your decision_, where "Would allow" files a rule request. Each card says whose
-  folder it is and who decides, and the allow buttons an account may not use are shown disabled
-  with that reason as their tooltip. The server refuses an allow from anyone else (403).
-  (`src/governance/foreign-folder-approval.ts`; routes `approvals`, `approvals/decide`,
-  `pending-decisions`, `pending-decisions/decide`.) Suggested paragraph after "The ledger
-  records the answer together with the account that gave it.": "One request is answered
-  differently. When an agent asks to read inside the workspace of another agent, the request
-  names that agent, and only the Administrator who owns it, or Root, may allow the read. The
-  other accounts that see the request may deny it. The files belong to the other agent, so the
-  people responsible for them decide, rather than whoever manages the agent that asked. A
-  request that timed out is treated the same way under \textit{Awaiting your decision}."
-  Limit to state in 3.5.12 System Security (§3.10 below): rule writing is separate, so an account
-  allowed to write rules for the reading agent can still write a rule covering the path (Root can
-  withhold a User's rule writing). (A second limit listed here until 2026-10-12, that a
-  chat-started run's request is answered on OpenClaw's own surfaces, ended with T86 D7: such a
-  request is now on the dashboard too, where this rule applies.)
-- **C94.** **NOW, NEW 10-08 (decision (ii)). 3.5.7.2 Persistent Approvals.** After the paragraph on what
-  \textit{Always allow} files: "For a read inside another agent's workspace, \textit{Always
-  allow} is available only to that agent's owner and Root, like \textit{Allow once}. The rule
-  request it files is decided in \textit{Rule requests} like any other." (Any Administrator can
-  decide that rule request; stated as a limit in 3.5.12 System Security.)
-- **C95.** **OPTIONAL, NEW 10-08 (QA part 2, low 7; extended 10-12 by D7).** Each card says where the
-  request came from: "Asked while user1 was talking to main:", "Asked in your conversation with
-  main:" on the asker's own page, or, for a chat run, "Asked through a telegram chat with main:"
-  (`governance.approvals.askedFromChat`).
-- **C96.** **NOW, NEW 10-08 (QA part 2 §1.1). 3.5.7.2 Persistent Approvals, decision notes.** "An Administrator or Root approves
-  or rejects the request in the \textit{Rule requests} section." Add: "The decider may add a note
-  of up to 500 characters, for example to explain a rejection. The requester sees it beside the
-  decision, and the ledger records it with the decision." (Ledger side in §3.8, 3.5.3.3 Administrative Logging.)
-- **C97.** **NOW, NEW 10-11 (T86 D5, option A, built). 3.5.7.2 Persistent Approvals, the lifetime of the
-  rule.** Until 2026-10-11 approving a request created a rule that never expired (shown live on
-  2026-10-10, ledger #129 "(agent main, indefinite)"). Now the approver chooses. Add after the
-  approval sentence: "The Administrator also chooses how long the rule lasts, from one hour to
-  thirty days, or without a limit, which is the default. A request can ask for a lifetime, and an
-  operator who presses \textit{Always allow} can choose one beside the button; the Administrator
-  sees it already selected and may shorten it or remove it. The lifetime counts from the approval,
-  so a request that waits in the queue does not lose time. The ledger entry for the approval
-  records when the rule expires." Evidence: `mg/WORK-LOG-2026-10-11.md`. Limit, for 3.5.12 System
-  Security or Chapter 5 (T86 D5's other half, not in option A): "Folder grants and agent
-  assignments have no lifetime; they last until they are removed."
-  **The card's quoted sentence changed with it.** The section quotes the card: "An Administrator
-  must approve the request before permission becomes permanent." Since 2026-10-11 the card reads
-  "… before the action is allowed again without asking." (an approval need not be permanent any
-  more). Replace the quote's last clause in the export; Kinan's repository copy
-  `docs-notes/report/ch3-3.5.6-to-3.6.tex` still has the old one. (The sentence before the quote
-  changes too, for D7: next item.) Two more places say "permanent" for the same reason: the
-  3.5.7 introduction, "\textit{Always allow} lets it run this time and asks an Administrator to
-  make the permission permanent", becomes "… and asks an Administrator to add a rule for it"; and
-  the `fig:gov-alwaysallow` caption, "A permanent rule exists only after an Administrator or Root
-  approves …", becomes "A rule exists only after …".
-- **C98.** **NOW, NEW 10-12 (T86 D7-A, built 2026-10-12; finding 429). 3.5.7.1 Escalation Routing and
-  3.5.7.2 Persistent Approvals: a chat run's request now waits on the dashboard.** Every
-  escalation the gate raises carries a governance marker (`pluginId` `openclaw-governance`,
-  `src/governance/approval-origin.ts`) and is handled as a dashboard prompt's always was: hidden
-  from OpenClaw's approval surfaces, forwarded to no channel, listed in _Waiting for your answer_
-  for the accounts that manage the agent, and resolvable only through the governance route
-  (finding 429: before the fix, a chat's `/approve` command could resolve one through the shared
-  approval principal if it knew the request's id). The chat receives one message through the
-  Gateway's `send`: the agent is waiting for approval on the governance dashboard, what it asked,
-  and that nobody answering within the waiting time means refused. OpenClaw's own Control UI chat
-  gets no message (`send` does not deliver into it). A run that nobody is waiting on (a scheduled
-  job, the heartbeat, memory dreaming) is refused at once, as before, and the request is kept
-  under _Awaiting your decision_ (ledger `hitl-cancelled`). Other plugins' approvals and
-  OpenClaw's exec approvals keep OpenClaw's own surfaces. Four passages change:
-  1. **3.5.7.1 Escalation Routing**, the first paragraph: replace "A run started from a chat
-     channel produces a request on OpenClaw's own approval surfaces, the Control UI and the
-     channel. There, anyone holding the Gateway credential or access to the channel can answer, as
-     Section~\ref{sec:gov-security} notes." with "A run started from a chat channel produces the
-     same request, in the same section, for the same accounts, and the channel receives a message
-     saying that the request waits on the governance dashboard. A run that nobody is waiting on,
-     such as a scheduled job, is refused at once, and its request is kept in \textit{Awaiting your
-     decision}." The paragraph's first sentence, "The place where an approval request appears
-     depends on where the run started", is no longer true: delete it, or write "Every approval
-     request appears on the governance dashboard."
-  2. **3.5.7.2 Persistent Approvals**, the reason given for filing a request: "A chat approval can
-     be answered by a person with no governance account, and a permanent change to the policy needs
-     an approver who is signed in and named in the ledger." The first half is no longer true.
-     Suggested: "A User assigned the agent may answer a request, and a change to the policy that
-     outlasts the request is an Administrator's decision, recorded against the Administrator who
-     made it."
-  3. **3.5.7.2 Persistent Approvals**, "When an account answered from the dashboard, the request
-     names that account. A request answered on a chat surface is labeled \texttt{hitl-approval},
-     because no governance account authored it." becomes "The request names the account that
-     answered." (`submitRuleRequest` records the answering account as the request's author;
-     §3.8 has the reserved-label consequence.)
-  4. **3.5.7.2 Persistent Approvals**, the last paragraph: "The warning appears in the dashboard
-     and the Control UI. Chat channels show only the original answer." becomes "The warning appears
-     on the dashboard, where the request was answered." (The outcome is reported to the surface that
-     resolved the approval, `plugin.approval.reportOutcome`, and only the governance route may
-     resolve one now. **CHECK** in a live run: not driven since D7.)
-  The two "first answer" sentences, the escalation settings and their table stay true: "For a run
-  that nobody started by name, such as a chat message, the settings of every account assigned the
-  agent are considered" is unchanged by D7. Evidence for Chapter 4 in §7.
-- **C99.** **OPTIONAL, NEW 10-08 (finding 413).** `tab:gov-escalation-settings`: per-agent waiting times
-  are now listed in the Policy section, one row per agent ("Approval timeout: scout · 120
-  seconds · Use default"); before 413 one could be set and never seen.
-
-**3.5.9 Tenancy and Agent Registry.**
-
-- **C100.** **NOW, NEW 10-08 (findings 408, 416; rewritten after Kinan's decisions (ii) and C of
-  2026-10-08). The last paragraph.** "A read there is escalated or denied, and in-process
-  searches remove results from it. This keeps a User from reading, through the default agent,
-  the files of an agent assigned to someone else." Measured on 2026-10-07, before the two
-  decisions, it overclaimed twice: the User holding the default agent could press _Allow once_
-  on the question (408), and once the other agent was deleted its folder was read with no
-  question at all (416). Since 2026-10-08 the sentence is nearly true, and what remains is a
-  matter of rule writing and of an operator's explicit choice:
-  1. Only the other agent's owning Administrator, or Root, may allow the read (decision (ii)).
-  2. Deleting the other agent asks whether its folder goes to the trash or stays (decision C).
-     It stays only when someone chose that, or when the whole organisation was deleted.
-
-  Suggested replacement for the last two sentences: "A read there is never allowed by a
-  workspace allowance. Under the default settings it becomes a question that only the
-  Administrator who owns the other agent, or Root, may allow; with escalation off it is refused.
-  In-process searches remove results from it. This keeps a User from reading, through the
-  default agent, the files of an agent owned by someone else, unless a rule written for the
-  default agent allows that path. The separation lasts while the other agent is configured, so
-  deleting it asks whether its folder is moved to the trash (Section~\ref{sec:gov-lifecycle})."
-
-**3.5.10 Agent Lifecycle.**
-
-- **C101.** **NOW, NEW 10-08 (finding 407).** `tab:gov-agent-lifecycle`, row "Register an existing agent":
-  Root now chooses the owner beside each _Register_ button (default Root); an Administrator's
-  registration makes it the owner. Suggested Effect cell: "Registers an agent that OpenClaw
-  already has. An Administrator becomes its owner; Root chooses the owner". In the prose, "An
-  agent is created or registered by an Administrator or Root" can gain "and both forms ask Root
-  who will own it".
-- **C102.** **NOW, NEW 10-08 (finding 416, and Kinan's decision C of 2026-10-08, built and tested that
-  day). Deleting an agent whose folder is inside another agent's workspace.** Two facts:
-  - OpenClaw's own delete does not move a working folder that lies inside another agent's
-    workspace (`isPathOwnedBySurvivingAgent` in `server-methods/agents.ts`; driven live on
-    2026-10-07). So in `tab:gov-agent-lifecycle`, row "Delete as OpenClaw does", "moves the
-    agent's files to the trash" needs "except a working folder inside another agent's
-    workspace, which the next question covers".
-  - Since 2026-10-08, deleting such an agent (either choice) asks a second question: **move its
-    folder to the trash**, or **leave it where it is**. Neither is preselected, and the dialog
-    explains each one (what it does, when to choose it, what it costs), as the deletion choice
-    does. "Trash" moves the folder, after the agent is deleted, into the same `.Trash` folder in
-    the Gateway account's home folder that OpenClaw's own delete uses, so it can be recovered on
-    the server. The move is restricted to the enclosing workspace. It is refused before anything
-    is deleted if the agent is still working, if another configured agent works inside that
-    folder, or if the governance directory is inside it. A move that fails after the deletion is
-    reported as a warning saying the folder is still readable and what to do. "Leave" keeps
-    today's behaviour, and the ledger entry for the deletion says which happened ("its working
-    folder, which sat inside main's workspace and which OpenClaw leaves in place, was moved to
-    the trash" or "its folder inside main's workspace was left in place, where main can read
-    it"). The route requires the choice for such an agent (400 without it). Deleting the whole
-    organisation does not ask; its folders stay, and each agent's ledger entry says so.
-    (`src/governance/nested-folder-retirement.ts`, `deprovisionAgent`, route
-    `agents/deprovision` field `nestedFolder`.)
-
-  Suggested prose, after the paragraph on the two deletion choices: "OpenClaw places each later
-  agent's folder inside the default agent's workspace, and neither deletion removes such a
-  folder. Deleting that kind of agent therefore asks a second question: move its folder to the
-  trash, or leave it in place, where the enclosing agent can then read it. Moving it is refused
-  before anything is deleted while the agent is working, while another agent works inside the
-  folder, or when the governance directory is inside it. The audit ledger records which was
-  chosen and what happened. Deleting the organization leaves such folders in place, and its
-  ledger entries say so."
-
-- **C103.** **OPTIONAL, NEW 10-08 (QA part 2, lows 3 and 4).** "the confirmation states before the change
-  that the previous owner's Users and Viewers will lose the agent": it now names them, or says
-  nobody holds the agent.
-
-**3.5.11 Management Interface.**
-
-- **C104.** **NOW, NEW 10-08 (finding 410).** The warning paragraph gives two examples (a pattern matching
-  every command, an interpreter rule). Add the network case, since it is the one that silently
-  never works: "… or a network rule written as a URL, which can never match because network
-  rules are compared with the hostname only".
-- **C105.** **NOW, NEW 10-08 (decision (ii)). A control shown disabled, with its reason.** The section
-  says "The dashboard is built to show a section or a control only to an account that the
-  matching route accepts, so that a visible control is one that can succeed." Decision (ii) adds
-  a deliberate exception: on a question to read inside another agent's folder, an account that
-  may only deny still sees _Allow once_ and _Always allow_, disabled, with the reason as their
-  tooltip ("Only bea, who owns epsilon, or Root can allow a read inside epsilon's folder. You
-  can deny it."), and a line above the card says the same. The same holds for _Would allow_
-  under _Awaiting your decision_. Hiding them would leave the person not knowing the request can
-  be allowed at all, or by whom. Suggested continuation of that sentence: "Where an account may
-  see a decision but not make it, the control is shown disabled with the reason, so that the
-  person knows who can act."
-- **C106.** **OPTIONAL, NEW 10-08 (decision C).** The _Delete the agent…_ button of an agent whose folder
-  is inside another agent's workspace carries a tooltip saying the deletion will ask about the
-  folder.
-- **C107.** **NOW, NEW 10-12 (T86 D4 and D9-A). The deployment report paragraph** ("The deployment report
-  is Root's checklist …"; this is where the export describes it, not System Security). Two
-  changes (`src/governance/deployment-status.ts`, read 2026-10-12):
-  1. "``Governance is enforcing'' fails when governance is off, warns when the installation or any
-     agent is in \texttt{monitor} and names them, and passes only when every agent enforces."
-     becomes "``Governance is enforcing'' warns when the installation or any agent is in
-     \texttt{monitor}, naming them, and passes when every agent enforces." (No posture fails it
-     now: `off` is gone.)
-  2. "whether any ledger integrity alert is still unacknowledged" becomes "whether any integrity
-     alert, the ledger's own or one for a policy file changed outside the governance store, is
-     still unacknowledged". The next sentence ("Administrators and Root also see each such alert
-     at the top of the dashboard …") stays true for both kinds.
-
-**3.5.12 System Security.**
-
-- **C108.** **NOW, NEW 10-08 (findings 408, 416; decisions (ii) and C; revised 10-12 for D7).**
-  `tab:gov-security-limits` has no row for agent workspaces, although 3.5.9 Tenancy and Agent
-  Registry claims a protection there. Suggested row: Area "Other agents' workspaces"; Protection
-  "A read inside another configured agent's workspace is never allowed by a workspace rule; it
-  becomes a question that only that agent's owner or Root may allow. Deleting an agent asks
-  whether its folder goes to the trash"; Limit "A rule written for the reading agent can still
-  allow the path, and any Administrator can approve such a rule request. A folder left in place,
-  by choice or by deleting the organization, is readable by the enclosing agent". (The limit
-  "a chat-started run's question is answered on OpenClaw's own surfaces" was dropped on
-  2026-10-12: since D7 it is answered on the dashboard.)
-- **C109.** **NOW, NEW 10-10, rewritten 10-12 (every T86 row decided). `tab:gov-security-limits`, the rows
-  T86 changed, and the interpreter paragraph.**
-  - **Kill switch row (D1 built, D6-A not built).** Protection: "Available during every other
-    dashboard operation, and ends the shell processes the agent left running in the background".
-    Limit: "about six seconds" becomes "about three seconds, and about twelve the first time after
-    the Gateway starts" (§3.10, 3.5.6.2 Kill Switch item, and §7). D1's stop is confirmed in
-    267–325 ms unloaded; under heavy load the confirmation can outlast its 2-second wait and the
-    stop is then reported unconfirmed (`mg/WORK-LOG-2026-10-12.md` §14), which is the reporting the
-    section already describes.
-  - **A new row (D2-A and D3 built).** Area "Shell commands and the browser"; Protection "Every
-    command is checked against the command rules and the core denials, and the folder it runs in
-    against the path rules (a folder no rule covers is refused); a browser navigation the agent
-    names is checked against the network rules"; Limit "Path and network rules do not judge a
-    command's own arguments, so a permitted command can reach what a path or network rule would
-    refuse (the shipped listing rule stays inside the project, but a link inside it can point
-    out). The folder of a command sent to a paired node or run in a sandbox is judged as a path on
-    the Gateway host. A link the agent clicks, a request a page's script makes, or a redirect from
-    an allowed host is not a navigation it names".
-  - **Chat approvals row (D7-A built).** Area "Approvals" (or keep "Chat approvals"); Protection
-    "Every escalation, from any channel, is answered on the governance dashboard by an account
-    that manages the agent and is recorded against it; \textit{Always allow} only files a rule
-    request"; Limit "The Control UI's own chat is not told where the request waits. Who may talk to
-    a chat agent is decided by the channel's own access settings". The prose for 3.5.7.1 and
-    3.5.7.2 is in the 3.5.7 item above. Facts: `mg/WORK-LOG-2026-10-12.md` §11–§13,
-    `docs-notes/CHAPTER3-MATERIAL.md` §3.5.113.
-  - **Interpreter rules row and paragraph (D9-A built).** Protection: "A warning when a rule
-    allows running arbitrary code. A policy file changed outside the governance store is detected
-    at the next load, recorded in the ledger, and raised as an integrity alert until Root
-    acknowledges it". Limit: "Detected, not prevented: the changed file stays in force until an
-    Administrator corrects it. A holder of the ledger key can seal its own edit, and an earlier
-    copy put back, or the file deleted, together with a Gateway restart is not noticed". In the
-    paragraph below the table ("The second explained limit concerns rules that allow an
-    interpreter …"), replace "so the code can then set its own agent to \texttt{monitor} or the
-    installation to \texttt{off}. The ledger records the interpreter command and no posture
-    change, because the edit does not pass through the governance functions that record
-    administrative actions." with "so the code can then set its own agent to \texttt{monitor} or
-    give it a rule of its own. The edit does not pass through the governance functions that
-    record administrative actions, so the store detects it instead. Every write seals the file
-    with an HMAC under the ledger key over the organization's identifier, a write counter and
-    the content, and a load that finds a seal that does not match, no seal, an earlier copy, or
-    no file writes a sealed integrity alert into the ledger, which the dashboard shows to
-    Administrators and Root until Root acknowledges it with a reason
-    (\texttt{src/governance/policy-seal.ts}). The changed file stays in force, because refusing
-    it would let anything able to write the file stop every agent. An operator editing the file by
-    hand raises the same alert." Keep the rest of the paragraph (the warning, and the separate
-    account as future work). Facts: `mg/WORK-LOG-2026-10-12.md` §1–§8,
-    `docs-notes/CHAPTER3-MATERIAL.md` §3.5.112. Optional, if the report covers upgrading: every
-    installation made before D9 shows one such alert after the upgrade, because its file carries
-    no seal yet.
-  - **No row for D4, D10, D11, D14, D15.** D4's consequence is §3.1's list. D10 (option A) is
-    wording only, in 3.5.3.4 Data Sanitization (§3.8, what counts as a log). D11 (option A) is the
-    path-masking sentence in §3.8, stated as behaviour and not as a trade-off. D14 (option A)
-    keeps the two path cases the table already states. D15 is closed with no sentence about the
-    model provider; the Linux run is T83.
-
-**Older open and optional items:**
-
-- **C110.** **NOW, NEW 10-08 (T75 decided).** 3.5.5 Prompt Execution Path's sentence on host-generated
-  prompts: see the first item of this section. **3.5.12 System Security:** in the row or
-  paragraph on the audit ledger's confidentiality, add "Background prompts the host writes for
-  itself are recorded as described facts with a fingerprint, not their text, and a second
-  scrubbing pass masks secrets written as prose (Section~\ref{sec:gov-ledger-sanitization})."
-- **C111.** **NOW, NEW 10-10 (finding 421). 3.5.12 System Security, `tab:gov-security-limits`, a row for
-  logs and stored secrets.** Suggested row: Area "Secrets in logs and on the host"; Protection
-  "Every log the host writes (the log file, console output when the Gateway runs as a service,
-  exported telemetry, diagnostic files and the audit stores) passes the same two scrubbing passes
-  as the ledger"; Limit "A secret that reads as an ordinary word with no label can still pass.
-  The conversation itself, the model credentials, the configuration and the ledger key are
-  readable by whoever controls the host, because the Gateway must use them. Diagnostics written
-  before the fix keep what they hold until they age out (T84)". Chapter 5 sentence in §7.
 - **C112.** **WAIT T74.** 3.5.12 System Security's audit-ledger row once an off-host witness exists.
-- **C113.** **OPTIONAL (T86 D13, option B, 2026-10-11: no change).** The export's `tab:gov-ungoverned`
-  already gives each excluded tool's reason, and its caption says outbound messaging "uses channel
-  integrations that the operator has already authorized". If wanted, one sentence beside it:
-  "These tools run without a rule check and are recorded as ungoverned; the messaging tools among
-  them can carry what an agent has read out of the host."
-- **C114.** **OPTIONAL. 3.5.8.1 Task and Slot Model.** If the code names are wanted as presentation anchors: "In the code,
-  \texttt{settlePromptRun} marks the run as saving and frees its slot, and
-  \texttt{finishPromptRun} removes it from the registry."
-- **C115.** **OPTIONAL. 3.5.7.1 Escalation Routing (finding 402).** "The conversation shows when the agent is waiting for an
-  answer from the account that sent the prompt, and links to the request."
-- **C116.** **OPTIONAL. 3.5.11 Management Interface (T76, T73).** Account deletion that left work to finish shows "… was deleted,
-  but not everything was finished" and a _Finish deleting_ control for Root. The _Audit ledger_
-  verification row reads "Intact since N integrity alerts" and lists the entries each alert
-  declares missing. A witness notice appears to any tier whose own browser proved a contradiction.
-- **C117.** **OPTIONAL. 3.5.12 System Security table.** Rows for T76 ("A deleted account never keeps a working session") and
-  T78 ("Malformed session cookies receive the sign-in response").
 
-### 3.11 Figures
-
-All design figures planned for Chapter 3 are now placed, and `fig:gov-killswitch` was added. The
-figure changes owed are the two ledger figures (§3.8: F25 and F26), the optional folder grant
-line (§3.7), and, **since 10-12**: `fig:gov-killswitch`'s termination step and caption (D1,
-§3.10), `fig:gov-alwaysallow`'s caption ("A permanent rule", D5, §3.10),
-`fig:gov-administrative-logging-system`'s "Labelled origin" box (D7, §3.8), and the
-`fig:gov-pathnorm` caption's `off` sentence (D4, §3.1). Delete the stale map (§3.1) instead of renumbering it. `docs-notes/FIGURES.md`
-cites every figure by label since 2026-10-10 (T81) and repeats the F25 and F26 changes under
-their headings. **NEW 10-10, optional:** finding 421's write path (log record → pattern pass →
-free-form pass → file, console, telemetry; the conversation store beside it, unmasked) would fit
-`fig:gov-sanitization-write-path` as a third lane, if the figure is touched for T82's table.
-
-### 3.12 Keep these limitations (T79 item 8)
-
-Do not delete them during cleanup or shortening: the residual filesystem races and the native
-Codex search asymmetry; denial-first folder-grant partial writes; a checkpoint that legitimately
-lags a completed append; pattern redaction's detection boundary; the process-local login limiter;
-best-effort authentication auditing; the loopback and SSH cookie decision; what remains of the
-cross-store limit in 3.5.4.3 Ownership and Assignment after T77 (the three files are not one
-transaction; a late failure leaves sessions narrower than their account until the next sign-in,
-§3.9). **Added 2026-10-10:** the
-host's owner can read the conversation and the secrets the Gateway uses (finding 421's
-boundary); a rule for the reading agent can still allow a path in another agent's folder
-(decision (ii)); a folder left in place after deletion is readable by the enclosing agent
-(decision C); key, checkpoint and ledger on one host (until T74). **Added 2026-10-10, late:**
-the Codex wrapper's own error file and the detection boundary as restated in §3.8 (T85).
-**Added 2026-10-12, the T86 limits that stay after the decisions:** a command's own arguments are
-not judged by path or network rules, and a browser's clicked links, page scripts and redirects
-are not navigations the agent names (D2-A, D3); folder grants and agent assignments have no
-lifetime (D5-A); the Gateway answers nothing while an agent is created (D6-A, decided and not
-built); the Control UI's own chat is not told where its request waits (D7-A); a policy file
-edited outside the store is detected, not prevented, and its seal is only as strong as the
-ledger key (D9-A); the path cases of D14. The masking of a path that looks like a cloud key
-(D11) is described as behaviour, not kept here as a limitation.
 
 ## 7. Chapters 4 and 5
 
@@ -1996,6 +566,32 @@ ledger key (D9-A); the path cases of D14. The masking of a path that looks like 
   that the Gateway itself must use, such as model credentials, and the conversations it stores
   remain readable to whoever controls the host; the requirement on log files is met, but no
   component on a machine can withhold from that machine's administrator what it needs to run."
+
+- **C151.** **Chapter 4 evidence for T93, the `url` rule kind (2026-11-08).** Tests:
+  `src/governance/url-rules.test.ts` (43: the canonical form, 13 spellings and 4 hostless
+  addresses; the decision order across both kinds; every network entry point; what the ledger
+  records, the Viewer mask, the hash and the standalone verifier; the unknown-kind refusal; the
+  authoring warnings; the cross-kind clash) and `ui/src/pages/governance/url-rules-ui.test.ts`
+  (8). Mutation sweep: 10 of 10 killed (kind judging, escape decoding, the written port, query
+  masking, the hashed field, the Viewer mask, the unknown-kind refusal, the recorded field, the
+  port warning, the cross-kind clash). Suites on the changed tree: governance and gateway
+  3,562 passed / 6 skipped / 0 failed (216 files); dashboard and i18n 595 / 0 (55 files).
+  **Live, on a rebuilt isolated Gateway** (dashboard and `/tools/invoke`, which runs the same
+  gate as an agent's call): a `url` rule written without a port was held back with the port
+  warning; the corrected allowance and a `url` forbid inside it were added from the dashboard,
+  the forbid with the spelling caveat; `web_fetch` of the allowed path was allowed, and the
+  forbidden path was refused in three spellings (`/docs/private/notes?token=…`,
+  `EXAMPLE.com./docs/%70rivate`, `/docs/public/../private?x=1`), each reason naming the address
+  with the query value masked; a baseline host was still fetched; an uncovered address on the
+  same host became a question naming `https://example.com:443/pricing?apikey=***`, and
+  *Always allow* filed a hostname rule request `^example\.com$`. The dashboard and
+  `scripts/verify-ledger.mjs` both verified the chain intact (15 entries, 7 with the address);
+  neither test secret appeared anywhere in the ledger file. **Found live and fixed:** after the
+  warning's *Change it*, the add-rule form's kind box showed `command` while the form held
+  `url` (the generated options were drawn after the select's value was set); a test drawing the
+  form afresh fails without the fix (`renderKindOptions`, `rule-kind-hints.ts`). Not driven
+  live: a Viewer's view of the address (unit-tested), browser navigation through
+  `/tools/invoke` (unit-tested). Record: `mg/WORK-LOG-2026-11-08.md` §3.
 
 ## 8. Repository documents (not the report)
 

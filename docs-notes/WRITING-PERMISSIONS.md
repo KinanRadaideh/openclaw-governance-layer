@@ -92,19 +92,21 @@ reach for second, not first.
 
 ---
 
-## 2. The three kinds
+## 2. The four kinds
 
-| Kind      | Covers                                                                  | What your pattern is compared against                 |
-| --------- | ----------------------------------------------------------------------- | ----------------------------------------------------- |
-| `command` | shell commands, terminal input, and the other ways an agent acts (§2.2) | the full command line, e.g. `ls -la /tmp`             |
-| `path`    | files the agent reads, searches, lists, writes, or patches              | each file path, e.g. `config/settings.json`. See §2.1 |
-| `network` | web addresses the agent fetches                                         | the hostname only, e.g. `api.example.com`             |
+| Kind      | Covers                                                                  | What your pattern is compared against                                              |
+| --------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `command` | shell commands, terminal input, and the other ways an agent acts (§2.2) | the full command line, e.g. `ls -la /tmp`                                          |
+| `path`    | files the agent reads, searches, lists, writes, or patches              | each file path, e.g. `config/settings.json`. See §2.1                              |
+| `network` | web addresses the agent fetches or opens in the browser                 | the hostname only, e.g. `api.example.com`                                          |
+| `url`     | the same web addresses as `network` (2026-11-08, T93)                   | the whole address, e.g. `https://api.example.com:443/v1/weather?key=abc`. See §2.3 |
 
-Three things people get wrong here:
+Things people get wrong here:
 
 - **`network` matches the hostname, not the whole URL.** For
   `https://api.example.com/v1/weather?key=abc`, your pattern is compared
-  against `api.example.com` alone. Do not put `https://` or a path in it.
+  against `api.example.com` alone. Do not put `https://` or a path in it. To
+  name a scheme, a port or a path, write a `url` rule instead (§2.3).
 - **A rule for one kind never authorises another.** Allowing every `command`
   does not allow any `path`. Each kind is a separate world.
 - **`path` covers searching and listing too, not just opening a file.**
@@ -192,6 +194,50 @@ these tools: the built-in denial of `sudo` stops it being typed into a terminal
 or onto the screen, without anyone having to name those tools.
 
 ---
+
+### 2.3 `url` rules: part of a host (2026-11-08, T93)
+
+A `network` rule is all or nothing for a host. A `url` rule names part of one: a
+scheme, a port, a path, a query. Every address the agent fetches or opens is
+checked against **both** kinds, and a forbid of either kind wins.
+
+Your pattern is compared with the address written one standard way:
+`scheme://host:port/path?query`. Before comparing, the system:
+
+- writes the scheme and host in lower case, and settles the host exactly as for
+  `network` rules (trailing dot, IP spellings);
+- **always writes the port**: `https://example.com/` is compared as
+  `https://example.com:443/`, `http://` gets `:80`. So a pattern must name the port;
+- drops `user:password@` (a credential, never compared or recorded) and the
+  `#fragment` (never sent to the server);
+- resolves `/a/../b` to `/b`, and turns `%61` back into `a` (so `/%61dmin` is `/admin`);
+- keeps the path's and the query's capitals: `/Docs` and `/docs` are different.
+
+Examples:
+
+| You want                                   | Write                                                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| One API, version 1 only, any page below it | allow `url` `^https://api[.]example[.]com:443/v1(/\|\?\|$)`                                            |
+| A whole host except its settings pages     | allow `network` `^example[.]com$`, forbid `url` `^https?://example[.]com:(443\|80)/settings(/\|\?\|$)` |
+| One exact address                          | allow `url` `^https://example[.]com:443/report[.]csv$`                                                 |
+
+End a path with `(/|\?|$)` to mean "this page and everything below it": without
+it, `/v1` also matches `/v10` and `/v1-admin`. Always start with `^`: otherwise the
+rule also matches an address that merely contains yours, for example inside
+another address's `?next=` query.
+
+Three things to know:
+
+- A `url` forbid is only as strong as the server's agreement with the standard
+  spelling. A server that ignores capitals or decodes `%2F` may serve the same page
+  under another address. To be sure, forbid the whole host with a `network` rule.
+- A forbid on the host still beats any `url` allow, and the shipped forbid on cloud
+  metadata addresses cannot be opened by a `url` rule.
+- Checks apply to the address the agent names (fetch, browser open or navigate,
+  the scraping tools), not to redirects, clicked links or a page's own requests.
+
+The ledger records the host as before and, beside it, the address with every
+query value replaced by `***`; a Viewer sees it masked.
 
 ## 3. Patterns, from scratch
 
@@ -524,15 +570,16 @@ Things worth knowing:
 
 ## 6. Mistakes, and how they fail
 
-| Mistake                          | What you wrote                                      | What it actually allows                                                                     |
-| -------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **Forgetting anchors**           | `ls`                                                | any command containing "ls", including `rm -rf /; ls`                                       |
-| **Unescaped dots**               | `^api.example.com$`                                 | `apiXexampleYcom` as well as the real host                                                  |
-| **A catch-all**                  | `^.*$`                                              | _everything_ of that kind. This disables governance for that kind. The system will warn you |
-| **Whole URL in a network rule**  | `^https://api[.]example[.]com/v1$`                  | nothing, ever. Only the hostname is compared. Warned when you write it (finding 410)        |
-| **Capitals in a network rule**   | `^API[.]example[.]com$`                             | nothing, ever. Hostnames are folded to lower case first. Warned when you write it (410)     |
-| **Expecting a rule to restrict** | adding a 10-minute rule when a permanent one exists | nothing changes; remove the broader rule instead                                            |
-| **Forbidding one direction**     | forbid, read only, `^billing/.*$`                   | writing to billing is still not forbidden by this rule                                      |
+| Mistake                          | What you wrote                                      | What it actually allows                                                                                        |
+| -------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Forgetting anchors**           | `ls`                                                | any command containing "ls", including `rm -rf /; ls`                                                          |
+| **Unescaped dots**               | `^api.example.com$`                                 | `apiXexampleYcom` as well as the real host                                                                     |
+| **A catch-all**                  | `^.*$`                                              | _everything_ of that kind. This disables governance for that kind. The system will warn you                    |
+| **Whole URL in a network rule**  | `^https://api[.]example[.]com/v1$`                  | nothing, ever. Only the hostname is compared. Warned when you write it (finding 410); write it as a `url` rule |
+| **No port in a url rule**        | `url` `^https://api[.]example[.]com/v1/`            | nothing, ever. The address is always compared with its port written out. Warned (T93)                          |
+| **Capitals in a network rule**   | `^API[.]example[.]com$`                             | nothing, ever. Hostnames are folded to lower case first. Warned when you write it (410)                        |
+| **Expecting a rule to restrict** | adding a 10-minute rule when a permanent one exists | nothing changes; remove the broader rule instead                                                               |
+| **Forbidding one direction**     | forbid, read only, `^billing/.*$`                   | writing to billing is still not forbidden by this rule                                                         |
 
 ### 6.1 The warnings you will see
 
@@ -551,6 +598,7 @@ allow removes a protection and a broad forbid removes a capability.
 | A forbid rule narrowed to one direction | §4c                                                                                                                                                                                                                                                  |
 | A network rule that can never match     | A scheme, `://` or a path in it, or a capital letter: shown first, because nothing else matters for such a rule (410)                                                                                                                                |
 | A command that runs arbitrary code      | An allow that lets Python, Node, a shell, PowerShell and the like run code of the agent's choosing: that is every command, and it can reach the governance layer's own files. Allow one script with fixed arguments instead, with a short time limit |
+| A url rule (T93)                        | No `://` in it; no `^` at the start; a host without a port; capitals in the scheme or host; a path that stops mid-segment (`/v1` without `(/                                                                                                         | \?  | $)`); and, on every url forbid, that a server may serve the same page under another spelling (§2.3) |
 
 A path pattern that ends at a folder boundary, `^workspace(/|$)`, counts as
 anchored: it is the shape the folder form writes, and it means "this folder and
