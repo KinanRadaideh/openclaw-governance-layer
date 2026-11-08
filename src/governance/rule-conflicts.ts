@@ -33,6 +33,7 @@
 // guessed would train operators to ignore it.
 import { matchesPattern } from "./pattern-match.js";
 import { isRuleExpired, type PolicyRule, type ResourceKind } from "./policy-types.js";
+import { hostOfCanonicalUrl } from "./url-rules.js";
 
 export type RuleConflictKind =
   /** An identical rule already grants this, with no time limit. */
@@ -235,16 +236,26 @@ function findOverridingDenials(
   nowMs: number,
 ): PolicyRule[] {
   const literal = soleLiteralMatch(candidate.pattern);
+  // A `url` allowance on a host a `network` denial refuses never takes effect either (T93):
+  // reported when the allowance names one address, whose host can then be tested.
+  const literalHost =
+    candidate.resourceKind === "url" && literal !== undefined
+      ? hostOfCanonicalUrl(literal)
+      : undefined;
   return existingRules
     .filter(
       (rule) =>
         rule.effect === "deny" &&
-        rule.resourceKind === candidate.resourceKind &&
         !isRuleExpired(rule, nowMs) &&
         scopeCovers(rule, candidate) &&
-        (rule.pattern === candidate.pattern ||
-          isCatchAll(rule.pattern) ||
-          (literal !== undefined && matchesPattern(rule.pattern, literal))),
+        ((rule.resourceKind === candidate.resourceKind &&
+          (rule.pattern === candidate.pattern ||
+            isCatchAll(rule.pattern) ||
+            (literal !== undefined && matchesPattern(rule.pattern, literal)))) ||
+          (candidate.resourceKind === "url" &&
+            rule.resourceKind === "network" &&
+            (isCatchAll(rule.pattern) ||
+              (literalHost !== undefined && matchesPattern(rule.pattern, literalHost))))),
     )
     .toSorted((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
 }

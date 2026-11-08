@@ -936,69 +936,6 @@
       "count": 1,
       "kind": "html-text",
       "name": "text",
-      "path": "ui/src/pages/governance/panels/policy-panels.ts",
-      "text": "command"
-    },
-    {
-      "count": 1,
-      "kind": "html-text",
-      "name": "text",
-      "path": "ui/src/pages/governance/panels/policy-panels.ts",
-      "text": "network"
-    },
-    {
-      "count": 1,
-      "kind": "html-text",
-      "name": "text",
-      "path": "ui/src/pages/governance/panels/policy-panels.ts",
-      "text": "path"
-    },
-    {
-      "count": 1,
-      "kind": "object-property",
-      "name": "label",
-      "path": "ui/src/pages/governance/panels/policy-panels.ts",
-      "text": "command"
-    },
-    {
-      "count": 1,
-      "kind": "object-property",
-      "name": "label",
-      "path": "ui/src/pages/governance/panels/policy-panels.ts",
-      "text": "network"
-    },
-    {
-      "count": 1,
-      "kind": "object-property",
-      "name": "label",
-      "path": "ui/src/pages/governance/panels/policy-panels.ts",
-      "text": "path"
-    },
-    {
-      "count": 1,
-      "kind": "html-text",
-      "name": "text",
-      "path": "ui/src/pages/governance/panels/rule-requests-panel.ts",
-      "text": "command"
-    },
-    {
-      "count": 1,
-      "kind": "html-text",
-      "name": "text",
-      "path": "ui/src/pages/governance/panels/rule-requests-panel.ts",
-      "text": "network"
-    },
-    {
-      "count": 1,
-      "kind": "html-text",
-      "name": "text",
-      "path": "ui/src/pages/governance/panels/rule-requests-panel.ts",
-      "text": "path"
-    },
-    {
-      "count": 1,
-      "kind": "html-text",
-      "name": "text",
       "path": "ui/src/pages/nodes/view-exec-approvals.ts",
       "text": "exec host=gateway/node"
     },

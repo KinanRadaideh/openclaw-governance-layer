@@ -30,7 +30,7 @@ import {
   setAgentMode,
   TooManyRulesError,
 } from "../governance/policy-store.js";
-import type { ResourceKind } from "../governance/policy-types.js";
+import { isResourceKind } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import { detectRuleConflicts } from "../governance/rule-conflicts.js";
 import {
@@ -105,10 +105,6 @@ function previewExpiry(ttlMinutes: unknown): { expiresAt: string } | undefined {
   return lifetime.ok && lifetime.ttlMinutes
     ? { expiresAt: ruleExpiryAfter(lifetime.ttlMinutes) }
     : undefined;
-}
-
-function isResourceKind(value: unknown): value is ResourceKind {
-  return value === "command" || value === "path" || value === "network";
 }
 
 /**
@@ -382,7 +378,7 @@ export async function handleGovernanceRuleRequestRoutes(
       return true;
     }
     if (!isResourceKind(resourceKind)) {
-      sendInvalidRequest(res, "resourceKind must be command, path, or network");
+      sendInvalidRequest(res, "resourceKind must be command, path, network, or url");
       return true;
     }
     // **A path request states its direction the way a path rule does (A11).** The

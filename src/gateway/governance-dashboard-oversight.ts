@@ -44,7 +44,7 @@ import {
 import { canManageAgent, canViewAgent, type GovernanceActor } from "../governance/permissions.js";
 import { proposeRuleFromEscalation } from "../governance/policy-engine.js";
 import { loadPolicy } from "../governance/policy-store.js";
-import type { ResourceKind } from "../governance/policy-types.js";
+import { isResourceKind } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import { readSystemStatus } from "../governance/system-status.js";
@@ -77,10 +77,6 @@ async function heldFolderOwnership(
   }
   const holder = await otherAgentHoldingPath(entry.agentId, entry.resource);
   return holder ? await foreignFolderOwnership(holder, groupId) : undefined;
-}
-
-function isResourceKind(value: unknown): value is ResourceKind {
-  return value === "command" || value === "path" || value === "network";
 }
 
 export type OversightRouteContext = {

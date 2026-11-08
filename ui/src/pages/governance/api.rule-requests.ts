@@ -13,7 +13,7 @@ export type GovernanceRuleRequest = {
   kind?: "rule" | "agent-setting";
   setting?: "ask" | "mode";
   value?: string;
-  resourceKind: "command" | "path" | "network";
+  resourceKind: "command" | "path" | "network" | "url";
   pattern: string;
   reason: string;
   requestedBy: string;

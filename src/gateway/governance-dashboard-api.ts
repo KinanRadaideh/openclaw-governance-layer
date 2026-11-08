@@ -40,7 +40,7 @@ import {
   setCoreRuleEnabled,
   POSTURE_OFF_REFUSED,
 } from "../governance/policy-store.js";
-import { isGovernanceMode, type ResourceKind } from "../governance/policy-types.js";
+import { isGovernanceMode, isResourceKind } from "../governance/policy-types.js";
 import { roleAtLeast, type GovernanceRole } from "../governance/roles.js";
 import { detectRuleConflicts } from "../governance/rule-conflicts.js";
 import {
@@ -150,10 +150,6 @@ function toActor(session: GovernanceSession): GovernanceActor {
     // spelling that default in two places is how the two drift apart.
     ...(session.canAuthorPolicy !== undefined ? { canAuthorPolicy: session.canAuthorPolicy } : {}),
   };
-}
-
-function isResourceKind(value: unknown): value is ResourceKind {
-  return value === "command" || value === "path" || value === "network";
 }
 
 /**
@@ -727,7 +723,7 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     if (!isResourceKind(resourceKind)) {
-      sendInvalidRequest(res, "resourceKind must be command, path, or network");
+      sendInvalidRequest(res, "resourceKind must be command, path, network, or url");
       return true;
     }
     const validatedRulePattern = validateRulePattern(pattern);

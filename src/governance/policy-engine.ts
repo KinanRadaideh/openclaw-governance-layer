@@ -34,13 +34,14 @@ import {
 import { escalationQuestion, foreignFolderTarget } from "./foreign-folder-approval.js";
 import { resolveGovernedPath, resolveGovernedPathForms } from "./path-normalize.js";
 import { INSTALLATION_LEDGER_GROUP, isUnconfiguredTestRun } from "./paths.js";
-import { escapeRegExp, matchesPattern } from "./pattern-match.js";
+import { escapeRegExp } from "./pattern-match.js";
 import { recordTimedOutEscalation } from "./pending-decisions.js";
 import { loadPolicy } from "./policy-store.js";
 import {
   type GovernanceMode,
   isRuleExpired,
   type PolicyDocument,
+  type PolicyRule,
   type ResourceKind,
   resolveAskMode,
 } from "./policy-types.js";
@@ -53,6 +54,13 @@ import {
 import { RuleRequestCapacityError, submitRuleRequest } from "./rule-requests.js";
 import { requestReasonRoom } from "./rule-validation.js";
 import { findLockedAncestor, lineageUnknown } from "./session-lineage.js";
+import {
+  maskUrlForRecord,
+  recordedUrl,
+  ruleKindJudges,
+  ruleMatchesResource,
+  unjudgeableDenial,
+} from "./url-rules.js";
 import { findUsersForAgent } from "./user-store.js";
 
 type ToolCallEvent = {
@@ -970,6 +978,34 @@ export async function evaluateGovernancePolicy(
     });
     return undefined;
   }
+  // Each resource's canonical URL, by position, for `url` rules (T93); empty for tools that
+  // have none, so every `url` rule simply fails to match their resources.
+  const urls = spec.extractUrls?.(judgedEvent) ?? [];
+  const matches = (rule: PolicyRule, index: number, resource: string) =>
+    ruleMatchesResource(rule, matchForms(resource), urls[index]);
+
+  // A denial of a kind this build does not know cannot be judged, and ignoring it would
+  // lift a restriction in silence (T93 D6, `unjudgeableDenial`): refuse instead.
+  const unjudgeable = unjudgeableDenial(doc.rules);
+  if (unjudgeable) {
+    await appendLedgerEntry(groupId, {
+      agentId,
+      sessionKey: ctx.sessionKey,
+      ...intentFields(ctx.sessionKey),
+      toolName: event.toolName,
+      resourceKind: spec.resourceKind,
+      resource: resources[0] ?? "*",
+      ruleId: unjudgeable.id,
+      decision: "deny",
+    });
+    return {
+      block: true,
+      blockReason:
+        `governance: the policy holds a deny rule of kind "${unjudgeable.resourceKind}", ` +
+        "which this version cannot apply, so every governed action is refused until an " +
+        "Administrator removes that rule or the newer version is installed again.",
+    };
+  }
 
   // ---------------------------------------------------------------------
   // Core denials, first and unconditionally.
@@ -1004,7 +1040,7 @@ export async function evaluateGovernancePolicy(
   const denials = doc.rules.filter(
     (rule) =>
       rule.effect === "deny" &&
-      rule.resourceKind === spec.resourceKind &&
+      ruleKindJudges(rule.resourceKind, spec.resourceKind) &&
       accessMatches(rule, spec) &&
       !isRuleExpired(rule, now) &&
       (rule.agentId === undefined || rule.agentId === agentId),
@@ -1022,13 +1058,11 @@ export async function evaluateGovernancePolicy(
   //
   // Resources that no denial matched are deliberately *not* recorded here: they
   // were never decided, because the call is refused before they are reached.
-  const refusals: Array<{ resource: string; rule: (typeof denials)[number] }> = [];
-  for (const resource of resources) {
-    const denied = denials.find((rule) =>
-      matchForms(resource).some((form) => matchesPattern(rule.pattern, form)),
-    );
+  const refusals: Array<{ resource: string; index: number; rule: (typeof denials)[number] }> = [];
+  for (const [index, resource] of resources.entries()) {
+    const denied = denials.find((rule) => matches(rule, index, resource));
     if (denied) {
-      refusals.push({ resource, rule: denied });
+      refusals.push({ resource, index, rule: denied });
     }
   }
   const first = refusals[0];
@@ -1041,6 +1075,7 @@ export async function evaluateGovernancePolicy(
         toolName: event.toolName,
         resourceKind: spec.resourceKind,
         resource: refusal.resource,
+        ...recordedUrl(urls[refusal.index]),
         ruleId: refusal.rule.id,
         decision: "deny",
       });
@@ -1048,10 +1083,16 @@ export async function evaluateGovernancePolicy(
     // The reason names the first refusal. Reporting all of them would put an
     // agent-controlled list into a string the model reads back, and one
     // concrete reason is what an operator needs; the rest are in the ledger.
+    // A `url` rule's refusal names the address it judged (masked), not just the host.
+    const firstUrl = urls[first.index];
+    const refused =
+      first.rule.resourceKind === "url" && firstUrl
+        ? `url "${maskUrlForRecord(firstUrl)}"`
+        : `${spec.resourceKind} "${first.resource}"`;
     return {
       block: true,
       blockReason:
-        `governance: ${spec.resourceKind} "${first.resource}" is refused by a ` +
+        `governance: ${refused} is refused by a ` +
         `${first.rule.tier ?? "admin"}-tier deny rule (${first.rule.description})` +
         (first.rule.tier === "core" ? ". Core rules cannot be overridden by policy." : "."),
     };
@@ -1066,7 +1107,7 @@ export async function evaluateGovernancePolicy(
   const askMode = resolveAskMode(doc, agentId, askedBy);
   const activeRules = doc.rules.filter(
     (rule) =>
-      rule.resourceKind === spec.resourceKind &&
+      ruleKindJudges(rule.resourceKind, spec.resourceKind) &&
       // Deny rules are handled above; only allowances participate here, or a
       // core denial would read as a grant.
       rule.effect !== "deny" &&
@@ -1084,13 +1125,12 @@ export async function evaluateGovernancePolicy(
   // resources unaudited, which breaks the "record 100% of policy decisions"
   // requirement and hides the full blast radius of a multi-path edit.
   let firstMiss: string | undefined;
+  let firstMissUrl: string | undefined;
   // A miss is refused under the strict ask setting, and always for a part of a call judged
   // on its own (the folder a command runs in, T86 D2-A).
   const refusesMiss = askMode === "off" || part !== undefined;
-  for (const resource of resources) {
-    const matched = activeRules.find((rule) =>
-      matchForms(resource).some((form) => matchesPattern(rule.pattern, form)),
-    );
+  for (const [index, resource] of resources.entries()) {
+    const matched = activeRules.find((rule) => matches(rule, index, resource));
     // The recorded decision is always what the policy actually concluded.
     // Monitor mode changes whether we *act* on it, never what we write down,
     // a dry run whose log says "ask" when the rule says "deny" would make the
@@ -1104,12 +1144,14 @@ export async function evaluateGovernancePolicy(
       toolName: event.toolName,
       resourceKind: spec.resourceKind,
       resource,
+      ...recordedUrl(urls[index]),
       ruleId: matched?.id ?? "default-deny",
       decision,
     });
 
     if (!matched && firstMiss === undefined) {
       firstMiss = resource;
+      firstMissUrl = urls[index];
     }
   }
 
@@ -1176,9 +1218,12 @@ export async function evaluateGovernancePolicy(
       spec.resourceKind === "path" ? await otherAgentHoldingPath(agentId, resource) : undefined;
     // Written by the shared helpers because the approval route reads the holder back out of
     // this text to decide who may allow it (`foreign-folder-approval.ts`).
+    // A network question names the address as well as the host (T93), so the person deciding
+    // sees which page was asked for; "Always allow" still proposes a rule for the host (D4).
     const target = holder
       ? foreignFolderTarget(holder, resource)
-      : `${spec.resourceKind} "${resource}"`;
+      : `${spec.resourceKind} "${resource}"` +
+        (firstMissUrl ? ` (${maskUrlForRecord(firstMissUrl)})` : "");
     const actionDescription = escalationQuestion(agentId ?? "unknown", event.toolName, target);
     return {
       requireApproval: {
@@ -1248,6 +1293,7 @@ export async function evaluateGovernancePolicy(
               toolName: event.toolName,
               resourceKind: spec.resourceKind,
               resource,
+              ...recordedUrl(firstMissUrl),
               ruleId: resolutionDecision === "cancelled" ? "hitl-cancelled" : "hitl-timeout",
               decision: "deny",
             });
@@ -1280,6 +1326,7 @@ export async function evaluateGovernancePolicy(
             toolName: event.toolName,
             resourceKind: spec.resourceKind,
             resource,
+            ...recordedUrl(firstMissUrl),
             ruleId: "default-deny",
             decision:
               resolutionDecision === "allow-once" || resolutionDecision === "allow-always"

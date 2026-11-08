@@ -15,6 +15,7 @@ import { isAbsolute as isAbsolutePath, resolve as resolvePath } from "node:path"
 import { readSnakeCaseParamRaw } from "../param-key.js";
 import { normalizeGovernedPath } from "./path-normalize.js";
 import type { ResourceKind } from "./policy-types.js";
+import { canonicalUrl } from "./url-rules.js";
 
 type ToolCallLike = {
   toolName: string;
@@ -44,6 +45,12 @@ export type GovernedToolSpec = {
     cwd?: string,
     foreignRoots?: readonly string[],
   ) => Promise<string[]>;
+  /**
+   * Network tools only (T93): the canonical URL of each extracted resource, in the same
+   * order as `extract` returns them, `undefined` where the address has none. `url` rules
+   * are matched against these; the recorded resource stays the hostname.
+   */
+  extractUrls?: (event: ToolCallLike) => (string | undefined)[];
 };
 
 /** Caps a resource string so one pathological payload cannot bloat the ledger. */
@@ -194,6 +201,11 @@ function extractNetworkResource(rawUrl: string): string {
     // Fall through to governing the raw value.
   }
   return clamp(rawUrl);
+}
+
+/** The canonical URL `url` rules are matched against (T93), with the same host spelling. */
+export function extractNetworkUrl(rawUrl: string): string | undefined {
+  return canonicalUrl(rawUrl, canonicalHostname);
 }
 
 /**
@@ -460,22 +472,29 @@ async function extractVoiceCall(event: ToolCallLike): Promise<string[]> {
 }
 
 /**
- * The hosts of the addresses a scraping service is asked to fetch (finding 450),
- * judged by the network rules exactly as `web_fetch` is. Each named parameter
+ * A network tool's spec from the addresses it is asked to reach: `web_fetch`, a browser
+ * navigation, and the scraping services (finding 450), all judged alike, by host for
+ * `network` rules and by canonical URL for `url` rules (T93). For `urlParams`, each named parameter
  * may hold one address or a list of them.
  */
-function extractUrlHosts(
-  paramNames: readonly string[],
-): (event: ToolCallLike) => Promise<string[]> {
-  return async (event: ToolCallLike) =>
+function networkSpecFor(addresses: (event: ToolCallLike) => string[]): GovernedToolSpec {
+  return {
+    resourceKind: "network",
+    extract: async (event) => addresses(event).map((url) => extractNetworkResource(url)),
+    // Same addresses, same order: the gate pairs each host with its URL by position (T93).
+    extractUrls: (event) => addresses(event).map((url) => extractNetworkUrl(url)),
+  };
+}
+
+function urlParams(paramNames: readonly string[]): (event: ToolCallLike) => string[] {
+  return (event) =>
     paramNames
       .flatMap((name) => {
         const value = event.params[name];
         return Array.isArray(value) ? value : [value];
       })
       .map((value) => asString(value))
-      .filter((url): url is string => url !== undefined)
-      .map((url) => extractNetworkResource(url));
+      .filter((url): url is string => url !== undefined);
 }
 
 /**
@@ -544,13 +563,7 @@ export const GOVERNED_TOOLS: Record<string, GovernedToolSpec> = Object.assign(
     grep: { resourceKind: "path", access: "read", extract: extractSearchPaths },
     find: { resourceKind: "path", access: "read", extract: extractSearchPaths },
     ls: { resourceKind: "path", access: "read", extract: extractSearchPaths },
-    web_fetch: {
-      resourceKind: "network",
-      extract: async (event) => {
-        const url = asString(event.params.url);
-        return url ? [extractNetworkResource(url)] : [];
-      },
-    },
+    web_fetch: networkSpecFor(urlParams(["url"])),
     // ---------------------------------------------------------------------
     // Control surfaces (QA round 13, findings 71–73). Parameter names below are
     // read from the host's own schemas, not assumed, the habit rounds five and
@@ -664,8 +677,8 @@ export const GOVERNED_TOOLS: Record<string, GovernedToolSpec> = Object.assign(
       extract: extractControlSurface("codex_session_interrupt", []),
     },
     voice_call: { resourceKind: "command", extract: extractVoiceCall },
-    firecrawl_scrape: { resourceKind: "network", extract: extractUrlHosts(["url"]) },
-    tavily_extract: { resourceKind: "network", extract: extractUrlHosts(["urls"]) },
+    firecrawl_scrape: networkSpecFor(urlParams(["url"])),
+    tavily_extract: networkSpecFor(urlParams(["urls"])),
   } satisfies Record<string, GovernedToolSpec>,
 );
 
@@ -769,13 +782,10 @@ function browserNavigationUrl(params: Record<string, unknown>): string | undefin
  * request made by script the page or `evaluate` runs, is not a navigation the agent names,
  * and is outside this check (stated in the report as a limit).
  */
-const BROWSER_NAVIGATION_SPEC: GovernedToolSpec = {
-  resourceKind: "network",
-  extract: async (event) => {
-    const url = browserNavigationUrl(event.params);
-    return url ? [extractNetworkResource(url)] : [];
-  },
-};
+const BROWSER_NAVIGATION_SPEC: GovernedToolSpec = networkSpecFor((event) => {
+  const url = browserNavigationUrl(event.params);
+  return url ? [url] : [];
+});
 
 /**
  * The spec that governs this call: the tool's own, except a browser navigation, which is a

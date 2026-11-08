@@ -86,6 +86,12 @@ export type LedgerEntry = {
    */
   intent?: string;
   /**
+   * The address a network call asked for, as `url` rules judge it, with query values
+   * masked (T93, `maskUrlForRecord`). `resource` stays the hostname. Absent on every other
+   * entry and on every entry written before T93; hashed by presence, as `intent` is.
+   */
+  url?: string;
+  /**
    * Marks an entry as an administrative action rather than an agent action.
    *
    * Design requirement #5 asks for agent actions, policy decisions **and
@@ -274,10 +280,12 @@ function canonicalPayload(e: Omit<LedgerEntry, "hash">): string {
   // exactly the kind of premise this project keeps finding on the wrong side of
   // a defect, and a future unkeyed path would make the collision live.
   const withIntent = e.intent === undefined ? withRole : [...withRole, `intent:${e.intent}`];
+  // `url` (T93) joins by presence and tagged, for the reasons `intent` gives above.
+  const withUrl = e.url === undefined ? withIntent : [...withIntent, `url:${e.url}`];
   // `keyed` joins the covered fields for the same reason `actor` did: a flag
   // that selects how an entry is verified must itself be verified, or stripping
   // it becomes a way to downgrade an entry to the weaker scheme.
-  return JSON.stringify(e.keyed ? [...withIntent, "keyed"] : withIntent);
+  return JSON.stringify(e.keyed ? [...withUrl, "keyed"] : withUrl);
 }
 
 /**
@@ -638,6 +646,8 @@ export type AppendLedgerEntryInput = {
    * trail unable to tell a model's stated purpose from a person's.
    */
   intent?: string;
+  /** A network call's address, masked by the caller (T93); see `LedgerEntry.url`. */
+  url?: string;
 };
 
 /**
@@ -997,6 +1007,8 @@ export async function appendLedgerEntry(
       // resource beside it: this is model-authored text, and model narration
       // quotes whatever the model was working with.
       ...(input.intent ? { intent: clampIntent(redactLedgerText(input.intent)) } : {}),
+      // Redacted and clamped as the resource is: a path can carry a token as well (T93).
+      ...(input.url ? { url: clampResource(redactLedgerText(input.url)) } : {}),
       // Everything written from now on is keyed.
       keyed: true as const,
     };

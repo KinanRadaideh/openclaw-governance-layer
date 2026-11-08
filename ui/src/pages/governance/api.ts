@@ -65,7 +65,7 @@ export type GovernanceRuleTargets = {
 
 export type GovernancePolicyRule = {
   id: string;
-  resourceKind: "command" | "path" | "network";
+  resourceKind: "command" | "path" | "network" | "url";
   pattern: string;
   /** Why the rule exists. Every stored rule carries one (T70); it is the rule's title. */
   description: string;

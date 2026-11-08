@@ -200,6 +200,11 @@ export const enGovernance: TranslationMap = {
       bindsNoneKnown: "No agents known yet.",
       bindsScoped: "(narrowed to the agents you manage)",
       patternPlaceholder: "Regular expression, e.g. ^ls( .*)?$",
+      // Per kind (T93): a network rule names a host, a url rule a whole address with its port.
+      patternPlaceholderNetwork: "Hostname, e.g. ^api[.]example[.]com$",
+      patternPlaceholderUrl: "Address with port, e.g. ^https://api[.]example[.]com:443/v1(/|\\?|$)",
+      kindHint:
+        "network: the whole host (api.example.com), every scheme, port and page on it. url: part of a host, compared with the address written as scheme://host:port/path?query, e.g. https://api.example.com:443/v1. Both judge web fetches and browser navigation; a denial of either kind wins.",
       // Accessible names for controls that previously relied on their
       // placeholder. A placeholder is not a label: it is not reliably exposed
       // as an accessible name and it disappears once the field has content, so
@@ -348,6 +353,7 @@ export const enGovernance: TranslationMap = {
     ledger: {
       title: "Audit ledger",
       intent: "Agent said",
+      url: "Address",
       wholeEntry: "Show the whole entry ({count} characters)",
       verify: "Verify chain integrity",
       integrity: "Chain integrity",

@@ -102,7 +102,8 @@ function canonicalPayload(e) {
       : [...base, e.entryKind ?? "", e.actor ?? ""];
   const withRole = e.actorRole === undefined ? withAdmin : [...withAdmin, `role:${e.actorRole}`];
   const withIntent = e.intent === undefined ? withRole : [...withRole, `intent:${e.intent}`];
-  return JSON.stringify(e.keyed ? [...withIntent, "keyed"] : withIntent);
+  const withUrl = e.url === undefined ? withIntent : [...withIntent, `url:${e.url}`];
+  return JSON.stringify(e.keyed ? [...withUrl, "keyed"] : withUrl);
 }
 
 /**

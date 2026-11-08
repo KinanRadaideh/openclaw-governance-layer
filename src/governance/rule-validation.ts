@@ -12,6 +12,7 @@
 import { matchesPattern } from "./pattern-match.js";
 import { checkRegexSafety } from "./regex-safety.js";
 import { UNIVERSAL_PATTERNS } from "./rule-conflicts.js";
+import { describeUrlRuleRisks } from "./url-rules.js";
 
 /** Bounds a pathological rule pattern that could cause catastrophic backtracking. */
 export const MAX_PATTERN_LENGTH = 512;
@@ -304,7 +305,8 @@ export function describeRuleRisks(
           `A network rule is compared with the hostname only (for ` +
           `https://api.example.com/v1 that is api.example.com), so a pattern with ` +
           `"://" or a path in it never matches anything. Write just the hostname, ` +
-          `for example ^api[.]example[.]com$.`,
+          `for example ^api[.]example[.]com$, or choose the url kind to name a scheme, ` +
+          `port or path.`,
       });
       return warnings;
     }
@@ -316,6 +318,14 @@ export function describeRuleRisks(
           `pattern never match. Write it in lower case.`,
       });
     }
+  }
+
+  // A url rule's anchoring, port and path boundary are its own questions (T93), asked in
+  // place of the generic unanchored warning, whose "anywhere inside" reads wrongly for a
+  // prefix such as `^https://example[.]com:443/docs/`.
+  // A pattern that is only wildcards falls through to the shared "matches everything" warning.
+  if (resourceKind === "url" && !ONLY_WILDCARDS_BETWEEN_ANCHORS.test(trimmed)) {
+    return [...warnings, ...describeUrlRuleRisks(trimmed, denies)];
   }
 
   // A path's folder boundary counts as its end anchor, so `^src(/|$)` is judged as

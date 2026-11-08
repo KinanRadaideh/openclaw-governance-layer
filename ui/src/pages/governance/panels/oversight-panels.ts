@@ -241,7 +241,11 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
       // measured 4.12:1 on dark and 3.96:1 on light, under the 4.5:1 minimum.
       description: html`${renderWholeSubject(entry)}${describeLedgerEntry(entry, {
         by: t("governance.ledger.by"),
-      })}${entry.intent
+      })}${entry.url
+        ? html`<span style="display:block;margin-top:0.25rem">
+            <em>${t("governance.ledger.url")}:</em> <code>${entry.url}</code>
+          </span>`
+        : nothing}${entry.intent
         ? html`<span style="display:block;margin-top:0.25rem">
             <em>${t("governance.ledger.intent")}:</em> ${entry.intent}
           </span>`

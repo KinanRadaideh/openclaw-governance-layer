@@ -14,6 +14,7 @@ import {
 } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
 import type { GovernanceIdentity, GovernancePolicyRule, GovernanceRuleRequest } from "../api.ts";
+import { patternPlaceholderFor, renderKindOptions } from "../rule-kind-hints.ts";
 import type { PanelEffects } from "./account-panels.ts";
 import { renderAgentSettingRequestRow } from "./agent-setting-request.ts";
 import {
@@ -244,6 +245,7 @@ export function renderRuleRequestsSection(
               <select
                 class="input"
                 aria-label=${t("governance.policy.kindLabel")}
+                title=${t("governance.policy.kindHint")}
                 .value=${props.drafts.requestKind}
                 @change=${(e: Event) => {
                   props.onDraft({
@@ -252,9 +254,7 @@ export function renderRuleRequestsSection(
                   });
                 }}
               >
-                <option value="command">command</option>
-                <option value="path">path</option>
-                <option value="network">network</option>
+                ${renderKindOptions(props.drafts.requestKind)}
               </select>
               ${
                 // **A path request can ask for one direction (A11)**, as the Add a
@@ -286,7 +286,7 @@ export function renderRuleRequestsSection(
                 class="input"
                 type="text"
                 aria-label=${t("governance.policy.patternLabel")}
-                placeholder=${t("governance.policy.patternPlaceholder")}
+                placeholder=${patternPlaceholderFor(props.drafts.requestKind)}
                 .value=${props.drafts.requestPattern}
                 @input=${(e: Event) => {
                   props.onDraft({ requestPattern: (e.target as HTMLInputElement).value });

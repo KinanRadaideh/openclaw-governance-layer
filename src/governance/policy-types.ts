@@ -27,8 +27,20 @@ export function isGovernanceMode(value: unknown): value is GovernanceMode {
 /** What happens when a governed tool call matches no rule. */
 export type AskMode = "off" | "on-miss";
 
-/** The three resource families the policy engine understands how to gate. */
-export type ResourceKind = "command" | "path" | "network";
+/**
+ * The resource families a rule can govern. `network` is matched against a destination's
+ * hostname, `url` against its whole canonical address (T93, `url-rules.ts`); both judge the
+ * same network calls.
+ */
+export type ResourceKind = "command" | "path" | "network" | "url";
+
+/** Every kind, for the request validators and for the loader's unknown-kind check. */
+export const RESOURCE_KINDS: readonly ResourceKind[] = ["command", "path", "network", "url"];
+
+/** Whether a value from outside (a request body, a stored rule) is a resource kind. */
+export function isResourceKind(value: unknown): value is ResourceKind {
+  return (RESOURCE_KINDS as readonly unknown[]).includes(value);
+}
 
 /**
  * Which of the three shipped tiers a rule belongs to.
@@ -146,7 +158,9 @@ export type PolicyRule = {
  */
 // 2: every rule carries a description (T70). 3: the baseline network hosts (T86 D3).
 // 4: the shipped listing rule narrowed to the project (T86 D2-A).
-export const POLICY_DOCUMENT_VERSION = 4;
+// 5: rules of kind `url` may be present (T93). Nothing is migrated; the number tells a
+// build that predates `url` rules that the document holds something it cannot judge.
+export const POLICY_DOCUMENT_VERSION = 5;
 
 export type PolicyDocument = {
   version: typeof POLICY_DOCUMENT_VERSION;

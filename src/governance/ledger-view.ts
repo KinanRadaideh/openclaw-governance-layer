@@ -38,6 +38,8 @@ export const REDACTED_RESOURCE = "[redacted for viewer role]";
 
 /** Placeholder for model narration a Viewer may not read (finding 133). */
 export const REDACTED_INTENT = "[intent visible to users and administrators]";
+/** Placeholder for a network call's address (T93), masked like the host it contains. */
+export const REDACTED_URL = "[address visible to users and administrators]";
 
 /** What a sanitized (Viewer-tier) reader may see of one ledger field. */
 type Disclosure = "masked" | "visible";
@@ -83,6 +85,8 @@ const VIEWER_DISCLOSURE: Record<keyof Required<LedgerEntry>, Disclosure> = {
   // files it is about to touch, describes the project, and quotes what it has
   // already read (finding 133).
   intent: "masked",
+  // The whole address, which holds the host `resource` masks, and the path besides (T93).
+  url: "masked",
   entryKind: "visible",
   actor: "visible",
   actorRole: "visible",
@@ -93,6 +97,7 @@ const VIEWER_DISCLOSURE: Record<keyof Required<LedgerEntry>, Disclosure> = {
 const MASKS: Record<string, string> = {
   resource: REDACTED_RESOURCE,
   intent: REDACTED_INTENT,
+  url: REDACTED_URL,
 };
 
 /**

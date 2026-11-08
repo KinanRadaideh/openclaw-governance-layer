@@ -57,6 +57,7 @@ import {
   ruleScopes,
   type RuleFilter,
 } from "../rule-filter.ts";
+import { patternPlaceholderFor, renderKindOptions, RULE_KINDS } from "../rule-kind-hints.ts";
 import type { PanelEffects } from "./account-panels.ts";
 import { renderRuleTargets } from "./agent-policy-lookup.ts";
 import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend-panel.ts";
@@ -306,9 +307,7 @@ export function renderRuleFilter(
           props.drafts.ruleFilter.kind,
           [
             { value: "all", label: t("governance.policy.filterAnyKind") },
-            { value: "command", label: "command" },
-            { value: "path", label: "path" },
-            { value: "network", label: "network" },
+            ...RULE_KINDS.map((kind) => ({ value: kind, label: kind })),
           ],
           (value) => update({ kind: value as RuleFilter["kind"] }),
         )}
@@ -740,6 +739,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
               <select
                 class="input"
                 aria-label=${t("governance.policy.kindLabel")}
+                title=${t("governance.policy.kindHint")}
                 .value=${props.drafts.newRuleKind}
                 @change=${(e: Event) => {
                   props.onDraft({
@@ -748,9 +748,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                   });
                 }}
               >
-                <option value="command">command</option>
-                <option value="path">path</option>
-                <option value="network">network</option>
+                ${renderKindOptions(props.drafts.newRuleKind)}
               </select>
               <select
                 class="input"
@@ -798,7 +796,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                 class="input"
                 type="text"
                 aria-label=${t("governance.policy.patternLabel")}
-                placeholder=${t("governance.policy.patternPlaceholder")}
+                placeholder=${patternPlaceholderFor(props.drafts.newRuleKind)}
                 .value=${props.drafts.newRulePattern}
                 @input=${(e: Event) => {
                   props.onDraft({ newRulePattern: (e.target as HTMLInputElement).value });

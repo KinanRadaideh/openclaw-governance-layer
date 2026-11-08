@@ -79,6 +79,8 @@ export type GovernanceLedgerEntry = {
    * render it even as a read-only fact, the same omission `userAsk` had.
    */
   intent?: string;
+  /** A network call's address, query values masked (T93). Masked again for a Viewer. */
+  url?: string;
   /** Present only on administrative entries (policy and account changes). */
   entryKind?: "admin";
   /** Account responsible for an administrative action; `cli` for terminal changes. */
