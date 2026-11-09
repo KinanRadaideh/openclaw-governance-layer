@@ -273,4 +273,7 @@ scratchpad):
   `mutations-result.txt`); `git diff --stat src/` identical before and after.
 - After the fixes: core-test typecheck exit 0, governance lint shard exit 0, `oxfmt` clean,
   the two changed test files 18/18. `%TEMP%openclaw-test-*` cleaned (101 folders).
-- Nothing committed or pushed (on Kinan's word only).
+- **Committed and pushed to `personal` at Kinan's word ("push and commit everything"):** code
+  `64d3a7203fd`, documents `be17b1f25cc` (QA records, the report strand committed for the first
+  time, `T47-TEST-PLAN.md`). Left out: `.codex/` (standing rule). The full lint gate had run on
+  this tree; its one error was fixed and its shard re-run clean before the commit.
