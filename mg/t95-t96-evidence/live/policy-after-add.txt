@@ -1,0 +1,10 @@
+command-1794186311953-e5b65f8b | ^echo t95-short$ | main | 2026-11-09T01:06:11.952Z
+command-1794186337115-a35856ee | ^echo t95-temp-short$ | temp | 2026-11-09T01:06:37.115Z
+command-1794186343971-c052915b | ^echo t95-timed$ | main | 2026-11-09T02:05:43.971Z
+command-1794186350420-6fb18a39 | ^echo t95-forever$ | main | indefinite
+command-1794186356760-085745a4 | ^echo t95-temp-forever$ | temp | indefinite
+path-t95-old | /files/t95-old[.]txt$ | main | 2026-10-10T01:07:07.875Z
+path-t95-corrupt | /files/t95-corrupt[.]txt$ | main | not-a-date
+net-t95-old | ^127[.]0[.]0[.]2$ | main | 2026-10-10T01:08:17.304Z
+net-t95-corrupt | ^127[.]0[.]0[.]3$ | main | not-a-date
+network-1794186631776-8ac34892 | ^127[.]0[.]0[.]4$ | main | indefinite

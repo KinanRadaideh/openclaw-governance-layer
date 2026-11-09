@@ -1,0 +1,8 @@
+--- before any add
+2026-11-09T01:10:06.465Z main web_fetch 127.0.0.2 -> HTTP 403 REFUSED :: {"ok":false,"error":{"type":"tool_call_blocked","message":"governance: network \"127.0.0.2\" is not on the allowlist (default-deny)","requiresApproval":false}}
+2026-11-09T01:10:06.762Z main web_fetch 127.0.0.3 -> HTTP 403 REFUSED :: {"ok":false,"error":{"type":"tool_call_blocked","message":"governance: network \"127.0.0.3\" is not on the allowlist (default-deny)","requiresApproval":false}}
+2026-11-09T01:10:07.006Z main web_fetch 127.0.0.4 -> HTTP 403 REFUSED :: {"ok":false,"error":{"type":"tool_call_blocked","message":"governance: network \"127.0.0.4\" is not on the allowlist (default-deny)","requiresApproval":false}}
+--- after adding the 127.0.0.4 rule
+2026-11-09T01:10:40.449Z main web_fetch 127.0.0.2 -> HTTP 403 REFUSED :: {"ok":false,"error":{"type":"tool_call_blocked","message":"governance: network \"127.0.0.2\" is not on the allowlist (default-deny)","requiresApproval":false}}
+2026-11-09T01:10:40.672Z main web_fetch 127.0.0.3 -> HTTP 403 REFUSED :: {"ok":false,"error":{"type":"tool_call_blocked","message":"governance: network \"127.0.0.3\" is not on the allowlist (default-deny)","requiresApproval":false}}
+2026-11-09T01:10:40.921Z main web_fetch 127.0.0.4 -> HTTP 200 FETCHED :: {"ok":true,"result":{"content":[{"type":"text","text":"{\n \"url\": \"http://127.0.0.4:18897/t95\",\n \"finalUrl\": \"http://127.0.0.4:18897/t95\",\n \"status\": 200,\n \"contentType\": \"text/plain\",\n \"extractMode\": \"markdown\",\n \"e

@@ -322,7 +322,10 @@ URL an agent wrote with a trailing dot.
 
 See the table above: a browser `open` or `navigate` that names an address is judged by its
 host against the network rules. A link the agent clicks, a request a page's script makes, and a
-redirect from an allowed host are not addresses the agent names and are not judged (§12).
+redirect from an allowed host are not addresses the agent names; **since T94 (2026-11-08) they
+are judged too**, where they are sent: a redirect hop and a main-frame page navigation in full
+(no rule means refused, not asked), a page's own request by denials only. Design and decisions:
+`mg/T94-FOLLOW-ON-REQUESTS-DESIGN.md`; operator view: `WRITING-PERMISSIONS.md` §2.4.
 
 ### 3.4 Control surfaces
 
@@ -736,11 +739,17 @@ limit while the rule's pattern keeps it exactly.
 
 - An **unparseable** `expiresAt` is treated as expired. A corrupted timestamp
   MUST NOT promote a temporary grant to a permanent one.
-- Expired rules remain readable for 7 days, then are pruned. Retention is
-  deliberate: a rule that has just lapsed is the explanation for a sudden denial.
-- Pruning is opportunistic, performed when a rule is created, so no scheduler is
-  required. The organisation's rule ceiling (§9) is checked after pruning, so an
-  installation at the ceiling purely through lapsed rules recovers on its own.
+- An expired rule stays stored, shown as expired, until an administrator removes it
+  (T95, 2026-11-09). Nothing deletes rules automatically: until T95, creating a rule
+  pruned rules expired over 7 days and every unparseable one, with no ledger entry.
+  A rule that has lapsed is the explanation for a sudden denial.
+- Expired rules count toward the organisation's rule ceiling (§9); the refusal states
+  how many of the stored rules have expired.
+- Every removal is recorded as `governance.policy.rule.remove` and states the rule's
+  status at that instant, `expired at removal` or `not expired at removal` (T96), judged
+  by the test above (an unparseable expiry: `expired at removal: expiry unreadable`).
+  Host deletion of an agent writes one such entry per rule it clears, marked
+  `removed with the agent`, after its `governance.policy.agent-cleared` summary.
 
 ## 7. Conflicts
 
@@ -883,11 +892,11 @@ Viewer.
 | --------------------------- | ------------------------------------------------------------------------------------------------ |
 | Pattern length              | ≤ 512 characters                                                                                 |
 | Compiled-pattern cache      | 1000 entries                                                                                     |
-| Rules per organisation      | ≤ 1000 (expired rules pruned first); beyond that, HTTP 409 `too_many_rules`                      |
+| Rules per organisation      | ≤ 1000, expired rules included; beyond that, HTTP 409 `too_many_rules`                           |
 | Derived resource (matching) | ≤ 2048 characters                                                                                |
 | Recorded resource (ledger)  | ≤ 4096 characters, truncation marked                                                             |
 | Rule TTL                    | ≤ 5,256,000 minutes (~10 years)                                                                  |
-| Expired-rule retention      | 7 days                                                                                           |
+| Expired-rule retention      | Until removed (T95; was 7 days)                                                                  |
 | Escalation timeout          | 5 … 86400 seconds, installation-wide or per agent; default 300                                   |
 | Held decisions              | 200 undecided (shed from the busiest agent, count kept); 500 stored                              |
 | Rule requests               | 20 pending per requesting account; 40 + 20 per account for escalation-filed requests; 500 stored |

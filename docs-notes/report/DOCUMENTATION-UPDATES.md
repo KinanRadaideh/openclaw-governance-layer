@@ -8,8 +8,12 @@ anything they need is said in Chapter 3.**
 (`C:\Users\kinan\OneDrive\Desktop\complete_rep_nov8.txt`). Every Chapter 3 item was read
 against the export: Kinan has applied almost all of them, in his own words, so they were
 deleted (the list is in §3.0 below, by number). What remains for Chapter 3 is five items the
-export does not yet carry (C4, C5, C20, C21, C149), one waiting on T74 (C112), and T93's new
-`url` rule kind (C150). §1 (front matter) is unchanged. §7 onward (Chapters 4 and 5, the
+export does not yet carry (C4, C5, C20, C21, C149), one waiting on T74 (C112), T93's new
+`url` rule kind (C150), and T94's checks on redirects, followed links and a page's own requests
+(C152, added later on 2026-11-08; apply after C150). **Added 2026-11-09:** T95 and T96, expired
+rules kept until removed and every rule removal stating whether the rule had expired (C154,
+against Kinan's Chapter 3 export of 2026-11-09; independent of C150 and C152), with Chapter 4
+evidence C155. §1 (front matter) is unchanged. §7 onward (Chapters 4 and 5, the
 repository documents, open questions, counts) was not part of this pass and is kept as it was.
 When an item is done, delete it and leave its number unused; when something new is owed, add it
 here and nowhere else.
@@ -43,6 +47,8 @@ is correct without it; the **material** items are evidence and sentences for Cha
 | C20 | required | 3.3 Analysis of Design Constraints (§3.3) | "as described in Chapter \ref{ch:dsn-cs_1}" prints "Chapter 1.4", because the label is on a section |
 | C21 | required | 3.3 Analysis of Design Constraints (§3.3) | "Deployment on this server was validated by completing the governance test suite without failure." The run was on 21 Sep |
 | C150 | required | 3.5.2 Policy Engine (§3.7), and 3.2, 3.5.3.1, 3.5.11 | The `url` rule kind beside hostname rules (T93, built 2026-11-08) |
+| C152 | required | 3.5.2 Policy Engine (§3.8), and 3.2, 3.4, 3.5.3.1, 3.5.6.1, 3.5.11, 3.5.12 | Redirects, followed links and a page's own requests are judged (T94, built 2026-11-08); apply after C150 |
+| C154 | required | 3.5.2.1 Rule Model (§3.9), and 3.5.3 Audit Ledger, 3.5.10 agent deletion | Expired rules stay until removed; every rule removal says whether the rule had expired; agent deletion records each rule it takes (T95, T96, built 2026-11-09) |
 | C112 | waits (T74) | 3.5.5 to 3.6, older items (§3.10) | 3.5.12 System Security's audit-ledger row once an off-host witness exists |
 | C118 | Ch 4/5 material | Chapters 4 and 5 (§7) | Chapter 4 evidence for T70 |
 | C119 | Ch 4/5 material | Chapters 4 and 5 (§7) | Chapter 4 examples of finding classes |
@@ -75,6 +81,8 @@ is correct without it; the **material** items are evidence and sentences for Cha
 | C146 | Ch 4/5 material | Chapter 4 (T73, T76, T78) (§11.12) | Mutation check: 31 of 31 killed |
 | C147 | Ch 4/5 material | Chapter 4 (T73, T76, T78) (§11.12) | Live, on a rebuilt Gateway |
 | C151 | Ch 4/5 material | Chapter 4 (T93) (§7) | Chapter 4 evidence for the `url` rule kind: tests, mutations, the live run, the bug found live |
+| C153 | Ch 4/5 material | Chapter 4 (T94) (§7) | Chapter 4 evidence for T94: the measurements that chose the mechanism, tests in real Chrome, mutations, the live run |
+| C155 | Ch 4/5 material | Chapter 4 (T95, T96) (§7) | Chapter 4 evidence for T95 and T96: what the code did, tests on the real store and ledger, mutations, the live run and the dialog found there |
 | C148 | Ch 4/5 material | Chapter 4 (T73, T76, T78) (§11.12) | A Chapter 4 point worth one sentence: the first attempt to make the purge fail live (a read-only policy file) did not fa |
 
 ## 1. Compile and front matter
@@ -223,6 +231,138 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
   limitations rule): that a `url` denial is only as strong as the server's agreement with the
   canonical spelling, and that redirects, clicked links and page scripts are not checked (T94),
   are recorded in `CH4-LIMITATIONS.md`. Evidence for Chapter 4 is C151 (§7).
+
+### 3.8 T94: requests the agent did not name (3.2, 3.4, 3.5.2, 3.5.3.1, 3.5.6.1, 3.5.11, 3.5.12)
+
+- **C152.** **NOW (T94, built 2026-11-08; design `mg/T94-FOLLOW-ON-REQUESTS-DESIGN.md`, decisions
+  D1–D12 with their precedents; record `mg/WORK-LOG-2026-11-08.md` §5). Network policy now reaches
+  the requests a named address leads to.** What is true: the gate still judges the address the
+  agent names. In addition, each **redirect hop** (of `web_fetch`, and of a browser page's main
+  frame) and each **page navigation the agent did not name** (a clicked link, a form, a script
+  setting the address, a popup) is judged in full against `network` and `url` rules **before it is
+  sent**, and refused, not put to a person, when no rule allows it; a **page's own requests**
+  (scripts, images, styles, frames, `fetch`, workers, service workers, WebSockets) are judged by
+  **denials only**. Each is judged through `evaluateGovernancePolicy` as a part of the call, so
+  lockdown, core denials, deny-wins and `monitor` apply as to a named call. The ledger records
+  redirects and navigations always and page requests when refused, with a new field `via`. An
+  `act` that runs script the agent wrote derives a second resource, `browser:act:evaluate`. The
+  passages below assume C150 (T93) is applied first; line numbers are the 2026-11-08 export's.
+  1. **3.2 Analysis of Design Requirements**, Requirements 3 and 4, line 859, the sentence C150
+     produces ("Network and URL rules bind the web-fetch tool, the scraping tools, and every
+     browser navigation that the agent names.") gains: "They also bind each redirect that
+     follows such an address and each page the agent's browser goes on to load, such as a
+     followed link. A denial also stops the requests a page makes by itself."
+  2. **3.4 Different Design Approaches** (optional, recommended: the design choice is the
+     interesting part for an examiner), a new subsection after Host Interception (line 1026 ff.):
+
+     > \subsection{Follow-on Requests}
+     > \label{sec:gov-follow-on-approaches}
+     > A permitted address leads to requests the agent does not name: redirects, pages reached
+     > through links, and the scripts, images, and frames a page loads by itself. Three treatments
+     > were compared. Judging every request in full would refuse or escalate most of an ordinary
+     > page, because a typical page loads resources from many hosts that no operator lists.
+     > Judging only requests that leave the page's host would miss a forbidden path on the same
+     > host. The selected design separates two classes. A redirect, or a page navigation in the
+     > agent's browser, changes the location from which the agent reads, so it is judged in full,
+     > as a named address is. A page's own request is judged against denials only, as the files a
+     > search reaches beyond its named root are (Section~\ref{sec:gov-host-interception}). A
+     > redirect or navigation that no rule allows is refused rather than escalated. One tool call
+     > carries one approval request, and a page load cannot wait for a person's answer; the agent
+     > is told to name the address in a call of its own, which can be escalated.
+
+     (The search precedent, T7, is the export's line 1205 in 3.4.2 Host Interception: "In-process
+     execution allows governance to filter denied search results before they reach the model.")
+  3. **3.5.2.1 Rule Model**, the browser paragraph, lines 1586–1590. Keep its first sentences (as
+     C150 rewrites them) and replace "Checks cover the address named by the agent, excluding
+     redirect targets and destinations reached through clicks or page-script requests." with:
+     "Checks also cover where that address leads. Each redirect, and each page the browser loads
+     in the main frame without the agent naming it, such as a followed link, a submitted form, or
+     a popup, is evaluated as a named address is, before the request is sent. The requests a page
+     makes by itself, for scripts, images, frames, and data, are evaluated against denials only, so
+     an operator's denial and the core metadata denial reach them while ordinary pages need no
+     additional allowances. Script the agent writes for a page to run requires its own
+     allowance, \texttt{browser:act:evaluate}, in addition to \texttt{browser:act}."
+  4. **3.5.2.2 Evaluation Order**, after the working-folder paragraph (ends line 1760, "…the
+     tool operates on the path that policy evaluated (Section~\ref{sec: path-canonz})."), a new
+     paragraph: "The same part evaluation applies to requests that an allowed call leads to. A
+     governed tool runs inside a scope that carries its agent, session, and the addresses it
+     named. When a redirect, or a page navigation the agent did not name, is about to be sent,
+     the engine evaluates that address through this sequence as a part of the call. A matching
+     denial or a miss refuses the request before it is sent, and the miss is not converted into
+     an approval request. A request that a page makes by itself is evaluated through the
+     containment checks and the denial pass only. Lockdown therefore stops every request from a
+     locked agent's pages, and \texttt{monitor} lets a miss proceed while denials still apply."
+  5. **3.5.3.1 Entry Structure**, `tab:gov-ledger-required-fields`, conditional fields (after the
+     `url` row C150 adds): new row "\texttt{via} & How a request the agent did not name was
+     reached: \texttt{redirect}, \texttt{navigation} for a page navigation, or \texttt{page} for a
+     page's own request. Redirects and navigations are recorded with every decision; a page's own
+     request is recorded only when refused. \texttt{toolName} names the call that led to it." Line
+     3224, the `canonicalPayload` sentence as C150 leaves it ("…\texttt{actorRole},
+     \texttt{intent}, and \texttt{url} use the prefixes \texttt{role:}, \texttt{intent:}, and
+     \texttt{url:}") becomes "…\texttt{actorRole}, \texttt{intent}, \texttt{url}, and \texttt{via} use
+     the prefixes \texttt{role:}, \texttt{intent:}, \texttt{url:}, and \texttt{via:}".
+  6. **3.5.6.1 Agent Lockdown** (optional), line 4572, after "An allowance cannot override the
+     hold.": "Pages that the agent opened before the hold make no further requests."
+  7. **3.5.11 Management Interface** (optional), lines 5157–5159 (the warning paragraph): add
+     "The ledger shows how a request the agent did not name was reached, beside its address."
+  8. **3.5.12 System Security**, table row "Shell commands and browser" (lines 5240–5248).
+     Control cell: "Network rules evaluate named browser navigation" becomes "Network and URL
+     rules evaluate named browser navigation, each redirect and page navigation that follows,
+     and, through denials, a page's own requests". Limit cell: delete "Network policy is not
+     rechecked after a clicked link or a page-script request. Redirect targets are also outside
+     named-navigation checks", which T94 makes untrue; the cell keeps its first two sentences.
+     **Do not add the residual limits here** (2026-10-24 rule): they are L51–L55 in
+     `CH4-LIMITATIONS.md`.
+
+  Unchanged and still true: 3.5.2.4 Baseline Policy (no baseline rule changes; T94 D11).
+  Evidence for Chapter 4 is C153 (§7).
+
+### 3.9 T95 and T96: expired rules are kept; rule removals state expiry (3.5.2.1, 3.5.3, agent deletion)
+
+- **C154.** **NOW (T95 and T96, built 2026-11-09; design `mg/T95-T96-RULE-RETENTION-DESIGN.md`,
+  decisions D1–D5; record `mg/WORK-LOG-2026-11-09.md`). Line numbers are those of Kinan's
+  Chapter 3 export of 2026-11-09 (`C:\Users\kinan\OneDrive\Desktop\Chapter 3.txt`), which does not
+  yet carry C150 or C152; none of the passages below overlaps theirs.** What was true before:
+  adding any rule silently deleted every rule that had expired more than seven days earlier, and
+  every rule whose expiry did not parse, with no ledger entry; a removal entry gave the expiry time
+  but not whether the rule had lapsed; deleting an agent from the host recorded only a count of the
+  rules it cleared. What is true now: adding a rule deletes nothing; a removal entry states whether
+  the rule had expired at that moment; host deletion records every rule it removes. The chapter
+  never mentioned the pruning, so nothing in it is now false; the gaps are what it does not say.
+  1. **3.5.2.1 Rule Model**, lines 829–831. After "Optional \texttt{expiresAt} sets expiry, with
+     rules with invalid timestamps marked as expired on the dashboard and no longer applied." add:
+     "An expired rule remains in the policy, marked as expired on the dashboard, until an
+     administrator removes it; it is not applied, and adding other rules does not remove it. A
+     policy holds at most 1,000 rules, expired rules included, and a refusal at that limit states
+     how many of them have expired."
+     (Code: `addRule` and `TooManyRulesError` in `src/governance/policy-store.ts`. The 1,000 is
+     `MAX_POLICY_RULES`; the chapter does not state it today, so the second sentence is optional.)
+  2. **3.5.3 Audit Ledger**, line 3029, the paragraph "Rule additions and removals record the
+     rule's effect, …". After "Path rules also record their access direction." add: "A removal
+     entry also states whether the rule had expired when it was deleted, as \texttt{expired at
+     removal} or \texttt{not expired at removal}. The status is decided at the moment of deletion
+     by the expiry test the policy engine applies, so an expiry at or before that moment counts as
+     expired, and an expiry that cannot be read is recorded as expired with that reason. It is
+     written before the description, which therefore cannot imitate it." Keep the rest of the
+     paragraph.
+  3. **Agent deletion** (the "Host deletion offers two unselected choices." paragraph, lines
+     4308–4315). After "A later agent using the identifier inherits those leftovers and receives a
+     notice." add: "Either kind of host deletion also clears what governance holds for the
+     identifier: its rules, posture, escalation override and timeout, and lockdown. The ledger
+     records the clearing as one entry, followed by one rule-removal entry for each rule, each
+     marked as removed with the agent and stating whether the rule had expired." (Code:
+     `clearAgentPolicy`, called by `deprovisionAgent` in `agent-provisioning.ts` whenever
+     `deleteFromHost` is set; unregistering alone keeps everything, as the chapter already says at
+     line 4304.) Also check "inherits those leftovers": after this sentence it is clear the
+     leftovers are host state only.
+  4. **Table `tab:gov-admin-audit-actions`** (lines 2993–3020), Policy management row: unchanged
+     and still true ("Adding and removing rules; … and clearing an agent's policy state").
+
+  Unchanged and still true: line 830's "rules with invalid timestamps marked as expired on the
+  dashboard and no longer applied" (T95–T96 D5 made the dashboard's notice check agree with it).
+  Nothing for 3.5.12 System Security, and no limitation sentence anywhere (2026-10-24 rule): the
+  one residual, a malformed rule dropped on load without a removal entry, is L56 in
+  `CH4-LIMITATIONS.md`. Evidence for Chapter 4 is C155 (§7).
 
 ### 3.10 Section 3.5.12, System Security
 
@@ -592,6 +732,69 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
   form afresh fails without the fix (`renderKindOptions`, `rule-kind-hints.ts`). Not driven
   live: a Viewer's view of the address (unit-tested), browser navigation through
   `/tools/invoke` (unit-tested). Record: `mg/WORK-LOG-2026-11-08.md` §3.
+
+- **C153.** **Chapter 4 evidence for T94, requests the agent did not name (2026-11-08).** Record:
+  `mg/WORK-LOG-2026-11-08.md` §5; design and decisions `mg/T94-FOLLOW-ON-REQUESTS-DESIGN.md`;
+  scripts `mg/t94-evidence/`. Four kinds of evidence, each worth a short paragraph:
+  1. **Measurement chose the mechanism** (a good Chapter 4 example of evidence before design). Two
+     probes against a real Chrome with a server logging every request showed that Playwright's
+     request routing sees pages, frames, scripts, images, beacons, worker and service-worker
+     requests and popups, but **not redirect hops**, which reached the server unrouted, while a
+     DevTools `Fetch` session on the page saw every hop and, when the hop was failed, the server
+     never received it. Hence two mechanisms in the browser, one in `web_fetch` (whose own
+     redirect loop already followed hops one by one).
+  2. **Tests whose proof is the destination's own log**, as T94's requirement asked ("audit
+     matching alone is insufficient proof of interception"): `follow-on-requests.test.ts` (28,
+     including `web_fetch` against a real local server), `governed-page-requests.chrome.test.ts`
+     (11, in a real Chrome over CDP: redirect hop, clicked link, page `fetch`, image, worker,
+     WebSocket, popup, pages and calls outside governance), `server-context.governed-open.test.ts`
+     (3), `follow-on-requests-ui.test.ts` (5). In every refusal case the test server's log shows
+     the refused request never arrived.
+  3. **Mutation sweep:** 17 of 18 distinct mutants killed. The survivor removes one of two popup
+     adoptions; removing both is killed. Stated as a redundant guard, not claimed as tested.
+  4. **Live run on a rebuilt isolated Gateway, from the dashboard and `/tools/invoke`** (the table
+     in the work log §5): three `web_fetch` redirects refused (unlisted host, a `url` forbid on
+     `/admin`, the core metadata rule) with the destinations' logs empty; in the browser a
+     redirect, two clicked links and a page's own requests to a forbidden host stopped, while the
+     page's requests to an unlisted host went ahead (denials only, by design); agent-written script
+     was put to a person as `browser:act:evaluate`, and after *Allow once* its request to the
+     forbidden host was still stopped. Ledger: 10 entries with **Reached by**, query value masked,
+     chain intact by the dashboard and `scripts/verify-ledger.mjs`.
+  **Found live, which is the point of a live run:** the first live `open` reached the unlisted site,
+  because a tab created over the DevTools protocol loads before anything can watch it; the fix routes
+  a governed agent's tabs through Playwright (design D13), after the precedent of upstream's own
+  strict SSRF mode, and the re-run showed the refusal page with nothing sent. Also finding 451 (a
+  T93 warning made untrue by T94). Residual limits for Chapter 4 or 5: `CH4-LIMITATIONS.md`
+  L51–L55.
+
+- **C155.** **Chapter 4 evidence for T95 and T96 (2026-11-09).** Record: `mg/WORK-LOG-2026-11-09.md`
+  §1; design `mg/T95-T96-RULE-RETENTION-DESIGN.md` (D1–D6); evidence `mg/t95-t96-evidence/`.
+  1. **Verified before changing** (a good example of checking a reported behaviour rather than
+     assuming it): adding any rule deleted every rule expired over seven days and every rule with
+     an unreadable expiry, with no ledger entry; a removal entry gave the expiry time but not the
+     status; host deletion of an agent recorded only a count of the rules it took.
+  2. **Tests on the real store, ledger and chain verifier, no mocked writer:**
+     `rule-retention-and-removal-audit.test.ts` (14: retention and powerlessness of expired and
+     unreadable rules, an expired denial included; the four removal statuses; the boundary at the
+     expiry instant and one millisecond before; the status kept, not recomputed, once the rule
+     would have lapsed; the description unable to imitate it; agent deletion's summary and
+     per-rule entries; chain intact), `rule-expiry.test.ts` (rewritten where it asserted pruning;
+     the ceiling now refuses with the expired count), and two dashboard tests (unreadable expiry in
+     the notice check; the Remove dialog).
+  3. **Mutation sweep:** 11 of 11 mutants killed (`mg/t95-t96-evidence/mutations.mjs`), each
+     undoing one decision (pruning restored, status dropped or judged at the wrong time or one
+     millisecond late, unreadable reported as plain expired, status moved after the description,
+     per-rule entries or "removed with the agent" dropped, the dashboard's two expiry readings).
+  4. **Live run on a rebuilt isolated Gateway** (table in the work log §1.4): after a rule was added
+     on the dashboard, a rule expired 30 days earlier and one with an unreadable expiry were still
+     stored (the old code deleted both) and still allowed nothing (`web_fetch` refused, the test
+     site never contacted), while the new rule allowed its host; five dashboard removals recorded
+     `expired at removal`, `expired at removal: expiry unreadable` and `not expired at removal` as
+     the rule's state required; deleting an agent wrote the summary then one removal per rule,
+     marked `removed with the agent`; chain intact by the dashboard and `scripts/verify-ledger.mjs`.
+  **Found live:** the Remove dialog told the operator an expired rule's agent "will no longer be
+  allowed to do this"; fixed (D6) with its own wording, test and mutation. Residual limit:
+  `CH4-LIMITATIONS.md` L56.
 
 ## 8. Repository documents (not the report)
 

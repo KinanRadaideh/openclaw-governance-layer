@@ -1,0 +1,13 @@
+M1 T95: addRule prunes every expired rule again: KILLED (4 failing)
+M2 D2: ceiling refusal no longer counts expired rules: KILLED (1 failing)
+M3 D3: removeRule writes no status: KILLED (7 failing)
+M4 D3: status judged at time 0 instead of the removal instant: KILLED (3 failing)
+M5 D3: boundary off by one (expired only after the instant): KILLED (2 failing)
+M6 D3: unreadable expiry reported as plain expired: KILLED (2 failing)
+M7 D3: status written after the description: KILLED (7 failing)
+M8 D4: agent deletion writes no per-rule removal: KILLED (1 failing)
+M9 D4: per-rule removal lacks 'removed with the agent': KILLED (1 failing)
+M10 D5: UI reads an unreadable expiry as live again: KILLED (1 failing)
+--- 2026-11-09, after the live run: M10 re-pointed at ruleHasExpired, M11 added for D6
+M10 D5: UI reads an unreadable expiry as live again: KILLED (3 failing)
+M11 D6: an expired rule's Remove dialog says the agent loses a permission again: KILLED (3 failing)

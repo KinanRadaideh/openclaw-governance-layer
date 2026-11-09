@@ -233,11 +233,50 @@ Three things to know:
   under another address. To be sure, forbid the whole host with a `network` rule.
 - A forbid on the host still beats any `url` allow, and the shipped forbid on cloud
   metadata addresses cannot be opened by a `url` rule.
-- Checks apply to the address the agent names (fetch, browser open or navigate,
-  the scraping tools), not to redirects, clicked links or a page's own requests.
+- Since T94 (§2.4), redirects and the pages an agent goes on to are checked too.
 
 The ledger records the host as before and, beside it, the address with every
 query value replaced by `***`; a Viewer sees it masked.
+
+### 2.4 Redirects, links and what a page loads (2026-11-08, T94)
+
+Your `network` and `url` rules are not only checked against the address the agent
+names. They also apply to where that address leads:
+
+| What happens                                                                                                        | How it is checked                                                                              |
+| ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| A fetch or a browser page is **redirected** (each hop of the chain)                                                 | like an address the agent named: forbid wins, then allow; **no rule means refused, not asked** |
+| In the browser, the agent **clicks a link**, submits a form, or the page opens a popup or changes address by script | the same                                                                                       |
+| What a page **loads by itself**: scripts, images, styles, frames, `fetch`, workers, WebSockets                      | **forbids only**: a forbid stops it; anything else goes ahead, nobody is asked                 |
+
+So, in practice:
+
+- **A redirect or a link to a host you have not allowed is refused**, and the agent is told
+  to name that address in a call of its own. That call is checked as usual and can be put to
+  you. `example.com` sending the agent on to `www.example.com` needs `www.example.com` allowed
+  too: `^(www[.])?example[.]com$` covers both.
+- **Your forbids reach everything a page does.** A forbid on a tracker, an advertising host,
+  or a path such as `/admin` also stops a page from loading it, from any page the agent opened.
+  The shipped forbid on cloud metadata addresses does too.
+- **You do not need rules for what pages load.** An ordinary site's scripts, fonts and images
+  go ahead unless you forbid them, so allowing a site does not mean allowing every host it uses.
+- **Script the agent writes itself** (`evaluate`, or `wait` with a function) needs its own
+  allow rule, `command` `^browser:act:evaluate$`, besides `^browser:act$`. Without it you are
+  asked the first time.
+- A WebSocket address is compared with its own scheme: a `url` rule for one is written
+  `^wss://chat[.]example[.]com:443/…`, not `https://`.
+- In **monitor**, a redirect or link no rule allows goes ahead and is recorded; forbids still
+  stop it.
+- A **locked** agent's pages load nothing at all.
+
+The ledger shows these with a **Reached by** line under the Address: _a redirect from an address
+the agent named_, _a page the agent was on_, or _a request the page made by itself_. Redirects
+and page changes are recorded whether allowed or not; a page's own requests only when a forbid
+stopped them, and a page that keeps retrying the same forbidden address is recorded once every
+30 seconds.
+
+Not covered: a browser on another machine (a node) or the "existing session" and extension
+browser modes, and redirects a fetch service such as Firecrawl follows on its own servers.
 
 ## 3. Patterns, from scratch
 
