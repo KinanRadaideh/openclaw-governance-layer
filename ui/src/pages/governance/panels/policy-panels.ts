@@ -71,6 +71,7 @@ import { renderRootPolicySettings } from "./policy-root-settings.ts";
 import {
   addRuleAfterCheck,
   noticesAfterRemoval,
+  ruleHasExpired,
   ruleNoticesFor,
   type ConflictNotice,
   type RuleNotices,
@@ -686,9 +687,12 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                   props.confirmThen(
                     {
                       // Said by what removing it does (finding 441): a forbid rule's
-                      // removal lets the agent through where it was stopped.
-                      message:
-                        rule.effect === "deny"
+                      // removal lets the agent through where it was stopped. An expired
+                      // rule's removal changes no decision (T95-T96 D6): since T95 these
+                      // stay until removed, so this is the dialog most removals now show.
+                      message: ruleHasExpired(rule)
+                        ? t("governance.confirm.removeExpiredRule")
+                        : rule.effect === "deny"
                           ? t("governance.confirm.removeDenyRule")
                           : t("governance.confirm.removeRule"),
                       // Named by what it is for as well as what it matches,

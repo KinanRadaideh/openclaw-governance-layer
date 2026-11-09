@@ -59,11 +59,14 @@ export const ADMIN_ACTIONS = {
   /**
    * Everything an agent id carried, removed with the agent (T55).
    *
-   * Its own action rather than a run of `ruleRemove` entries, because it is one
-   * decision with one cause: the agent was deleted, so what was written about
-   * it stopped meaning anything. A reader scanning the trail should see the
-   * consequence attached to the act, not five unexplained removals next to a
-   * deletion.
+   * Its own action because it is one decision with one cause: the agent was
+   * deleted, so what was written about it stopped meaning anything. A reader
+   * scanning the trail should see the consequence attached to the act.
+   *
+   * **Followed by one `ruleRemove` per rule it took** (T96 D4, 2026-11-09), each
+   * saying "removed with the agent" and whether the rule had expired. This entry
+   * alone gave a count, so an auditor filtering for rule removals missed those
+   * rules and could not learn what they granted.
    */
   agentPolicyCleared: "governance.policy.agent-cleared",
   agentLock: "governance.agent.lock",

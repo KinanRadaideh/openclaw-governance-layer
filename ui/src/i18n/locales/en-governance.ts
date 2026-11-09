@@ -429,6 +429,9 @@ export const enGovernance: TranslationMap = {
       // A forbid rule's removal lifts a restriction; "no longer be allowed" said the opposite.
       removeDenyRule:
         "Remove this restriction? The agent will no longer be stopped by it: whether it may then do this depends on the rules that remain.",
+      // An expired rule already decides nothing (T95-T96 D6); "no longer be allowed" was untrue.
+      removeExpiredRule:
+        "Remove this expired rule? It already applies to nothing, so removing it changes no decision. The audit ledger records the removal and notes that the rule had expired.",
       disableCoreRule:
         "Switch off this shipped protection? It is part of the security floor every installation ships with. It stays declared and can be switched back on, the change is recorded against your account, and the deployment report will report this installation as failing while it is off.",
       setPassword:

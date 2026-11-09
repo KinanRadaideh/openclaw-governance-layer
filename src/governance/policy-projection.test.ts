@@ -95,8 +95,8 @@ describe("agent → the rules that bind it", () => {
 
     const applied = rulesForAgent(doc([live, dead]), "agent-a");
 
-    // `pruneExpiredRules` keeps expired rules on disk for a week for audit
-    // purposes. A different question from what is in force now.
+    // Expired rules stay on disk until someone removes them (T95). A different
+    // question from what is in force now.
     expect(applied.map((entry) => entry.rule.id)).toEqual(["live"]);
   });
 

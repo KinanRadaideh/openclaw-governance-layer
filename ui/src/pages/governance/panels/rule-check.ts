@@ -67,6 +67,18 @@ export function noticesAfterRemoval(notices: RuleNotices, ruleId: string): RuleN
  * **Only the notice the refresh started with**, as `keptKillNotice` does: one raised while
  * the refresh was in the air is newer than the policy it read, which lacks the new rule.
  */
+/**
+ * Expired as the gate reads it (`isRuleExpired` in `src/governance/policy-types.ts`): an expiry at
+ * or before now, or one that does not parse. `NaN <= now` is false, so the dashboard used to read
+ * an unreadable expiry as live where the gate applies the rule to nothing (T95-T96 D5).
+ */
+export function ruleHasExpired(
+  rule: Pick<GovernancePolicyRule, "expiresAt">,
+  nowMs: number = Date.now(),
+): boolean {
+  return Boolean(rule.expiresAt) && !(Date.parse(rule.expiresAt as string) > nowMs);
+}
+
 export function noticeInForce<T extends RuleNoticeSubject>(
   current: T | null,
   atRefreshStart: T | null,
@@ -77,9 +89,7 @@ export function noticeInForce<T extends RuleNoticeSubject>(
     return current;
   }
   const inForce = (id: string) =>
-    rules.some(
-      (rule) => rule.id === id && !(rule.expiresAt && Date.parse(rule.expiresAt) <= nowMs),
-    );
+    rules.some((rule) => rule.id === id && !ruleHasExpired(rule, nowMs));
   return current.ruleIds.every(inForce) ? current : null;
 }
 

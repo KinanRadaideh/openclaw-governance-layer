@@ -1,5 +1,5 @@
 // Time-limited permissions (design requirement #4): expiry, the explicit
-// "indefinite" case, and retention of lapsed rules.
+// "indefinite" case, and that adding a rule keeps lapsed ones (T95).
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,17 +11,14 @@ import {
   addRule,
   loadPolicy,
   MAX_POLICY_RULES,
-  pruneExpiredPolicyRules,
   savePolicy,
   TooManyRulesError,
   updatePolicy,
 } from "./policy-store.js";
 import {
   defaultPolicyDocument,
-  EXPIRED_RULE_RETENTION_MS,
   isRuleExpired,
   isRuleIndefinite,
-  pruneExpiredRules,
   ruleTimeRemainingMs,
   type PolicyRule,
 } from "./policy-types.js";
@@ -85,11 +82,6 @@ describe("indefinite rules", () => {
     expect(indefinite.expiresAt).toBeUndefined();
     expect(JSON.stringify(indefinite)).not.toContain("expiresAt");
   });
-
-  it("survive pruning", () => {
-    const kept = pruneExpiredRules([rule()], NOW + EXPIRED_RULE_RETENTION_MS * 10);
-    expect(kept).toHaveLength(1);
-  });
 });
 
 describe("time-limited rules", () => {
@@ -149,30 +141,15 @@ describe("time-limited rules", () => {
   });
 });
 
-describe("retention of lapsed rules", () => {
-  it("keeps a recently expired rule so the denial can be explained", () => {
-    // "Why was this suddenly denied?" is answered by the rule that just
-    // lapsed; deleting it instantly would erase the explanation.
-    const justLapsed = rule({ expiresAt: new Date(NOW - 60_000).toISOString() });
-    expect(pruneExpiredRules([justLapsed], NOW)).toHaveLength(1);
-  });
-
-  it("drops a rule expired beyond the retention window", () => {
-    const old = rule({ expiresAt: new Date(NOW - EXPIRED_RULE_RETENTION_MS - 1000).toISOString() });
-    expect(pruneExpiredRules([old], NOW)).toHaveLength(0);
-  });
-
-  it("drops a rule with an unparseable expiry", () => {
-    expect(pruneExpiredRules([rule({ expiresAt: "garbage" })], NOW)).toHaveLength(0);
-  });
-
-  it("prunes as a side effect of adding a rule, with no scheduler", async () => {
+describe("lapsed rules are kept (T95)", () => {
+  it("adding a rule deletes no expired rule, however old, nor one with an unreadable expiry", async () => {
+    // Until T95 this add dropped both: a deletion with no ledger entry, made by an operator who
+    // had asked only to add. Behaviour of the kept rules: rule-retention-and-removal-audit.test.ts.
+    const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     await updatePolicy(TEST_GROUP, (doc) => {
       doc.rules = [
-        rule({
-          id: "ancient",
-          expiresAt: new Date(Date.now() - EXPIRED_RULE_RETENTION_MS - 10_000).toISOString(),
-        }),
+        rule({ id: "ancient", expiresAt: monthAgo }),
+        rule({ id: "garbage", expiresAt: "garbage" }),
       ];
     });
     await addRule(
@@ -180,30 +157,10 @@ describe("retention of lapsed rules", () => {
       { description: "test rule", resourceKind: "command", pattern: "^new$" },
       TEST_ACTOR,
     );
-    const ids = (await loadPolicy(TEST_GROUP)).rules.map((r) => r.id);
-    expect(ids).not.toContain("ancient");
-    expect(ids.some((id) => id.startsWith("command-"))).toBe(true);
-  });
-
-  it("can be pruned explicitly and reports how many went", async () => {
-    await updatePolicy(TEST_GROUP, (doc) => {
-      doc.rules = [
-        rule({
-          id: "a",
-          expiresAt: new Date(Date.now() - EXPIRED_RULE_RETENTION_MS * 2).toISOString(),
-        }),
-        rule({
-          id: "b",
-          expiresAt: new Date(Date.now() - EXPIRED_RULE_RETENTION_MS * 2).toISOString(),
-        }),
-        rule({ id: "keep" }),
-      ];
-    });
-    expect(await pruneExpiredPolicyRules(TEST_GROUP)).toBe(2);
-    const operatorIds = (await loadPolicy(TEST_GROUP)).rules
+    const ids = (await loadPolicy(TEST_GROUP)).rules
       .filter((entry) => !isShippedRule(entry))
       .map((r) => r.id);
-    expect(operatorIds).toEqual(["keep"]);
+    expect(ids).toEqual(["ancient", "garbage", expect.stringMatching(/^command-/)]);
   });
 });
 
@@ -227,9 +184,9 @@ describe("the ruleset is bounded", () => {
     ).rejects.toBeInstanceOf(TooManyRulesError);
   });
 
-  it("recovers on its own when the ceiling was reached through lapsed rules", async () => {
-    // Pruning runs before the check, so an installation full of expired grants
-    // is not told it is full. It simply cleans up and accepts the new rule.
+  it("counts lapsed rules toward the ceiling, and says how many have lapsed (T95 D2)", async () => {
+    // Before T95 the add pruned first, so a policy full of expired grants accepted the rule. It
+    // now refuses, and the refusal names the expired rules removing would make room.
     const longAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const doc = defaultPolicyDocument();
     doc.rules = Array.from({ length: MAX_POLICY_RULES }, (_unused, index) => ({
@@ -238,16 +195,22 @@ describe("the ruleset is bounded", () => {
       resourceKind: "command" as const,
       pattern: `^cmd-${index}$`,
       createdAt: longAgo,
-      expiresAt: longAgo,
+      ...(index < 3 ? {} : { expiresAt: longAgo }),
     }));
     await savePolicy(TEST_GROUP, doc);
-    await expect(
-      addRule(
-        TEST_GROUP,
-        { description: "test rule", resourceKind: "command", pattern: "^one-more$" },
-        "kinan",
-      ),
-    ).resolves.toMatchObject({ pattern: "^one-more$" });
+    const refusal = await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^one-more$" },
+      "kinan",
+    ).catch((err: unknown) => err);
+    expect(refusal).toBeInstanceOf(TooManyRulesError);
+    // Every stored rule is operator-written here except the shipped ones the load adds back,
+    // which never expire, so the expired count is exactly the ones given a past expiry.
+    expect((refusal as TooManyRulesError).expired).toBe(MAX_POLICY_RULES - 3);
+    expect((refusal as Error).message).toContain(`${MAX_POLICY_RULES - 3} of them expired`);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.pattern === "^one-more$")).toBe(
+      false,
+    );
   });
 });
 

@@ -33,12 +33,13 @@ import {
   isGovernanceMode,
   POLICY_DOCUMENT_VERSION,
   type GovernanceMode,
-  pruneExpiredRules,
+  isRuleExpired,
   type AskMode,
   type PolicyDocument,
   type PolicyRule,
 } from "./policy-types.js";
 import { detectRuleConflicts, type RuleConflict } from "./rule-conflicts.js";
+import { describeRule, expiryStatusAtRemoval } from "./rule-ledger-text.js";
 import { MAX_STORED_RULE_DESCRIPTION_LENGTH } from "./rule-validation.js";
 
 /**
@@ -521,76 +522,12 @@ export async function updatePolicy(
   return next;
 }
 
-/**
- * Prunes long-expired rules. Called when rules are added so the document does
- * not accumulate dead entries indefinitely, without needing a background job.
- */
-export async function pruneExpiredPolicyRules(groupId: string): Promise<number> {
-  let removed = 0;
-  await updatePolicy(groupId, (doc) => {
-    const before = doc.rules.length;
-    doc.rules = pruneExpiredRules(doc.rules, Date.now());
-    removed = before - doc.rules.length;
-  });
-  return removed;
-}
-
-/**
- * Describes a rule the way an auditor reading the ledger needs to see it.
- *
- * The pattern alone is not enough: the same pattern is a very different grant
- * depending on whether it binds one agent or all of them, and whether it lapses
- * in an hour or never. Those are exactly the details someone reviewing a change
- * after an incident is trying to establish.
- */
-/**
- * One line describing a rule, for the ledger entry that records its creation or
- * removal.
- *
- * **`effect` and `access` were missing until 2026-08-31 (T38)**, and the
- * omission was found by reading the ledger on screen rather than by any test.
- * The folder-grant form writes an allow rule and a deny rule as a single act,
- * and the two entries it produced were identical in form and opposite in
- * meaning:
- *
- *     governance.policy.rule.add path ^C:/srv/app(/|$)         (all agents, indefinite)
- *     governance.policy.rule.add path ^C:/srv/app/secrets(/|$) (all agents, indefinite)
- *
- * A tamper-evident record of policy changes that cannot say whether a change
- * *granted* or *forbade* is not recording the decision, and requirement #5
- * asks for policy decisions, not for the patterns they mention. `access` is
- * here for the same reason: allowing **write** and allowing **read** on a path
- * are different grants, and the difference is invisible in the pattern.
- *
- * **The effect is stated in both directions rather than only for denials.**
- * Leaving an allowance silent would mean an auditor has to know that absence
- * means allow: a convention that cannot be checked from the entry, and one an
- * entry truncated or partially read would get backwards.
- *
- * Existing entries are untouched and still verify: this changes the text of the
- * `resource` field, which was already covered by the hash, not the field list
- * the chain is computed over.
- */
 /** Names the temporary rules a new rule outlives (Kimi QA 1, bug 8), or nothing. */
 function describeExtensions(conflicts: readonly RuleConflict[]): string {
   const extended = conflicts
     .filter((conflict) => conflict.kind === "extends-time-limited")
     .map((conflict) => conflict.existingRuleId);
   return extended.length > 0 ? `; extends temporary rule ${extended.join(", ")}` : "";
-}
-
-function describeRule(rule: PolicyRule): string {
-  const scope = rule.agentId ? `agent ${rule.agentId}` : "all agents";
-  const expiry = rule.expiresAt ? `expires ${rule.expiresAt}` : "indefinite";
-  const effect = rule.effect === "deny" ? "deny" : "allow";
-  // Only meaningful on path rules, and omitted elsewhere rather than printed as
-  // a default: the engine ignores it for command and network rules, and an
-  // entry naming a direction the gate never consults would be a false record.
-  const access = rule.resourceKind === "path" && rule.access ? ` ${rule.access}` : "";
-  // The description rides in the entry as well as in the policy (T70): after a
-  // removal the ledger is the only place left that says why the rule existed.
-  // Redacted and length-capped by the ledger like the rest of the target.
-  return `${effect} ${rule.resourceKind}${access} ${rule.pattern} (${scope}, ${expiry}); description: ${rule.description}`;
 }
 
 /**
@@ -613,16 +550,23 @@ function describeRule(rule: PolicyRule): string {
  * where matching becomes noticeable. Hitting it means either an automated loop
  * is creating rules or the policy has stopped being something a person
  * maintains; both deserve an error rather than silent degradation.
+ *
+ * **Expired rules count** (T95 D2, 2026-11-09). They stay stored until someone removes them, and
+ * each still costs the document and the gate's loop. The refusal says how many have expired,
+ * since removing those is the quickest way to make room.
  */
 export const MAX_POLICY_RULES = 1000;
 
 export class TooManyRulesError extends Error {
-  constructor() {
+  readonly expired: number;
+  constructor(expired = 0) {
     super(
-      `The policy already holds the maximum of ${MAX_POLICY_RULES} rules. ` +
-        `Remove rules that are no longer needed before adding more.`,
+      `The policy already holds the maximum of ${MAX_POLICY_RULES} rules` +
+        (expired > 0 ? `, ${expired} of them expired` : "") +
+        `. Remove rules that are no longer needed before adding more.`,
     );
     this.name = "TooManyRulesError";
+    this.expired = expired;
   }
 }
 
@@ -690,19 +634,20 @@ export async function addRuleChecked(
     ...(rule.agentId ? { agentId: normalizeAgentId(rule.agentId) } : {}),
     createdAt: new Date().toISOString(),
   };
-  let overflowed = false;
+  let overflowed: number | undefined;
   let detected: RuleConflict[] = [];
   await updatePolicy(groupId, (doc) => {
-    // Opportunistic cleanup: piggy-backing on a write the operator already
-    // triggered avoids a scheduler, and keeps the document from growing
-    // without bound as short-lived grants come and go.
-    doc.rules = pruneExpiredRules(doc.rules, Date.now());
-    // Checked after pruning, so an installation at the ceiling purely through
-    // lapsed rules recovers on its own rather than being told it is full.
-    // Checked inside the lock for the usual reason: two callers reading the
+    // **Adding a rule removes nothing** (T95, 2026-11-09). This write used to drop every rule
+    // expired more than seven days, and every rule with an unreadable expiry, with no ledger
+    // entry: the one deletion the trail did not account for, made by an operator who had asked
+    // only to add. An expired rule now stays, marked expired on the Policy page and applied to
+    // nothing by the gate (`isRuleExpired`), until someone removes it, which is recorded.
+    //
+    // The ceiling counts it (D2), inside the lock for the usual reason: two callers reading the
     // same count outside it would both pass.
     if (doc.rules.length >= MAX_POLICY_RULES) {
-      overflowed = true;
+      const now = Date.now();
+      overflowed = doc.rules.filter((stored) => isRuleExpired(stored, now)).length;
       return;
     }
     // Conflicts are detected **here**, against the ruleset this write is
@@ -724,8 +669,8 @@ export async function addRuleChecked(
     detected = detectRuleConflicts(doc.rules, full);
     doc.rules.push(full);
   });
-  if (overflowed) {
-    throw new TooManyRulesError();
+  if (overflowed !== undefined) {
+    throw new TooManyRulesError(overflowed);
   }
   await recordAdminAction(groupId, {
     actor,
@@ -791,6 +736,7 @@ export async function removeRule(
   actor: AuditActorInput,
 ): Promise<boolean> {
   let removed: PolicyRule | undefined;
+  let removedAtMs = 0;
   let blockedCore = false;
   await updatePolicy(groupId, (doc) => {
     const target = doc.rules.find((r) => r.id === ruleId);
@@ -799,6 +745,9 @@ export async function removeRule(
       return;
     }
     removed = target;
+    // The instant the rule leaves the document, which is what its expiry is judged against
+    // (T96 D3): not the time the entry is written, nor the time anyone later reads it.
+    removedAtMs = Date.now();
     doc.rules = doc.rules.filter((r) => r.id !== ruleId);
   });
   if (blockedCore) {
@@ -814,8 +763,9 @@ export async function removeRule(
     actor,
     action: ADMIN_ACTIONS.ruleRemove,
     // The removed rule is described in full: after deletion the ledger is the
-    // only remaining record of what the permission actually was.
-    target: describeRule(removed),
+    // only remaining record of what the permission actually was. With it, whether
+    // it had already expired (T96): an expiry time alone leaves that to the reader.
+    target: describeRule(removed, { status: expiryStatusAtRemoval(removed, removedAtMs) }),
     subjectId: ruleId,
     ...(removed.agentId ? { agentId: removed.agentId } : {}),
   });
@@ -1062,6 +1012,8 @@ export async function clearAgentPolicy(
     hitlTimeout: false,
     locked: false,
   };
+  let removedRules: PolicyRule[] = [];
+  let removedAtMs = 0;
   await updatePolicy(groupId, (doc) => {
     // Both sides folded. A stored rule is normalised on the way in
     // (`addRule`), and folding again here costs nothing and removes the
@@ -1069,7 +1021,9 @@ export async function clearAgentPolicy(
     const keep = doc.rules.filter(
       (rule) => rule.agentId === undefined || normalizeAgentId(rule.agentId) !== agentId,
     );
-    cleared.rules = doc.rules.length - keep.length;
+    removedRules = doc.rules.filter((rule) => !keep.includes(rule));
+    removedAtMs = Date.now();
+    cleared.rules = removedRules.length;
     doc.rules = keep;
     cleared.mode = Object.hasOwn(doc.agentMode, agentId);
     cleared.ask = Object.hasOwn(doc.agentAsk, agentId);
@@ -1090,6 +1044,22 @@ export async function clearAgentPolicy(
       action: ADMIN_ACTIONS.agentPolicyCleared,
       agentId,
       target: `cleared with the agent: ${describeAgentPolicyHoldings(cleared)}`,
+    });
+  }
+  // **Then each rule that went, as its own removal** (T96 D4, 2026-11-09). The summary above
+  // gave a count; an auditor filtering for rule removals missed every rule that left with an
+  // agent, and could not learn what it granted or whether it had already expired. The summary
+  // first, so the cause precedes its consequences in the chain.
+  for (const rule of removedRules) {
+    await recordAdminAction(groupId, {
+      actor,
+      action: ADMIN_ACTIONS.ruleRemove,
+      target: describeRule(rule, {
+        status: expiryStatusAtRemoval(rule, removedAtMs),
+        withAgent: true,
+      }),
+      subjectId: rule.id,
+      agentId,
     });
   }
   return cleared;

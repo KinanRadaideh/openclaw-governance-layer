@@ -440,25 +440,7 @@ export function ruleTimeRemainingMs(rule: PolicyRule, nowMs: number): number | u
   return Math.max(0, expiry - nowMs);
 }
 
-/**
- * How long an expired rule is kept before pruning.
- *
- * Not zero on purpose: a rule that lapsed moments ago is exactly what an
- * operator investigating "why was this suddenly denied?" needs to see. Removing
- * it instantly would erase the explanation along with the grant.
- */
-export const EXPIRED_RULE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** Drops rules that expired longer ago than the retention window. */
-export function pruneExpiredRules(rules: PolicyRule[], nowMs: number): PolicyRule[] {
-  return rules.filter((rule) => {
-    if (!rule.expiresAt) {
-      return true;
-    }
-    const expiry = Date.parse(rule.expiresAt);
-    if (!Number.isFinite(expiry)) {
-      return false;
-    }
-    return nowMs - expiry < EXPIRED_RULE_RETENTION_MS;
-  });
-}
+// `pruneExpiredRules` and its seven-day `EXPIRED_RULE_RETENTION_MS` were removed with T95
+// (2026-11-09, `mg/T95-T96-RULE-RETENTION-DESIGN.md`): adding a rule used them to delete expired
+// rules with no ledger entry. An expired rule now stays stored until it is removed, and a removal
+// is recorded with whether the rule had expired.

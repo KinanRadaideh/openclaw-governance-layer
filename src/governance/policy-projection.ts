@@ -62,9 +62,9 @@ export type AppliedRule = {
  * frequently found defect class, so the agreement is pinned by a test that
  * evaluates real calls against the projection rather than by this comment.
  *
- * Expired rules are excluded because they bind nothing; `pruneExpiredRules`
- * keeps them on disk for a week for audit purposes, which is a different
- * question from what is in force now.
+ * Expired rules are excluded because they bind nothing; they stay on disk
+ * until someone removes them (T95), which is a different question from what
+ * is in force now.
  */
 export function rulesForAgent(
   doc: PolicyDocument,
