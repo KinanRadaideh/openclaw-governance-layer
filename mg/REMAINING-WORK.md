@@ -31,9 +31,9 @@ yet pushed):** a separate `url` rule kind beside hostname rules; see §"T93" for
 and evidence.
 **Closed 2026-11-08 at Kinan's direction, as outdated:** T17, T72 and T82 (their report work
 is in the 2026-11-08 export or is a numbered item of `DOCUMENTATION-UPDATES.md`). T79 stays open.
-**T94 is built (added and built 2026-11-08; committed 2026-11-09, code `ea635423905`, not pushed):** redirects, clicked links and a
+**T94 is built (added and built 2026-11-08; committed 2026-11-09, code `ea635423905`, pushed to `personal`):** redirects, clicked links and a
 page's own requests are now judged; see §"T94" for the decisions and evidence.
-**T95 and T96 are built (2026-11-09; committed, code `632e6e3a3d3`, not pushed):** adding a rule no longer deletes expired
+**T95 and T96 are built (2026-11-09; committed, code `632e6e3a3d3`, pushed to `personal`):** adding a rule no longer deletes expired
 rules, and every rule removal (the dashboard's, and each rule a host deletion of an agent takes)
 states whether the rule had expired; see §"T95" and §"T96".
 
@@ -295,7 +295,7 @@ not authorization to change runtime behavior or the policy schema now.
 
 ### T94: enforce network policy beyond named navigation (added 2026-11-08)
 
-**Built 2026-11-08; committed 2026-11-09 (code `ea635423905`, not pushed)** (Kinan: "Do T94 yourself … plan/design it, then build it, then
+**Built 2026-11-08; committed 2026-11-09 (code `ea635423905`, pushed to `personal`)** (Kinan: "Do T94 yourself … plan/design it, then build it, then
 test it (including a live dashboard test), then document it"). Design and decisions (D1–D14, each
 with its precedent): `mg/T94-FOLLOW-ON-REQUESTS-DESIGN.md`. Record: `mg/WORK-LOG-2026-11-08.md`
 §5. A redirect hop (`web_fetch`, and a browser page's main frame) and a page navigation the agent
@@ -353,7 +353,7 @@ do not claim universal coverage until proven.
 
 ### T95: stop rule creation from deleting expired rules (added 2026-11-08)
 
-**Built 2026-11-09; committed (code `632e6e3a3d3`, not pushed)** (Kinan: "do T95 and T96. plan/design them …, then build them,
+**Built 2026-11-09; committed (code `632e6e3a3d3`, pushed to `personal`)** (Kinan: "do T95 and T96. plan/design them …, then build them,
 then test them (including a live dashboard test), then document them"). Confirmed first: `addRule`
 pruned rules expired over seven days and every unreadable-expiry rule, unrecorded. Removed, with
 `pruneExpiredRules`, `pruneExpiredPolicyRules` and the retention constant; the 1,000-rule ceiling
@@ -371,7 +371,7 @@ a speculative runtime change.
 
 ### T96: verify audit events for policy-rule deletion (added 2026-11-08)
 
-**Built 2026-11-09; committed (code `632e6e3a3d3`, not pushed).** Verified first: the removal entry gave the expiry time but not
+**Built 2026-11-09; committed (code `632e6e3a3d3`, pushed to `personal`).** Verified first: the removal entry gave the expiry time but not
 whether the rule had lapsed, and host deletion of an agent recorded only a count of its rules.
 Now each removal entry says `expired at removal` / `not expired at removal` (decided at deletion
 by `isRuleExpired`; unreadable expiry = expired, with the reason), and host deletion writes one

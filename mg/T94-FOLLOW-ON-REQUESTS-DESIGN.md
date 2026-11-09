@@ -1,6 +1,6 @@
 # T94 design: network policy for requests the agent did not name (2026-11-08)
 
-**Status: built and tested 2026-11-08; committed 2026-11-09 (code `ea635423905`, not pushed).** §1–§5 were written before the build and are
+**Status: built and tested 2026-11-08; committed 2026-11-09 (code `ea635423905`, pushed to `personal`).** §1–§5 were written before the build and are
 kept as written; §6 records the two decisions the build added and the two defects found live. Kinan's instruction (2026-11-08): "Do T94 yourself,
 justifying the decisions you take in some documentation. Plan/design it, then build it, then test
 it (including a live dashboard test), then document it … when making a decision use previous
