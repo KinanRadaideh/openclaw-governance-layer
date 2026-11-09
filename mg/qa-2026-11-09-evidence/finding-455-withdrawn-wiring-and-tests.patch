@@ -1,0 +1,124 @@
+diff --git a/extensions/browser/src/browser/governed-page-requests.chrome.test.ts b/extensions/browser/src/browser/governed-page-requests.chrome.test.ts
+index ca4ed4b5400..7ea5c2950d5 100644
+--- a/extensions/browser/src/browser/governed-page-requests.chrome.test.ts
++++ b/extensions/browser/src/browser/governed-page-requests.chrome.test.ts
+@@ -94,6 +94,29 @@ function handler(prefix: string) {
+             `new Worker('/worker.js');</script>`,
+         ),
+       );
++    } else if (url === "/worker-socket" || url === "/worker-socket-forge") {
++      const script = url === "/worker-socket" ? "/ws-worker.js" : "/ws-worker-forge.js";
++      send(
++        "text/html",
++        htmlPage(
++          `<script>window.result='pending';const w=new Worker('${script}');` +
++            `w.onmessage=(e)=>{window.result=e.data};</script>`,
++        ),
++      );
++    } else if (url === "/ws-worker.js" || url === "/ws-worker-forge.js") {
++      const target = `${otherBase.replace("http", "ws")}/ws-from-worker`;
++      // The forging worker tries to answer its own question before the judge does.
++      const forge =
++        url === "/ws-worker-forge.js"
++          ? `try{self.__openclawGovernedSocketVerdict('guess',1,'${target}',true)}catch(e){}` +
++            `try{self.__openclawGovernedSocketAsk&&self.__openclawGovernedSocketAsk('{"id":1,"url":"ws://127.0.0.1:1/"}')}catch(e){}`
++          : "";
++      send(
++        "text/javascript",
++        `let done=false;const report=(r)=>{if(!done){done=true;postMessage(r)}};` +
++          `const ws=new WebSocket('${target}');${forge}` +
++          `ws.onopen=()=>report('open');ws.onerror=()=>report('closed');ws.onclose=()=>report('closed');`,
++      );
+     } else if (url === "/worker.js") {
+       send("text/javascript", `fetch('${otherBase}/from-worker').catch(()=>{});`);
+     } else if (url === "/socket") {
+@@ -309,6 +332,55 @@ describe.skipIf(!CHROME)("a governed agent's pages in a real Chrome (T94)", () =
+     expect(received.some((entry) => entry.includes("upgrade"))).toBe(true);
+   });
+ 
++  // Finding 455 (QA of 2026-11-09): a dedicated worker's WebSocket never reached the judge, and a
++  // socket to a refused host connected. Judged now as the page's own sockets are.
++  async function workerSocket(path = "/worker-socket") {
++    const { page } = await boundPage();
++    await page.goto(`${base}${path}`);
++    await page.waitForFunction(() => (window as { result?: string }).result !== "pending", null, {
++      timeout: 10_000,
++    });
++    await settle(page, 300);
++    return {
++      result: await page.evaluate(() => (window as { result?: string }).result),
++      upgraded: received.some((entry) => entry.includes("/ws-from-worker (upgrade)")),
++    };
++  }
++
++  it("judges a worker's WebSocket and refuses it before it connects (finding 455)", async () => {
++    refuse = (url) => url.startsWith("ws://");
++    const { result, upgraded } = await workerSocket();
++    require("node:fs").writeFileSync(process.env.QA_PROBE_OUT ?? "diag.txt", JSON.stringify({ result, upgraded, received, diag: (globalThis as Record<string, unknown>).__QA_WS_DIAG }, null, 1));
++    expect(result).toBe("closed");
++    expect(upgraded).toBe(false);
++    expect(judged).toContainEqual({
++      url: `${otherBase.replace("http", "ws")}/ws-from-worker`,
++      via: "page",
++      agentId: "demo",
++    });
++  });
++
++  it("lets a worker's WebSocket no denial names connect, as before (finding 455)", async () => {
++    const { upgraded } = await workerSocket();
++    expect(upgraded).toBe(true);
++  });
++
++  it("ignores a verdict the worker's own script forges (finding 455)", async () => {
++    refuse = (url) => url.startsWith("ws://");
++    const { result, upgraded } = await workerSocket("/worker-socket-forge");
++    expect(result).toBe("closed");
++    expect(upgraded).toBe(false);
++  });
++
++  it("holds every time, not by winning a race (finding 455)", async () => {
++    refuse = (url) => url.startsWith("ws://");
++    for (let round = 0; round < 10; round += 1) {
++      received.length = 0;
++      const { upgraded } = await workerSocket();
++      expect(upgraded, `round ${round}`).toBe(false);
++    }
++  }, 60_000);
++
+   it("judges a popup's document for the opener's agent and refuses it unsent", async () => {
+     const { page } = await boundPage("opener-agent");
+     await page.goto(`${base}/links`);
+diff --git a/extensions/browser/src/browser/governed-page-requests.ts b/extensions/browser/src/browser/governed-page-requests.ts
+index 42a4697b37b..56af903b8dd 100644
+--- a/extensions/browser/src/browser/governed-page-requests.ts
++++ b/extensions/browser/src/browser/governed-page-requests.ts
+@@ -15,6 +15,8 @@
+  * - **a CDP `Fetch` session per page**: redirect hops, which Playwright continues without routing.
+  *   A main-frame document hop is judged in full (`redirect`); any other hop by denials only.
+  * - **a page WebSocket route**: WebSockets, which neither of the above sees (`page`).
++ * - **a stand-in `WebSocket` in each dedicated worker** (finding 455): a worker's sockets, which
++ *   the WebSocket route does not see either (`governed-worker-sockets.ts`, `page`).
+  *
+  * A page no governed call has touched is not judged: it is not an agent's (an operator's own tab).
+  */
+@@ -33,6 +35,7 @@ import {
+   type FollowOnVia,
+   type GovernedNetworkCall,
+ } from "../sdk-security-runtime.js";
++import { guardWorkerSockets } from "./governed-worker-sockets.js";
+ 
+ /** The governed call that last drove a page (D4). */
+ const pageOwners = new WeakMap<Page, GovernedNetworkCall>();
+@@ -293,6 +296,12 @@ async function guardRedirects(page: Page): Promise<void> {
+     void handlePaused(page, session, mainFrameId, event);
+   });
+   await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
++  // A dedicated worker's WebSockets, which neither the WebSocket route nor `Fetch` sees (finding
++  // 455): judged as the page's own sockets are, for whoever drives the page when one opens.
++  await guardWorkerSockets(session, async (url) => {
++    const owners = ownersFor(page.context(), page);
++    return owners.length === 0 ? { allowed: true } : judgeForAll(owners, url, "page");
++  });
+ }
+ 
+ async function handlePaused(

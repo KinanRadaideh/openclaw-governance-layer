@@ -555,7 +555,10 @@ Requests also come from escalations. When somebody answers an agent's question
 with **Always allow**, or answers a question that already timed out with
 **Would allow**, no rule is created there and then. A request is filed for that
 agent and that exact resource, escaped and anchored, in the direction the agent
-used, and an Administrator approves it like any other. On the dashboard, a lifetime
+used, and an Administrator approves it like any other. If the action contains a password, key
+or token (anything the audit record would hide), no request is filed, because the rule would have
+to store the secret: the action is allowed once and the answer says why. Write such a rule
+yourself on the Policy page, leaving the secret out. On the dashboard, a lifetime
 list under the question ("If you choose Always allow, ask for a rule that:") lets
 the person answering ask for a time limit; it goes with **Always allow** only. An
 answer given in a chat channel asks for none, and the Administrator can still set

@@ -5,6 +5,11 @@
 writing phase. This one did not, so results material has been accumulating in
 the `§4.x` sections of that file, which is where the raw evidence still lives.
 
+> **Limitations (2026-10-24):** every limitation Chapter 3 states is exported, verbatim and
+> sorted by kind, to `docs-notes/report/CH4-LIMITATIONS.md`. Limitations move out of Chapter 3
+> (writing guide, "Limitations rule"); which go to Chapter 4 is decided with the supervisor
+> (`docs-notes/report/CH3-LIMITATIONS-AUDIT.md`).
+
 **This file is not a copy of it.** It holds three things:
 
 1. the spine Chapter 4 will follow, taken from the two model reports,

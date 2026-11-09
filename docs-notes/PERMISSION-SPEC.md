@@ -235,7 +235,7 @@ path resource passes through all of it:
    resolves, the absolutised path from step 1 is used.
 3. **Project**: `formatPathRelativeToCwdOrAbsolute` renders the result
    workspace-relative when it is inside the workspace root, absolute otherwise.
-   Separators are POSIX (`/`) on every platform. Capped at 2048 characters.
+   Separators are POSIX (`/`) on every platform. Not shortened before matching (finding 453).
    **Except inside another agent's workspace nested in this one** (finding 385):
    onboarding writes `agents.defaults.workspace`, and every non-default agent's
    workspace is then `<that workspace>/<id>`, inside the default agent's. A path
@@ -428,7 +428,12 @@ Derivation rules that affect matching:
 - **Unparseable URL.** If no hostname can be extracted, the raw URL string is
   used as the resource. It is not skipped. Abstaining there previously allowed
   `file:///etc/shadow` through ungoverned.
-- **Length.** A derived resource is clamped to 2048 characters before matching.
+- **Length.** A derived resource is matched whole. Until 2026-11-09 it was cut to 2048 characters
+  first, and padding hid a command's tail from every rule, the core denials included (finding 453).
+  The ledger caps what it records (4096, marked), and a refusal quotes the resource under the same cap.
+- **Repair before judging.** A network address is repaired as `web_fetch` repairs it (surrounding
+  whitespace, whitespace after `https://`), before host and URL are extracted (finding 452,
+  `repairNetworkAddress`).
 
 ### 3.6 The folder a command runs in (T86 D2-A, 2026-10-11)
 
@@ -681,7 +686,10 @@ five ways. What the policy engine does with each (`onResolution`):
 Answering records the operator's judgement; it does **not** resume the blocked
 call, which is gone. An `allow` files the same agent-scoped rule request
 `allow-always` does, so the next attempt can succeed once an Administrator
-approves it (finding 338). Decisions are single-shot. The stack holds at most 200
+approves it (finding 338). **Except for a resource holding a secret** (finding 454): the held
+decision is stored redacted and capped as the ledger records it, marked `containsSecret`, and
+neither its late `allow` nor a live `allow-always` files a request whose pattern would be the
+secret; the action is allowed once and the answer carries a warning saying why. Decisions are single-shot. The stack holds at most 200
 undecided entries, shedding from the busiest agent and keeping a count of what it
 shed, and 500 in all.
 
@@ -893,7 +901,7 @@ Viewer.
 | Pattern length              | ≤ 512 characters                                                                                 |
 | Compiled-pattern cache      | 1000 entries                                                                                     |
 | Rules per organisation      | ≤ 1000, expired rules included; beyond that, HTTP 409 `too_many_rules`                           |
-| Derived resource (matching) | ≤ 2048 characters                                                                                |
+| Derived resource (matching) | Whole value (was ≤ 2048 until finding 453)                                                       |
 | Recorded resource (ledger)  | ≤ 4096 characters, truncation marked                                                             |
 | Rule TTL                    | ≤ 5,256,000 minutes (~10 years)                                                                  |
 | Expired-rule retention      | Until removed (T95; was 7 days)                                                                  |

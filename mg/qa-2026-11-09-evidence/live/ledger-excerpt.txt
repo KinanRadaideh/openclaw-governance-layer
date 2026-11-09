@@ -1,0 +1,9 @@
+6 | allow | network-1794229428312-c9daafa4 | - | 127.0.0.3 | http://127.0.0.3:18898/ok
+7 | deny | network-1794229428280-2b1ffa33 | - | 127.0.0.2 | http://127.0.0.2:18898/x
+8 | deny | network-1794229428280-2b1ffa33 | - | 127.0.0.2 | http://127.0.0.2:18898/secret
+9 | allow | network-1794229428312-c9daafa4 | - | 127.0.0.3 | http://127.0.0.3:18898/start
+10 | deny | url-1794229428338-6bcb9d4c | redirect | 127.0.0.3 | http://127.0.0.3:18898/admin/panel
+11 | allow | network-1794229428312-c9daafa4 | - | 127.0.0.3 | http://127.0.0.3:18898/start
+12 | deny | url-1794229428338-6bcb9d4c | redirect | 127.0.0.3 | http://127.0.0.3:18898/admin/panel
+13 | deny | url-1794229428362-1eea057d | - | 127.0.0.3 | http://127.0.0.3:18898/q?pad=***&format=***
+14 | deny | url-1794229428362-1eea057d | - | 127.0.0.3 | http://127.0.0.3:18898/q?format=***

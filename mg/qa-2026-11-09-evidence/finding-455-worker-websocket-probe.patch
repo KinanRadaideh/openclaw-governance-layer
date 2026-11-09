@@ -1,0 +1,97 @@
+diff --git a/extensions/browser/src/browser/governed-page-requests.chrome.test.ts b/extensions/browser/src/browser/governed-page-requests.chrome.test.ts
+index ca4ed4b5400..fc9c60a9a92 100644
+--- a/extensions/browser/src/browser/governed-page-requests.chrome.test.ts
++++ b/extensions/browser/src/browser/governed-page-requests.chrome.test.ts
+@@ -94,6 +94,15 @@ function handler(prefix: string) {
+             `new Worker('/worker.js');</script>`,
+         ),
+       );
++    } else if (url === "/worker-socket") {
++      send("text/html", htmlPage(`<script>new Worker('/ws-worker.js');</script>`));
++    } else if (url === "/ws-worker.js") {
++      send(
++        "text/javascript",
++        `try{new WebSocket('${otherBase.replace("http", "ws")}/ws-from-worker')}catch(e){}`,
++      );
++    } else if (url === "/frame-socket") {
++      send("text/html", htmlPage(`<iframe src="/socket"></iframe>`));
+     } else if (url === "/worker.js") {
+       send("text/javascript", `fetch('${otherBase}/from-worker').catch(()=>{});`);
+     } else if (url === "/socket") {
+@@ -309,6 +318,76 @@ describe.skipIf(!CHROME)("a governed agent's pages in a real Chrome (T94)", () =
+     expect(received.some((entry) => entry.includes("upgrade"))).toBe(true);
+   });
+ 
++  it("QA probe: a WebSocket a worker or a frame opens to a refused address", async () => {
++    const { page } = await boundPage();
++    refuse = (url) => url.startsWith("ws://");
++    await page.goto(`${base}/worker-socket`);
++    await settle(page, 1500);
++    const fromWorker = received.filter((entry) => entry.includes("upgrade"));
++    received.length = 0;
++    await page.goto(`${base}/frame-socket`);
++    await settle(page, 1500);
++    const fromFrame = received.filter((entry) => entry.includes("upgrade"));
++    const contextRouted: string[] = [];
++    await context.routeWebSocket(/.*/, (socket) => {
++      contextRouted.push(socket.url());
++      void socket.close();
++    });
++    received.length = 0;
++    const page2 = await context.newPage();
++    await page2.goto(`${base}/worker-socket`);
++    await settle(page2, 1500);
++    const fromWorkerWithContextRoute = received.filter((entry) => entry.includes("upgrade"));
++    // Feasibility: attach to the page's workers, paused before they run, and replace WebSocket.
++    const page3 = await context.newPage();
++    const cdp = await context.newCDPSession(page3);
++    const attached: string[] = [];
++    let messageId = 1000;
++    cdp.on("Target.attachedToTarget", (event: { sessionId: string; targetInfo: { type: string } }) => {
++      attached.push(event.targetInfo.type);
++      const send = (method: string, params: Record<string, unknown> = {}) =>
++        cdp.send("Target.sendMessageToTarget", {
++          sessionId: event.sessionId,
++          message: JSON.stringify({ id: (messageId += 1), method, params }),
++        });
++      void (async () => {
++        await send("Runtime.evaluate", {
++          expression:
++            "(()=>{const refuse=function(){throw new DOMException('Refused by governance','SecurityError')};" +
++            "Object.defineProperty(self,'WebSocket',{value:refuse,writable:false,configurable:false});})()",
++        });
++        await send("Runtime.runIfWaitingForDebugger");
++      })().catch((error: unknown) => attached.push(`error ${String(error)}`));
++    });
++    await cdp.send("Target.setAutoAttach", {
++      autoAttach: true,
++      waitForDebuggerOnStart: true,
++      flatten: false,
++    });
++    received.length = 0;
++    await page3.goto(`${base}/worker-socket`);
++    await settle(page3, 1500);
++    const fromWorkerWithAttach = received.filter((entry) => entry.includes("upgrade"));
++    const { writeFileSync } = await import("node:fs");
++    writeFileSync(
++      process.env.QA_PROBE_OUT ?? "qa-probe-ws.txt",
++      JSON.stringify(
++        {
++          fromWorker,
++          fromFrame,
++          fromWorkerWithContextRoute,
++          contextRouted,
++          fromWorkerWithAttach,
++          attached,
++          receivedAfterAttach: received,
++          judged,
++        },
++        null,
++        2,
++      ),
++    );
++  });
++
+   it("judges a popup's document for the opener's agent and refuses it unsent", async () => {
+     const { page } = await boundPage("opener-agent");
+     await page.goto(`${base}/links`);

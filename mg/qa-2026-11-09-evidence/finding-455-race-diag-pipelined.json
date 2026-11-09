@@ -1,0 +1,17 @@
+{
+ "result": "closed",
+ "upgraded": true,
+ "received": [
+  "/worker-socket",
+  "/ws-worker.js",
+  "other:/ws-from-worker (upgrade)"
+ ],
+ "diag": [
+  "1794231906987 {\"method\":\"Inspector.workerScriptLoaded\",\"params\":{}}",
+  "1794231906990 {\"id\":1,\"result\":{}}",
+  "1794231906996 {\"method\":\"Runtime.executionContextCreated\",\"params\":{\"context\":{\"id\":1,\"origin\":\"http://127.0.0.1:1590/ws-worker.js\",\"name\":\"\",\"uniqueId\":\"8018606159931442356.-3485237385994737436\"}}}",
+  "1794231906997 {\"id\":3,\"result\":{}}",
+  "1794231906997 {\"id\":2,\"result\":{\"result\":{\"type\":\"undefined\"}}}",
+  "1794231907000 {\"id\":4,\"result\":{}}"
+ ]
+}

@@ -1,0 +1,266 @@
+/**
+ * WebSockets a governed page's dedicated workers open (finding 455, QA of 2026-11-09).
+ *
+ * T94 judges a page's own WebSockets by denials only, through Playwright's WebSocket route. That
+ * route works inside the page's JavaScript, so a socket a **dedicated worker** opens never reached
+ * it, and the DevTools `Fetch` domain does not see sockets either: measured in a real Chrome, a
+ * worker's socket to a host a denial names connected. This closes that, judging a worker's socket
+ * exactly as a page's (denials only, `via: page`, for the page's agent), so nothing that connects
+ * today is refused unless a denial names it.
+ *
+ * How: the page's DevTools session (the one `guardRedirects` opens) auto-attaches to the page's
+ * dedicated workers, each paused before its first line runs. Before it is resumed, a prelude
+ * replaces the worker's `WebSocket` with a stand-in that asks the judge (through a DevTools
+ * binding) and opens the real socket only when allowed, forwarding its events. A refused socket
+ * fails as a refused page socket does: `error`, then `close` with code 1006.
+ *
+ * Why the page's script cannot get round it: the real `WebSocket` is held only inside the
+ * prelude's closure; the binding is captured there and removed from the global; the verdict
+ * function is a fixed property that acts only with a random per-worker token the script never
+ * sees, and only for the address that was judged.
+ *
+ * **A failure never leaves a page hanging:** every attached target is resumed in a `finally`.
+ * Other attached targets (out-of-process frames) are resumed at once and left alone.
+ *
+ * Not covered, stated as limits: service workers and shared workers (not children of the page,
+ * so the page's session does not attach to them), and a worker started by another worker.
+ */
+import { randomBytes } from "node:crypto";
+import type { CDPSession } from "playwright-core";
+import type { FollowOnVerdict } from "../sdk-security-runtime.js";
+
+const ASK_BINDING = "__openclawGovernedSocketAsk";
+const VERDICT_FUNCTION = "__openclawGovernedSocketVerdict";
+
+/**
+ * The script run in a worker before its own code. A string, not a serialized function, so no
+ * bundler helper can leak into it. `TOKEN` is replaced per worker.
+ */
+export const WORKER_SOCKET_PRELUDE = `(() => {
+  const g = self;
+  const Native = g.WebSocket;
+  const ask = g.${ASK_BINDING};
+  try { delete g.${ASK_BINDING}; } catch {}
+  if (typeof Native !== "function" || typeof ask !== "function") return;
+  const TOKEN = "__TOKEN__";
+  const CONNECTING = 0, OPEN = 1, CLOSING = 2, CLOSED = 3;
+  const states = new WeakMap();
+  const pending = new Map();
+  let nextId = 0;
+  const later = (fn) => setTimeout(fn, 0);
+  function failConnection(socket) {
+    const s = states.get(socket);
+    s.readyState = CLOSED;
+    later(() => {
+      socket.dispatchEvent(new Event("error"));
+      socket.dispatchEvent(new CloseEvent("close", { code: 1006, reason: "", wasClean: false }));
+    });
+  }
+  function connect(socket) {
+    const s = states.get(socket);
+    if (s.readyState !== CONNECTING) return;
+    const real = s.protocols === undefined ? new Native(s.url) : new Native(s.url, s.protocols);
+    real.binaryType = s.binaryType;
+    s.real = real;
+    real.addEventListener("open", () => socket.dispatchEvent(new Event("open")));
+    real.addEventListener("error", () => socket.dispatchEvent(new Event("error")));
+    real.addEventListener("message", (e) =>
+      socket.dispatchEvent(new MessageEvent("message", { data: e.data, origin: e.origin, lastEventId: e.lastEventId })));
+    real.addEventListener("close", (e) =>
+      socket.dispatchEvent(new CloseEvent("close", { code: e.code, reason: e.reason, wasClean: e.wasClean })));
+  }
+  class WebSocket extends EventTarget {
+    constructor(url, protocols) {
+      super();
+      if (arguments.length === 0) {
+        throw new TypeError("Failed to construct 'WebSocket': 1 argument required, but only 0 present.");
+      }
+      let resolved;
+      try {
+        resolved = new URL(String(url), g.location.href);
+      } catch {
+        throw new DOMException("Failed to construct 'WebSocket': The URL '" + url + "' is invalid.", "SyntaxError");
+      }
+      if (resolved.protocol === "http:") resolved.protocol = "ws:";
+      else if (resolved.protocol === "https:") resolved.protocol = "wss:";
+      if (resolved.protocol !== "ws:" && resolved.protocol !== "wss:") {
+        throw new DOMException("Failed to construct 'WebSocket': The URL's scheme must be either 'http', 'https', 'ws', or 'wss'.", "SyntaxError");
+      }
+      if (resolved.hash) {
+        throw new DOMException("Failed to construct 'WebSocket': The URL contains a fragment identifier ('" + resolved.hash + "').", "SyntaxError");
+      }
+      const s = { real: null, readyState: CONNECTING, url: resolved.href, protocols, binaryType: "blob", handlers: {} };
+      states.set(this, s);
+      for (const type of ["open", "message", "error", "close"]) {
+        this.addEventListener(type, (event) => {
+          const handler = s.handlers[type];
+          if (typeof handler === "function") handler.call(this, event);
+        });
+      }
+      const id = ++nextId;
+      pending.set(id, this);
+      ask(JSON.stringify({ id, url: s.url }));
+    }
+    get url() { return states.get(this).url; }
+    get readyState() { const s = states.get(this); return s.real ? s.real.readyState : s.readyState; }
+    get protocol() { const s = states.get(this); return s.real ? s.real.protocol : ""; }
+    get extensions() { const s = states.get(this); return s.real ? s.real.extensions : ""; }
+    get bufferedAmount() { const s = states.get(this); return s.real ? s.real.bufferedAmount : 0; }
+    get binaryType() { return states.get(this).binaryType; }
+    set binaryType(value) {
+      const s = states.get(this);
+      if (value !== "blob" && value !== "arraybuffer") return;
+      s.binaryType = value;
+      if (s.real) s.real.binaryType = value;
+    }
+    send(data) {
+      const s = states.get(this);
+      if (this.readyState === CONNECTING) {
+        throw new DOMException("Failed to execute 'send' on 'WebSocket': Still in CONNECTING state.", "InvalidStateError");
+      }
+      if (s.real) s.real.send(data);
+    }
+    close(code, reason) {
+      const s = states.get(this);
+      if (s.real) {
+        if (code === undefined) s.real.close();
+        else if (reason === undefined) s.real.close(code);
+        else s.real.close(code, reason);
+        return;
+      }
+      if (s.readyState === CONNECTING) failConnection(this);
+    }
+  }
+  for (const type of ["open", "message", "error", "close"]) {
+    Object.defineProperty(WebSocket.prototype, "on" + type, {
+      get() { return states.get(this).handlers[type] ?? null; },
+      set(value) { states.get(this).handlers[type] = typeof value === "function" ? value : null; },
+      configurable: true,
+      enumerable: true,
+    });
+  }
+  for (const [name, value] of [["CONNECTING", CONNECTING], ["OPEN", OPEN], ["CLOSING", CLOSING], ["CLOSED", CLOSED]]) {
+    Object.defineProperty(WebSocket, name, { value, enumerable: true });
+    Object.defineProperty(WebSocket.prototype, name, { value, enumerable: true });
+  }
+  Object.defineProperty(WebSocket.prototype, Symbol.toStringTag, { value: "WebSocket" });
+  Object.defineProperty(g, "${VERDICT_FUNCTION}", {
+    value: (token, id, url, allowed) => {
+      if (token !== TOKEN) return;
+      const socket = pending.get(id);
+      if (!socket || states.get(socket).url !== url) return;
+      pending.delete(id);
+      if (allowed === true) connect(socket); else if (states.get(socket).readyState === CONNECTING) failConnection(socket);
+    },
+    writable: false,
+    configurable: false,
+    enumerable: false,
+  });
+  Object.defineProperty(g, "WebSocket", { value: WebSocket, writable: true, configurable: true, enumerable: false });
+})();`;
+
+type AttachedEvent = {
+  sessionId: string;
+  targetInfo: { type: string };
+  waitingForDebugger?: boolean;
+};
+
+type BindingCall = { method?: string; params?: { name?: string; payload?: string } };
+
+/**
+ * Judge every WebSocket the page's dedicated workers open, through `judge` (the page's own socket
+ * judgement). Installed on the page's DevTools session, beside the redirect guard.
+ */
+export async function guardWorkerSockets(
+  session: CDPSession,
+  judge: (url: string) => Promise<FollowOnVerdict>,
+): Promise<void> {
+  const tokens = new Map<string, string>();
+  let messageId = 0;
+  const sendTo = (sessionId: string, method: string, params: Record<string, unknown> = {}) =>
+    session.send("Target.sendMessageToTarget", {
+      sessionId,
+      message: JSON.stringify({ id: (messageId += 1), method, params }),
+    });
+
+  session.on("Target.attachedToTarget", (event: AttachedEvent) => {
+    void (async () => {
+      try {
+        if (event.targetInfo.type !== "worker") {
+          return;
+        }
+        const token = randomBytes(16).toString("hex");
+        tokens.set(event.sessionId, token);
+        // Sent back to back, not one reply at a time: Playwright's own attachment resumes the
+        // worker soon after it appears, and waiting a round trip per command let the worker's
+        // script start before the prelude (measured). The worker's inspector handles them in
+        // order: the binding, then the prelude, then the domain that reports binding calls.
+        await Promise.all([
+          sendTo(event.sessionId, "Runtime.addBinding", { name: ASK_BINDING }),
+          sendTo(event.sessionId, "Runtime.evaluate", {
+            expression: WORKER_SOCKET_PRELUDE.replace("__TOKEN__", token),
+          }),
+          sendTo(event.sessionId, "Runtime.enable"),
+        ]);
+      } finally {
+        await sendTo(event.sessionId, "Runtime.runIfWaitingForDebugger").catch(() => undefined);
+        if (event.targetInfo.type !== "worker") {
+          await session
+            .send("Target.detachFromTarget", { sessionId: event.sessionId })
+            .catch(() => undefined);
+        }
+      }
+    })().catch(() => undefined);
+  });
+
+  session.on("Target.detachedFromTarget", (event: { sessionId: string }) => {
+    tokens.delete(event.sessionId);
+  });
+
+  session.on(
+    "Target.receivedMessageFromTarget",
+    (event: { sessionId: string; message: string }) => {
+      const token = tokens.get(event.sessionId);
+      ((globalThis as Record<string, unknown>).__QA_WS_DIAG ??= [] as string[]) as string[];
+      ((globalThis as Record<string, unknown>).__QA_WS_DIAG as string[]).push(
+        `${Date.now()} ${event.message.slice(0, 300)}`,
+      );
+      if (!token) {
+        return;
+      }
+      let message: BindingCall;
+      try {
+        message = JSON.parse(event.message) as BindingCall;
+      } catch {
+        return;
+      }
+      if (message.method !== "Runtime.bindingCalled" || message.params?.name !== ASK_BINDING) {
+        return;
+      }
+      void (async () => {
+        let request: { id?: unknown; url?: unknown };
+        try {
+          request = JSON.parse(message.params?.payload ?? "") as typeof request;
+        } catch {
+          return;
+        }
+        if (typeof request.id !== "number" || typeof request.url !== "string") {
+          return;
+        }
+        // A failure to judge refuses (T94 D10).
+        const verdict = await judge(request.url).catch(() => ({ allowed: false as const }));
+        await sendTo(event.sessionId, "Runtime.evaluate", {
+          expression:
+            `self.${VERDICT_FUNCTION}(${JSON.stringify(token)}, ${request.id}, ` +
+            `${JSON.stringify(request.url)}, ${verdict.allowed ? "true" : "false"})`,
+        });
+      })().catch(() => undefined);
+    },
+  );
+
+  await session.send("Target.setAutoAttach", {
+    autoAttach: true,
+    waitForDebuggerOnStart: true,
+    flatten: false,
+  });
+}

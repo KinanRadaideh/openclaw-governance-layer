@@ -9057,3 +9057,38 @@ is). The other 78 are on the list of tools left alone, each with its reason: joi
 chat and workplace apps the operator connected, a password manager with its own stricter
 approvals, and OpenClaw's own records such as the task board. The test now reads every built-in
 plugin's list of tools, so a new plugin tool cannot arrive unnoticed again.
+
+## 5.145 Checking the newest network rules, and two old ways round the rules (findings 452 to 455, 9 November)
+
+A check of the four newest pieces of work (rules for whole web addresses, checks on where a web
+page leads, and keeping expired rules until someone removes them) looked for what their own tests
+had not tried. It found two ways round the rules, both fixed the same day, and two smaller gaps
+that were looked into afterwards: one fixed, one stated as a limit.
+
+- **A space in a web address hid it from the rules** (finding 452). If an agent wrote
+  `https:// example.com` with a space after the slashes, the web fetch tool quietly removed the
+  space and fetched the site, but the governance layer could not read the address and so no rule
+  about that site applied to it. In "watch only" mode it went through even when the site was
+  forbidden. Now the governance layer tidies the address exactly as the tool does before judging
+  it, using the same piece of code.
+- **A very long command hid its end from the rules** (finding 453). The governance layer only
+  looked at the first 2,048 characters of anything it judged. An agent could write a harmless
+  command padded with 2,000 letters and put something forbidden after them, such as a request for
+  administrator rights; the rules never saw it. Now the whole command is judged; only the copy
+  kept in the audit record is shortened, and it says so.
+- **A question nobody answered in time kept a password as typed** (finding 454, fixed the same
+  day). If a command contained a password or key, the audit record hid it, but the list of
+  unanswered questions kept it in full, and "Always allow" would have copied it into a new rule.
+  Now the list hides it as the audit record does, and "Always allow" allows that action once but
+  does not ask for a rule that would have to store the secret, and says why. Commands without a
+  secret work exactly as before.
+- **A web page's background worker can still open a live connection the rules forbid**
+  (finding 455, stated as a limit). Pages can start small background programs. Ordinary requests
+  from those are checked, but a live two-way connection (a "WebSocket") opened from one is not. A
+  check was built and tested, and it did not hold: the browser-control library starts the
+  background program before any second observer can step in. It was taken back out rather than
+  left half-working, and the gap is written down as a limit for Chapter 4.
+
+The newest rule-removal work was read against its design and nothing was wrong. Rules about files
+were tried with sixteen different Windows spellings of the same file, and every spelling that can
+actually open the file was refused.

@@ -13,7 +13,11 @@ export does not yet carry (C4, C5, C20, C21, C149), one waiting on T74 (C112), T
 (C152, added later on 2026-11-08; apply after C150). **Added 2026-11-09:** T95 and T96, expired
 rules kept until removed and every rule removal stating whether the rule had expired (C154,
 against Kinan's Chapter 3 export of 2026-11-09; independent of C150 and C152), with Chapter 4
-evidence C155. §1 (front matter) is unchanged. §7 onward (Chapters 4 and 5, the
+evidence C155. **Added later on 2026-11-09 by the QA of T93–T96:** C157 (Chapter 3, required:
+the network address is tidied as the tool tidies it, finding 452; a held question is stored
+redacted and "Always allow" files no rule request for an action carrying a secret, finding
+454; apply after C150), with Chapter 4 evidence C156 (findings 452 to 455). C152's list of page
+requests was narrowed the same day (finding 455, `CH4-LIMITATIONS.md` L57). §1 (front matter) is unchanged. §7 onward (Chapters 4 and 5, the
 repository documents, open questions, counts) was not part of this pass and is kept as it was.
 When an item is done, delete it and leave its number unused; when something new is owed, add it
 here and nowhere else.
@@ -49,6 +53,7 @@ is correct without it; the **material** items are evidence and sentences for Cha
 | C150 | required | 3.5.2 Policy Engine (§3.7), and 3.2, 3.5.3.1, 3.5.11 | The `url` rule kind beside hostname rules (T93, built 2026-11-08) |
 | C152 | required | 3.5.2 Policy Engine (§3.8), and 3.2, 3.4, 3.5.3.1, 3.5.6.1, 3.5.11, 3.5.12 | Redirects, followed links and a page's own requests are judged (T94, built 2026-11-08); apply after C150 |
 | C154 | required | 3.5.2.1 Rule Model (§3.9), and 3.5.3 Audit Ledger, 3.5.10 agent deletion | Expired rules stay until removed; every rule removal says whether the rule had expired; agent deletion records each rule it takes (T95, T96, built 2026-11-09) |
+| C157 | required | 3.5.2 Policy Engine, 3.5.3.4 Data Sanitization, approvals (§3.11) | The address tidied as the tool tidies it (finding 452); a held question stored redacted, and no rule request for an action carrying a secret (finding 454); QA of 2026-11-09, apply after C150 |
 | C112 | waits (T74) | 3.5.5 to 3.6, older items (§3.10) | 3.5.12 System Security's audit-ledger row once an off-host witness exists |
 | C118 | Ch 4/5 material | Chapters 4 and 5 (§7) | Chapter 4 evidence for T70 |
 | C119 | Ch 4/5 material | Chapters 4 and 5 (§7) | Chapter 4 examples of finding classes |
@@ -83,6 +88,7 @@ is correct without it; the **material** items are evidence and sentences for Cha
 | C151 | Ch 4/5 material | Chapter 4 (T93) (§7) | Chapter 4 evidence for the `url` rule kind: tests, mutations, the live run, the bug found live |
 | C153 | Ch 4/5 material | Chapter 4 (T94) (§7) | Chapter 4 evidence for T94: the measurements that chose the mechanism, tests in real Chrome, mutations, the live run |
 | C155 | Ch 4/5 material | Chapter 4 (T95, T96) (§7) | Chapter 4 evidence for T95 and T96: what the code did, tests on the real store and ledger, mutations, the live run and the dialog found there |
+| C156 | Ch 4/5 material | Chapter 4 (QA of 2026-11-09) (§7) | Chapter 4 evidence for findings 452 to 455: probes, real-server and real-Chrome proof, the fixes, the live run, mutations, and the interception measured not to hold (455) |
 | C148 | Ch 4/5 material | Chapter 4 (T73, T76, T78) (§11.12) | A Chapter 4 point worth one sentence: the first attempt to make the purge fail live (a read-only policy file) did not fa |
 
 ## 1. Compile and front matter
@@ -241,8 +247,9 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
   frame) and each **page navigation the agent did not name** (a clicked link, a form, a script
   setting the address, a popup) is judged in full against `network` and `url` rules **before it is
   sent**, and refused, not put to a person, when no rule allows it; a **page's own requests**
-  (scripts, images, styles, frames, `fetch`, workers, service workers, WebSockets) are judged by
-  **denials only**. Each is judged through `evaluateGovernancePolicy` as a part of the call, so
+  (scripts, images, styles, frames, `fetch`, workers, service workers, and WebSockets the page or
+  its frames open) are judged by **denials only** (QA 2026-11-09, finding 455: a WebSocket a
+  worker opens is not reached; see `CH4-LIMITATIONS.md` L57, not for Chapter 3). Each is judged through `evaluateGovernancePolicy` as a part of the call, so
   lockdown, core denials, deny-wins and `monitor` apply as to a named call. The ledger records
   redirects and navigations always and page requests when refused, with a new field `via`. An
   `act` that runs script the agent wrote derives a second resource, `browser:act:evaluate`. The
@@ -320,7 +327,7 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
 ### 3.9 T95 and T96: expired rules are kept; rule removals state expiry (3.5.2.1, 3.5.3, agent deletion)
 
 - **C154.** **NOW (T95 and T96, built 2026-11-09; design `mg/T95-T96-RULE-RETENTION-DESIGN.md`,
-  decisions D1–D5; record `mg/WORK-LOG-2026-11-09.md`). Line numbers are those of Kinan's
+  decisions D1–D6; record `mg/WORK-LOG-2026-11-09.md`). Line numbers are those of Kinan's
   Chapter 3 export of 2026-11-09 (`C:\Users\kinan\OneDrive\Desktop\Chapter 3.txt`), which does not
   yet carry C150 or C152; none of the passages below overlaps theirs.** What was true before:
   adding any rule silently deleted every rule that had expired more than seven days earlier, and
@@ -368,6 +375,41 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
 
 - **C112.** **WAIT T74.** 3.5.12 System Security's audit-ledger row once an off-host witness exists.
 
+### 3.11 QA of 2026-11-09: findings 452 and 454 (3.5.2, 3.5.3.4, approvals)
+
+- **C157.** **NOW (QA of 2026-11-09, `mg/QA-SESSION-2026-11-09.md` §1 and §9.1; register
+  `GOVERNANCE.md` 452 and 454). Two behaviours Chapter 3 describes changed in a detail.** Line
+  numbers are those of Kinan's Chapter 3 export of 2026-11-09 (`Desktop\Chapter 3.txt`). Verified
+  against the code: `repairNetworkAddress` (`src/governance/resource-extraction.ts`, using
+  `sanitizeWebFetchUrl` from `src/infra/net/web-fetch-url.ts`), `recordTimedOutEscalation`
+  (`pending-decisions.ts`), `proposeRuleFromEscalation` (`policy-engine.ts`).
+  1. **3.5.2 Policy Engine, the passage C150 adds on the canonical URL** (apply after C150). What
+     is true: before the host and the canonical URL are taken from a network address, the
+     address is tidied exactly as `web_fetch` tidies it (surrounding whitespace, and whitespace
+     after `https://`, removed), by the same function, so the gate judges the address that is
+     fetched. Add after C150's sentence on how the canonical URL is built:
+     "The address is first tidied exactly as the fetch tool tidies it, by the same function, so
+     the gate judges the address that is fetched."
+  2. **The approval passage, line 3892.** Says: "\textit{Always allow} permits it once and files
+     a rule request." True since 454 for every action except one carrying a secret. Replace with:
+     "\textit{Always allow} permits it once and files a rule request, unless the action contains
+     a password, key or token, which a rule would have to store; then it permits it once and
+     says why no request was filed."
+  3. **Persistent approvals, after line 3970** ("Figure~\ref{fig:gov-alwaysallow} shows the
+     sequence."). Add: "A rule request's pattern is the resource itself, so when the ledger's
+     redaction finds a secret in the resource, no request is filed and the card says so; the
+     action is still allowed once. The same holds for a late answer to a stored pending
+     decision."
+  4. **3.5.3.4 Data Sanitization, the paragraph ending at line 3273** ("…stops an oversized
+     caller-controlled value from growing the audit file indefinitely."). Add: "A timed-out
+     escalation kept for a later answer stores its resource under the same redaction and the
+     same 4,096-character cap."
+  5. **Table row "Approvals", line 4456:** "\textit{Always allow} also files a rule request"
+     → "\textit{Always allow} also files a rule request, except for an action carrying a
+     secret".
+  Nothing for finding 453 (no Chapter 3 sentence states the old 2,048-character cut; the 4,096
+  ledger cap it does state still holds) and nothing for 455 (a limit: `CH4-LIMITATIONS.md` L57,
+  not for Chapter 3 under the 2026-10-24 rule). Evidence for Chapter 4 is C156 (§7).
 
 ## 7. Chapters 4 and 5
 
@@ -795,6 +837,51 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
   **Found live:** the Remove dialog told the operator an expired rule's agent "will no longer be
   allowed to do this"; fixed (D6) with its own wording, test and mutation. Residual limit:
   `CH4-LIMITATIONS.md` L56.
+  5. **Gates on the finished tree:** governance suite 4,126 passed / 22 skipped / 0 failed (271
+     files); four typechecks exit 0; the full lint gate exit 0. Committed as `632e6e3a3d3` and
+     pushed 2026-11-09.
+- **C156.** **Chapter 4 evidence: the QA of T93–T96, findings 452 to 455 (2026-11-09).** Record:
+  `mg/QA-SESSION-2026-11-09.md`; evidence `mg/qa-2026-11-09-evidence/`; register
+  `GOVERNANCE.md` 452–455; plain language `QA-IN-PLAIN-TERMS.md` §5.145. Chapter 3 changes are
+  C157. Worth a short paragraph each:
+  1. **A QA aimed where the builders' tests were not** (adversarial spellings, padding, the
+     cases each task's log listed as not driven live), on work that had already been
+     mutation-swept and driven live by the sessions that built it. It found four defects.
+  2. **Finding 452, a finding class ("the gate judged a different value from the one the tool
+     used", with 428 for the browser).** `https:// host` did not parse at the gate, while
+     `web_fetch` repaired it and fetched the host: in monitor a host denial and the core
+     metadata denial were missed, and T94's redirect judge judged none of the call's hops.
+     Proof by a real `web_fetch` and a local server's request log (`/secret` fetched past a host
+     denial; `/admin/panel` reached past a `url` denial). Fixed by one repair function shared by
+     the tool and the gate. Test `network-address-repair.test.ts`.
+  3. **Finding 453, the most serious.** Every resource was cut to 2,048 characters before
+     matching, a cut made "so the ledger does not bloat": `echo <2,100 letters>; sudo id`
+     passed the core privilege-escalation denial, and an allowance ending in `$` matched at the
+     cut. Rules now see the whole value; the ledger's own marked cap bounds what is stored and
+     what a refusal quotes. Test `resource-length.test.ts`.
+  4. **Finding 454:** a secret in an escalated command, masked in the ledger, was kept in clear
+     in the held-questions file and copied into a proposed rule's pattern. Fixed with the
+     ledger's own redaction, after a probe showed it changes no ordinary resource (15 samples:
+     commit hashes, UUIDs, base64, URLs); behaviour without a secret is unchanged and tested.
+     Test `escalation-secret.test.ts`.
+  5. **Finding 455, measured and stated rather than fixed:** a WebSocket a page's dedicated
+     worker opens is never judged (real Chrome: the refused host received the upgrade). A
+     stand-in `WebSocket` installed through the DevTools protocol was built, and its own
+     diagnostic showed the worker's script running before the stand-in, because Playwright's
+     attachment resumes the worker first; withdrawn, stated as `CH4-LIMITATIONS.md` L57. A good
+     example of a fix withdrawn on evidence rather than shipped half-working.
+  6. **Live, on a rebuilt isolated Gateway** (monitor posture, two logging sites): the spaced
+     address refused by the host denial with nothing sent; its redirect to a `url`-denied page
+     refused before the hop was sent; a padded query refused; ledger chain intact (14 entries).
+  7. **Mutation sweep** (`mg/qa-2026-11-09-evidence/mutations.mjs`): 8 of 8 mutants killed, each
+     undoing one fix (the three cuts, the gate's repair, tool and gate repairing differently, the
+     held question unredacted, the secret check, the held question's mark). The first run left
+     the mark's mutant alive: the stored mask of most secrets still reads as a secret, so a test
+     using one could not tell; a token in a URL query is stored as `?token=***`, which only the
+     mark catches, and the test added for it kills the mutant. Suites on the changed tree 4,177
+     passed / 22 skipped / 0 failed; typechecks and the full lint gate clean. Areas that held: path rules against 16 Windows
+     spellings of one file, every governed tool reading the parameter the gate judges, the
+     policy seal's 25 tamper tests, every code path that removes rules.
 
 ## 8. Repository documents (not the report)
 

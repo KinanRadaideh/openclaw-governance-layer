@@ -1,0 +1,48 @@
+{
+  "fromWorker": [
+    "other:/ws-from-worker (upgrade)"
+  ],
+  "fromFrame": [],
+  "fromWorkerWithContextRoute": [
+    "other:/ws-from-worker (upgrade)"
+  ],
+  "contextRouted": [],
+  "fromWorkerWithAttach": [
+    "other:/ws-from-worker (upgrade)"
+  ],
+  "attached": [
+    "worker"
+  ],
+  "receivedAfterAttach": [
+    "/worker-socket",
+    "/ws-worker.js",
+    "other:/ws-from-worker (upgrade)"
+  ],
+  "judged": [
+    {
+      "url": "http://127.0.0.1:22965/worker-socket",
+      "via": "navigation",
+      "agentId": "demo"
+    },
+    {
+      "url": "http://127.0.0.1:22965/ws-worker.js",
+      "via": "page",
+      "agentId": "demo"
+    },
+    {
+      "url": "http://127.0.0.1:22965/frame-socket",
+      "via": "navigation",
+      "agentId": "demo"
+    },
+    {
+      "url": "http://127.0.0.1:22965/socket",
+      "via": "page",
+      "agentId": "demo"
+    },
+    {
+      "url": "ws://localhost:22966/ws",
+      "via": "page",
+      "agentId": "demo"
+    }
+  ]
+}

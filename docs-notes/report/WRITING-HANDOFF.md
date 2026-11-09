@@ -1,16 +1,31 @@
 # Handoff: continuing Chapter 3
 
-> **Status as of 2026-10-10 (supersedes the section counts and "next section" below).**
-> **Every Chapter 3 section is written** in Kinan's Overleaf (his full export of 2026-10-08,
-> `C:\Users\kinan\OneDrive\Desktop\Uni\GradProj\complete_report.txt`, has no stubs).
-> **Chapters 1 and 2 are frozen** (Kinan, 2026-10-08): anything they get wrong is said in
-> Chapter 3. The work now is revision, not drafting: apply
-> `docs-notes/report/DOCUMENTATION-UPDATES.md` section by section (backlog T72, T79, T82),
-> keep to the section formula in `docs-notes/WRITING-GUIDE.md`, and cite figures by label
-> (`docs-notes/FIGURES.md`, labels read from the 2026-10-08 export). `chapter3.tex` in this
-> repository is stale (last synced 2026-09-27), so `section-status.mjs`, which reads it,
-> reports an old count ("written 17 | stub 26"); do not quote that count. The project's entry
-> point is `mg/HANDOFF-2026-10-10.md`.
+> **Report revision checkpoint, 14 October 2026:** all ten chunks are applied in
+> `docs-notes/report/ch3-updated.tex`. Read
+> `docs-notes/report/CHAPTER3-CONTINUATION-HANDOFF.md` first, followed by
+> `docs-notes/report/CHAPTER3-FINAL-REVIEW.md`. No writing chunk remains; C112 waits on T74.
+> The older status,
+> section counts, and instructions below that refer to `chapter3.tex` are historical;
+> use the active full-report file and the current chunk plan.
+
+> **Status as of 2026-10-13 (supersedes the section counts and "next section" below).**
+> **Every Chapter 3 section is written** in Kinan's Overleaf (his export of 2026-10-12,
+> `C:\Users\kinan\OneDrive\Desktop\Uni\GradProj\complete_report.txt`, unchanged since the
+> 2026-10-08 one, has no stubs). **Chapters 1 and 2 are frozen** (Kinan, 2026-10-08): anything
+> they get wrong is said in Chapter 3. **Chapters 4 and 5 are not written yet**: the export ends
+> after 3.6 Summary. Two kinds of work remain:
+>
+> - **Revising Chapter 3**: apply `docs-notes/report/DOCUMENTATION-UPDATES.md`, whose §0 numbers
+>   every owed change, C1 to C148 (102 required, 14 optional, 1 waiting on T74), section by
+>   section (backlog T72, T79, T82), keeping to the section formula in
+>   `docs-notes/WRITING-GUIDE.md` and citing figures by label (`docs-notes/FIGURES.md`).
+> - **Writing Chapters 4 and 5** (T18): the material is `DOCUMENTATION-UPDATES.md` C118–C148
+>   (evidence, measurements and future work) and its §10 (the counts to quote, re-derived),
+>   with `docs-notes/CHAPTER4-MATERIAL.md` for the spine.
+>
+> `chapter3.tex` in this repository is stale (last synced 2026-09-27), so `section-status.mjs`,
+> which reads it, reports an old count ("written 17 | stub 26"); do not quote that count. The
+> project's entry point is `mg/HANDOFF-2026-10-13.md`.
 
 **Current through 2026-09-28** (§1, §6, §7 and §9 brought up to date that day; the rest
 is as written on 2026-09-26). This handoff is for the next writer working on

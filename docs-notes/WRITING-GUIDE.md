@@ -169,6 +169,28 @@ of`, `rather than`, and paired positive-negative claims can make every
 > Retain `alone` when the engineering point genuinely compares one component
 > with a combination of components, and the combined behavior is then named.
 
+> **Limitations rule (Kinan, 2026-10-24):** Minimize discussion of limitations in
+> Chapter 3. Chapter 3 describes the design as built; limitations are either
+> removed from the report altogether (fixed in code, or shown not to be
+> limitations) or moved to Chapter 4. Which of the two, item by item, is decided
+> with the supervisor. Until then, do not add a new limitation sentence to Chapter 3,
+> and record any limitation found while writing in
+> `docs-notes/report/CH4-LIMITATIONS.md` instead. The inventory of what Chapter 3
+> says today, and the plan, is `docs-notes/report/CH3-LIMITATIONS-AUDIT.md`.
+>
+> **A rule doing what it says is not a limitation.** When an operator writes a rule
+> and the system does exactly what that rule's text permits, the outcome is the
+> rule's meaning, not a gap. A command rule governs the whole command text,
+> including any path or host the command names, so `^cat .*$` authorizes
+> `cat /etc/hosts`: the pattern is what allowed that path. Do not describe this
+> as a command "naming a path no path rule allows". The same holds for a path
+> rule written for an absolute path, an approved rule request, and the `monitor`
+> posture letting an unlisted action through. Describe the rule's reach in the
+> section that defines the rule kind, and point to the risk warnings the dashboard
+> gives for broad patterns. Reserve "limitation" for cases where the system does
+> something different from what the rule's text or a stated guarantee says (for
+> example, a symbolic link in a relative argument reaching outside the project).
+
 > **Capability-claim rule:** Avoid `makes no claim`, `does not claim`, and
 > similar wording when describing the limits of the developed system. State the
 > supported capability boundary directly. For example, replace "The design
@@ -223,8 +245,9 @@ of`, `rather than`, and paired positive-negative claims can make every
 > detail (a summary may use one mapping table). A `\subsection` (one component, 0.5 to 1.5
 > pages) gives its role in plain language and the requirement it serves, then the
 > mechanism in one to three paragraphs naming the main function or file once, then the
-> one consequential design decision and its reason, then a limit or a Chapter 1
-> divergence only when it changes what may be claimed, with at most one figure or table;
+> one consequential design decision and its reason, then a Chapter 1 or 2
+> divergence only when it changes what may be claimed (limits go to Chapter 4 under the
+> limitations rule above, 2026-10-24), with at most one figure or table;
 > if it has subsubsections it keeps only the role and a short overview. A
 > `\subsubsection` (one mechanism, 0.5 to 1 page) opens with what the mechanism does,
 > explains how in one or two paragraphs and why in one, with an optional table or figure.
