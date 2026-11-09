@@ -19,6 +19,7 @@ import {
   type LookupFn,
   type SsrFPolicy,
 } from "../../infra/net/ssrf.js";
+import { sanitizeWebFetchUrl } from "../../infra/net/web-fetch-url.js";
 import { logDebug, logWarn } from "../../logger.js";
 import { assertSecretOwnerAvailable } from "../../secrets/runtime-degraded-state.js";
 import { runtimeWebSecretOwnerId } from "../../secrets/runtime-web-secret-owner.js";
@@ -575,23 +576,8 @@ function throwIfFetchAborted(signal: AbortSignal | undefined): void {
   throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
 }
 
-/**
- * Sanitize a web_fetch URL parameter that may contain LLM-injected whitespace.
- *
- * Fixes the reported case where a model emits a space between the scheme and
- * authority (e.g. `https:// docs.openclaw.ai`), which causes `new URL()` to
- * throw. Path and query whitespace is intentionally preserved — the WHATWG URL
- * parser percent-encodes those characters correctly per RFC 3986.
- */
-function sanitizeWebFetchUrl(raw: string): string {
-  let end = raw.length;
-  while (end > 0 && raw.charCodeAt(end - 1) <= 0x20) {
-    end -= 1;
-  }
-  const trimmed = raw.slice(0, end).replace(/^\s+/, "");
-  const repaired = trimmed.replace(/^(https?:\/\/)\s+/i, "$1");
-  return repaired.replace(/^(https?:\/\/[^/?#\s]+)\s+$/i, "$1");
-}
+// The repair lives beside the network guard because the governance gate applies the very same
+// one before judging the address (finding 452): the gate must judge what this tool fetches.
 
 if (process.env.VITEST || process.env.NODE_ENV === "test") {
   (globalThis as Record<PropertyKey, unknown>)[Symbol.for("openclaw.webFetchTestApi")] = {

@@ -12,6 +12,7 @@
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute as isAbsolutePath, resolve as resolvePath } from "node:path";
+import { sanitizeWebFetchUrl } from "../infra/net/web-fetch-url.js";
 import { readSnakeCaseParamRaw } from "../param-key.js";
 import { normalizeGovernedPath } from "./path-normalize.js";
 import type { ResourceKind } from "./policy-types.js";
@@ -53,15 +54,18 @@ export type GovernedToolSpec = {
   extractUrls?: (event: ToolCallLike) => (string | undefined)[];
 };
 
-/** Caps a resource string so one pathological payload cannot bloat the ledger. */
-const MAX_RESOURCE_LENGTH = 2048;
-
+/**
+ * **Resources are not cut before they are matched** (finding 453, QA of 2026-11-09). This file and `path-normalize.ts` cut every resource to
+ * 2,048 characters "so one pathological payload cannot bloat the ledger", and every rule was
+ * then matched against the cut value: `echo <2,100 letters>; sudo id` passed the core
+ * privilege-escalation denial, and an allowance ending in an end anchor (`^echo [a-z ]+` and
+ * the anchor) matched at the cut and allowed the hidden tail. The ledger already caps what it
+ * records, with a visible `…[truncated N chars]` marker (`clampRecordedResource`,
+ * `audit-ledger.ts`), and the other stores of a resource use the same cap. Matching sees the
+ * whole value.
+ */
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function clamp(value: string): string {
-  return value.length > MAX_RESOURCE_LENGTH ? value.slice(0, MAX_RESOURCE_LENGTH) : value;
 }
 
 /**
@@ -200,7 +204,24 @@ function extractNetworkResource(rawUrl: string): string {
   } catch {
     // Fall through to governing the raw value.
   }
-  return clamp(rawUrl);
+  return rawUrl;
+}
+
+/**
+ * The address a network tool will actually use, as the gate must judge it (finding 452).
+ *
+ * `web_fetch` repairs its `url` before fetching (`sanitizeWebFetchUrl`: surrounding whitespace,
+ * whitespace after `https://`). The gate read the address as written, so `https:// host/x`
+ * parsed to no host: no host or `url` rule matched it, monitor posture let it through as
+ * unlisted (host denials and the core metadata denial included) and T94's redirect judge, which
+ * looks the fetched address up among the addresses the call named, judged none of its hops.
+ * Every network address goes through the same repair here, the one function the tool uses, so
+ * the two cannot drift apart. It only removes whitespace, so an address that already parsed is
+ * judged exactly as before; for the browser and the scrapers it can only make the gate see a host
+ * where it saw none.
+ */
+export function repairNetworkAddress(raw: string): string {
+  return sanitizeWebFetchUrl(raw);
 }
 
 /** The canonical URL `url` rules are matched against (T93), with the same host spelling. */
@@ -262,7 +283,7 @@ async function extractSearchPaths(
 
 async function extractCommand(event: ToolCallLike): Promise<string[]> {
   const command = asString(event.params.command);
-  return command ? [clamp(command)] : [];
+  return command ? [command] : [];
 }
 
 /**
@@ -293,11 +314,11 @@ async function extractTerminal(event: ToolCallLike): Promise<string[]> {
   const resources: string[] = [];
   const command = asString(event.params.command);
   if (command) {
-    resources.push(clamp(command));
+    resources.push(command);
   }
   const data = asString(event.params.data);
   if (data) {
-    resources.push(clamp(data.replace(/\r?\n$/, "")));
+    resources.push(data.replace(/\r?\n$/, ""));
   }
   if (resources.length === 0 && event.params.action === "open") {
     resources.push("terminal:open");
@@ -420,13 +441,13 @@ function extractControlSurface(
     if (options.targetsAnAgent) {
       const targetAgentId = asString(event.params.agentId);
       if (targetAgentId) {
-        resources.push(`${toolName}:agent:${clamp(targetAgentId)}`);
+        resources.push(`${toolName}:agent:${targetAgentId}`);
       }
     }
     for (const name of textParams) {
       const text = payloadText(event.params[name]);
       if (text) {
-        resources.push(clamp(text.replace(/\r?\n$/, "")));
+        resources.push(text.replace(/\r?\n$/, ""));
       }
     }
     return resources;
@@ -449,7 +470,7 @@ function extractNodeFile(toolName: string): (event: ToolCallLike) => Promise<str
   return async (event: ToolCallLike) => {
     const node = typeof event.params.node === "string" ? event.params.node.trim() : "";
     const path = typeof event.params.path === "string" ? event.params.path.trim() : "";
-    return [clamp(`${toolName}:${node}:${path}`)];
+    return [`${toolName}:${node}:${path}`];
   };
 }
 
@@ -466,7 +487,7 @@ async function extractVoiceCall(event: ToolCallLike): Promise<string[]> {
   const resources = [action ? `voice_call:${action}` : "voice_call"];
   const to = typeof event.params.to === "string" ? event.params.to.trim() : "";
   if (to) {
-    resources.push(clamp(`voice_call:to:${to}`));
+    resources.push(`voice_call:to:${to}`);
   }
   return resources;
 }
@@ -478,11 +499,13 @@ async function extractVoiceCall(event: ToolCallLike): Promise<string[]> {
  * may hold one address or a list of them.
  */
 function networkSpecFor(addresses: (event: ToolCallLike) => string[]): GovernedToolSpec {
+  // Repaired as the tool repairs them, so the gate judges what is fetched (finding 452).
+  const repaired = (event: ToolCallLike) => addresses(event).map(repairNetworkAddress);
   return {
     resourceKind: "network",
-    extract: async (event) => addresses(event).map((url) => extractNetworkResource(url)),
+    extract: async (event) => repaired(event).map((url) => extractNetworkResource(url)),
     // Same addresses, same order: the gate pairs each host with its URL by position (T93).
-    extractUrls: (event) => addresses(event).map((url) => extractNetworkUrl(url)),
+    extractUrls: (event) => repaired(event).map((url) => extractNetworkUrl(url)),
   };
 }
 

@@ -17,6 +17,7 @@
 // block is usually the one an operator is being asked about.
 import { readJsonIfExists } from "../infra/json-files.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
+import { clampRecordedResource, redactLedgerText } from "./audit-ledger.js";
 import { withFileLock } from "./file-lock.js";
 import { newGovernanceId } from "./ids.js";
 import { pendingDecisionsFilePath, ensureGroupDir } from "./paths.js";
@@ -32,8 +33,19 @@ export type PendingDecision = {
   sessionKey?: string;
   toolName: string;
   resourceKind: ResourceKind | (string & {});
-  /** The resource the agent was blocked from acting on (already redacted). */
+  /**
+   * The resource the agent was blocked from acting on, **redacted and capped as the ledger
+   * records it** (finding 454, QA of 2026-11-09: it was stored as the gate saw it, so a token in a
+   * command sat here in clear while the ledger masked it, although this comment said "already
+   * redacted").
+   */
   resource: string;
+  /**
+   * Set when redaction changed the resource: it held what looks like a secret (finding 454). A
+   * late "Would allow" then files no rule request, because the rule would have to contain the
+   * secret, and says so (`proposeRuleFromEscalation`).
+   */
+  containsSecret?: true;
   /** When the escalation timed out. */
   timedOutAt: string;
   /** How long the escalation waited before giving up, in milliseconds. */
@@ -254,6 +266,10 @@ export async function recordTimedOutEscalation(
   input: RecordTimedOutEscalationInput,
 ): Promise<PendingDecision> {
   await ensureHomeDir(groupId);
+  // Redacted as the ledger redacts it (finding 454), and bounded as the ledger bounds it (finding
+  // 453: the gate now matches a resource whole, and the 2,048-character cut that used to bound
+  // this file is gone). Both marked: the cap in the text, the redaction in `containsSecret`.
+  const redacted = redactLedgerText(input.resource);
   return withFileLock(pendingDecisionsFilePath(groupId), async () => {
     const file = await readFileOrEmpty(groupId);
     const decision: PendingDecision = {
@@ -262,7 +278,8 @@ export async function recordTimedOutEscalation(
       ...(input.sessionKey ? { sessionKey: input.sessionKey } : {}),
       toolName: input.toolName,
       resourceKind: input.resourceKind,
-      resource: input.resource,
+      resource: clampRecordedResource(redacted),
+      ...(redacted !== input.resource ? { containsSecret: true as const } : {}),
       timedOutAt: new Date().toISOString(),
       waitedMs: input.waitedMs,
       endedBy: input.endedBy ?? "timeout",

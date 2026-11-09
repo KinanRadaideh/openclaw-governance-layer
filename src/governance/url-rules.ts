@@ -22,9 +22,6 @@ const DEFAULT_PORTS: Readonly<Record<string, string>> = {
   "wss:": "443",
 };
 
-/** Caps a canonical URL as `resource-extraction.ts` caps every resource. */
-const MAX_URL_LENGTH = 2048;
-
 /** RFC 3986 unreserved characters: an escape of one of these means the character itself. */
 const UNRESERVED = /^[A-Za-z0-9\-._~]$/;
 
@@ -79,7 +76,9 @@ export function canonicalUrl(
   const canonical =
     `${parsed.protocol}//${authority}` +
     `${normalizeEscapes(parsed.pathname || "/")}${normalizeEscapes(parsed.search)}`;
-  return canonical.length > MAX_URL_LENGTH ? canonical.slice(0, MAX_URL_LENGTH) : canonical;
+  // Never cut (finding 453): a cut let padding push a query a denial names out of sight. The
+  // ledger caps the recorded, masked form with a visible marker.
+  return canonical;
 }
 
 /**

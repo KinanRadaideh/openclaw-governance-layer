@@ -28,6 +28,8 @@ import { takeResolvingApprovalAnswerer, type ApprovalAnswerer } from "./approval
 import { GOVERNANCE_APPROVAL_PLUGIN_ID } from "./approval-origin.js";
 import {
   appendLedgerEntry,
+  clampRecordedResource,
+  redactLedgerText,
   MAX_LEDGER_RESOURCE_LENGTH,
   type LedgerDecision,
   type LedgerVia,
@@ -496,8 +498,23 @@ export async function proposeRuleFromEscalation(
     access?: "read" | "write";
     /** The signed-in account whose answer filed this, when one did (C15). */
     answeredBy?: ApprovalAnswerer;
+    /** The resource was stored redacted because it held a secret (a held decision, 454). */
+    containsSecret?: boolean;
   },
 ): Promise<EscalationProposalOutcome> {
+  // **No rule request that would have to carry a secret** (finding 454, QA of 2026-11-09). The
+  // proposed pattern is the resource itself, so a token in a command travelled into
+  // `rule-requests.json` and, once approved, `policy.json`, while the ledger masked it. Detected
+  // by the ledger's own redaction, which changes no ordinary resource (probe:
+  // `mg/qa-2026-11-09-evidence/redaction-probe.ts`), so every other proposal is filed as before.
+  // The action itself is still allowed this once; only the standing rule is not requested.
+  if (input.containsSecret === true || redactLedgerText(input.resource) !== input.resource) {
+    return {
+      status: "failed",
+      warning:
+        "No permission request was filed, because this action contains what looks like a password, key or token, and a rule for it would have to store that secret. To allow such actions without asking, an Administrator can write a rule on the Policy page that leaves the secret out.",
+    };
+  }
   const pattern = escapeRegExp(input.resource);
   const agentId = input.agentId?.trim();
   if (!agentId) {
@@ -1106,8 +1123,9 @@ export async function evaluateGovernancePolicy(
     const firstUrl = urls[first.index];
     const refused =
       first.rule.resourceKind === "url" && firstUrl
-        ? `url "${maskUrlForRecord(firstUrl)}"`
-        : `${spec.resourceKind} "${first.resource}"`;
+        ? `url "${clampRecordedResource(maskUrlForRecord(firstUrl))}"`
+        : // Matched whole, quoted capped (finding 453): the agent reads its own text back.
+          `${spec.resourceKind} "${clampRecordedResource(first.resource)}"`;
     return {
       block: true,
       blockReason:
@@ -1225,7 +1243,7 @@ export async function evaluateGovernancePolicy(
         block: true,
         blockReason: part
           ? part.refuseOnMiss(resource)
-          : `governance: ${spec.resourceKind} "${resource}" is not on the allowlist (default-deny)`,
+          : `governance: ${spec.resourceKind} "${clampRecordedResource(resource)}" is not on the allowlist (default-deny)`,
       };
     }
 

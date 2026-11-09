@@ -41,12 +41,16 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { resolveToCwd } from "../agents/sessions/tools/path-utils.js";
 import { formatPathRelativeToCwdOrAbsolute } from "../agents/utils/paths.js";
 
-/** Caps a resource string so one pathological payload cannot bloat the ledger. */
-const MAX_RESOURCE_LENGTH = 2048;
-
-function clamp(value: string): string {
-  return value.length > MAX_RESOURCE_LENGTH ? value.slice(0, MAX_RESOURCE_LENGTH) : value;
-}
+/*
+ * **Resources are not cut before they are matched** (finding 453, QA of 2026-11-09). This file and `resource-extraction.ts` cut every resource to
+ * 2,048 characters "so one pathological payload cannot bloat the ledger", and every rule was
+ * then matched against the cut value: `echo <2,100 letters>; sudo id` passed the core
+ * privilege-escalation denial, and an allowance ending in an end anchor (`^echo [a-z ]+` and
+ * the anchor) matched at the cut and allowed the hidden tail. The ledger already caps what it
+ * records, with a visible `…[truncated N chars]` marker (`clampRecordedResource`,
+ * `audit-ledger.ts`), and the other stores of a resource use the same cap. Matching sees the
+ * whole value.
+ */
 
 /**
  * Resolves symbolic links, without blocking the event loop.
@@ -184,9 +188,9 @@ export async function resolveGovernedPath(
   return {
     // Inside another agent's workspace nested under this one, the absolute form, so
     // the baseline's "inside the workspace" allowance cannot reach it (finding 385).
-    resource: clamp(
-      insideNestedRoot(short, base, foreignRoots) ? canonicalPath.split(sep).join("/") : short,
-    ),
+    resource: insideNestedRoot(short, base, foreignRoots)
+      ? canonicalPath.split(sep).join("/")
+      : short,
     absolute: canonicalPath,
     redirected: !addressesSameFile(absolute, canonicalPath),
   };
@@ -272,7 +276,7 @@ export async function resolveGovernedPathForms(
   foreignRoots: readonly string[] = [],
 ): Promise<{ recorded: string; forms: string[] }> {
   const resolution = await resolveGovernedPath(raw, cwd, foreignRoots);
-  const absolute = clamp(resolution.absolute.split(sep).join("/"));
+  const absolute = resolution.absolute.split(sep).join("/");
   return {
     recorded: resolution.resource,
     // Deduped, because a path outside the workspace already *is* its absolute

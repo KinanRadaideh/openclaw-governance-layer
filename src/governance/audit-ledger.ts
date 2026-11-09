@@ -189,7 +189,7 @@ export const MAX_LEDGER_RESOURCE_LENGTH = 4096;
 /**
  * Bounds model narration before it enters the chain.
  *
- * Separate from `clampResource` and tighter: `MAX_INTENT_LENGTH` is the limit
+ * Separate from `clampRecordedResource` and tighter: `MAX_INTENT_LENGTH` is the limit
  * `agent-intent.ts` already applies at capture, and applying it again here means
  * a caller that assembles an intent some other way cannot widen the field by
  * going round that module.
@@ -205,11 +205,11 @@ function clampIntent(intent: string): string {
  * logs also use since finding 421). One function so that no write site can apply the first
  * and forget the second.
  */
-function redactLedgerText(text: string): string {
+export function redactLedgerText(text: string): string {
   return redactFreeFormSecrets(redactToolPayloadText(text));
 }
 
-function clampResource(resource: string): string {
+export function clampRecordedResource(resource: string): string {
   if (resource.length <= MAX_LEDGER_RESOURCE_LENGTH) {
     return resource;
   }
@@ -832,7 +832,7 @@ function integrityEntry(
     sessionKey: "-",
     toolName: fields.toolName,
     resourceKind: "administration",
-    resource: clampResource(redactLedgerText(fields.resource)),
+    resource: clampRecordedResource(redactLedgerText(fields.resource)),
     ruleId: fields.ruleId,
     // Nothing was permitted or refused; the ledger is recording something about
     // itself that no policy evaluated. The value the policy engine already uses
@@ -1007,7 +1007,7 @@ export async function appendLedgerEntry(
       resourceKind: input.resourceKind,
       // Tool payloads never skip redaction, even if some caller wanted it off
       // (see redactToolPayloadText's contract in src/logging/redact.ts).
-      resource: clampResource(redactLedgerText(input.resource)),
+      resource: clampRecordedResource(redactLedgerText(input.resource)),
       ruleId: input.ruleId,
       decision: input.decision,
       prevHash: prior.hash,
@@ -1025,7 +1025,7 @@ export async function appendLedgerEntry(
       // quotes whatever the model was working with.
       ...(input.intent ? { intent: clampIntent(redactLedgerText(input.intent)) } : {}),
       // Redacted and clamped as the resource is: a path can carry a token as well (T93).
-      ...(input.url ? { url: clampResource(redactLedgerText(input.url)) } : {}),
+      ...(input.url ? { url: clampRecordedResource(redactLedgerText(input.url)) } : {}),
       // A fixed word from `LEDGER_VIA`, never caller text (T94).
       ...(input.via && LEDGER_VIA.includes(input.via) ? { via: input.via } : {}),
       // Everything written from now on is keyed.

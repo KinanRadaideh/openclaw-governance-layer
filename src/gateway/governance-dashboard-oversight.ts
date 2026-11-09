@@ -373,6 +373,8 @@ export async function handleGovernanceOversightRoutes(
             resourceKind: decided.resourceKind,
             resource: decided.resource,
             toolName: decided.toolName,
+            // Stored redacted: no rule request can be built from it (finding 454).
+            containsSecret: decided.containsSecret === true,
             // The account that pressed Would allow, named on the proposal (C15).
             answeredBy: { name: session.username, role: session.role },
           })
