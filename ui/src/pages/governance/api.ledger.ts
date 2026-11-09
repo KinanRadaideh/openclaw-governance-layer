@@ -81,6 +81,11 @@ export type GovernanceLedgerEntry = {
   intent?: string;
   /** A network call's address, query values masked (T93). Masked again for a Viewer. */
   url?: string;
+  /**
+   * How a request the agent did not name was reached (T94): a redirect hop, a page navigation
+   * (a followed link, a form, a popup), or a page's own request. Absent on a named call.
+   */
+  via?: "redirect" | "navigation" | "page";
   /** Present only on administrative entries (policy and account changes). */
   entryKind?: "admin";
   /** Account responsible for an administrative action; `cli` for terminal changes. */

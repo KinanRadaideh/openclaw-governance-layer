@@ -87,6 +87,9 @@ const VIEWER_DISCLOSURE: Record<keyof Required<LedgerEntry>, Disclosure> = {
   intent: "masked",
   // The whole address, which holds the host `resource` masks, and the path besides (T93).
   url: "masked",
+  // How a follow-on request was reached (T94): a mechanism, not a value; the address beside it
+  // stays masked.
+  via: "visible",
   entryKind: "visible",
   actor: "visible",
   actorRole: "visible",

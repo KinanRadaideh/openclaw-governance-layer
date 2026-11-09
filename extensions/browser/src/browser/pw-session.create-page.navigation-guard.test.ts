@@ -366,7 +366,7 @@ describe("pw-session createPageViaPlaywright navigation guard", () => {
     expect(pageClose).not.toHaveBeenCalled();
   });
 
-  it("does not quarantine a tab when route.continue fails", async () => {
+  it("does not quarantine a tab when the passing route call fails", async () => {
     const { pageGoto, pageClose, getRouteHandler, mainFrame } = installBrowserMocks();
     pageGoto.mockImplementationOnce(async () => {
       await dispatchMockNavigation({
@@ -374,7 +374,7 @@ describe("pw-session createPageViaPlaywright navigation guard", () => {
         mainFrame,
         url: "https://example.com",
         route: {
-          continue: vi.fn(async () => {
+          fallback: vi.fn(async () => {
             throw new Error("page.goto: Frame has been detached");
           }),
         },
@@ -395,7 +395,7 @@ describe("pw-session createPageViaPlaywright navigation guard", () => {
   it("ignores already-handled route races during guarded navigation", async () => {
     const { pageGoto, pageClose, getRouteHandler, mainFrame } = installBrowserMocks();
     const route = createMockRoute({
-      continue: vi.fn(async () => {
+      fallback: vi.fn(async () => {
         throw new Error("Route is already handled");
       }),
     });
@@ -415,7 +415,7 @@ describe("pw-session createPageViaPlaywright navigation guard", () => {
     });
 
     expect(created.targetId).toBe("TARGET_1");
-    expect(route.continue).toHaveBeenCalledTimes(1);
+    expect(route.fallback).toHaveBeenCalledTimes(1);
     expect(pageGoto).toHaveBeenCalledTimes(1);
     expect(pageClose).not.toHaveBeenCalled();
   });

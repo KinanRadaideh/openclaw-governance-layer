@@ -55,6 +55,13 @@ import type { GovernanceRole } from "./roles.js";
  */
 export type LedgerDecision = "allow" | "deny" | "ask" | "ungoverned";
 
+/**
+ * How a request the agent did not name was reached (T94, `follow-on-requests.ts`): a hop of a
+ * redirect chain, a page navigation the agent's page made, or a page's own request.
+ */
+export const LEDGER_VIA = ["redirect", "navigation", "page"] as const;
+export type LedgerVia = (typeof LEDGER_VIA)[number];
+
 export type LedgerEntry = {
   seq: number;
   timestamp: string;
@@ -91,6 +98,12 @@ export type LedgerEntry = {
    * entry and on every entry written before T93; hashed by presence, as `intent` is.
    */
   url?: string;
+  /**
+   * How a request the agent did not name was reached (T94): a redirect hop, a page navigation
+   * the agent's page made (a followed link, a form, a popup), or a page's own request. Absent
+   * on a named call and on every entry written before T94; hashed by presence, as `url` is.
+   */
+  via?: LedgerVia;
   /**
    * Marks an entry as an administrative action rather than an agent action.
    *
@@ -282,10 +295,12 @@ function canonicalPayload(e: Omit<LedgerEntry, "hash">): string {
   const withIntent = e.intent === undefined ? withRole : [...withRole, `intent:${e.intent}`];
   // `url` (T93) joins by presence and tagged, for the reasons `intent` gives above.
   const withUrl = e.url === undefined ? withIntent : [...withIntent, `url:${e.url}`];
+  // `via` (T94) the same way: stripping it would make a redirect read as a named call.
+  const withVia = e.via === undefined ? withUrl : [...withUrl, `via:${e.via}`];
   // `keyed` joins the covered fields for the same reason `actor` did: a flag
   // that selects how an entry is verified must itself be verified, or stripping
   // it becomes a way to downgrade an entry to the weaker scheme.
-  return JSON.stringify(e.keyed ? [...withUrl, "keyed"] : withUrl);
+  return JSON.stringify(e.keyed ? [...withVia, "keyed"] : withVia);
 }
 
 /**
@@ -648,6 +663,8 @@ export type AppendLedgerEntryInput = {
   intent?: string;
   /** A network call's address, masked by the caller (T93); see `LedgerEntry.url`. */
   url?: string;
+  /** How a follow-on request was reached (T94); see `LedgerEntry.via`. */
+  via?: LedgerVia;
 };
 
 /**
@@ -1009,6 +1026,8 @@ export async function appendLedgerEntry(
       ...(input.intent ? { intent: clampIntent(redactLedgerText(input.intent)) } : {}),
       // Redacted and clamped as the resource is: a path can carry a token as well (T93).
       ...(input.url ? { url: clampResource(redactLedgerText(input.url)) } : {}),
+      // A fixed word from `LEDGER_VIA`, never caller text (T94).
+      ...(input.via && LEDGER_VIA.includes(input.via) ? { via: input.via } : {}),
       // Everything written from now on is keyed.
       keyed: true as const,
     };

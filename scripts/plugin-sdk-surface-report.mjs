@@ -223,7 +223,9 @@ export function readPluginSdkSurfaceBudgets(env = process.env) {
       // +2: shared channel question-reaction store and preflight-audio factories.
       // +1: shared channel interactive dispatcher with canonical binding authorization.
       // +1: simple channel secret contract factory replacing repeated collectors.
-      4835,
+      // +7: governance judgement of requests a governed call leads to (T94): currentGovernedCall,
+      //     judgeFollowOnRequest and their three types on security-runtime, as this report counts them.
+      4842,
       env,
     ),
     publicFunctionExports: readPluginSdkSurfaceBudgetEnv(
@@ -274,7 +276,8 @@ export function readPluginSdkSurfaceBudgets(env = process.env) {
       // +2: shared channel question-reaction store and preflight-audio factories.
       // +1: shared channel interactive dispatcher with canonical binding authorization.
       // +1: simple channel secret contract factory replacing repeated collectors.
-      2912,
+      // +4: the two T94 governance functions on security-runtime, as this report counts them.
+      2916,
       env,
     ),
     publicDeprecatedExports: readPluginSdkSurfaceBudgetEnv(

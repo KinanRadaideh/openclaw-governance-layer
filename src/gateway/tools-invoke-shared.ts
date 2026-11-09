@@ -20,6 +20,7 @@ import {
 import { resolveMainSessionKey } from "../config/sessions.js";
 import { resolveSessionEntryAccessTarget } from "../config/sessions/session-accessor.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { runWithinGovernedCall } from "../governance/follow-on-requests.js";
 import { formatErrorMessage } from "../infra/errors.js";
 import { logWarn } from "../logger.js";
 import { isTestDefaultMemorySlotDisabled } from "../plugins/config-state.js";
@@ -317,7 +318,17 @@ export async function invokeGatewayTool(params: {
       status: 200,
       toolName,
       source: resolveToolSource(gatewayTool),
-      result: await gatewayTool.execute?.(toolCallId, hookResult.params, params.signal),
+      // Inside the governed call's scope, so its redirects and the pages it drives are judged
+      // for this agent (T94, `governance/follow-on-requests.ts`).
+      result: await runWithinGovernedCall(
+        {
+          toolName,
+          params: hookResult.params,
+          ...(agentId ? { agentId } : {}),
+          ...(sessionKey ? { sessionKey } : {}),
+        },
+        () => gatewayTool.execute?.(toolCallId, hookResult.params, params.signal),
+      ),
     };
   } catch (err) {
     const inputStatus = resolveToolInputErrorStatus(err);

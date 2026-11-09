@@ -10,6 +10,7 @@ import {
   withCdpSocket,
 } from "./cdp.helpers.js";
 import { AX_REF_PATTERN, normalizeCdpWsUrl } from "./cdp.js";
+import { bindGovernedPage } from "./governed-page-requests.js";
 import {
   withBrowserNavigationPolicy,
   assertBrowserNavigationAllowed,
@@ -445,6 +446,8 @@ export async function createPageViaPlaywright(
 
   const page = await context.newPage();
   ensurePageState(page);
+  // Bound before it navigates, so its redirects and requests are judged for the agent (T94).
+  await bindGovernedPage(page);
   clearBlockedPageRef(opts.cdpUrl, page);
   const createdTargetId = (await pageTargetInfo(page).catch(() => null))?.targetId ?? null;
   clearBlockedTarget(opts.cdpUrl, createdTargetId ?? undefined);

@@ -11,6 +11,7 @@ import {
   resolveToolResultFailureKind,
 } from "../agents/tool-result-error.js";
 import { isAutomationsToolName } from "../agents/tools/automations-tool-name.js";
+import { runWithinGovernedCall } from "../governance/follow-on-requests.js";
 import type { McpLoopbackToolCallOutcome } from "./mcp-http.loopback-runtime.js";
 import {
   MCP_LOOPBACK_SERVER_NAME,
@@ -201,7 +202,19 @@ export async function handleMcpJsonRpc(params: {
         }
         let result: Awaited<ReturnType<typeof tool.execute>>;
         try {
-          result = await tool.execute(toolCallId, finalizedToolArgs, params.signal);
+          // Inside the governed call's scope (T94, `governance/follow-on-requests.ts`).
+          result = await runWithinGovernedCall(
+            {
+              toolName,
+              params: finalizedToolArgs,
+              ...(params.hookContext?.agentId ? { agentId: params.hookContext.agentId } : {}),
+              ...(params.hookContext?.sessionKey
+                ? { sessionKey: params.hookContext.sessionKey }
+                : {}),
+              ...(params.hookContext?.cwd ? { cwd: params.hookContext.cwd } : {}),
+            },
+            () => tool.execute(toolCallId, finalizedToolArgs, params.signal),
+          );
         } catch (error) {
           throw tool.resultContentSource === "network"
             ? protectNetworkToolExecutionError(error, "tool execution failed", params.signal)

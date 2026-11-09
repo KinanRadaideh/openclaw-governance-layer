@@ -32,6 +32,14 @@ export {
   wrapWebContent,
 } from "../security/external-content.js";
 export { compileSafeRegexDetailed } from "../security/safe-regex.js";
+// Governance of requests a governed call leads to (T94): read the running call, ask for a
+// verdict. Plugins cannot open a call scope; only core runs a tool inside one.
+export { currentGovernedCall, judgeFollowOnRequest } from "../governance/follow-on-requests.js";
+export type {
+  FollowOnVerdict,
+  FollowOnVia,
+  GovernedNetworkCall,
+} from "../governance/follow-on-requests.js";
 export type { SafeRegexRejectReason } from "../security/safe-regex.js";
 export {
   appendRegularFile,

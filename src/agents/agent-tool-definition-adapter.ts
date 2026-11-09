@@ -4,6 +4,7 @@
  * logging for failed tool calls.
  */
 import { createHash } from "node:crypto";
+import { runWithinGovernedCall } from "../governance/follow-on-requests.js";
 import { logDebug, logError } from "../logger.js";
 import { redactToolDetail } from "../logging/redact.js";
 import { isPlainObject } from "../utils.js";
@@ -409,7 +410,20 @@ export function toToolDefinitions(
             }
             recordAdjustedParamsForToolCall(toolCallId, executeParams, hookContext?.runId);
           }
-          const rawResult = await tool.execute(toolCallId, executeParams, signal, onUpdate);
+          // A tool wrapped with the hook opens its own governed-call scope after its gate; one
+          // judged here runs inside this one (T94, `governance/follow-on-requests.ts`).
+          const rawResult = beforeHookWrapped
+            ? await tool.execute(toolCallId, executeParams, signal, onUpdate)
+            : await runWithinGovernedCall(
+                {
+                  toolName: name,
+                  params: executeParams,
+                  ...(hookContext?.agentId ? { agentId: hookContext.agentId } : {}),
+                  ...(hookContext?.sessionKey ? { sessionKey: hookContext.sessionKey } : {}),
+                  ...(hookContext?.cwd ? { cwd: hookContext.cwd } : {}),
+                },
+                () => tool.execute(toolCallId, executeParams, signal, onUpdate),
+              );
           const result = normalizeToolExecutionResult({
             toolName: normalizedName,
             result: rawResult,

@@ -14,6 +14,7 @@ import {
 } from "./cdp.helpers.js";
 import { getChromeWebSocketUrl } from "./chrome.js";
 import { BrowserTabNotFoundError } from "./errors.js";
+import { bindGovernedPage } from "./governed-page-requests.js";
 import { playwrightCore } from "./playwright-core.runtime.js";
 import {
   blockedPageRefsByCdpUrl,
@@ -619,11 +620,14 @@ async function getPageForTargetIdOnce(opts: {
   const first = expectDefined(accessible.at(0), "non-empty accessible browser pages");
   if (!opts.targetId) {
     bindRoleRefsTarget(first.page, opts.cdpUrl, first.targetId);
+    // The page's later requests are judged for the agent driving it (T94).
+    await bindGovernedPage(first.page);
     return first.page;
   }
   const found = accessible.find((entry) => entry.targetId === opts.targetId);
   if (found) {
     bindRoleRefsTarget(found.page, opts.cdpUrl, found.targetId);
+    await bindGovernedPage(found.page);
     return found.page;
   }
   throw new BrowserTabNotFoundError();

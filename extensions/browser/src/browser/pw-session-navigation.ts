@@ -124,18 +124,6 @@ export async function assertPageNavigationCompletedSafely(
   }
 }
 
-async function continueRouteSafely(route: Route): Promise<void> {
-  try {
-    await route.continue();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "";
-    if (message.includes("Route is already handled")) {
-      return;
-    }
-    throw err;
-  }
-}
-
 async function fallbackRouteSafely(route: Route): Promise<void> {
   try {
     await route.fallback();
@@ -427,8 +415,11 @@ export async function gotoPageWithNavigationGuard(
       return;
     }
     const requestKind = classifyBrowserDocumentNavigationRequest(opts.page, request);
+    // `fallback`, not `continue`: a request this guard passes must still reach the context route
+    // governance installs (T94, `governed-page-requests.ts`); `continue` ends Playwright's chain
+    // there. With no other route, `fallback` continues the request exactly as `continue` did.
     if (!requestKind) {
-      await continueRouteSafely(route);
+      await fallbackRouteSafely(route);
       return;
     }
     try {
@@ -446,7 +437,7 @@ export async function gotoPageWithNavigationGuard(
       }
       throw err;
     }
-    await continueRouteSafely(route);
+    await fallbackRouteSafely(route);
   };
 
   try {

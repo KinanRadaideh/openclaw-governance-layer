@@ -80,6 +80,12 @@ export type GuardedFetchOptions = {
    * Defaults to false.
    */
   allowCrossOriginUnsafeRedirectReplay?: boolean;
+  /**
+   * Called with each redirect hop's absolute address before that hop is requested. Throwing
+   * stops the chain there, and the hop is never sent. Governance judges a hop of a chain that
+   * began at an address the agent named (T94, `src/governance/follow-on-requests.ts`).
+   */
+  beforeRedirect?: (nextUrl: string) => Promise<void>;
   timeoutMs?: number;
   signal?: AbortSignal;
   requireHttps?: boolean;
@@ -713,6 +719,15 @@ async function fetchWithSsrFGuardInternal(
           throw new Error("Redirect loop detected");
         }
         visited.add(nextVisitKey);
+        if (params.beforeRedirect) {
+          // Before the hop is requested, so a refusal means the hop was never sent (T94).
+          try {
+            await params.beforeRedirect(nextUrl);
+          } catch (err) {
+            await release(dispatcher);
+            throw err;
+          }
+        }
         void response.body?.cancel().catch(() => undefined);
         await closeDispatcher(dispatcher);
         currentUrl = nextUrl;

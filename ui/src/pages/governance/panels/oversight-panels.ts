@@ -170,6 +170,25 @@ function ledgerTitleSubject(entry: GovernanceLedgerEntry): string {
     : entry.resource;
 }
 
+/**
+ * How a request the agent did not name was reached (T94): shown beside the Address line, so a
+ * redirect hop or a page's own request does not read as a call the agent made.
+ */
+function renderLedgerVia(via: GovernanceLedgerEntry["via"]): TemplateResult | typeof nothing {
+  if (!via) {
+    return nothing;
+  }
+  const label =
+    via === "redirect"
+      ? t("governance.ledger.viaRedirect")
+      : via === "navigation"
+        ? t("governance.ledger.viaNavigation")
+        : t("governance.ledger.viaPage");
+  return html`<span style="display:block;margin-top:0.25rem">
+    <em>${t("governance.ledger.via")}:</em> ${label}
+  </span>`;
+}
+
 function renderWholeSubject(entry: GovernanceLedgerEntry): TemplateResult | typeof nothing {
   if (entry.resource.length <= LEDGER_TITLE_LIMIT) {
     return nothing;
@@ -245,7 +264,7 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
         ? html`<span style="display:block;margin-top:0.25rem">
             <em>${t("governance.ledger.url")}:</em> <code>${entry.url}</code>
           </span>`
-        : nothing}${entry.intent
+        : nothing}${renderLedgerVia(entry.via)}${entry.intent
         ? html`<span style="display:block;margin-top:0.25rem">
             <em>${t("governance.ledger.intent")}:</em> ${entry.intent}
           </span>`

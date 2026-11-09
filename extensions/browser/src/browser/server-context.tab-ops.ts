@@ -2,6 +2,7 @@
  * Browser tab listing, opening, labeling, and alias management for one profile.
  */
 import { sleepWithAbort } from "openclaw/plugin-sdk/runtime-env";
+import { currentGovernedCall } from "../sdk-security-runtime.js";
 import { resolveBrowserNavigationProxyMode } from "./browser-proxy-mode.js";
 import { resolveCdpControlPolicy } from "./cdp-reachability-policy.js";
 import { isSelectableCdpBrowserTarget } from "./cdp-target-filter.js";
@@ -300,9 +301,21 @@ export function createProfileTabOps({ profile, state, runtime }: TabOpsDeps): Pr
       return adoptValidatedTab(page, { ...opts, label: normalizedLabel });
     }
 
-    if (capabilities.usesPersistentPlaywright) {
+    // A governed agent's tab is opened through Playwright too (T94): the page is bound to the
+    // agent before it navigates, so its redirect hops and its own requests are judged. A tab
+    // created over CDP with the address already set loads before anything can watch it (found
+    // live, 2026-11-08: the redirect target was reached). Same reasoning as the strict SSRF
+    // refusal below, which also needs the hops inspectable.
+    const governedCall = currentGovernedCall();
+    if (capabilities.usesPersistentPlaywright || governedCall) {
       const mod = await getPwAiModule({ mode: "strict" });
       const createPageViaPlaywright = (mod as Partial<PwAiModule> | null)?.createPageViaPlaywright;
+      if (governedCall && typeof createPageViaPlaywright !== "function") {
+        throw new InvalidBrowserNavigationUrlError(
+          "Navigation blocked: governance needs Playwright to check where this page leads, and " +
+            "Playwright is not available in this installation",
+        );
+      }
       if (typeof createPageViaPlaywright === "function") {
         const page = await createPageViaPlaywright({
           cdpUrl: profile.cdpUrl,

@@ -204,7 +204,7 @@ export const enGovernance: TranslationMap = {
       patternPlaceholderNetwork: "Hostname, e.g. ^api[.]example[.]com$",
       patternPlaceholderUrl: "Address with port, e.g. ^https://api[.]example[.]com:443/v1(/|\\?|$)",
       kindHint:
-        "network: the whole host (api.example.com), every scheme, port and page on it. url: part of a host, compared with the address written as scheme://host:port/path?query, e.g. https://api.example.com:443/v1. Both judge web fetches and browser navigation; a denial of either kind wins.",
+        "network: the whole host (api.example.com), every scheme, port and page on it. url: part of a host, compared with the address written as scheme://host:port/path?query, e.g. https://api.example.com:443/v1. Both judge web fetches and browser navigation, and the redirects and links they lead to, which are refused when no rule allows them; a denial of either kind also stops a page's own requests (scripts, images, frames). A denial of either kind wins.",
       // Accessible names for controls that previously relied on their
       // placeholder. A placeholder is not a label: it is not reliably exposed
       // as an accessible name and it disappears once the field has content, so
@@ -354,6 +354,11 @@ export const enGovernance: TranslationMap = {
       title: "Audit ledger",
       intent: "Agent said",
       url: "Address",
+      // How a request the agent did not name was reached (T94).
+      via: "Reached by",
+      viaRedirect: "a redirect from an address the agent named",
+      viaNavigation: "a page the agent was on (a link, a form, a script or a popup)",
+      viaPage: "a request the page made by itself",
       wholeEntry: "Show the whole entry ({count} characters)",
       verify: "Verify chain integrity",
       integrity: "Chain integrity",

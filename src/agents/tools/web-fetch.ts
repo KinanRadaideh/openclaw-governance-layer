@@ -175,6 +175,13 @@ const webFetchRuntimeLoader = createLazyImportLoader<WebFetchRuntimeModule>(
 const webGuardedFetchLoader = createLazyImportLoader<WebGuardedFetchModule>(
   () => import("./web-guarded-fetch.js"),
 );
+type FollowOnRequestsModule = Pick<
+  typeof import("../../governance/follow-on-requests.js"),
+  "redirectJudgeFor" | "FollowOnRequestRefusedError"
+>;
+const followOnRequestsLoader = createLazyImportLoader<FollowOnRequestsModule>(
+  () => import("../../governance/follow-on-requests.js"),
+);
 
 async function loadWebFetchRuntime(): Promise<WebFetchRuntimeModule> {
   return await webFetchRuntimeLoader.load();
@@ -723,8 +730,19 @@ async function runWebFetch(params: WebFetchRuntimeParams): Promise<Record<string
       ...cacheDiscriminators,
     ].join(":"),
   );
+  // Governance judges every redirect hop of a chain that starts at the address the agent named
+  // (T94); `undefined` outside a governed call, so nothing changes there.
+  const followOnRequests = await followOnRequestsLoader.load();
+  const beforeRedirect = followOnRequests.redirectJudgeFor(params.url);
   const cached = readCache(FETCH_CACHE, cacheKey);
   if (cached) {
+    // A cached result reached through a redirect is judged again at its final address: the
+    // policy may have changed since it was fetched, and the cache must not serve what a hop
+    // would now be refused (T94).
+    const cachedFinalUrl = cached.value.finalUrl;
+    if (beforeRedirect && typeof cachedFinalUrl === "string" && cachedFinalUrl !== params.url) {
+      await beforeRedirect(cachedFinalUrl);
+    }
     return { ...cached.value, cached: true };
   }
 
@@ -736,6 +754,7 @@ async function runWebFetch(params: WebFetchRuntimeParams): Promise<Record<string
     const fetchWithWebToolsNetworkGuard = await loadWebGuardedFetch();
     const result = await fetchWithWebToolsNetworkGuard({
       url: params.url,
+      ...(beforeRedirect ? { beforeRedirect } : {}),
       maxRedirects: params.maxRedirects,
       timeoutSeconds: params.timeoutSeconds,
       signal: params.signal,
@@ -764,7 +783,12 @@ async function runWebFetch(params: WebFetchRuntimeParams): Promise<Record<string
       );
     }
   } catch (error) {
-    if (error instanceof SsrFBlockedError) {
+    // A refused redirect is final: a fetch provider handed the same address would follow the
+    // redirect on its own servers and reach what governance just refused (T94).
+    if (
+      error instanceof SsrFBlockedError ||
+      error instanceof followOnRequests.FollowOnRequestRefusedError
+    ) {
       throw error;
     }
     if (params.signal?.aborted) {

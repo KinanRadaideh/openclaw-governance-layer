@@ -251,8 +251,8 @@ export function describeUrlRuleRisks(pattern: string, denies: boolean): RuleWarn
       message:
         `A url denial matches the address as it is written after normalization. A server ` +
         `that reads paths differently (ignores case, decodes %2F) may serve the same page ` +
-        `under another spelling, and a redirect from an allowed address is not checked. To ` +
-        `forbid a host with certainty, add a network rule denying the host.`,
+        `under another spelling. To forbid a host with certainty, add a network rule denying ` +
+        `the host.`,
     });
   }
   return warnings;

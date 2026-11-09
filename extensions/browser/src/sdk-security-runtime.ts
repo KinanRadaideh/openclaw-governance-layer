@@ -25,6 +25,13 @@ export {
   wrapExternalContent,
 } from "openclaw/plugin-sdk/security-runtime";
 export type { LookupFn, SsrFPolicy } from "openclaw/plugin-sdk/security-runtime";
+// Governance of the requests an agent's pages make (T94).
+export { currentGovernedCall, judgeFollowOnRequest } from "openclaw/plugin-sdk/security-runtime";
+export type {
+  FollowOnVerdict,
+  FollowOnVia,
+  GovernedNetworkCall,
+} from "openclaw/plugin-sdk/security-runtime";
 export { sdkPathScope as pathScope };
 
 /** Ensures an absolute directory exists without escaping its nearest existing ancestor. */

@@ -30,6 +30,7 @@ import {
   appendLedgerEntry,
   MAX_LEDGER_RESOURCE_LENGTH,
   type LedgerDecision,
+  type LedgerVia,
 } from "./audit-ledger.js";
 import { escalationQuestion, foreignFolderTarget } from "./foreign-folder-approval.js";
 import { resolveGovernedPath, resolveGovernedPathForms } from "./path-normalize.js";
@@ -637,7 +638,22 @@ async function resolvePathMatchForms(
  * the tool's, and the refusal to give when no rule covers it, in place of a question. Only
  * the gate passes it, for the folder a command runs in.
  */
-type PartJudgement = { spec: GovernedToolSpec; refuseOnMiss: (resource: string) => string };
+/**
+ * A part of a call judged on its own: the folder a command runs in (T86 D2-A), or a request the
+ * call led to that the agent did not name (T94, `follow-on-requests.ts`). A miss is refused, not
+ * asked: one call carries one question.
+ */
+export type PartJudgement = {
+  spec: GovernedToolSpec;
+  refuseOnMiss: (resource: string) => string;
+  /** How a follow-on request was reached (T94); written on every entry this judgement records. */
+  via?: LedgerVia;
+  /**
+   * A page's own request (T94 D1): judged by denials only, as T7 judges what a search reaches.
+   * Anything no denial covers goes ahead, and is not recorded.
+   */
+  denialsOnly?: boolean;
+};
 
 export async function evaluateGovernancePolicy(
   event: ToolCallEvent,
@@ -646,6 +662,9 @@ export async function evaluateGovernancePolicy(
 ): Promise<GovernancePolicyDecision> {
   const spec = part?.spec ?? resolveGovernedToolForCall(event.toolName, event.params);
   const agentId = resolveEffectiveAgentId(ctx);
+  // Written on every entry this judgement records: the agent's stated intent, and for a request
+  // the agent did not name, how it was reached (T94).
+  const callFields = { ...intentFields(ctx.sessionKey), ...(part?.via ? { via: part.via } : {}) };
   // ---------------------------------------------------------------------
   // **Whose rulebook? the question M5 added to the front of the gate.**
   //
@@ -677,7 +696,7 @@ export async function evaluateGovernancePolicy(
     await appendLedgerEntry(INSTALLATION_LEDGER_GROUP, {
       agentId,
       sessionKey: ctx.sessionKey,
-      ...intentFields(ctx.sessionKey),
+      ...callFields,
       toolName: event.toolName,
       resourceKind: spec?.resourceKind ?? "unknown",
       resource: "*",
@@ -756,7 +775,7 @@ export async function evaluateGovernancePolicy(
     await appendLedgerEntry(groupId, {
       agentId,
       sessionKey: ctx.sessionKey,
-      ...intentFields(ctx.sessionKey),
+      ...callFields,
       toolName: event.toolName,
       resourceKind: spec?.resourceKind ?? "unknown",
       resource: "*",
@@ -844,7 +863,7 @@ export async function evaluateGovernancePolicy(
       await appendLedgerEntry(groupId, {
         agentId,
         sessionKey: ctx.sessionKey,
-        ...intentFields(ctx.sessionKey),
+        ...callFields,
         toolName: event.toolName,
         resourceKind: spec?.resourceKind ?? "unknown",
         resource: "*",
@@ -870,7 +889,7 @@ export async function evaluateGovernancePolicy(
     await appendLedgerEntry(groupId, {
       agentId,
       sessionKey: ctx.sessionKey,
-      ...intentFields(ctx.sessionKey),
+      ...callFields,
       toolName: event.toolName,
       resourceKind: "unknown",
       resource: summarizeUngovernedParams(event.params),
@@ -913,7 +932,7 @@ export async function evaluateGovernancePolicy(
         await appendLedgerEntry(groupId, {
           agentId,
           sessionKey: ctx.sessionKey,
-          ...intentFields(ctx.sessionKey),
+          ...callFields,
           toolName: event.toolName,
           resourceKind: spec.resourceKind,
           resource,
@@ -969,7 +988,7 @@ export async function evaluateGovernancePolicy(
     await appendLedgerEntry(groupId, {
       agentId,
       sessionKey: ctx.sessionKey,
-      ...intentFields(ctx.sessionKey),
+      ...callFields,
       toolName: event.toolName,
       resourceKind: spec.resourceKind,
       resource: summarizeUngovernedParams(event.params),
@@ -991,7 +1010,7 @@ export async function evaluateGovernancePolicy(
     await appendLedgerEntry(groupId, {
       agentId,
       sessionKey: ctx.sessionKey,
-      ...intentFields(ctx.sessionKey),
+      ...callFields,
       toolName: event.toolName,
       resourceKind: spec.resourceKind,
       resource: resources[0] ?? "*",
@@ -1071,7 +1090,7 @@ export async function evaluateGovernancePolicy(
       await appendLedgerEntry(groupId, {
         agentId,
         sessionKey: ctx.sessionKey,
-        ...intentFields(ctx.sessionKey),
+        ...callFields,
         toolName: event.toolName,
         resourceKind: spec.resourceKind,
         resource: refusal.resource,
@@ -1096,6 +1115,12 @@ export async function evaluateGovernancePolicy(
         `${first.rule.tier ?? "admin"}-tier deny rule (${first.rule.description})` +
         (first.rule.tier === "core" ? ". Core rules cannot be overridden by policy." : "."),
     };
+  }
+
+  // A page's own request is judged by denials only (T94 D1, the T7 precedent): none matched, so
+  // it goes ahead, unasked and unrecorded. Not an agent action; recording it would bury those.
+  if (part?.denialsOnly) {
+    return undefined;
   }
 
   // Per-agent HITL override (design doc §1.6), falling back to the
@@ -1140,7 +1165,7 @@ export async function evaluateGovernancePolicy(
     await appendLedgerEntry(groupId, {
       agentId,
       sessionKey: ctx.sessionKey,
-      ...intentFields(ctx.sessionKey),
+      ...callFields,
       toolName: event.toolName,
       resourceKind: spec.resourceKind,
       resource,

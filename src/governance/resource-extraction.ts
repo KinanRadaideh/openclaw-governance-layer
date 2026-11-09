@@ -486,6 +486,72 @@ function networkSpecFor(addresses: (event: ToolCallLike) => string[]): GovernedT
   };
 }
 
+/**
+ * The spec a request the agent did not name is judged by (T94, `follow-on-requests.ts`): the
+ * same network spec as a named address, so host and canonical URL pair exactly as the gate's.
+ */
+export function followOnNetworkSpec(url: string): GovernedToolSpec {
+  return networkSpecFor(() => [url]);
+}
+
+/**
+ * The canonical addresses a call names, when the gate judges it as a network access
+ * (`web_fetch`, a browser navigation, the scrapers); empty for every other call. A request for
+ * one of them is the call's own and is not judged a second time (T94 D3).
+ */
+export function namedNetworkUrls(toolName: string, params: Record<string, unknown>): string[] {
+  const spec = resolveGovernedToolForCall(toolName, params);
+  if (spec?.resourceKind !== "network" || !spec.extractUrls) {
+    return [];
+  }
+  return spec.extractUrls({ toolName, params }).filter((url): url is string => url !== undefined);
+}
+
+/** The resource an `act` that runs script the agent wrote derives besides `browser:act` (T94 D8). */
+export const BROWSER_SCRIPT_RESOURCE = "browser:act:evaluate";
+
+/** How deep a batch of batches is searched for script; deeper nesting counts as script. */
+const MAX_ACT_NESTING = 4;
+
+/**
+ * Whether a browser `act` runs JavaScript the agent wrote: `evaluate`, or `wait` with a function,
+ * given flat on the call, as `request`, or anywhere in a batch. A batch nested past
+ * `MAX_ACT_NESTING` counts as script: what cannot be read is not waved through.
+ */
+function actRunsScript(value: unknown, depth = 0): boolean {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  if (depth > MAX_ACT_NESTING) {
+    return true;
+  }
+  const action = value as Record<string, unknown>;
+  const kind = asString(action.kind);
+  if (kind === "evaluate" || (kind === "wait" && asString(action.fn) !== undefined)) {
+    return true;
+  }
+  const nested = Array.isArray(action.actions) ? action.actions : [];
+  return (
+    nested.some((child) => actRunsScript(child, depth + 1)) ||
+    actRunsScript(action.request, depth + 1)
+  );
+}
+
+/**
+ * The browser tool's resources: `browser:<action>`, as every control surface, and for an `act`
+ * that runs script the agent wrote, `browser:act:evaluate` besides (T94 D8). Under T94 a page's own
+ * requests are judged by denials only, so script the agent writes would otherwise reach any host
+ * no denial names under a plain `browser:act` allowance. The second resource makes running it a
+ * decision an operator takes, as finding 94 did for spawning into another agent's identity.
+ */
+async function extractBrowserControl(event: ToolCallLike): Promise<string[]> {
+  const resources = await extractControlSurface("browser", [])(event);
+  if (asString(event.params.action) === "act" && actRunsScript(event.params)) {
+    resources.push(BROWSER_SCRIPT_RESOURCE);
+  }
+  return resources;
+}
+
 function urlParams(paramNames: readonly string[]): (event: ToolCallLike) => string[] {
   return (event) =>
     paramNames
@@ -606,7 +672,7 @@ export const GOVERNED_TOOLS: Record<string, GovernedToolSpec> = Object.assign(
       extract: extractControlSurface("mobile_ui", ["mobileAction"]),
     },
     screen: { resourceKind: "command", extract: extractControlSurface("screen", []) },
-    browser: { resourceKind: "command", extract: extractControlSurface("browser", []) },
+    browser: { resourceKind: "command", extract: extractBrowserControl },
     nodes: {
       resourceKind: "command",
       extract: extractControlSurface("nodes", ["body", "title"]),
@@ -778,9 +844,10 @@ function browserNavigationUrl(params: Record<string, unknown>): string | undefin
 /**
  * A browser navigation is a network access (T86 D3). The host it loads is judged against the
  * network rules, the same allowlist as `web_fetch`, rather than the action name, so a rule
- * allowing `browser:navigate` no longer allows every site. A link followed by a click, or a
- * request made by script the page or `evaluate` runs, is not a navigation the agent names,
- * and is outside this check (stated in the report as a limit).
+ * allowing `browser:navigate` no longer allows every site. A link followed by a click, a
+ * redirect, and a request made by script the page or `evaluate` runs are not navigations the
+ * agent names: since T94 they are judged where they are sent (`follow-on-requests.ts`, and
+ * `governed-page-requests.ts` in the browser plugin), not by this spec.
  */
 const BROWSER_NAVIGATION_SPEC: GovernedToolSpec = networkSpecFor((event) => {
   const url = browserNavigationUrl(event.params);

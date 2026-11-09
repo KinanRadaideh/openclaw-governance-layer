@@ -1,3 +1,4 @@
+import { runWithinGovernedCall } from "../governance/follow-on-requests.js";
 /**
  * Wrapped before_tool_call execution boundary.
  * Owns tool preparation/finalization, adjusted-param replay state, terminal
@@ -482,12 +483,24 @@ export function wrapToolWithBeforeToolCallHook(
       try {
         let result: Awaited<ReturnType<ForwardedToolExecution>>;
         try {
-          result = await (execute as ForwardedToolExecution)(
-            toolCallId,
-            executeParams,
-            signal,
-            onUpdate,
-            ...executionArgs,
+          // Inside the governed call's scope, so the requests it leads to (redirects, pages it
+          // opens) are judged for this agent (T94, `governance/follow-on-requests.ts`).
+          result = await runWithinGovernedCall(
+            {
+              toolName,
+              params: executeParams,
+              ...(ctx?.agentId ? { agentId: ctx.agentId } : {}),
+              ...(ctx?.sessionKey ? { sessionKey: ctx.sessionKey } : {}),
+              ...(ctx?.cwd ? { cwd: ctx.cwd } : {}),
+            },
+            () =>
+              (execute as ForwardedToolExecution)(
+                toolCallId,
+                executeParams,
+                signal,
+                onUpdate,
+                ...executionArgs,
+              ),
           );
         } catch (error) {
           throw tool.resultContentSource === "network" &&
