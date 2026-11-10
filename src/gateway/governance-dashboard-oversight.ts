@@ -34,7 +34,13 @@ import {
   mayAllowForeignFolder,
   type ForeignFolderOwnership,
 } from "../governance/foreign-folder-approval.js";
+import {
+  mayReadInstallationLedger,
+  mergeLedgerViews,
+  type LedgerViewVerification,
+} from "../governance/installation-ledger-view.js";
 import { projectLedgerForActor } from "../governance/ledger-view.js";
+import { INSTALLATION_LEDGER_GROUP } from "../governance/paths.js";
 import {
   decidePendingDecision,
   listPendingDecisions,
@@ -164,8 +170,14 @@ export async function handleGovernanceOversightRoutes(
     // literal command, path, or host, which can itself disclose sensitive
     // workspace detail. This is what distinguishes Viewer from User.
     const visible = projectLedgerForActor(scanned, toActor(session));
+    // T97: Root of the installation's one organisation also receives the installation chain,
+    // read with the same fixed window, merged by time and each entry marked. Every other
+    // reader gets exactly what it got before (design D2–D4).
+    const combined = (await mayReadInstallationLedger(session))
+      ? mergeLedgerViews(visible, await tailLedger(INSTALLATION_LEDGER_GROUP, MAX_LEDGER_PAGE))
+      : visible;
     // `slice(-page)`, so the newest are kept: `tailLedger` returns oldest-first.
-    sendJson(res, 200, visible.slice(-page));
+    sendJson(res, 200, combined.slice(-page));
     return true;
   }
 
@@ -391,7 +403,12 @@ export async function handleGovernanceOversightRoutes(
     if (!groupId) {
       return true;
     }
-    sendJson(res, 200, await verifyLedgerChain(groupId));
+    const verification: LedgerViewVerification = await verifyLedgerChain(groupId);
+    // T97 D5: the installation chain, verified on its own, for the reader who is shown it.
+    if (await mayReadInstallationLedger(session)) {
+      verification.installation = await verifyLedgerChain(INSTALLATION_LEDGER_GROUP);
+    }
+    sendJson(res, 200, verification);
     return true;
   }
 

@@ -216,6 +216,69 @@ function verdictLabel(verification: GovernanceLedgerVerification): string {
     : `${t("governance.ledger.tampered")} #${verification.brokenAtSeq}: ${verification.reason}`;
 }
 
+/** Both verdicts for the live region; the installation chain's only when Root was sent it (T97). */
+function spokenVerdict(verification: GovernanceLedgerVerification): string {
+  return verification.installation
+    ? `${verdictLabel(verification)}. ${t("governance.ledger.installationIntegrity")}: ${verdictLabel(verification.installation)}`
+    : verdictLabel(verification);
+}
+
+/**
+ * The installation chain's own verification (T97 D5), a row of its own under the organisation's:
+ * two chains with two heads, so the verdicts are never combined.
+ */
+function renderInstallationVerification(
+  verification: GovernanceLedgerVerification["installation"],
+): TemplateResult | typeof nothing {
+  if (!verification) {
+    return nothing;
+  }
+  const evidence = verification.evidence;
+  return renderSettingsRow({
+    title: t("governance.ledger.installationIntegrity"),
+    description: html`${t("governance.ledger.installationIntegrityHow")}
+    ${verification.ok && evidence
+      ? html`<span style="display:block;margin-top:0.35rem">
+          ${evidence.checkpointSeq !== undefined
+            ? t("governance.ledger.integrityEvidence", {
+                count: String(verification.entriesChecked),
+                headSeq: String(evidence.headSeq),
+                headHash: evidence.headHash.slice(0, 16),
+                checkpointSeq: String(evidence.checkpointSeq),
+              })
+            : t("governance.ledger.integrityEvidenceNoCheckpoint", {
+                count: String(verification.entriesChecked),
+                headSeq: String(evidence.headSeq),
+                headHash: evidence.headHash.slice(0, 16),
+              })}
+        </span>`
+      : nothing}
+    ${renderChainAlerts(verification.alerts)}`,
+    stacked: true,
+    control: renderSettingsStatus({
+      kind: verification.ok && !verification.alerts?.length ? "ok" : "warn",
+      label: verdictLabel(verification),
+    }),
+  });
+}
+
+/** `#<seq>`, or `installation #<seq>` for the installation chain's own numbering (T97 D3). */
+function ledgerNumber(entry: GovernanceLedgerEntry): string {
+  return entry.ledgerScope === "installation"
+    ? t("governance.ledger.installationNumber", { seq: String(entry.seq) })
+    : `#${entry.seq}`;
+}
+
+/** The line that marks an installation-level event under its row (T97 D3). */
+function renderInstallationMark(entry: GovernanceLedgerEntry): TemplateResult | typeof nothing {
+  return entry.ledgerScope === "installation"
+    ? html`<span style="display:block;margin-bottom:0.25rem"
+        ><strong>${t("governance.ledger.installationEvent")}</strong>:
+        ${t("governance.ledger.installationEventHint")}</span
+      >`
+    : nothing;
+}
+
 export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
   const { verification, ledger, ledgerFilter, busy, onFilter, onVerify } = props;
   // Administrative entries and agent entries answer different questions, and
@@ -248,7 +311,8 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
   const newestFirst = visibleLedger.toReversed();
   const renderEntry = (entry: GovernanceLedgerEntry): TemplateResult =>
     renderSettingsRow({
-      title: html`<code>#${entry.seq} ${entry.toolName}</code> ${ledgerTitleSubject(entry)}`,
+      // An installation entry is numbered in its own chain, so its number says which (T97 D3).
+      title: html`<code>${ledgerNumber(entry)} ${entry.toolName}</code> ${ledgerTitleSubject(entry)}`,
       // The intent rides *under* the description rather than inside it,
       // and is omitted entirely when absent. Two reasons, both learned
       // here: absence is the common case, so a row must not grow an empty
@@ -258,7 +322,9 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
       // be mistaken for something the layer concluded. Not dimmed with
       // `opacity` (finding 443): over the already muted description colour it
       // measured 4.12:1 on dark and 3.96:1 on light, under the 4.5:1 minimum.
-      description: html`${renderWholeSubject(entry)}${describeLedgerEntry(entry, {
+      description: html`${renderInstallationMark(entry)}${renderWholeSubject(
+        entry,
+      )}${describeLedgerEntry(entry, {
         by: t("governance.ledger.by"),
       })}${entry.url
         ? html`<span style="display:block;margin-top:0.25rem">
@@ -319,7 +385,7 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
           // heard nothing after Verify. A live region only speaks when its text changes,
           // so it is here, in the section's header, from before the first verification.
           html`<span class="governance-visually-hidden" role="status"
-            >${verification ? verdictLabel(verification) : ""}</span
+            >${verification ? spokenVerdict(verification) : ""}</span
           >`
         }`,
     },
@@ -391,6 +457,7 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
             }),
           })
         : nothing,
+      renderInstallationVerification(verification?.installation),
       // Above the rows, not below them: it says what the rows are, and a
       // reader who stops at the bottom of a fifty-row list has already drawn
       // their conclusion by the time a footer could correct it.

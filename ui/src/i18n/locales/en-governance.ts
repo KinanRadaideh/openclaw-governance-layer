@@ -401,6 +401,14 @@ export const enGovernance: TranslationMap = {
       intactWithAlerts: "Intact since {count} integrity alert(s)",
       alertsHeading: "Integrity alerts recorded in the chain",
       alertMissing: "Entries #{from}–#{to} are missing.",
+      // T97: the installation chain's events, shown to Root only, numbered in their own chain.
+      installationNumber: "installation #{seq}",
+      installationEvent: "Installation-level event",
+      installationEventHint:
+        "recorded in the installation's own audit ledger, outside the organisation's chain, because it belongs to no organisation (for example an agent nobody registered, or a sign-in under a name nobody holds). Only Root sees these.",
+      installationIntegrity: "Installation ledger integrity",
+      installationIntegrityHow:
+        "The installation's own chain, verified separately from the organisation's in the same way: its own signing, links and checkpoint. Only Root sees it.",
     },
     integrity: {
       // The banner (T73, idea 14). Shown to Administrators and Root. Since T86 D9 it also

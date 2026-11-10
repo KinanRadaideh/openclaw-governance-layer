@@ -92,6 +92,12 @@ export type GovernanceLedgerEntry = {
   actor?: string;
   /** The tier the actor held when they acted. Absent on entries predating it. */
   actorRole?: "root" | "administrator" | "user" | "viewer";
+  /**
+   * `installation`: an installation-level event, from the installation's own chain, numbered
+   * apart from the organisation's (T97). Sent to Root only; absent on organisation entries.
+   * Mirrored from `LedgerViewEntry` in `src/governance/installation-ledger-view.ts`.
+   */
+  ledgerScope?: "installation";
 };
 
 export type GovernanceLedgerVerification = {
@@ -119,4 +125,9 @@ export type GovernanceLedgerVerification = {
     missingFrom?: number;
     missingTo?: number;
   }>;
+  /**
+   * The installation chain's own verification, sent to Root only (T97 D5). Never combined with
+   * the organisation's verdict above: two chains, two heads.
+   */
+  installation?: Omit<GovernanceLedgerVerification, "installation">;
 };
