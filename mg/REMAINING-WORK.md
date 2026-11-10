@@ -37,7 +37,7 @@ page's own requests are now judged; see §"T94" for the decisions and evidence.
 rules, and every rule removal (the dashboard's, and each rule a host deletion of an agent takes)
 states whether the rule had expired; see §"T95" and §"T96".
 
-**T97 is built (added and built 2026-11-10; committed 2026-11-11, code `feb245dfae4`, not pushed):** Root of the installation's one
+**T97 is built (added and built 2026-11-10; committed 2026-11-11, code `feb245dfae4`, docs `2d5e81bb3b2`, pushed to `personal`):** Root of the installation's one
 organisation sees the installation ledger's events in the audit view, merged by time and marked
 "Installation-level event", and verifies that chain separately; no other tier receives them. See
 §"T97" for the decisions and evidence.
