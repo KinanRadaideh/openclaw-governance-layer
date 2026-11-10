@@ -506,3 +506,19 @@ worker, paused on start, was built and measured: the worker's own script ran fir
 Playwright's attachment resumes the worker before a second DevTools client can act. Closing it needs a
 hook inside Playwright's own worker attachment. Record: `mg/QA-SESSION-2026-11-09.md` §4 and §9.2.
 Kind: **F** (needs a hook in the browser automation library), **M**.
+
+**L58 (added 2026-11-10 with T97; not in Chapter 3).** Ch3: none (C158 says Root sees the
+installation ledger's events and can verify that chain; it states no limit).
+The fact: the installation ledger (`groups/installation/`) can hold the ledger's own integrity
+alerts, a gap line when that chain disagrees with its checkpoint. Since T97, Root sees such a line
+as a marked row and in the installation chain's own verification on the dashboard. The integrity
+banner and Root's acknowledgement read the organisation's chain only, and the browser witness
+receipt covers only the organisation's head, so an alert in the installation chain raises no
+banner, cannot be acknowledged, and a cut to that chain's tail is detected only by its checkpoint.
+Plainly: a gap in the installation ledger is shown to Root when they look at the ledger or press
+Verify, but no warning appears at the top of the page as it does for the organisation's ledger.
+Why it is not closed: an acknowledgement is written to a chain, and deciding which chain records
+the acknowledgement of another chain's alert is a design question of its own; T97 asked for the
+events to be visible and marked, which they are. Before T97 the dashboard showed this chain to
+nobody. Design: `mg/T97-INSTALLATION-LEDGER-VIEW-DESIGN.md` D7.
+Kind: **F** (a code change could remove it, once the acknowledgement's chain is decided).

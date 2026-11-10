@@ -1091,9 +1091,22 @@ exactly one is neither form and fails verification.
 
 `agentId` governs visibility: `projectLedgerForActor` filters by agent scope, so
 an agent-scoped administrative entry is visible to that agent's assigned User,
-while an installation-wide one (`-`) is visible only to Administrator and above.
+while an installation-wide one (`-`) is visible only to Administrator and above,
+except the six installation-policy kinds every reader sees (T86 D12: posture,
+ask-or-deny, approval timeout, core-rule switch, global rule added or removed).
 Below Administrator, a prompt's text is visible only to the account that sent it
 (finding 84).
+
+**The installation chain is Root's alone (T97, 2026-11-10).** Events that belong
+to no organisation are written to `groups/installation/` (§11b), not to any
+organisation's chain. `GET ledger` adds that chain's newest entries to the view of
+Root, and only when Root's organisation is the one organisation in `users.json`
+(`mayReadInstallationLedger`). The two chains are merged by timestamp, each in its
+own order, equal times organisation first, then paged; each installation entry
+carries `ledgerScope: "installation"` in the response (not stored, not hashed), and
+the dashboard numbers it `installation #n`. `POST ledger/verify` returns, for the
+same reader, `installation`: that chain's own verification, never combined with
+the organisation's. Every other reader's responses are unchanged.
 
 ---
 
@@ -1157,6 +1170,11 @@ the filesystem rather than of every query. An installation holds one organisatio
     pending-decisions.json
     conversations.json
     attachments/
+  groups/installation/    reserved name (no organisation id can take it)
+    audit-ledger.jsonl    events that belong to no organisation: an unregistered
+                          agent refused or prompted, a sign-in under a name nobody
+                          holds, the copy of an organisation's deletion; read by
+                          Root on the dashboard (T97) and by verify-ledger.mjs
 ```
 
 **The rule for placing a new file:** installation-wide when the thing it is keyed

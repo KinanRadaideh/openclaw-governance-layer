@@ -17,7 +17,10 @@ evidence C155. **Added later on 2026-11-09 by the QA of T93–T96:** C157 (Chapt
 the network address is tidied as the tool tidies it, finding 452; a held question is stored
 redacted and "Always allow" files no rule request for an action carrying a secret, finding
 454; apply after C150), with Chapter 4 evidence C156 (findings 452 to 455). C152's list of page
-requests was narrowed the same day (finding 455, `CH4-LIMITATIONS.md` L57). §1 (front matter) is unchanged. §7 onward (Chapters 4 and 5, the
+requests was narrowed the same day (finding 455, `CH4-LIMITATIONS.md` L57). **Added 2026-11-10:** T97,
+Root sees the installation ledger's events and verifies that chain (C158, Chapter 3, required,
+anchored on Kinan's paste of that day; independent of the items above), with Chapter 4 evidence
+C159 and limitation L58. §1 (front matter) is unchanged. §7 onward (Chapters 4 and 5, the
 repository documents, open questions, counts) was not part of this pass and is kept as it was.
 When an item is done, delete it and leave its number unused; when something new is owed, add it
 here and nowhere else.
@@ -54,6 +57,7 @@ is correct without it; the **material** items are evidence and sentences for Cha
 | C152 | required | 3.5.2 Policy Engine (§3.8), and 3.2, 3.4, 3.5.3.1, 3.5.6.1, 3.5.11, 3.5.12 | Redirects, followed links and a page's own requests are judged (T94, built 2026-11-08); apply after C150 |
 | C154 | required | 3.5.2.1 Rule Model (§3.9), and 3.5.3 Audit Ledger, 3.5.10 agent deletion | Expired rules stay until removed; every rule removal says whether the rule had expired; agent deletion records each rule it takes (T95, T96, built 2026-11-09) |
 | C157 | required | 3.5.2 Policy Engine, 3.5.3.4 Data Sanitization, approvals (§3.11) | The address tidied as the tool tidies it (finding 452); a held question stored redacted, and no rule request for an action carrying a secret (finding 454); QA of 2026-11-09, apply after C150 |
+| C158 | required | 3.5.2.2 Evaluation Order, 3.5.3.2–3.5.3.4, roles table (§3.12) | Root sees the installation ledger's events, marked, and verifies that chain (T97, built 2026-11-10) |
 | C112 | waits (T74) | 3.5.5 to 3.6, older items (§3.10) | 3.5.12 System Security's audit-ledger row once an off-host witness exists |
 | C118 | Ch 4/5 material | Chapters 4 and 5 (§7) | Chapter 4 evidence for T70 |
 | C119 | Ch 4/5 material | Chapters 4 and 5 (§7) | Chapter 4 examples of finding classes |
@@ -89,6 +93,7 @@ is correct without it; the **material** items are evidence and sentences for Cha
 | C153 | Ch 4/5 material | Chapter 4 (T94) (§7) | Chapter 4 evidence for T94: the measurements that chose the mechanism, tests in real Chrome, mutations, the live run |
 | C155 | Ch 4/5 material | Chapter 4 (T95, T96) (§7) | Chapter 4 evidence for T95 and T96: what the code did, tests on the real store and ledger, mutations, the live run and the dialog found there |
 | C156 | Ch 4/5 material | Chapter 4 (QA of 2026-11-09) (§7) | Chapter 4 evidence for findings 452 to 455: probes, real-server and real-Chrome proof, the fixes, the live run, mutations, and the interception measured not to hold (455) |
+| C159 | Ch 4/5 material | Chapter 4 (T97) (§7) | Chapter 4 evidence for T97: what the code did, the design choice, tests, 12/12 mutations, the live run and the defect found there |
 | C148 | Ch 4/5 material | Chapter 4 (T73, T76, T78) (§11.12) | A Chapter 4 point worth one sentence: the first attempt to make the purge fail live (a read-only policy file) did not fa |
 
 ## 1. Compile and front matter
@@ -410,6 +415,82 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
   Nothing for finding 453 (no Chapter 3 sentence states the old 2,048-character cut; the 4,096
   ledger cap it does state still holds) and nothing for 455 (a limit: `CH4-LIMITATIONS.md` L57,
   not for Chapter 3 under the 2026-10-24 rule). Evidence for Chapter 4 is C156 (§7).
+
+### 3.12 T97: Root sees the installation ledger (3.5.2.2, 3.5.3.2, 3.5.3.3, 3.5.3.4, roles table)
+
+- **C158.** **NOW (T97, built 2026-11-10; design `mg/T97-INSTALLATION-LEDGER-VIEW-DESIGN.md`,
+  D1–D8; record `mg/WORK-LOG-2026-11-10.md` §1). Anchored on the Chapter 3 text Kinan pasted on
+  2026-11-10 (quoted sentences, no line numbers); independent of C150, C152, C154 and C157.**
+  What was true before: the installation ledger existed and was written (Chapter 3 says so in
+  3.5.2.2), but no dashboard route read it, so no account could see its events; only
+  `scripts/verify-ledger.mjs` read it. What is true now: Root of the installation's one
+  organisation sees its events in the audit ledger view, merged by time and marked, and can
+  verify that chain from the dashboard; Administrators, Users and Viewers receive nothing new.
+  Verified against the code: `mayReadInstallationLedger` and `mergeLedgerViews`
+  (`src/governance/installation-ledger-view.ts`), the `ledger` and `ledger/verify` routes
+  (`src/gateway/governance-dashboard-oversight.ts`), `renderLedgerSection`
+  (`ui/src/pages/governance/panels/oversight-panels.ts`).
+  1. **3.5.2.2 Evaluation Order (required)**, the paragraph the screenshot shows. After "The
+     refusal is recorded as an \texttt{agent-not-registered} entry in the installation ledger, a
+     separate chain kept for events that belong to no organization." add: "Root sees these
+     entries in the dashboard's audit ledger, marked as installation-level events
+     (Section~\ref{sec:gov-administrative-logging})."
+  2. **3.5.3.3 Administrative Logging (required)**, the visibility paragraph. After "Newly added
+     entry kinds have that restricted visibility until they are added to the shared-policy
+     list." add: "Events that belong to no organization are recorded in a chain of their own, the
+     installation ledger: a tool call or prompt from an unregistered agent, a failed sign-in under
+     a username no account holds, and the installation's copy of an organization's deletion.
+     The dashboard shows them only to Root, and only when Root's organization is the
+     installation's one organization. They are merged into Root's ledger view in time order, each
+     chain keeping its own order, and are marked as installation-level events. Each is numbered in
+     its own chain, so the dashboard shows \texttt{installation \#3} beside the organization's
+     \texttt{\#3}. Administrators, Users, and Viewers do not receive them, whatever their
+     assignments. Combining the two chains happens only in the response; neither stored chain
+     changes."
+     And in Figure `fig:gov-administrative-logging-system`, the box "Administrator or Root /
+     Complete organization scope" becomes "Administrator or Root / Complete organization scope;
+     Root also installation-level events". Optional: one sentence for its caption, "Root also
+     receives the installation ledger's events, marked."
+  3. **3.5.3.4 Data Sanitization (required)**, the paragraph beginning "A User receives full
+     records for agents assigned to them". After "Administrator and Root accounts receive the
+     complete organization view because their audit responsibilities include investigating the
+     contents of agent actions and policy changes." add: "Root also receives the installation
+     ledger's events, unmasked and marked as installation-level events
+     (Section~\ref{sec:gov-administrative-logging})." In Figure `fig:gov-ledger-projection`, the
+     box "Administrator or Root / complete organization audit view" becomes "… complete
+     organization audit view; Root also installation-level events".
+  4. **3.5.3.2 Hash Chaining and Verification (required)**, after the paragraph "Successful
+     server-side verification returns the number of checked entries …" add: "When Root verifies,
+     the response also carries the installation ledger's own verification, which the dashboard
+     shows in a row of its own. The two verdicts are not combined: they describe two chains with
+     separate heads, and a break in one says nothing about the other." Optional, the standalone
+     verifier paragraph "The program reads each organization's numbered archives oldest first
+     …": it has always read the installation ledger too (it enumerates every folder under
+     \texttt{groups/}), so "each organization's" may become "each organization's, and the
+     installation ledger's,".
+  5. **Table `tab:gov-role-capabilities` (required).** Row "Read ledger entries", Root column:
+     "Organization, full" → "Organization, full, and installation-level events". Row "Verify
+     ledger integrity", Root column: "Yes" → "Yes, and the installation ledger".
+  6. **3.5.1 System Architecture (optional).** "It appends records to the appropriate
+     organization's audit ledger" may add ", or to the installation ledger for an event that
+     belongs to no organization". The architecture figure's "Installation-wide state" box could
+     list "installation ledger", but on disk it is \texttt{groups/installation/audit-ledger.jsonl}
+     (a reserved folder name no organization can take), so leaving the figure as it is stays true.
+  7. **3.5.11 Management Interface (optional).** "The ledger view loads the latest 200 entries and
+     initially shows 50." stays true; for Root the 200 are taken from both chains combined. Add, if
+     wanted: "For Root, they are the latest 200 of the organization's and the installation's
+     ledgers combined."
+  8. **3.5.9 Tenancy and Agent Registry (optional).** After "When an organization is deleted, its
+     audit ledger is kept in its own folder, apart from the organization created after it." add:
+     "The installation ledger keeps a copy of the deletion's outcome, which the next
+     organization's Root sees as an installation-level event."
+
+  Unchanged and still true: Table `tab:gov-ledger-required-fields` (the marker
+  \texttt{ledgerScope} is added to the response only; it is not stored and not hashed), the
+  decision table, the integrity-alert paragraph (the banner reads the organisation's chain, as it
+  says). No limitation sentence for Chapter 3 (2026-10-24 rule): the installation chain's own
+  alerts not reaching the banner is L58 in `CH4-LIMITATIONS.md`. Evidence for Chapter 4 is C159
+  (§7).
 
 ## 7. Chapters 4 and 5
 
@@ -882,6 +963,34 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
      passed / 22 skipped / 0 failed; typechecks and the full lint gate clean. Areas that held: path rules against 16 Windows
      spellings of one file, every governed tool reading the parameter the gate judges, the
      policy seal's 25 tamper tests, every code path that removes rules.
+
+- **C159.** **Chapter 4 evidence for T97 (2026-11-10).** Record: `mg/WORK-LOG-2026-11-10.md` §1;
+  design `mg/T97-INSTALLATION-LEDGER-VIEW-DESIGN.md`. Points worth a sentence each:
+  1. **What the code did.** The installation ledger was a complete, keyed, checkpointed chain,
+     written by six callers (the gate's unregistered-agent refusal, host prompts to an
+     unregistered agent, sign-ins under unknown names, the copy of an organisation's deletion,
+     changes to accounts predating organisations, gap lines), and read by nothing on the
+     dashboard: Chapter 3 told the reader the refusal is recorded, and no account could see it.
+     Only the terminal verifier read the chain.
+  2. **The design choice.** Merged when read, never when written: no entry copied or rewritten,
+     each chain verified on its own (D1, D5). Root only, decided on the server, and only when
+     Root's organisation is the installation's one organisation (D2).
+  3. **Tests.** 4 merge tests; 11 HTTP tests through the real router with the refusal written by
+     the real gate (33 runs across the three gateway projects), including byte-identical
+     `ledger` and `ledger/verify` responses for Administrator, User and Viewer before and after
+     installation events exist; 6 rendering tests.
+  4. **Mutations: 12 of 12 killed**, after one survivor taught something: removing the
+     installation verification row went unnoticed because the test read the whole panel, and the
+     screen-reader live region repeats the row's title. The test now reads the row.
+  5. **Live, on an isolated Gateway:** Root saw three installation-level events (a start-up
+     heartbeat prompt to an agent not yet registered, the refusal, an unknown sign-in) in time
+     order among the organisation's own; the dashboard's two chain heads matched
+     `scripts/verify-ledger.mjs`; an Administrator's dashboard and raw responses carried none.
+     One defect found live and fixed: the installation row left out the checkpoint agreement the
+     server had sent.
+  6. **Residual, not in Chapter 3:** L58 (the installation chain's own integrity alerts appear as
+     rows and in its verification, not in the banner, and cannot be acknowledged).
+  7. Suite and lint figures: see the log, §1.6.
 
 ## 8. Repository documents (not the report)
 

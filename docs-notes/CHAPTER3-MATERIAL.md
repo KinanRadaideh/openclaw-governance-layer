@@ -4630,6 +4630,12 @@ and it turned out to be the right home for failed sign-ins too: a failed login
 often names an account that belongs to nobody, and **an attacker must not get to
 choose which organisation's log records the attack on it.**
 
+_(T97, 2026-11-10.) For a long time nothing on the dashboard read this trail.
+Root of the installation's one organisation now sees its events in the audit
+ledger, merged by time and marked "Installation-level event", and verifies the
+trail separately; no other tier receives them. Report wording: C158 in
+`docs-notes/report/DOCUMENTATION-UPDATES.md`._
+
 ### 3.5.49 Four defects found by building it, and what each one teaches
 
 None of these was in the plan. All four came from the work itself, and three

@@ -37,6 +37,40 @@ page's own requests are now judged; see §"T94" for the decisions and evidence.
 rules, and every rule removal (the dashboard's, and each rule a host deletion of an agent takes)
 states whether the rule had expired; see §"T95" and §"T96".
 
+**T97 is built (added and built 2026-11-10; committed 2026-11-11, code `feb245dfae4`, not pushed):** Root of the installation's one
+organisation sees the installation ledger's events in the audit view, merged by time and marked
+"Installation-level event", and verifies that chain separately; no other tier receives them. See
+§"T97" for the decisions and evidence.
+
+### T97: surface installation ledger events to the organization's Root (added 2026-11-10)
+
+**Built 2026-11-10** (design `mg/T97-INSTALLATION-LEDGER-VIEW-DESIGN.md` D1–D8, record
+`mg/WORK-LOG-2026-11-10.md` §1; report items C158 and C159 in
+`docs-notes/report/DOCUMENTATION-UPDATES.md`, limitation L58). Each requirement below is met:
+merged at read time, nothing stored rewritten, each chain verified on its own; Root only, decided
+on the server; `ledgerScope: "installation"` in the response and "installation #n" with an
+"Installation-level event" line on the page; time order, paging, Root's view of the real gate's
+refusal and every lower tier's exclusion tested and seen live. Not built: the installation
+chain's own alerts in the banner (D7, L58).
+
+**Requested by Kinan while studying Chapter 3.** Unregistered-agent
+refusals are recorded in the installation ledger, but the dashboard's ordinary
+ledger endpoint reads only the signed-in account's organization ledger. Bring
+installation events into the organization's audit view so its Root can see them.
+
+- Merge installation and organization events in the audit view, preserving their
+  source and audit-chain integrity; do not rewrite historical entries merely to
+  combine their presentation.
+- Enforce access on the server: only the Root of the installation's organization
+  may receive installation-level events. Administrators, Users and Viewers must
+  not receive them, regardless of agent assignments or client-side filtering.
+- Mark each such entry explicitly as an **installation-level event**, distinct
+  from organization-level events, in both the response and dashboard display.
+- Verify chronological ordering and pagination across the combined view, Root
+  visibility of an unregistered-agent refusal, and exclusion of installation
+  events for every lower role. Update the report's audit-visibility explanation
+  when implemented.
+
 ### T88: threat-model instructions inside an allowed script (added 2026-11-04)
 
 **Open, investigation first; Kinan decides on remediation after the findings.**

@@ -3911,6 +3911,12 @@ home for **failed sign-ins**, where the username may belong to nobody. An
 attacker must not get to choose which organisation's log records the attack on
 it.
 
+_Until T97 (2026-11-10) nothing on the dashboard read this chain; only
+`scripts/verify-ledger.mjs` did. Root of the installation's one organisation now
+sees its events in the audit ledger, merged by time and marked "Installation-level
+event", and can verify the chain there; no other tier receives them. See
+`mg/T97-INSTALLATION-LEDGER-VIEW-DESIGN.md`._
+
 #### Five things implementation found that design did not
 
 **1. `assertAssignable` still had the hole, and closing it was in scope.** The
