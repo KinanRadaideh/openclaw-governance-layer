@@ -9092,3 +9092,27 @@ that were looked into afterwards: one fixed, one stated as a limit.
 The newest rule-removal work was read against its design and nothing was wrong. Rules about files
 were tried with sixteen different Windows spellings of the same file, and every spelling that can
 actually open the file was refused.
+
+## 5.146 Checking Root's view of the installation's own record (findings 456 and 457, 11 November)
+
+The day before, Root was given a view of a second audit record: the one kept for the whole
+installation rather than for the organisation, holding things such as an agent nobody registered
+trying to act. This check tried it in ways the people who built it had not, and found two small
+problems, both fixed the same day.
+
+- **A damaged second record hid the first one from Root** (finding 456). If the installation's
+  record could not be read at all, Root's whole audit page failed, including the organisation's
+  own record and its integrity check, while an Administrator's page still worked. Now a record
+  that cannot be read only costs Root its own entries, and Root's integrity check says that this
+  record could not be read, next to the organisation's verdict, which is unaffected.
+- **The page described failed sign-ins wrongly** (finding 457). The design, the report notes and
+  the page all said that only a sign-in under a name nobody holds goes to the installation's
+  record. In fact every failed sign-in and every lockout goes there, even for real accounts such
+  as Root's own. That is deliberate: if failures for real and invented names were kept in
+  different places, the record itself would reveal which names exist. The page told Root such an
+  event "belongs to no organisation"; it now says what the record holds. Chapter 3 had listed
+  these events among the organisation's own entries, which was never true.
+
+Everything else held: an account from before organisations existed, a deleted organisation's
+successor, a cut-off record (its alert reaches Root), and a flood of 210 failed sign-ins under
+made-up names, which the existing limit kept from pushing the organisation's entries off the page.

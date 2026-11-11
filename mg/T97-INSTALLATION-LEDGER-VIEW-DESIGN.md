@@ -22,6 +22,11 @@ Record of the work: `mg/WORK-LOG-2026-11-10.md` §1.
      another host entry point (`governance.agent.prompt`, actor `host-prompt`).
   3. `auth-audit.ts`: a failed sign-in whose username belongs to nobody, and the
      suppressed-failure count (`governance.auth.*`, actor `unauthenticated`).
+     **Corrected 2026-11-11 (QA, finding 457):** every failed sign-in and every lockout, a real
+     account's included; the login route passes no organisation for either, deliberately (one
+     record for both cases, so the trail is no account-existence oracle). The page's line under an
+     installation row said such an event "belongs to no organisation"; reworded.
+     `mg/QA-SESSION-2026-11-11.md`.
   4. `organisation-deletion.ts`: the second copy of an organisation's deletion outcome
      (`governance.organisation.delete`), "what an operator finds after the organisation is gone".
   5. `user-store.ts`, `account-credentials.ts`, `account-deletion.ts`: changes to accounts that
@@ -85,7 +90,9 @@ field, and the rule is "Root or nobody").
 organisation's result, which stays in the same top-level fields. The page shows it as a second
 row, "Installation ledger integrity", with its own verdict, evidence and recorded alerts. The two
 verdicts are never combined: they are two chains with two heads, and a break in one says nothing
-about the other. Why in T97: showing Root entries it then cannot check would weaken the very
+about the other. (2026-11-11, finding 456: nor may a fault in one fail the other. An installation
+chain that cannot be read now adds no rows to Root's view and is reported as that chain's failed
+verification; before, it failed Root's whole `ledger` and `ledger/verify` responses.) Why in T97: showing Root entries it then cannot check would weaken the very
 property the ledger exists for. The terminal check (`scripts/verify-ledger.mjs`) already covered
 the chain and is unchanged.
 

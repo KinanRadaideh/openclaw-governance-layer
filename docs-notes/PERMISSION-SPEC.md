@@ -1172,8 +1172,8 @@ the filesystem rather than of every query. An installation holds one organisatio
     attachments/
   groups/installation/    reserved name (no organisation id can take it)
     audit-ledger.jsonl    events that belong to no organisation: an unregistered
-                          agent refused or prompted, a sign-in under a name nobody
-                          holds, the copy of an organisation's deletion; read by
+                          agent refused or prompted, every failed or locked-out
+                          sign-in (any name), the copy of an organisation's deletion; read by
                           Root on the dashboard (T97) and by verify-ledger.mjs
 ```
 

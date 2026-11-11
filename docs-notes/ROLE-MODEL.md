@@ -90,24 +90,24 @@ registry).
 
 ### Root: manages people
 
-| Capability                                                                                                                                                              | Enforced by                                            |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| Create accounts, set initial role, answerable Administrator and agents                                                                                                  | `users`, floor Root                                    |
-| Change any account's role                                                                                                                                               | `users/role`, floor Root, `guardRoleChange`            |
-| Reset any account's password (every session it holds is signed out, and its login failures cleared, finding 414)                                                        | `users/password`, floor Root                           |
-| Delete accounts (revoking live sessions inside the deletion; 503 `sessions_unavailable` when that cannot be done, T76); refused while the account owns agents (381)     | `users/delete`, floor Root, `guardDeletion`            |
-| Finish a deletion that left work undone (T76)                                                                                                                           | `users/delete/finish`, floor Root                      |
-| Acknowledge an integrity alert, with a reason (T73)                                                                                                                     | `integrity/acknowledge`, floor Root                    |
-| Read the installation ledger's events (an unregistered agent refused, a sign-in under an unknown name, an organisation's deletion), marked, and verify that chain (T97) | `ledger`, `ledger/verify`, `mayReadInstallationLedger` |
-| Withhold or restore a User's ability to write policy (T27)                                                                                                              | `users/policy-authoring`, floor Root                   |
-| Set the per-**account** escalation override                                                                                                                             | `policy/user-ask`, floor Root                          |
-| Switch a shipped core rule off, or back on (T24)                                                                                                                        | `policy/core-rules`, floor Root                        |
-| Offer or withdraw the Codex backend installation-wide                                                                                                                   | `backend/codex`, `canManageBackends`                   |
-| Read the deployment and network posture report                                                                                                                          | `deployment`, `canReadDeploymentReport`                |
-| Register or provision an agent **owned by another Administrator**                                                                                                       | `agents/register`, `agents/provision`                  |
-| Administer any agent, whoever owns it                                                                                                                                   | ownership check (`mayAdministerAgent`)                 |
-| Delete the whole organisation, Root's own account included                                                                                                              | `organisation/delete`, floor Root                      |
-| Everything an Administrator can do                                                                                                                                      | inheritance                                            |
+| Capability                                                                                                                                                               | Enforced by                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| Create accounts, set initial role, answerable Administrator and agents                                                                                                   | `users`, floor Root                                    |
+| Change any account's role                                                                                                                                                | `users/role`, floor Root, `guardRoleChange`            |
+| Reset any account's password (every session it holds is signed out, and its login failures cleared, finding 414)                                                         | `users/password`, floor Root                           |
+| Delete accounts (revoking live sessions inside the deletion; 503 `sessions_unavailable` when that cannot be done, T76); refused while the account owns agents (381)      | `users/delete`, floor Root, `guardDeletion`            |
+| Finish a deletion that left work undone (T76)                                                                                                                            | `users/delete/finish`, floor Root                      |
+| Acknowledge an integrity alert, with a reason (T73)                                                                                                                      | `integrity/acknowledge`, floor Root                    |
+| Read the installation ledger's events (an unregistered agent refused, any failed or locked-out sign-in, an organisation's deletion), marked, and verify that chain (T97) | `ledger`, `ledger/verify`, `mayReadInstallationLedger` |
+| Withhold or restore a User's ability to write policy (T27)                                                                                                               | `users/policy-authoring`, floor Root                   |
+| Set the per-**account** escalation override                                                                                                                              | `policy/user-ask`, floor Root                          |
+| Switch a shipped core rule off, or back on (T24)                                                                                                                         | `policy/core-rules`, floor Root                        |
+| Offer or withdraw the Codex backend installation-wide                                                                                                                    | `backend/codex`, `canManageBackends`                   |
+| Read the deployment and network posture report                                                                                                                           | `deployment`, `canReadDeploymentReport`                |
+| Register or provision an agent **owned by another Administrator**                                                                                                        | `agents/register`, `agents/provision`                  |
+| Administer any agent, whoever owns it                                                                                                                                    | ownership check (`mayAdministerAgent`)                 |
+| Delete the whole organisation, Root's own account included                                                                                                               | `organisation/delete`, floor Root                      |
+| Everything an Administrator can do                                                                                                                                       | inheritance                                            |
 
 Constrained by lockout guards (`account-guards.ts`): cannot delete the account
 it is signed in with, and cannot demote or delete the Root account **on its

@@ -53,6 +53,12 @@ on the server; `ledgerScope: "installation"` in the response and "installation #
 refusal and every lower tier's exclusion tested and seen live. Not built: the installation
 chain's own alerts in the banner (D7, L58).
 
+**QA'd 2026-11-11** (`mg/QA-SESSION-2026-11-11.md`): findings 456 (an unreadable installation
+chain failed Root's whole ledger view and verdict; now it costs only its own rows and is reported
+as its own failed verdict) and 457 (every failed or locked-out sign-in reaches the installation
+chain, a real account's included, not only unknown names; the page's line and the documents
+corrected, C158 item 9 for Chapter 3's table), both fixed; report evidence C160.
+
 **Requested by Kinan while studying Chapter 3.** Unregistered-agent
 refusals are recorded in the installation ledger, but the dashboard's ordinary
 ledger endpoint reads only the signed-in account's organization ledger. Bring

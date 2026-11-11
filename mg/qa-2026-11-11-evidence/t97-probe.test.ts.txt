@@ -1,0 +1,279 @@
+// QA 2026-11-11 of T97: probes beyond the build session's tests. Temporary; findings become
+// permanent tests where a defect is proven. Log: mg/QA-SESSION-2026-11-11.md.
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Readable } from "node:stream";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  appendLedgerEntry,
+  clearCheckpointForTests,
+  resetLedgerCursorForTests,
+  tailLedger,
+} from "../governance/audit-ledger.js";
+import { resetAuthAuditForTests } from "../governance/auth-audit.js";
+import { resetLedgerAlertIndexForTests } from "../governance/ledger-alerts.js";
+import { resetLedgerKeyCacheForTests } from "../governance/ledger-key.js";
+import { resetLoginThrottle } from "../governance/login-throttle.js";
+import { deleteOrganisation } from "../governance/organisation-deletion.js";
+import { INSTALLATION_LEDGER_GROUP, ledgerFilePath, usersFilePath } from "../governance/paths.js";
+import type { GovernanceRole } from "../governance/roles.js";
+import type { GovernanceSession } from "../governance/session-tokens.js";
+import { seedGroupWithAgents } from "../governance/test-group.js";
+import { createUser, listUsers, newGroupId } from "../governance/user-store.js";
+import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
+import { handleGovernanceAuthRequest } from "./governance-dashboard-auth.js";
+
+let dir: string;
+let GROUP: string;
+let ROOT_ID: string;
+
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), "qa-t97-"));
+  process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  GROUP = await seedGroupWithAgents(["agent-a"]);
+  const root = await createUser(
+    { username: "root1", password: "test-password-123", role: "root", groupId: GROUP },
+    { name: "test", role: "root" },
+  );
+  ROOT_ID = root.id;
+  resetLedgerKeyCacheForTests();
+  resetLedgerCursorForTests();
+  resetLedgerAlertIndexForTests();
+  resetLoginThrottle();
+  resetAuthAuditForTests();
+  await rm(ledgerFilePath(GROUP), { force: true });
+  await clearCheckpointForTests(GROUP);
+  resetLedgerCursorForTests();
+});
+
+afterEach(async () => {
+  delete process.env.OPENCLAW_GOVERNANCE_DIR;
+  resetLedgerKeyCacheForTests();
+  resetLedgerCursorForTests();
+  resetLedgerAlertIndexForTests();
+  resetLoginThrottle();
+  resetAuthAuditForTests();
+  await rm(dir, { recursive: true, force: true });
+});
+
+function session(role: GovernanceRole, groupId = GROUP): GovernanceSession {
+  return {
+    token: `token-${role}`,
+    userId: role === "root" ? ROOT_ID : `id-${role}`,
+    username: `${role}1`,
+    role,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+    assignedAgents: ["agent-a"],
+    groupId,
+  };
+}
+
+function fakeRes(sink: { status: number; text: string }): ServerResponse {
+  return {
+    statusCode: 200,
+    setHeader() {},
+    getHeader() {
+      return undefined;
+    },
+    writeHead(code: number) {
+      sink.status = code;
+      return this;
+    },
+    end(chunk?: unknown) {
+      if (typeof chunk === "string") {
+        sink.text += chunk;
+      } else if (chunk instanceof Uint8Array) {
+        sink.text += Buffer.from(chunk).toString("utf8");
+      }
+      return this;
+    },
+  } as unknown as ServerResponse;
+}
+
+async function call(
+  method: "GET" | "POST",
+  route: string,
+  actor: GovernanceSession,
+): Promise<{ status: number; body: any }> {
+  const path = `/control-ui/governance/${route}`;
+  const req = Readable.from([]) as unknown as IncomingMessage;
+  Object.assign(req, { method, url: path, headers: {} });
+  const sink = { status: 0, text: "" };
+  const res = fakeRes(sink);
+  try {
+    await handleGovernanceApiRequest(req, res, path, actor);
+  } catch (err) {
+    return { status: -1, body: String(err) };
+  }
+  return {
+    status: sink.status || (res as { statusCode: number }).statusCode,
+    body: sink.text ? JSON.parse(sink.text) : undefined,
+  };
+}
+
+async function login(username: string, password: string): Promise<number> {
+  const pathname = "/control-ui/governance/login";
+  const req = Readable.from([
+    Buffer.from(JSON.stringify({ username, password })),
+  ]) as unknown as IncomingMessage;
+  Object.assign(req, {
+    method: "POST",
+    url: pathname,
+    headers: { "content-type": "application/json" },
+  });
+  const sink = { status: 0, text: "" };
+  const res = fakeRes(sink);
+  await handleGovernanceAuthRequest(req, res, pathname, {});
+  return sink.status || (res as { statusCode: number }).statusCode;
+}
+
+async function organisationEntry(resource: string): Promise<void> {
+  await appendLedgerEntry(GROUP, {
+    agentId: "agent-a",
+    toolName: "exec",
+    resourceKind: "command",
+    resource,
+    ruleId: "default-deny",
+    decision: "deny",
+  });
+}
+
+describe("QA T97", () => {
+  it("P1: where does a failed sign-in for a REAL account go?", async () => {
+    expect(await login("root1", "wrong-password-xyz")).toBe(401);
+    const inst = await tailLedger(INSTALLATION_LEDGER_GROUP, 50);
+    const org = await tailLedger(GROUP, 50);
+    console.log(
+      "P1 installation:",
+      inst.map((e) => `${e.toolName} ${e.resource}`),
+    );
+    console.log(
+      "P1 organisation:",
+      org.map((e) => `${e.toolName} ${e.resource}`),
+    );
+    // Lockout too
+    for (let i = 0; i < 5; i += 1) {
+      await login("root1", "wrong-password-xyz");
+    }
+    const inst2 = await tailLedger(INSTALLATION_LEDGER_GROUP, 50);
+    console.log(
+      "P1 lockout in installation:",
+      inst2.filter((e) => e.toolName.includes("lockout")).map((e) => e.resource),
+    );
+  });
+
+  it("P2: a legacy account without groupId does not stop Root receiving (D2)", async () => {
+    const raw = JSON.parse(await readFile(usersFilePath(), "utf8"));
+    raw.users.push({ ...raw.users[0], id: "legacy-1", username: "legacy", groupId: undefined });
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(usersFilePath(), JSON.stringify(raw));
+    console.log("P2 users:", (await listUsers()).map((u) => `${u.username}:${u.groupId}`));
+    await appendLedgerEntry(INSTALLATION_LEDGER_GROUP, {
+      agentId: "ghost",
+      toolName: "exec",
+      resourceKind: "command",
+      resource: "*",
+      ruleId: "agent-not-registered",
+      decision: "deny",
+    });
+    const { body } = await call("GET", "ledger?limit=200", session("root"));
+    expect(body.filter((e: any) => e.ledgerScope === "installation")).toHaveLength(1);
+  });
+
+  it("P3: a gap line in the installation chain reaches Root as a marked row and an alert", async () => {
+    await organisationEntry("o1");
+    await appendLedgerEntry(INSTALLATION_LEDGER_GROUP, {
+      agentId: "ghost",
+      toolName: "exec",
+      resourceKind: "command",
+      resource: "*",
+      ruleId: "agent-not-registered",
+      decision: "deny",
+    });
+    await appendLedgerEntry(INSTALLATION_LEDGER_GROUP, {
+      agentId: "ghost",
+      toolName: "exec",
+      resourceKind: "command",
+      resource: "*",
+      ruleId: "agent-not-registered",
+      decision: "deny",
+    });
+    // Cut the newest installation entry off the file: the checkpoint still says 2.
+    const path = ledgerFilePath(INSTALLATION_LEDGER_GROUP);
+    const lines = (await readFile(path, "utf8")).split("\n").filter(Boolean);
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(path, `${lines[0]}\n`);
+    resetLedgerCursorForTests();
+    const verifyBefore = (await call("POST", "ledger/verify", session("root"))).body;
+    console.log("P3 verify after cut:", JSON.stringify(verifyBefore.installation));
+    await appendLedgerEntry(INSTALLATION_LEDGER_GROUP, {
+      agentId: "ghost",
+      toolName: "exec",
+      resourceKind: "command",
+      resource: "*",
+      ruleId: "agent-not-registered",
+      decision: "deny",
+    });
+    const verify = (await call("POST", "ledger/verify", session("root"))).body;
+    console.log("P3 verify after gap:", JSON.stringify(verify.installation));
+    const { body } = await call("GET", "ledger?limit=200", session("root"));
+    console.log(
+      "P3 rows:",
+      JSON.stringify(body.map((e: any) => `${e.ledgerScope ?? "org"} #${e.seq} ${e.toolName}`)),
+    );
+    expect(verify.ok).toBe(true);
+  });
+
+  it("P4: after the organisation is deleted, the successor's Root reads the deletion copy", async () => {
+    const result = await deleteOrganisation(
+      { groupId: GROUP, actingUserId: ROOT_ID, confirmation: "root1" },
+      { name: "root1", role: "root" },
+    );
+    expect(result.ok).toBe(true);
+    const NEXT = newGroupId();
+    const next = await createUser(
+      { username: "root2", password: "test-password-123", role: "root", groupId: NEXT },
+      { name: "test", role: "root" },
+    );
+    const s = { ...session("root", NEXT), userId: next.id, username: "root2" };
+    const { status, body } = await call("GET", "ledger?limit=200", s);
+    console.log(
+      "P4:",
+      status,
+      JSON.stringify(body.map((e: any) => `${e.ledgerScope ?? "org"} #${e.seq} ${e.toolName} ${e.resource}`)),
+    );
+    expect(
+      body.some(
+        (e: any) =>
+          e.ledgerScope === "installation" && e.toolName === "governance.organisation.delete",
+      ),
+    ).toBe(true);
+  });
+
+  it("P5: unauthenticated failures under invented names fill Root's 200-entry page", async () => {
+    for (let i = 0; i < 20; i += 1) {
+      await organisationEntry(`real-${i}`);
+    }
+    for (let i = 0; i < 210; i += 1) {
+      await login(`invented-${i}`, "x-wrong-password");
+    }
+    const { body } = await call("GET", "ledger?limit=200", session("root"));
+    const org = body.filter((e: any) => e.ledgerScope === undefined).length;
+    console.log("P5: page", body.length, "organisation entries in it:", org);
+  }, 120_000);
+
+  it("P6: an unreadable installation chain and Root's organisation view", async () => {
+    await organisationEntry("o1");
+    // Make the installation ledger path a directory: reading it fails with EISDIR.
+    await mkdir(ledgerFilePath(INSTALLATION_LEDGER_GROUP), { recursive: true });
+    const get = await call("GET", "ledger?limit=200", session("root"));
+    const ver = await call("POST", "ledger/verify", session("root"));
+    const admin = await call("GET", "ledger?limit=200", session("administrator"));
+    console.log("P6 root GET:", get.status, String(JSON.stringify(get.body)).slice(0, 200));
+    console.log("P6 root verify:", ver.status, String(JSON.stringify(ver.body)).slice(0, 200));
+    console.log("P6 admin GET:", admin.status, Array.isArray(admin.body) ? admin.body.length : admin.body);
+  });
+});

@@ -438,8 +438,11 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
   2. **3.5.3.3 Administrative Logging (required)**, the visibility paragraph. After "Newly added
      entry kinds have that restricted visibility until they are added to the shared-policy
      list." add: "Events that belong to no organization are recorded in a chain of their own, the
-     installation ledger: a tool call or prompt from an unregistered agent, a failed sign-in under
-     a username no account holds, and the installation's copy of an organization's deletion.
+     installation ledger: a tool call or prompt from an unregistered agent and the installation's
+     copy of an organization's deletion. Every failed sign-in and lockout is recorded there too,
+     with the count of failures not recorded one by one, whether or not the username belongs to
+     an account, because recording the two alike keeps the audit trail from revealing which
+     usernames exist.
      The dashboard shows them only to Root, and only when Root's organization is the
      installation's one organization. They are merged into Root's ledger view in time order, each
      chain keeping its own order, and are marked as installation-level events. Each is numbered in
@@ -484,6 +487,19 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
      audit ledger is kept in its own folder, apart from the organization created after it." add:
      "The installation ledger keeps a copy of the deletion's outcome, which the next
      organization's Root sees as an installation-level event."
+
+  9. **Table of administrative entry kinds, row "Accounts and authentication" (required;
+     corrected by the QA of 2026-11-11, finding 457).** The row lists "recording login, logout,
+     failed-login, lockout, and suppressed-failure events" among the organisation's
+     administrative entries, which the visibility paragraph gives to Administrators and Root.
+     Failed sign-ins, lockouts and the suppressed-failure count were never written to an
+     organisation's chain (`auditLoginFailure`, `auditLoginLockout` and the suppressed count pass
+     no organisation, `src/governance/auth-audit.ts`); before T97 nobody saw them on the
+     dashboard, and now only Root does. Add after the table, or to the row: "Failed sign-ins,
+     lockouts and the suppressed-failure count are recorded in the installation ledger (see
+     above), whatever the username, so only Root sees them."
+     Item 2's sentence was corrected the same day: it said only a failed sign-in "under a
+     username no account holds" reaches the installation ledger.
 
   Unchanged and still true: Table `tab:gov-ledger-required-fields` (the marker
   \texttt{ledgerScope} is added to the response only; it is not stored and not hashed), the
@@ -968,7 +984,8 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
   design `mg/T97-INSTALLATION-LEDGER-VIEW-DESIGN.md`. Points worth a sentence each:
   1. **What the code did.** The installation ledger was a complete, keyed, checkpointed chain,
      written by six callers (the gate's unregistered-agent refusal, host prompts to an
-     unregistered agent, sign-ins under unknown names, the copy of an organisation's deletion,
+     unregistered agent, every failed sign-in and lockout whatever the name (corrected 2026-11-11,
+     finding 457; the build said "under unknown names"), the copy of an organisation's deletion,
      changes to accounts predating organisations, gap lines), and read by nothing on the
      dashboard: Chapter 3 told the reader the refusal is recorded, and no account could see it.
      Only the terminal verifier read the chain.
@@ -992,7 +1009,39 @@ under the same rule: 3.5.9 Tenancy and Agent Registry already describes the boun
      rows and in its verification, not in the banner, and cannot be acknowledged).
   7. Suite and lint figures: see the log, §1.6.
 
-## 8. Repository documents (not the report)
+- **C160.** **Chapter 4 evidence: the QA of T97, findings 456 and 457 (2026-11-11).** Record:
+  `mg/QA-SESSION-2026-11-11.md`; register `GOVERNANCE.md` 456–457; plain language
+  `QA-IN-PLAIN-TERMS.md` §5.146. Chapter 3 change: C158 item 9 (and item 2's corrected sentence).
+  Worth a sentence each:
+  1. **Probes the build did not run**, through the real routes: a failed sign-in and a lockout
+     for a real account, a pre-organisation account beside the one organisation, a truncated
+     then appended installation chain (its gap line reaches Root as a marked row and as an alert
+     in the installation verification), a deleted organisation's successor Root (receives the
+     deletion copy), a flood of 210 failed sign-ins under invented names (bounded by the existing
+     per-window budget; all 20 organisation entries stayed on Root's page), and an unreadable
+     installation chain.
+  2. **Finding 456.** An installation ledger that could not be read made Root's whole ledger view
+     and the organisation's verdict fail, while an Administrator was answered: the second chain
+     had become a single point of failure for the first, against D5 ("a break in one says
+     nothing about the other"). Now the chain that cannot be read costs Root only its own entries,
+     and its verification reports it as that chain's failed verdict beside the organisation's.
+  3. **Finding 457.** The design, the report items and the page all said failed sign-ins reach
+     the installation ledger only under names nobody holds; a probe through the real login route
+     showed every failed sign-in and lockout does, deliberately (recorded alike, so the trail is
+     no account-existence oracle). The page told Root such an event "belongs to no
+     organisation"; the line now says what the chain holds. Chapter 3's table had listed these
+     events among the organisation's administrative entries since before T97.
+  4. **Mutation sweep: 9 of 9 killed** (`mg/qa-2026-11-11-evidence/mutations.mjs`): the two
+     fixes undone (three mutants) and an independent re-check of T97's own guards (any role
+     reading the chain, two organisations counted as one, ties, unmarked entries, verification
+     or merging for every reader).
+  5. **Live, on a rebuilt isolated Gateway:** a wrong password for the real Root account showed
+     on Root's dashboard as `installation #4` with the corrected line, and in no Administrator
+     response; with the installation ledger replaced by a directory while running, Root's page
+     kept all 18 organisation entries and, after Verify, showed the organisation intact
+     (checkpoint agrees) beside "Installation ledger integrity … could not be read (EISDIR)";
+     restored, both chains verified on the dashboard and with `scripts/verify-ledger.mjs`.
+
 
 **Nothing owed (2026-10-12, evening).** T86 D5 and D2 were applied to the specification documents
 on 2026-10-11, and D9, D7 and finding 429 on 2026-10-12 (`PERMISSION-SPEC.md`, `ROLE-MODEL.md`,
