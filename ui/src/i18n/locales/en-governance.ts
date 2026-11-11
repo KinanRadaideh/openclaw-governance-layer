@@ -405,7 +405,7 @@ export const enGovernance: TranslationMap = {
       installationNumber: "installation #{seq}",
       installationEvent: "Installation-level event",
       installationEventHint:
-        "recorded in the installation's own audit ledger, outside the organisation's chain, because it belongs to no organisation (for example an agent nobody registered, or a sign-in under a name nobody holds). Only Root sees these.",
+        "recorded in the installation's own audit ledger, outside the organisation's chain. That chain holds what belongs to no organisation (an agent nobody registered, the copy of an organisation's deletion) and every failed or locked-out sign-in, which is recorded alike whether or not the name belongs to an account. Only Root sees these.",
       installationIntegrity: "Installation ledger integrity",
       installationIntegrityHow:
         "The installation's own chain, verified separately from the organisation's in the same way: its own signing, links and checkpoint. Only Root sees it.",

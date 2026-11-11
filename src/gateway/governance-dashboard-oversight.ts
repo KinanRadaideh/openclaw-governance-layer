@@ -37,10 +37,11 @@ import {
 import {
   mayReadInstallationLedger,
   mergeLedgerViews,
+  readInstallationChain,
+  verifyInstallationChain,
   type LedgerViewVerification,
 } from "../governance/installation-ledger-view.js";
 import { projectLedgerForActor } from "../governance/ledger-view.js";
-import { INSTALLATION_LEDGER_GROUP } from "../governance/paths.js";
 import {
   decidePendingDecision,
   listPendingDecisions,
@@ -172,9 +173,10 @@ export async function handleGovernanceOversightRoutes(
     const visible = projectLedgerForActor(scanned, toActor(session));
     // T97: Root of the installation's one organisation also receives the installation chain,
     // read with the same fixed window, merged by time and each entry marked. Every other
-    // reader gets exactly what it got before (design D2–D4).
+    // reader gets exactly what it got before (design D2–D4). An installation chain that cannot be
+    // read adds nothing rather than failing Root's whole view (finding 456).
     const combined = (await mayReadInstallationLedger(session))
-      ? mergeLedgerViews(visible, await tailLedger(INSTALLATION_LEDGER_GROUP, MAX_LEDGER_PAGE))
+      ? mergeLedgerViews(visible, await readInstallationChain(MAX_LEDGER_PAGE))
       : visible;
     // `slice(-page)`, so the newest are kept: `tailLedger` returns oldest-first.
     sendJson(res, 200, combined.slice(-page));
@@ -404,9 +406,10 @@ export async function handleGovernanceOversightRoutes(
       return true;
     }
     const verification: LedgerViewVerification = await verifyLedgerChain(groupId);
-    // T97 D5: the installation chain, verified on its own, for the reader who is shown it.
+    // T97 D5: the installation chain, verified on its own, for the reader who is shown it. A file
+    // that cannot be read is that chain's failed verdict, not the response's (finding 456).
     if (await mayReadInstallationLedger(session)) {
-      verification.installation = await verifyLedgerChain(INSTALLATION_LEDGER_GROUP);
+      verification.installation = await verifyInstallationChain();
     }
     sendJson(res, 200, verification);
     return true;

@@ -208,7 +208,10 @@ async function writeAuthEntry(input: {
       // agent-scope filter rather than needing a rule of its own. That is the
       // right audience: who signed in is not a User's business, and a Viewer
       // seeing the pattern of failed attempts against named accounts would be
-      // handed a reconnaissance aid.
+      // handed a reconnaissance aid. That holds for the entries written to an
+      // organisation's chain (a sign-in, a sign-out). Failures, lockouts and the
+      // suppressed count pass no group, so they reach the installation chain,
+      // which the dashboard shows to Root alone (T97; finding 457).
     });
   } catch {
     // Intentionally silent. See the contract above.

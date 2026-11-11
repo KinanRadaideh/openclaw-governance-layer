@@ -140,4 +140,26 @@ describe("T97: installation-level events on the ledger panel", () => {
       }).textContent ?? "";
     expect(text).not.toContain(t("governance.ledger.installationIntegrity"));
   });
+
+  // Finding 457 (QA 2026-11-11): every failed sign-in and lockout is written to the installation
+  // chain, a real account's included (recorded alike so the trail is no account-existence
+  // oracle). The line under such a row said the event "belongs to no organisation".
+  it("does not tell Root that a failed sign-in for a real account belongs to no organisation", () => {
+    const text =
+      panel([
+        entry({
+          ledgerScope: "installation",
+          entryKind: "admin",
+          toolName: "governance.auth.login-failed",
+          resourceKind: "admin",
+          resource: 'failed sign-in for "root1"',
+          actor: "unauthenticated",
+          agentId: "-",
+          ruleId: "root1",
+        }),
+      ]).textContent ?? "";
+    expect(text).toContain(t("governance.ledger.installationEvent"));
+    expect(text).not.toMatch(/because it belongs to no organisation/);
+    expect(text).toMatch(/every failed or locked-out sign-in/);
+  });
 });

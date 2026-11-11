@@ -1,13 +1,20 @@
 // The installation ledger's events in Root's audit view (T97).
 //
 // Events that belong to no organisation (an unregistered agent refused at the
-// gate, a prompt sent to one, a failed sign-in under a name nobody holds, the
-// copy of an organisation's deletion) are written to the installation chain,
-// `INSTALLATION_LEDGER_GROUP`. The dashboard read only the organisation's chain,
+// gate, a prompt sent to one, the copy of an organisation's deletion) are written
+// to the installation chain, `INSTALLATION_LEDGER_GROUP`, and so is every failed
+// or locked-out sign-in, a real account's included (finding 457: recorded alike,
+// so the trail is no account-existence oracle). The dashboard read only the organisation's chain,
 // so nobody could see them there. This module decides who may, and combines the
 // two chains for the response without changing either (design
 // `mg/T97-INSTALLATION-LEDGER-VIEW-DESIGN.md`, D1–D8).
-import type { LedgerEntry, LedgerVerification } from "./audit-ledger.js";
+import {
+  tailLedger,
+  verifyLedgerChain,
+  type LedgerEntry,
+  type LedgerVerification,
+} from "./audit-ledger.js";
+import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
 import { listUsers } from "./user-store.js";
 
@@ -48,6 +55,37 @@ export async function mayReadInstallationLedger(reader: {
   }
   const groupId = reader.groupId?.trim();
   return Boolean(groupId) && (await installationOrganisation()) === groupId;
+}
+
+/** Why a chain file could not be read, in words: the error code, or its message. */
+function unreadable(err: unknown): string {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code;
+  return `the installation ledger could not be read (${code ?? String(err)})`;
+}
+
+/**
+ * The installation chain's newest `limit` entries for Root's view, or none when the file cannot
+ * be read (finding 456). It is a second file: a fault in it must cost Root those entries, never
+ * the organisation's view, which every other tier is still answered. Root's Verify says why.
+ */
+export async function readInstallationChain(limit: number): Promise<LedgerEntry[]> {
+  try {
+    return await tailLedger(INSTALLATION_LEDGER_GROUP, limit);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The installation chain's own verification (D5). A file that cannot be read is a failed verdict
+ * of that chain, beside the organisation's, never a failure of the whole response (finding 456).
+ */
+export async function verifyInstallationChain(): Promise<LedgerVerification> {
+  try {
+    return await verifyLedgerChain(INSTALLATION_LEDGER_GROUP);
+  } catch (err) {
+    return { ok: false, entriesChecked: 0, reason: unreadable(err) };
+  }
 }
 
 /** Milliseconds since the epoch, or `undefined` for a timestamp that does not parse. */

@@ -1,7 +1,7 @@
 // T97 over HTTP: the installation chain's events in Root's ledger view, through
 // the real router, with the refusal written by the real gate. Design
 // `mg/T97-INSTALLATION-LEDGER-VIEW-DESIGN.md`, D1–D8.
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -272,6 +272,22 @@ describe("T97 D5: Root verifies the installation chain on its own", () => {
     expect(root.ok).toBe(true);
     expect(root.installation.ok).toBe(false);
     expect(root.installation.brokenAtSeq).toBe(1);
+  });
+
+  // Finding 456 (QA 2026-11-11): the installation chain is a second file, and Root's view of the
+  // organisation must not depend on it. Before the fix, an installation ledger that could not be
+  // read made Root's `ledger` and `ledger/verify` throw, while every other tier was answered.
+  it("keeps Root's organisation view and verdict when the installation chain cannot be read", async () => {
+    await organisationEntry("o1");
+    await mkdir(ledgerFilePath(INSTALLATION_LEDGER_GROUP), { recursive: true });
+    const ledger = await call("GET", "ledger?limit=200", session("root"));
+    expect(ledger.status).toBe(200);
+    expect(ledger.body.map((entry: any) => entry.resource)).toEqual(["o1"]);
+    const verify = await call("POST", "ledger/verify", session("root"));
+    expect(verify.status).toBe(200);
+    expect(verify.body).toMatchObject({ ok: true, entriesChecked: 1 });
+    expect(verify.body.installation).toMatchObject({ ok: false, entriesChecked: 0 });
+    expect(verify.body.installation.reason).toMatch(/could not be read/);
   });
 
   it("verifies an empty installation chain as intact", async () => {
