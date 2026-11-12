@@ -195,3 +195,13 @@ One sequential chain after the live check (nothing else running):
   rerun once memory is freed (fewer applications open, or a larger paging file). The same limit
   explains the core-test typecheck in §8.
 - Committed, not pushed (not asked): code `af978cb245a`, then this record with the documents.
+
+## 11. Core-test typecheck closed (2026-11-12)
+
+- The whole-program core-test typecheck was still open (§8, §9). With only about 4 GB of commit
+  headroom it was not run again as one program; instead the repository's own two halves, which
+  together include exactly what `tsconfig.core.test.json` includes, ran one after the other on
+  the pushed tree (`88f929816f3`): `tsconfig.core.test.non-agents.json` **exit 0** (4 min 44 s),
+  `tsconfig.core.test.agents.json` **exit 0** (1 min 17 s). The narrow check of the two changed
+  test files was also repeated: exit 0. Every typecheck on the T97 tree is now clean.
+- Use the two halves whenever the whole program runs out of memory on this laptop.
