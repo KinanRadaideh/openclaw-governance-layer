@@ -125,6 +125,60 @@ describe("a pending rule request says what approving it would do", () => {
     expect(pending.warnings).toEqual([]);
   });
 
+  it("does not call a write request identical to an existing read rule (T47 2.7.10)", async () => {
+    await addRuleChecked(
+      groupId,
+      {
+        description: "test rule",
+        resourceKind: "path",
+        access: "read",
+        pattern: "^/tmp/f$",
+        agentId: "agent-a",
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      },
+      { name: "admin", role: "administrator" },
+    );
+    const submitted = await call("POST", "rule-requests", session("user"), {
+      resourceKind: "path",
+      access: "write",
+      pattern: "^/tmp/f$",
+      agentId: "agent-a",
+      reason: "needed for the nightly report",
+    });
+    expect(submitted.status).toBe(200);
+
+    const pending = await pendingFor("^/tmp/f$");
+
+    expect(pending.conflicts).toEqual([]);
+  });
+
+  it("still tells the approver a same-direction request would make a temporary rule permanent", async () => {
+    await addRuleChecked(
+      groupId,
+      {
+        description: "test rule",
+        resourceKind: "path",
+        access: "write",
+        pattern: "^/tmp/f$",
+        agentId: "agent-a",
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      },
+      { name: "admin", role: "administrator" },
+    );
+    const submitted = await call("POST", "rule-requests", session("user"), {
+      resourceKind: "path",
+      access: "write",
+      pattern: "^/tmp/f$",
+      agentId: "agent-a",
+      reason: "needed for the nightly report",
+    });
+    expect(submitted.status).toBe(200);
+
+    const pending = await pendingFor("^/tmp/f$");
+
+    expect(pending.conflicts).toEqual([expect.objectContaining({ kind: "extends-time-limited" })]);
+  });
+
   it("carries no preview once the request has been decided", async () => {
     await requestRule("ls");
     // A second request stays pending, so the policy is loaded and the decided request is

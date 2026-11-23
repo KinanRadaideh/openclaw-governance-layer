@@ -745,6 +745,26 @@ describe("agent event handler", () => {
     nowSpy.mockRestore();
   });
 
+  it("does not read the session store for streamed text events, only for lifecycle events", () => {
+    const { chatRunState, handler } = createHarness();
+    registerNamedChatRun(chatRunState, "agent-no-lookup");
+    vi.mocked(loadSessionEntry).mockClear();
+
+    for (let i = 0; i < 20; i += 1) {
+      emitAgentEvent(
+        handler,
+        "run-agent-no-lookup",
+        "assistant",
+        { text: "x".repeat(i + 1), delta: "x" },
+        { seq: i + 1 },
+      );
+    }
+    expect(vi.mocked(loadSessionEntry)).not.toHaveBeenCalled();
+
+    emitAgentEvent(handler, "run-agent-no-lookup", "lifecycle", { phase: "end" }, { seq: 21 });
+    expect(vi.mocked(loadSessionEntry)).toHaveBeenCalled();
+  });
+
   it("flushes coalesced assistant agent text before lifecycle end", () => {
     let now = 20_000;
     const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => now);

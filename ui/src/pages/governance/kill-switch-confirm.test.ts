@@ -115,3 +115,18 @@ describe("what a User is told about an agent that is not theirs (finding 394)", 
     expect(h.text).toContain(t("governance.kill.notYourAgent"));
   });
 });
+
+describe("T47 2.6.5b and 2.6.7: names and advisories that matched the server", () => {
+  it("finds a registered agent's display name whatever case the id was typed in", async () => {
+    const { agentLabel } = await import("./agent-directory.ts");
+    const agents = [{ agentId: "zebra-quill", displayName: "Zebra Quill" }] as never;
+    expect(agentLabel(agents, "ZEBRA-QUILL")).toBe("zebra-quill, Zebra Quill");
+    expect(agentLabel(agents, "zebra-quill")).toBe("zebra-quill, Zebra Quill");
+    expect(agentLabel(agents, "other")).toBe("other");
+  });
+
+  it("does not promise that Lock down will succeed for an id nothing knows", () => {
+    expect(t("governance.kill.unknownAgent")).not.toContain("will still succeed");
+    expect(t("governance.kill.unknownAgent")).toContain("refused");
+  });
+});

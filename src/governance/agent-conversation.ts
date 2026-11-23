@@ -547,7 +547,7 @@ export async function promptAgent(
       sessionKey,
       reply: "",
       lockedDown: true,
-      error: `Agent "${input.agentId}" is locked down. Release it before prompting.`,
+      error: `Agent "${input.agentId}" is locked down. An Administrator can release it under Emergency kill switch; then you can prompt it again.`,
     };
   }
 

@@ -89,6 +89,7 @@ function withApprovalPreview(
         resourceKind: request.resourceKind,
         pattern: request.pattern,
         ...(request.agentId ? { agentId: request.agentId } : {}),
+        ...(request.access ? { access: request.access } : {}),
         // With the lifetime approving would grant by default, the one the request asked
         // for (QA of 2026-10-11): without it a time-limited request was previewed as a
         // permanent grant. A stored value that is not valid previews as none.

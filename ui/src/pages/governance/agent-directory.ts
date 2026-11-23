@@ -148,8 +148,11 @@ export function isKnownAgentId(sources: AgentSources, agentId: string): boolean 
  * the audit trail talk about the same agent in two vocabularies.
  */
 export function agentLabel(agents: readonly GovernanceAgentEntry[], agentId: string): string {
-  const registered = agents.find((agent) => agent.agentId === agentId);
-  return registered?.displayName ? `${agentId}, ${registered.displayName}` : agentId;
+  // Ids are stored lower-case and the server folds what an operator types, so
+  // the lookup must too: a lock typed as ZEBRA-QUILL lost the display name (T47 2.6.5b).
+  const wanted = agentId.trim().toLowerCase();
+  const registered = agents.find((agent) => agent.agentId === agentId || agent.agentId === wanted);
+  return registered?.displayName ? `${registered.agentId}, ${registered.displayName}` : agentId;
 }
 
 /**

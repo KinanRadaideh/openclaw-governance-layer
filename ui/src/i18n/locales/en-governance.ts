@@ -1016,7 +1016,7 @@ export const enGovernance: TranslationMap = {
       engaged: "Engaged, this agent is locked down",
       agentIdPlaceholder: "Agent id",
       unknownAgent:
-        "No agent with this id is running, locked down, or assigned to an account. Locking it down will still succeed and record an entry, but if you have mistyped the id, the agent you meant will keep running.",
+        "No agent with this id is registered, running, locked down, or assigned to an account, so Lock down will be refused. Check the id: the agent you meant keeps running until it is locked down.",
       // Known to the page and not governed, which the refusal below called
       // "you do not manage" — false for the Root and Administrator who read
       // it, and silent about the one thing that fixes it.

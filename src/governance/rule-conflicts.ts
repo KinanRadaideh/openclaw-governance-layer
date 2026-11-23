@@ -32,7 +32,12 @@
 // and universal catch-alls, and stays silent otherwise. A detector that
 // guessed would train operators to ignore it.
 import { matchesPattern } from "./pattern-match.js";
-import { isRuleExpired, type PolicyRule, type ResourceKind } from "./policy-types.js";
+import {
+  isRuleExpired,
+  type PolicyRule,
+  type ResourceKind,
+  type RuleAccess,
+} from "./policy-types.js";
 import { hostOfCanonicalUrl } from "./url-rules.js";
 
 export type RuleConflictKind =
@@ -95,6 +100,8 @@ export type CandidateRule = {
    * detector was corrected for twice already (rounds 10 and 11).
    */
   effect?: "allow" | "deny";
+  /** Absent means both directions, matching the rule model. Only `path` rules use it. */
+  access?: RuleAccess;
 };
 
 /**
@@ -171,6 +178,16 @@ function windowCovers(existing: PolicyRule, candidateExpiry: number | undefined)
  */
 function scopeCovers(existing: PolicyRule, candidate: CandidateRule): boolean {
   return existing.agentId === undefined || existing.agentId === candidate.agentId;
+}
+
+/**
+ * A read rule and a write rule on one pattern are different grants (T47 2.7.10:
+ * a write request was told "an identical rule already allows this" because of a
+ * read rule). An existing rule covers a candidate only when it applies in every
+ * direction the candidate does: it has no narrowing, or the same one.
+ */
+function accessCovers(existing: PolicyRule, candidate: CandidateRule): boolean {
+  return existing.access === undefined || existing.access === candidate.access;
 }
 
 function describeWindow(rule: PolicyRule): string {
@@ -312,7 +329,8 @@ export function detectRuleConflicts(
         // denial redundant, because the denial wins.
         (rule.effect === "deny") === (candidate.effect === "deny") &&
         !isRuleExpired(rule, nowMs) &&
-        scopeCovers(rule, candidate),
+        scopeCovers(rule, candidate) &&
+        accessCovers(rule, candidate),
     )
     .toSorted((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
 

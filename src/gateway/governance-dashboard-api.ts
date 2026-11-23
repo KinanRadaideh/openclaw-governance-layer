@@ -306,17 +306,22 @@ export async function handleGovernanceApiRequest(
     // operator should be told a global rule binds. `listActiveSessions` already
     // scopes its own result to the actor, so this adds no ids the caller could
     // not otherwise see.
+    // The registry is the authoritative list of the organisation's agents. A
+    // global rule binds all of them, including one that has no rule and is not
+    // running; reading only the policy document and live sessions answered
+    // "No agents known yet" while agents were registered (T47 2.4.6).
+    const registeredAgentIds = (await listAgents(groupId)).map((agent) => agent.id);
     const live = listActiveSessions({
       actor,
       lockedAgents: policy.lockedAgents,
-      groupAgentIds: (await listAgents(groupId)).map((agent) => agent.id),
+      groupAgentIds: registeredAgentIds,
     });
     const targets = agentsForRule(
       rule,
-      knownAgentIds(
-        policy,
-        live.sessions.map((entry) => entry.agentId),
-      ),
+      knownAgentIds(policy, [
+        ...live.sessions.map((entry) => entry.agentId),
+        ...registeredAgentIds,
+      ]),
     );
     sendJson(res, 200, {
       ...targets,

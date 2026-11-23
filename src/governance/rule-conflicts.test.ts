@@ -257,3 +257,44 @@ describe("an extension of a temporary rule is reported (Kimi QA 1, bug 8)", () =
     expect(conflicts).toEqual([]);
   });
 });
+
+describe("read and write are different grants (T47 2.7.10)", () => {
+  const path = { resourceKind: "path" as const, pattern: "^/tmp/f$" };
+
+  it("does not call a write request identical to an existing read rule", () => {
+    const conflicts = detectRuleConflicts(
+      [
+        existing({
+          ...path,
+          access: "read",
+          expiresAt: new Date(NOW + HOUR).toISOString(),
+        }),
+      ],
+      candidate({ ...path, access: "write", expiresAt: new Date(NOW + 2 * HOUR).toISOString() }),
+      NOW,
+    );
+    expect(conflicts).toEqual([]);
+  });
+
+  it("does not call a both-directions request identical to a read-only rule", () => {
+    const conflicts = detectRuleConflicts(
+      [existing({ ...path, access: "read" })],
+      candidate(path),
+      NOW,
+    );
+    expect(conflicts).toEqual([]);
+  });
+
+  it("still reports the same direction, and a both-directions rule covering a narrower one", () => {
+    expect(
+      detectRuleConflicts(
+        [existing({ ...path, access: "write" })],
+        candidate({ ...path, access: "write" }),
+        NOW,
+      )[0]?.kind,
+    ).toBe("duplicate");
+    expect(
+      detectRuleConflicts([existing(path)], candidate({ ...path, access: "read" }), NOW)[0]?.kind,
+    ).toBe("duplicate");
+  });
+});

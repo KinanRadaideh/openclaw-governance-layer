@@ -264,6 +264,26 @@ describe("policy → agents", () => {
     expect(body.scopedToAssignment).toBe(false);
   });
 
+  it("names every registered agent for a global rule, even ones no rule or session mentions", async () => {
+    // T47 2.4.6: the answer was "No agents known yet" while agents were
+    // registered, because only the policy document and live sessions were read.
+    await addRule(
+      TEST_GROUP,
+      { description: "test rule", resourceKind: "command", pattern: "^ls$" },
+      TEST_ACTOR,
+    );
+    const policy = await loadPolicy(TEST_GROUP);
+    const globalRule = policy.rules.find((r) => r.pattern === "^ls$");
+
+    const { status, body } = await get(
+      `policy/rule-agents?ruleId=${globalRule!.id}`,
+      session("administrator", []),
+    );
+
+    expect(status).toBe(200);
+    expect(body.agentIds).toEqual(expect.arrayContaining(["agent-a", "agent-b", "secret-agent"]));
+  });
+
   it("does not hand a scoped User an inventory of other agents", async () => {
     await addRule(
       TEST_GROUP,

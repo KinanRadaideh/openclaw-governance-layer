@@ -200,6 +200,16 @@ describe("a locked-down agent", () => {
     expect(seen).toHaveLength(0);
   });
 
+  it("tells the person who is refused who can release it (T47 2.6.4)", async () => {
+    await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "kinan",
+      message: "keep going",
+    });
+    expect(outcome.error).toContain("An Administrator can release it");
+  });
+
   it("records the refusal, attributed to whoever tried", async () => {
     await lockDownAgent(TEST_GROUP, "agent-a", "root");
     await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message: "keep going" });
