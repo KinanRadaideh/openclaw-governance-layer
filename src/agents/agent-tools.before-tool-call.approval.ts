@@ -238,6 +238,18 @@ function resolveUnavailablePluginApprovalSurfaceReason(ctx?: HookContext): strin
   return undefined;
 }
 
+/**
+ * What the agent is told when a person refuses its action. For the governance gate that person
+ * is an Administrator answering on the dashboard, and the agent was left with a bare "Denied by
+ * user" that it explained to the User as file permissions and offered `chmod` (T47 6i.19).
+ * Any other plugin's approval keeps the plain wording.
+ */
+export function deniedByUserReason(approval: { pluginId?: string }): string {
+  return approval.pluginId === GOVERNANCE_APPROVAL_PLUGIN_ID
+    ? "Denied by an Administrator in the governance dashboard. This is a policy decision, not a file-permission problem: tell the user an Administrator denied it, and do not suggest chmod, sudo or other permission changes."
+    : "Denied by user";
+}
+
 async function requestPluginToolApproval(params: {
   approval: PluginApprovalRequest;
   toolName: string;
@@ -295,7 +307,7 @@ async function requestPluginToolApproval(params: {
           kind: "failure",
           disposition: "blocked",
           deniedReason: "plugin-approval",
-          reason: "Denied by user",
+          reason: deniedByUserReason(approval),
           params: params.baseParams,
         };
       }
@@ -462,7 +474,7 @@ async function requestPluginToolApproval(params: {
         kind: "failure",
         disposition: "blocked",
         deniedReason: "plugin-approval",
-        reason: "Denied by user",
+        reason: deniedByUserReason(approval),
         params: params.baseParams,
       };
     }

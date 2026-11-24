@@ -38,8 +38,14 @@ export function validateRulePattern(pattern: unknown): PatternValidation {
     // would add a dead binding that reads as an oversight.
     // oxlint-disable-next-line no-new
     new RegExp(pattern);
-  } catch {
-    return { ok: false, error: "pattern is not a valid regular expression" };
+  } catch (error) {
+    // T47 6i.16: say what the regular-expression engine objected to, so the person can find it.
+    const reason =
+      error instanceof Error ? error.message.slice(error.message.lastIndexOf(": ") + 2) : "";
+    return {
+      ok: false,
+      error: `pattern is not a valid regular expression${reason ? ` (${reason})` : ""}; check for an unclosed ( or [ and escape a literal one with a backslash`,
+    };
   }
   // Patterns run on every governed tool call against agent-controlled input,
   // so a backtracking bomb here is a denial of service against the gate.

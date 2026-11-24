@@ -485,3 +485,37 @@ openclaw-governance-page .governance-conversation {
 .governance-approvals__notice--warning {
   border-color: var(--warn);
 }
+
+/* **The Note box on a rule request, clipped at the card's left edge (T47 6i.18).**
+
+   The row's cluster (note, lifetime, Approve, Reject) is a `.settings-row__control` inside a
+   `.settings-row__control`, in a row that is not stacked, so the rule above that lets a stacked
+   cluster wrap does not reach it. Its content was wider than the cluster, and with no wrapping
+   and right-aligned items the surplus ran off the left side where `.settings-group`'s
+   `overflow: hidden` cut it ("…entence they will"). Letting the cluster wrap, inside its
+   column, puts the buttons on a second line and every control inside the card. */
+.governance-page
+  .settings-row:not(.settings-row--stacked)
+  > .settings-row__control
+  > .settings-row__control {
+  flex-wrap: wrap;
+  max-width: 100%;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+/* **The notice after Create agent, one line that never wrapped (T47 6i.12).**
+
+   It is a `.settings-status`, which is `white-space: nowrap` because every other use is a
+   one-word badge. The notice is a sentence or three (what the new agent picked up), so it ran
+   past the card, was clipped at the right edge, and pushed the Create agent button out with it.
+   Wrapping it inside its own box keeps the card its normal width. */
+.governance-provision-notice {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.governance-provision-notice .settings-status {
+  white-space: normal;
+  align-items: flex-start;
+}

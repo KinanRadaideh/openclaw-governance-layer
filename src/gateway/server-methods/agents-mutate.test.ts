@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => ({
     (params?: { path?: string }) => params?.path ?? "/agents/test-agent/openclaw-agent.sqlite",
   ),
   closeOpenClawAgentDatabaseByPath: vi.fn((_pathname?: string) => true),
+  revokeOpenClawAgentDatabaseValidation: vi.fn((_pathname?: string) => undefined),
   listOpenClawRegisteredAgentDatabases: vi.fn(() => [] as Array<Record<string, unknown>>),
   unregisterOpenClawAgentDatabase: vi.fn(),
   assertNoOpenClawAgentDatabaseLeases: vi.fn(),
@@ -230,6 +231,7 @@ vi.mock("../../state/openclaw-agent-db.js", () => ({
   closeOpenClawAgentDatabaseByPath: mocks.closeOpenClawAgentDatabaseByPath,
   listOpenClawRegisteredAgentDatabases: mocks.listOpenClawRegisteredAgentDatabases,
   resolveOpenClawAgentSqlitePath: mocks.resolveOpenClawAgentSqlitePath,
+  revokeOpenClawAgentDatabaseValidation: mocks.revokeOpenClawAgentDatabaseValidation,
 }));
 
 vi.mock("../../state/agent-deletion-journal.js", () => ({
@@ -357,6 +359,7 @@ beforeEach(() => {
       (params?: { path?: string }) => params?.path ?? "/agents/test-agent/openclaw-agent.sqlite",
     );
   mocks.closeOpenClawAgentDatabaseByPath.mockReset().mockReturnValue(true);
+  mocks.revokeOpenClawAgentDatabaseValidation.mockReset();
   mocks.listOpenClawRegisteredAgentDatabases.mockReset().mockReturnValue([]);
   mocks.unregisterOpenClawAgentDatabase.mockReset();
   mocks.registerResolvedAgentDir.mockReset();
@@ -2478,6 +2481,10 @@ describe("agents.delete", () => {
     expect(mocks.closeOpenClawAgentDatabaseByPath).toHaveBeenCalledWith(
       "/relocated/deleted.sqlite",
     );
+    // T47 6i.11: the path stops being trusted so a recreated agent gets its schema built.
+    expect(mocks.revokeOpenClawAgentDatabaseValidation).toHaveBeenCalledWith(
+      "/relocated/deleted.sqlite",
+    );
     expect(mocks.unregisterOpenClawAgentDatabase).toHaveBeenCalledWith({
       agentId: "test-agent",
       path: "/relocated/deleted.sqlite",
@@ -2577,6 +2584,10 @@ describe("agents.delete", () => {
 
     expectRespondOk(respond, { ok: true });
     expect(mocks.closeOpenClawAgentDatabaseByPath).not.toHaveBeenCalledWith(
+      "/shared/deleted.sqlite",
+    );
+    // Nothing else changes: a path another agent still owns is not revoked.
+    expect(mocks.revokeOpenClawAgentDatabaseValidation).not.toHaveBeenCalledWith(
       "/shared/deleted.sqlite",
     );
     expect(mocks.movePathToTrash).not.toHaveBeenCalledWith("/shared/deleted.sqlite-wal");

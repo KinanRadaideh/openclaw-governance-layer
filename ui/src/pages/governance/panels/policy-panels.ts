@@ -63,6 +63,7 @@ import { renderRuleTargets } from "./agent-policy-lookup.ts";
 import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend-panel.ts";
 import { renderFolderGrantPanel } from "./folder-grant-panel.ts";
 import { formatDuration, unassignedAgentsHint } from "./format.ts";
+import { currentRuleTitle, earlierRuleTitle } from "./grant-title.ts";
 import { renderAgentAskRow, renderObserveAgentRow } from "./policy-agent-overrides.ts";
 import { renderAgentTimeoutOverrides, renderAgentTimeoutRow } from "./policy-agent-timeout.ts";
 import type { PolicyDrafts } from "./policy-drafts.ts";
@@ -237,7 +238,13 @@ export function renderConflictNotice(props: PolicyPanelProps): TemplateResult | 
       ${renderNoticePattern(props.conflictNotice.pattern)}
       <ul style="margin:0.5rem 0 0.5rem 1rem">
         ${conflicts.map(
-          (conflict) => html`<li><code>${conflict.existingPattern}</code>-${conflict.message}</li>`,
+          (conflict) =>
+            html`<li>
+              <code>${conflict.existingPattern}</code>${earlierRuleTitle(
+                props.policy?.rules ?? [],
+                conflict.existingRuleId,
+              )}-${conflict.message}
+            </li>`,
         )}
       </ul>
       <button
@@ -587,7 +594,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         // rules being indistinguishable.
         title: html`${rule.effect === "deny"
           ? html`<strong>${t("governance.policy.denyBadge")}</strong> `
-          : nothing}${rule.description}`,
+          : nothing}${currentRuleTitle(rule, policy.rules)}`,
         description: html`<code class="governance-rule__pattern">${rule.pattern}</code
           ><br />${rule.resourceKind}${
             // A rule narrowed to one direction reads identically to one

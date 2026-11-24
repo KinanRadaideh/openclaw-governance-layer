@@ -314,9 +314,23 @@ function renderRemoveChoice(
               ? undefined
               : props.run(async () => {
                   // The folder choice is sent only when there was one to make.
-                  const result = await (nestedFolder
-                    ? props.api().deprovisionAgent(agent.agentId, true, hostDeletion, nestedFolder)
-                    : props.api().deprovisionAgent(agent.agentId, true, hostDeletion));
+                  const result = await (
+                    nestedFolder
+                      ? props
+                          .api()
+                          .deprovisionAgent(agent.agentId, true, hostDeletion, nestedFolder)
+                      : props.api().deprovisionAgent(agent.agentId, true, hostDeletion)
+                  ).catch((error: unknown) => {
+                    // T47 6i.13: a refusal ("still working, stop it first") used to appear only
+                    // in the page-top banner. The row's own notice, where a success is said, now
+                    // carries it too, so it is there wherever the operator was looking.
+                    props.onDraft({
+                      removeChoiceFor: "",
+                      rowNotice: error instanceof Error ? error.message : String(error),
+                      rowNoticeWarning: true,
+                    });
+                    throw error;
+                  });
                   // What happened, then every problem, not the first: the ledger can
                   // refuse its entry while the rules clear cleanly, and the reverse.
                   const notice = deletionNotice(result);
@@ -709,10 +723,12 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
         ${t("governance.agents.create")}
       </button>
       ${props.drafts.provisionNotice
-        ? renderSettingsStatus({
-            kind: props.drafts.provisionNoticeWarning ? "warn" : "ok",
-            label: props.drafts.provisionNotice,
-          })
+        ? html`<div class="governance-provision-notice">
+            ${renderSettingsStatus({
+              kind: props.drafts.provisionNoticeWarning ? "warn" : "ok",
+              label: props.drafts.provisionNotice,
+            })}
+          </div>`
         : nothing}
     </div>`,
   });

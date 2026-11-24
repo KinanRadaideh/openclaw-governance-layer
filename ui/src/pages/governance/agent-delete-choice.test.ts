@@ -67,7 +67,10 @@ function mountRegistry(
       api: () => ({ deprovisionAgent }) as never,
       run: (action) => {
         last = action();
-        return last.then(() => undefined);
+        return last.then(
+          () => undefined,
+          () => undefined,
+        );
       },
       confirmThen: async () => {},
       identity: {
@@ -141,6 +144,25 @@ describe("deleting an agent", () => {
     expect(view.onDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         rowNotice: expect.stringContaining("2 folder(s) moved to .Trash"),
+      }),
+    );
+  });
+
+  it("says a refused delete in the row's own notice too, not only in the page banner (T47 6i.13)", async () => {
+    const view = mountRegistry();
+    view.deprovisionAgent.mockRejectedValueOnce(
+      new Error('Agent "agent-a" is still working. Stop it first.'),
+    );
+    buttonIn(view.container, "Delete the agent…")?.click();
+
+    buttonIn(dialog(), "Delete the way OpenClaw does")?.click();
+    await vi.waitFor(() => expect(view.deprovisionAgent).toHaveBeenCalled());
+    await view.settled().catch(() => undefined);
+
+    expect(view.onDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rowNotice: 'Agent "agent-a" is still working. Stop it first.',
+        rowNoticeWarning: true,
       }),
     );
   });

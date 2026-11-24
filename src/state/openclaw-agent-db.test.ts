@@ -39,6 +39,7 @@ import {
   assertOpenClawAgentDatabaseForMaintenance,
   clearOpenClawAgentDatabaseOpenFailure,
   closeOpenClawAgentDatabaseByPath,
+  revokeOpenClawAgentDatabaseValidation,
   closeOpenClawAgentDatabasesForTest,
   disposeOpenClawAgentDatabaseByPath,
   ensureOpenClawAgentDatabaseSchema,
@@ -4040,6 +4041,47 @@ describe("openclaw agent database", () => {
     expect(() => openOpenClawAgentDatabase({ agentId: "worker-1", env })).toThrow(
       /integrity_check failed.*missing from index unsafe_index_records_value/iu,
     );
+  });
+
+  it("builds the schema again for a recreated agent after its database files were removed", () => {
+    // T47 6i.11: deleting an agent the OpenClaw way closed its handle and moved the files
+    // away, but the path stayed "validated", so the recreated agent's new empty file was
+    // opened without its tables and every prompt failed with "no such table".
+    const stateDir = createTempStateDir();
+    const env = { OPENCLAW_STATE_DIR: stateDir };
+    const databasePath = openOpenClawAgentDatabase({ agentId: "worker-1", env }).path;
+    expect(closeOpenClawAgentDatabaseByPath(databasePath)).toBe(true);
+    revokeOpenClawAgentDatabaseValidation(databasePath);
+    for (const suffix of ["", "-wal", "-shm"]) {
+      fs.rmSync(`${databasePath}${suffix}`, { force: true });
+    }
+
+    const reopened = openOpenClawAgentDatabase({ agentId: "worker-1", env });
+    const table = reopened.db
+      .prepare(
+        "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'session_key_contract'",
+      )
+      .get();
+    expect(table).toBeDefined();
+  });
+
+  it("keeps trusting a validated path that was only closed, not revoked", () => {
+    // Nothing else changes: an evicted or closed handle still reopens without the schema pass.
+    const stateDir = createTempStateDir();
+    const env = { OPENCLAW_STATE_DIR: stateDir };
+    const databasePath = openOpenClawAgentDatabase({ agentId: "worker-1", env }).path;
+    expect(closeOpenClawAgentDatabaseByPath(databasePath)).toBe(true);
+    for (const suffix of ["", "-wal", "-shm"]) {
+      fs.rmSync(`${databasePath}${suffix}`, { force: true });
+    }
+
+    const reopened = openOpenClawAgentDatabase({ agentId: "worker-1", env });
+    const table = reopened.db
+      .prepare(
+        "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'session_key_contract'",
+      )
+      .get();
+    expect(table).toBeUndefined();
   });
 
   it("rechecks integrity after a validated handle is physically reopened", () => {

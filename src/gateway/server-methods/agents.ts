@@ -89,6 +89,7 @@ import {
   closeOpenClawAgentDatabaseByPath,
   listOpenClawRegisteredAgentDatabases,
   resolveOpenClawAgentSqlitePath,
+  revokeOpenClawAgentDatabaseValidation,
 } from "../../state/openclaw-agent-db.js";
 import { resolveUserPath } from "../../utils.js";
 import { listAgentsForGateway } from "../session-utils.js";
@@ -723,6 +724,8 @@ function prepareAgentDeleteDatabases(
   );
   for (const databasePath of databasePaths) {
     closeOpenClawAgentDatabaseByPath(databasePath);
+    // The files are about to be moved away: an agent created later under this path is new.
+    revokeOpenClawAgentDatabaseValidation(databasePath);
   }
   assertNoOpenClawAgentDatabaseLeases(agentId);
   const fileGroups = databasePaths.map(resolveSqliteDatabaseFilePaths);

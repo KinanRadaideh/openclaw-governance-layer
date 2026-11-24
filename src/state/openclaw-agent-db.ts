@@ -614,6 +614,15 @@ export function closeOpenClawAgentDatabaseByPath(pathname: string): boolean {
   return true;
 }
 
+/**
+ * Stop trusting a path's earlier schema check. Closing a handle keeps the path validated so a
+ * plain reopen stays cheap; an agent delete moves the files away, so the next agent created
+ * under the same path must get its schema built again instead of an empty file.
+ */
+export function revokeOpenClawAgentDatabaseValidation(pathname: string): void {
+  validatedAgentDatabasePaths.delete(path.resolve(pathname));
+}
+
 /** Close and unregister one unambiguous transient agent database by filesystem identity. */
 export function disposeOpenClawAgentDatabaseByPath(
   pathname: string,
