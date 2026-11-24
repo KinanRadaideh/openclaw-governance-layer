@@ -59,6 +59,22 @@ const muts = [
       to: "                    });\n                    throw error;",
     },
   },
+  {
+    id: "M7 created-notice kept after delete",
+    file: "ui/src/pages/governance/panels/agent-registry-panels.ts",
+    from: '                    provisionNotice: "",\n                    provisionNoticeWarning: false,\n                  });',
+    to: "                  });",
+    cwd: "ui",
+    test: "src/pages/governance/agent-delete-choice.test.ts",
+  },
+  {
+    id: "M8 grant exception not tied to its own grant",
+    file: "ui/src/pages/governance/panels/grant-title.ts",
+    from: "        other.description.startsWith(lead) &&\n",
+    to: "",
+    cwd: "ui",
+    test: "src/pages/governance/panels/grant-title.test.ts",
+  },
 ];
 
 let survived = 0;

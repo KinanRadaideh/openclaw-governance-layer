@@ -15,6 +15,18 @@ describe("a folder grant's title", () => {
     expect(currentRuleTitle(grant, [grant])).toBe("T47 test (grant on t47-test)");
   });
 
+  it("does not let another grant's exception on the same folder keep it alive", () => {
+    // Two grants on one folder, the older one's exception already removed, the newer one's still there.
+    const older = { description: "Old purpose (grant on t47-test, except t47-test/secrets)" };
+    const newer = { description: "New purpose (grant on t47-test, except t47-test/secrets)" };
+    const newerException = {
+      description: "New purpose (exception to the grant on t47-test: t47-test/secrets)",
+    };
+    const rules = [older, newer, newerException];
+    expect(currentRuleTitle(older, rules)).toBe("Old purpose (grant on t47-test)");
+    expect(currentRuleTitle(newer, rules)).toBe(newer.description);
+  });
+
   it("drops only the exception that is gone", () => {
     const two = { description: "G (grant on d, except d/a, d/b)" };
     const onlyA = { description: "G (exception to the grant on d: d/a)" };

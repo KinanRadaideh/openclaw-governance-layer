@@ -46,6 +46,7 @@ function mountRegistry(
     ownerKnown?: boolean;
     registered?: boolean;
     removeChoiceFor?: string;
+    rowNotice?: string;
   } = {},
 ) {
   const container = document.createElement("div");
@@ -96,6 +97,9 @@ function mountRegistry(
         ...(overrides.removeChoiceFor !== undefined
           ? { removeChoiceFor: overrides.removeChoiceFor }
           : {}),
+        ...(overrides.rowNotice !== undefined
+          ? { rowNotice: overrides.rowNotice, rowNoticeWarning: true }
+          : {}),
       },
       onDraft,
       refresh: async () => {},
@@ -144,6 +148,8 @@ describe("deleting an agent", () => {
     expect(view.onDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         rowNotice: expect.stringContaining("2 folder(s) moved to .Trash"),
+        // T47: the "Created ..." notice does not outlive the agent it announced.
+        provisionNotice: "",
       }),
     );
   });
@@ -165,6 +171,16 @@ describe("deleting an agent", () => {
         rowNoticeWarning: true,
       }),
     );
+  });
+
+  it("puts the row notice in a box that wraps, so a long refusal is not cut at the card edge", () => {
+    const long =
+      'Agent "agent-a" is still working, and the delete would move its files out from under it.';
+    const view = mountRegistry({ rowNotice: long });
+
+    const box = view.container.querySelector(".governance-row-notice");
+    expect(words(box)).toContain("is still working");
+    expect(box?.querySelector(".settings-status")).not.toBeNull();
   });
 
   it("keeps the list-only delete as the other option", async () => {

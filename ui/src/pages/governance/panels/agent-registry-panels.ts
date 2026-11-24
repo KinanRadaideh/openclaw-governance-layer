@@ -338,6 +338,10 @@ function renderRemoveChoice(
                     removeChoiceFor: "",
                     rowNotice: notice.text,
                     rowNoticeWarning: notice.warning,
+                    // The "Created ..." notice under the form is about an agent that may be the
+                    // one just deleted; left on screen it read as if the agent still existed.
+                    provisionNotice: "",
+                    provisionNoticeWarning: false,
                   });
                   await props.refresh();
                 });
@@ -799,10 +803,14 @@ export function renderAgentRegistrySection(
     // stayed invisible in the first place.
     props.drafts.rowNotice
       ? renderSettingsRow({
-          title: renderSettingsStatus({
-            kind: props.drafts.rowNoticeWarning ? "warn" : "ok",
-            label: props.drafts.rowNotice,
-          }),
+          // Wrapped for the reason the Create agent notice is (T47 6i.12): a refusal runs to a
+          // sentence or two, and a status badge does not wrap, so it was cut at the card edge.
+          title: html`<div class="governance-row-notice">
+            ${renderSettingsStatus({
+              kind: props.drafts.rowNoticeWarning ? "warn" : "ok",
+              label: props.drafts.rowNotice,
+            })}
+          </div>`,
           control: html`<button class="btn" @click=${() => props.onDraft({ rowNotice: "" })}>
             ${t("common.dismiss")}
           </button>`,

@@ -510,12 +510,21 @@ openclaw-governance-page .governance-conversation {
    one-word badge. The notice is a sentence or three (what the new agent picked up), so it ran
    past the card, was clipped at the right edge, and pushed the Create agent button out with it.
    Wrapping it inside its own box keeps the card its normal width. */
-.governance-provision-notice {
+.governance-provision-notice,
+.governance-row-notice {
   min-width: 0;
   max-width: 100%;
 }
 
-.governance-provision-notice .settings-status {
+.governance-provision-notice .settings-status,
+.governance-row-notice .settings-status {
   white-space: normal;
   align-items: flex-start;
+}
+
+/* The Note box on a rule request showed "Why, in a sentence they will" and stopped: its sentence is
+   about 33 characters and the general floor for a governance field is 24ch. A wider floor, still
+   below the container so a narrow screen shrinks the box instead of overflowing the card. */
+.governance-page .settings-row__control input.governance-request-note {
+  min-width: min(100%, 36ch);
 }

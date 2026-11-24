@@ -25,8 +25,14 @@ export function currentRuleTitle(rule: TitledRule, rules: readonly TitledRule[])
   }
   const [, lead = "", folder = "", listed = ""] = match;
   const named = listed.split(", ").filter((entry) => entry.length > 0);
+  // The exception rules of one grant carry the grant's own purpose in front of their marker, so a
+  // second grant on the same folder with another purpose does not keep this one's exceptions alive.
   const kept = named.filter((entry) =>
-    rules.some((other) => other.description.includes(exceptionMarker(folder, entry))),
+    rules.some(
+      (other) =>
+        other.description.startsWith(lead) &&
+        other.description.includes(exceptionMarker(folder, entry)),
+    ),
   );
   if (kept.length === named.length) {
     return rule.description;

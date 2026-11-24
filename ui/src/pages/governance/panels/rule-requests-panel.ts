@@ -155,6 +155,7 @@ export function renderRuleRequestsSection(
               <div class="settings-row__control" style="gap:0.5rem">
                 <input
                   type="text"
+                  class="governance-request-note"
                   maxlength="500"
                   aria-label=${t("governance.requests.noteLabel", { name: requester(request) })}
                   placeholder=${t("governance.requests.notePlaceholder")}
