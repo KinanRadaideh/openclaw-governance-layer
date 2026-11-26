@@ -83,10 +83,18 @@ type PromptRun = {
   /** Who cancelled it, when that was not its own account (finding 411). */
   cancelledBy?: string;
   finishing?: boolean;
+  /** `performance.now()` when the agent run itself returned (see `markPromptRunEnded`). */
+  endedAt?: number;
   timer: ReturnType<typeof setTimeout>;
 };
 
 const runs = new Map<string, PromptRun>();
+/**
+ * When recently released runs ended, so the kill switch can still read the time
+ * after the row is gone. Bounded: only the newest entries are kept.
+ */
+const recentlyEndedAt = new Map<string, number>();
+const RECENTLY_ENDED_KEPT = 32;
 
 export class PromptCapacityError extends Error {
   constructor(
@@ -182,7 +190,33 @@ export function finishPromptRun(runId: string): PromptRunEnding | undefined {
   }
   clearTimeout(run.timer);
   runs.delete(runId);
+  if (run.endedAt !== undefined) {
+    recentlyEndedAt.set(runId, run.endedAt);
+    for (const key of recentlyEndedAt.keys()) {
+      if (recentlyEndedAt.size <= RECENTLY_ENDED_KEPT) {
+        break;
+      }
+      recentlyEndedAt.delete(key);
+    }
+  }
   return run.ending;
+}
+
+/**
+ * Records that the agent run itself has returned, before the transcript and
+ * ledger bookkeeping that follows it (T47, 2026-11-27). Timing only: it does not
+ * release the slot or change what the run reports.
+ */
+export function markPromptRunEnded(runId: string, at: number = performance.now()): void {
+  const run = runs.get(runId);
+  if (run && run.endedAt === undefined) {
+    run.endedAt = at;
+  }
+}
+
+/** When the run's agent run returned (`performance.now()`), when that was recorded. */
+export function promptRunEndedAt(runId: string): number | undefined {
+  return runs.get(runId)?.endedAt ?? recentlyEndedAt.get(runId);
 }
 
 /** Freezes the execution outcome while its transcript and audit result are saved. */
@@ -385,4 +419,5 @@ export function resetPromptRunsForTests(): void {
     clearTimeout(run.timer);
   }
   runs.clear();
+  recentlyEndedAt.clear();
 }

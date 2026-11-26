@@ -83,6 +83,7 @@ export async function lockDownAgent(
   // Lock before aborting: the reverse order leaves a window where the agent
   // may legally start a fresh action between the abort and the lock landing.
   await lockAgent(groupId, agentId);
+  const lockMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
   const termination = await terminateAgentRuns(agentId);
   const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
 
@@ -110,11 +111,13 @@ export async function lockDownAgent(
         : termination.stoppedConfirmed
           ? `lockdown engaged; aborted ${termination.abortedRunIds.length} in-flight run(s)` +
             endedProcessesClause(termination) +
-            `; signalled in ${termination.dispatchMs.toFixed(1)}ms, confirmed stopped in ${elapsedMs.toFixed(1)}ms`
+            `; signalled in ${termination.dispatchMs.toFixed(1)}ms, confirmed stopped in ${elapsedMs.toFixed(1)}ms` +
+            breakdownClause(lockMs, elapsedMs, termination)
           : `lockdown engaged; aborted ${termination.abortedRunIds.length} in-flight run(s)` +
             endedProcessesClause(termination) +
             `; signalled in ${termination.dispatchMs.toFixed(1)}ms, stop NOT confirmed after ${elapsedMs.toFixed(1)}ms` +
-            stillRunningClause(termination),
+            stillRunningClause(termination) +
+            breakdownClause(lockMs, elapsedMs, termination),
     });
   } catch (err) {
     // See `auditError`. The lockdown is already in force; the operator is told
@@ -123,6 +126,31 @@ export async function lockDownAgent(
   }
 
   return { agentId, elapsedMs, termination, ...(auditError ? { auditError } : {}) };
+}
+
+/**
+ * Where the time to a stop went (T47, 2026-11-27): the policy write that comes
+ * before the signal, and, for dashboard prompts, how long the run took to return
+ * after the signal and how long its bookkeeping took after that. The signal
+ * itself is the "signalled in" figure already in the entry.
+ */
+function breakdownClause(
+  lockMs: number,
+  elapsedMs: number,
+  termination: TerminationOutcome,
+): string {
+  const parts = [`policy lock ${lockMs.toFixed(1)}ms before the signal`];
+  if (termination.runEndedMs !== undefined) {
+    const afterRunMs = Math.max(
+      0,
+      elapsedMs - lockMs - termination.dispatchMs - termination.runEndedMs,
+    );
+    parts.push(
+      `run returned ${termination.runEndedMs.toFixed(1)}ms after the signal`,
+      `${afterRunMs.toFixed(1)}ms closing the stopped turn after that`,
+    );
+  }
+  return ` (${parts.join(", ")})`;
 }
 
 /** ", ended N background process(es)" when the stop reached any (T86 D1); empty otherwise. */

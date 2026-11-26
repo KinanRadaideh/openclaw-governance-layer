@@ -40,6 +40,13 @@ export type AgentRunRequest = {
    * wait.
    */
   onProgress?: (replySoFar: string) => void;
+  /**
+   * Optional: called once, when the agent run itself has returned, before the
+   * runner's own bookkeeping (closing a stopped turn in the transcript). The kill
+   * switch's ledger entry uses it to say how much of the time to a confirmed stop
+   * was the run winding down and how much was that bookkeeping (T47, 2026-11-27).
+   */
+  onRunEnded?: () => void;
 };
 
 export type AgentRunResult = {

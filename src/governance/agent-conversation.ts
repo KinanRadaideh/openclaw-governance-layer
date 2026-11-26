@@ -44,6 +44,7 @@ import { conversationsFilePath, ensureGroupDir } from "./paths.js";
 import { loadPolicy } from "./policy-store.js";
 import {
   beginPromptRun,
+  markPromptRunEnded,
   finishPromptRun,
   listRunningPromptsForSessions,
   PromptCapacityError,
@@ -635,6 +636,7 @@ export async function promptAgent(
       message,
       runId,
       signal: controller.signal,
+      onRunEnded: () => markPromptRunEnded(runId),
       ...(input.onProgress
         ? { onProgress: (text: string) => input.onProgress?.(sanitize(text, MAX_REPLY_LENGTH)) }
         : {}),

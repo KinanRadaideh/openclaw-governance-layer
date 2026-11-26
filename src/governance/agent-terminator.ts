@@ -21,7 +21,11 @@
 // on 2026-09-07. Both operator surfaces are now served by the Gateway process
 // that registers the terminator, so an unregistered terminator is a startup or
 // test condition rather than something an operator meets.
-import { endPromptRunsForAgent, promptRunsStillExecuting } from "./prompt-runs.js";
+import {
+  endPromptRunsForAgent,
+  promptRunEndedAt,
+  promptRunsStillExecuting,
+} from "./prompt-runs.js";
 
 export type AgentTerminationResult = {
   /** Ids of runs that were actually signalled to abort. */
@@ -129,6 +133,14 @@ export type TerminationOutcome = {
   stillRunningProcessIds?: string[];
   /** Present when the registered terminator threw. */
   error?: string;
+  /**
+   * Milliseconds from the end of signalling until the last signalled dashboard
+   * prompt's agent run returned, before its transcript bookkeeping (T47,
+   * 2026-11-27). Present only for a confirmed stop of dashboard prompts alone,
+   * where every run reported that moment; the rest of `elapsedMs` after it is
+   * that bookkeeping.
+   */
+  runEndedMs?: number;
 };
 
 /**
@@ -185,6 +197,7 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
     };
   }
   const dispatchMs = elapsed();
+  const signalledAt = performance.now();
 
   // Nothing was in flight, so there is nothing to wait for and the agent is
   // demonstrably not running. That counts as confirmed.
@@ -264,16 +277,37 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
       error: err instanceof Error ? err.message : String(err),
     };
   }
+  const stoppedConfirmed = stillRunning.length === 0 && stillRunningProcesses.length === 0;
+  const runEndedMs = stoppedConfirmed ? promptRunsEndedMs(abortedRunIds, signalledAt) : undefined;
   return {
     supported: true,
     abortedRunIds,
     endedProcessIds,
     elapsedMs: elapsed(),
     dispatchMs,
-    stoppedConfirmed: stillRunning.length === 0 && stillRunningProcesses.length === 0,
+    stoppedConfirmed,
+    ...(runEndedMs !== undefined ? { runEndedMs } : {}),
     ...(stillRunning.length > 0 ? { stillRunningRunIds: [...stillRunning] } : {}),
     ...(stillRunningProcesses.length > 0
       ? { stillRunningProcessIds: [...stillRunningProcesses] }
       : {}),
   };
+}
+
+/**
+ * Milliseconds from `signalledAt` until the last of these runs' agent runs
+ * returned, or `undefined` unless every run is a dashboard prompt that recorded
+ * that moment (a Gateway run has no such hook, so a figure would cover only part
+ * of the stop).
+ */
+function promptRunsEndedMs(runIds: readonly string[], signalledAt: number): number | undefined {
+  let latest: number | undefined;
+  for (const runId of runIds) {
+    const endedAt = promptRunEndedAt(runId);
+    if (endedAt === undefined) {
+      return undefined;
+    }
+    latest = latest === undefined ? endedAt : Math.max(latest, endedAt);
+  }
+  return latest === undefined ? undefined : Math.max(0, latest - signalledAt);
 }

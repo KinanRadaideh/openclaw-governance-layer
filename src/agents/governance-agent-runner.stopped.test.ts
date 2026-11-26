@@ -48,6 +48,42 @@ describe("the governance runner closes a stopped task's turn", () => {
     });
   });
 
+  it("reports the run's end before closing the turn, once (T47 2026-11-27)", async () => {
+    installGovernanceAgentRunner();
+    const controller = new AbortController();
+    const order: string[] = [];
+    stoppedTurn.close.mockImplementationOnce(async () => {
+      order.push("closed");
+      return true;
+    });
+    command.run.mockImplementation(async () => {
+      controller.abort();
+      throw new Error("aborted");
+    });
+
+    await runAgentPrompt({
+      ...request,
+      signal: controller.signal,
+      onRunEnded: () => order.push("run-ended"),
+    });
+
+    expect(order).toEqual(["run-ended", "closed"]);
+  });
+
+  it("a throwing timing hook does not change how the run ends", async () => {
+    installGovernanceAgentRunner();
+    command.run.mockResolvedValueOnce({ payloads: [{ text: "12 files" }] });
+    const outcome = await runAgentPrompt({
+      ...request,
+      signal: new AbortController().signal,
+      onRunEnded: () => {
+        throw new Error("hook failed");
+      },
+    });
+
+    expect(outcome).toMatchObject({ ok: true, reply: "12 files" });
+  });
+
   it("leaves a run that finished, or failed on its own, to upstream", async () => {
     installGovernanceAgentRunner();
     command.run.mockResolvedValueOnce({ payloads: [{ text: "12 files" }] });

@@ -227,6 +227,11 @@ async function runGovernancePrompt(request: AgentRunRequest): Promise<AgentRunRe
     // has gone is a leak that grows with every prompt, on the process that also
     // holds the gate.
     stopStreaming();
+    try {
+      request.onRunEnded?.();
+    } catch {
+      // A timing hook must never change how a run ends.
+    }
     // A stopped task must not ride back in on the next message (QA of 2026-10-07).
     if (request.signal?.aborted) {
       await closeStoppedGovernanceTurn({
