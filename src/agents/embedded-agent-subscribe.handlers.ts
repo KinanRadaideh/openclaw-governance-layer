@@ -1,3 +1,4 @@
+import { createEventSlice, yieldToEventLoop } from "./embedded-agent-subscribe.event-slice.js";
 /**
  * Dispatches serialized embedded-agent subscription events to specific handlers.
  */
@@ -29,6 +30,7 @@ import type { AgentMessage } from "./runtime/index.js";
 
 /** Create the serialized event dispatcher for subscribed embedded-agent sessions. */
 export function createEmbeddedAgentSessionEventHandler(ctx: EmbeddedAgentSubscribeContext) {
+  const slice = createEventSlice();
   const scheduleEvent = (
     evt: EmbeddedAgentSubscribeEvent,
     handler: () => void | Promise<void>,
@@ -44,8 +46,14 @@ export function createEmbeddedAgentSessionEventHandler(ctx: EmbeddedAgentSubscri
       }
     };
 
+    // A burst that has held the main thread for its slice waits for the event
+    // loop before the next handler, so a kill switch request is accepted while a
+    // whole reply is still being processed (`embedded-agent-subscribe.event-slice.ts`).
+    const runInSlice = (): void | Promise<void> =>
+      slice.expired() ? yieldToEventLoop().then(run) : run();
+
     if (!ctx.state.pendingEventChain) {
-      const result = run();
+      const result = runInSlice();
       if (!isPromiseLike<void>(result)) {
         return;
       }
@@ -66,7 +74,7 @@ export function createEmbeddedAgentSessionEventHandler(ctx: EmbeddedAgentSubscri
     }
 
     const task = ctx.state.pendingEventChain
-      .then(() => run())
+      .then(() => runInSlice())
       .catch((err: unknown) => {
         ctx.log.debug(`${evt.type} handler failed: ${String(err)}`);
       })

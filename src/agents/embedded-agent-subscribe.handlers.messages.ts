@@ -328,6 +328,15 @@ function resolveCurrentSourceMessagingToolPartial(
     held && params.evtType === "text_delta" && !params.text.startsWith(held)
       ? `${held}${params.visibleDelta || params.text}`
       : params.text;
+  // Nothing was sent with the messaging tool, so nothing can be held: the answer
+  // below would be "do not hold" whatever the text. Normalizing the whole reply
+  // so far on every streamed chunk to reach that answer cost time that grows with
+  // the square of the reply's length (1.5 s of a 12,739-character reply on the
+  // VPS, T47 2026-11-26) and held the event loop while it did.
+  if (state.currentSourceMessagingToolSentTextsNormalized.length === 0) {
+    state.currentSourceMessagingToolHeldPartial = undefined;
+    return { hold: false, text };
+  }
   const normalized = normalizeTextForComparison(text);
   if (!normalized) {
     state.currentSourceMessagingToolHeldPartial = undefined;

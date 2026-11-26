@@ -40,6 +40,7 @@ import type {
 } from "./session-observer-model.js";
 import { createSessionObserverDigestPersister } from "./session-observer-persistence.js";
 import { createSessionObserverPreamblePublisher } from "./session-observer-preamble.js";
+import { createNoUtilityModelCache } from "./session-observer-utility-model-cache.js";
 import { resolveStoredSessionKeyForAgentStore as resolveStoreKey } from "./session-store-key.js";
 
 const observerLog = createSubsystemLogger("gateway/session-observer");
@@ -227,7 +228,8 @@ export function createSessionObserver(deps: SessionObserverDeps): SessionObserve
   const modelSlots = createSessionObserverModelSlots({
     states,
     maxSessions: MAX_CONCURRENT_MODEL_SESSIONS,
-    resolve: (agentId) => resolveUtilityModelRef({ cfg: deps.getConfig(), agentId }),
+    // "No utility model" is reused for a second (session-observer-utility-model-cache.ts).
+    resolve: createNoUtilityModelCache(deps.getConfig, now, resolveUtilityModelRef),
     demote: demoteUtilityModel,
   });
 

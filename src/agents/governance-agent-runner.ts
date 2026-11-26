@@ -70,6 +70,26 @@ function resolveReplyText(result: unknown): string {
 const PROGRESS_INTERVAL_MS = 120;
 
 /**
+ * The gap grows with the reply, up to a second (T47, 2026-11-26).
+ *
+ * Each snapshot is the whole reply so far, and governance redacts every one
+ * before it is written (`agent-conversation.ts`), so at a fixed gap the work
+ * grows with the square of the reply's length: 0.8 s of a 12,739-character
+ * reply on the VPS, on the thread the kill switch needs. Spacing snapshots in
+ * proportion to their size keeps the total linear; a long reply on screen still
+ * moves about once a second, and the final reply is not on this path at all.
+ */
+const PROGRESS_CHARS_PER_MS = 16;
+const PROGRESS_MAX_INTERVAL_MS = 1_000;
+
+export function progressIntervalFor(textLength: number): number {
+  return Math.min(
+    PROGRESS_MAX_INTERVAL_MS,
+    Math.max(PROGRESS_INTERVAL_MS, Math.floor(textLength / PROGRESS_CHARS_PER_MS)),
+  );
+}
+
+/**
  * Forwards the reply as it is produced, by listening to the host's own event bus.
  *
  * Nothing new is emitted for this: `agentCommandFromIngress` already publishes
@@ -127,12 +147,13 @@ function subscribeToReply(runId: string, onProgress: (text: string) => void): ()
     }
     pending = true;
     const elapsed = Date.now() - lastSentAt;
-    if (elapsed >= PROGRESS_INTERVAL_MS) {
+    const interval = progressIntervalFor(text.length);
+    if (elapsed >= interval) {
       flush();
       return;
     }
     if (!timer) {
-      timer = setTimeout(flush, PROGRESS_INTERVAL_MS - elapsed);
+      timer = setTimeout(flush, interval - elapsed);
       timer.unref?.();
     }
   });
