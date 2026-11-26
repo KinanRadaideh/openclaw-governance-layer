@@ -1,10 +1,11 @@
 # T47: every row, with its status
 
-Generated 2026-11-23 from `T47-TEST-PLAN.md` and the results files. The plan has the full
-wording and what to expect; this is the index. Rows marked recorded or done are in the
-results files; **to do** means nothing is recorded yet.
+Updated 2026-11-26 from `T47-TEST-PLAN.md` and the results files (§4 Viewer and §5 Together
+added from `T47-RESULTS-VIEWER.md` and `T47-RESULTS-TOGETHER.md`, both run 2026-11-24). The plan
+has the full wording and what to expect; this is the index. Rows marked recorded or done are in
+the results files; **to do** means nothing is recorded yet.
 
-**283 rows: 103 recorded or done, 180 to do.**
+**283 rows: 155 recorded or done, 128 to do.**
 
 ### 1.1 Identity and the page itself
 
@@ -131,7 +132,7 @@ results files; **to do** means nothing is recorded yet.
 | 2.2.12 | sign in as Administrator | After 2.2.9, create an agent with the same name                                                  | recorded: Pass, with a defect found                |
 | 2.2.13 | sign in as Administrator | Put a file in an agent's working folder, then Delete the agent… and Delete the way OpenClaw does | recorded: Pass                                     |
 | 2.2.14 | sign in as Administrator | Start a long task on an agent and, while it runs, choose Delete the way OpenClaw does            | recorded: Pass on wording; visibility defect found |
-| 2.2.15 | sign in as Administrator | Press Delete the agent…, then Keep this agent                                                    | recorded: Pass                                     |
+| 2.2.15 | sign in as Administrator | Press Delete the agent…, then Keep this agent                                                    | recorded: Pass (stale created-notice, build 9e406… |
 
 ### 2.3 Assigning agents to people
 
@@ -143,17 +144,17 @@ results files; **to do** means nothing is recorded yet.
 
 ### 2.4 Policy
 
-| #     | Who                      | Do this                                                     | Status                                             |
-| ----- | ------------------------ | ----------------------------------------------------------- | -------------------------------------------------- |
-| 2.4.1 | sign in as Administrator | Add an allow rule for ^ls( .*)?$ binding every agent        | recorded: Pass                                     |
-| 2.4.2 | sign in as Administrator | Add the same rule again                                     | recorded: Pass (two-step; plan wording out of dat… |
-| 2.4.3 | sign in as Administrator | Add a rule with a broken regular expression                 | recorded: Pass                                     |
-| 2.4.4 | sign in as Administrator | Add a rule with a pattern designed to be slow, e.g. ^(a+)+$ | recorded: Pass                                     |
-| 2.4.5 | sign in as Administrator | Add a rule with a 5-minute lifetime                         | recorded: Pass (plan wording out of date)          |
-| 2.4.6 | sign in as Administrator | Press Who does this affect? on a global rule                | was FAIL; fixed 2026-11-23, retest = 6i.5          |
-| 2.4.7 | sign in as Administrator | Use Allow a folder, except… with one exception              | recorded: Pass                                     |
-| 2.4.8 | sign in as Administrator | Remove one of the two                                       | recorded: Pass                                     |
-| 2.4.9 | sign in as Administrator | Filter the rule list to a term matching nothing             | recorded: Pass                                     |
+| #     | Who                      | Do this                                                     | Status                                                       |
+| ----- | ------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------ |
+| 2.4.1 | sign in as Administrator | Add an allow rule for ^ls( .*)?$ binding every agent        | recorded: Pass                                               |
+| 2.4.2 | sign in as Administrator | Add the same rule again                                     | recorded: Pass (two-step; plan wording out of dat…           |
+| 2.4.3 | sign in as Administrator | Add a rule with a broken regular expression                 | recorded: Pass                                               |
+| 2.4.4 | sign in as Administrator | Add a rule with a pattern designed to be slow, e.g. ^(a+)+$ | recorded: Pass                                               |
+| 2.4.5 | sign in as Administrator | Add a rule with a 5-minute lifetime                         | recorded: Pass (plan wording out of date)                    |
+| 2.4.6 | sign in as Administrator | Press Who does this affect? on a global rule                | done: was FAIL, fixed, VPS retest passed 2026-11-24 (2.4.6b) |
+| 2.4.7 | sign in as Administrator | Use Allow a folder, except… with one exception              | recorded: Pass                                               |
+| 2.4.8 | sign in as Administrator | Remove one of the two                                       | recorded: Pass                                               |
+| 2.4.9 | sign in as Administrator | Filter the rule list to a term matching nothing             | recorded: Pass                                               |
 
 ### 2.5 Per-agent posture
 
@@ -170,13 +171,13 @@ results files; **to do** means nothing is recorded yet.
 
 | #     | Who                      | Do this                                      | Status                                                    |
 | ----- | ------------------------ | -------------------------------------------- | --------------------------------------------------------- |
-| 2.6.1 | sign in as Administrator | Have Malek start a long prompt on his agent  | was partial (panel blind during a run); retest = 6i.3     |
+| 2.6.1 | sign in as Administrator | Have Malek start a long prompt on his agent  | done: was partial, VPS retest passed 2026-11-24 (2.6.1j)  |
 | 2.6.2 | sign in as Administrator | Press Lock down on that agent                | was FAIL; fixed, passed twice 2026-11-23 (2.6.2e, 2.6.2g) |
 | 2.6.3 | sign in as Administrator | Ask Malek what he saw                        | was FAIL; fixed, passed 2026-11-23 (2.6.3b)               |
-| 2.6.4 | sign in as Administrator | Try any tool call on that agent              | pass; wording changed, retest = 6i.8                      |
-| 2.6.5 | sign in as Administrator | Stop an agent using the id in different case | pass; display-name fix, retest = 6i.9                     |
+| 2.6.4 | sign in as Administrator | Try any tool call on that agent              | done: VPS retest passed 2026-11-24 (2.6.4b)               |
+| 2.6.5 | sign in as Administrator | Stop an agent using the id in different case | done: VPS retest passed 2026-11-24 (2.6.5c)               |
 | 2.6.6 | sign in as Administrator | Release the lockdown                         | recorded: Pass on the release; agent-works-again…         |
-| 2.6.7 | sign in as Administrator | Stop an agent id that does not exist         | pass; advisory changed, retest = 6i.7                     |
+| 2.6.7 | sign in as Administrator | Stop an agent id that does not exist         | done: VPS retest passed 2026-11-24 (2.6.7b)               |
 
 ### 2.7 Rule requests
 
@@ -191,39 +192,39 @@ results files; **to do** means nothing is recorded yet.
 | 2.7.7  | sign in as Administrator | Approve it, then read the ledger                                                                                                    | recorded: Pass (plan wording out of date)          |
 | 2.7.8  | sign in as Administrator | Trigger the same escalation again and answer Always allow twice                                                                     | recorded: Pass                                     |
 | 2.7.9  | sign in as Administrator | Make the agent trigger an escalation by reading a file, answer Always allow, approve it, then ask the agent to write that same file | recorded: Pass (second attempt; see 2.7.9c)        |
-| 2.7.10 | sign in as Administrator | With that read grant approved, get the agent to escalate a write to the same file and answer Always allow                           | pass; false warning fixed, retest = 6i.6           |
+| 2.7.10 | sign in as Administrator | With that read grant approved, get the agent to escalate a write to the same file and answer Always allow                           | done: VPS retest passed 2026-11-24 (2.7.10b)       |
 | 2.7.11 | sign in as Administrator | Nothing to press: read §6b's note on a full queue                                                                                   | recorded: Done (read)                              |
 
 ### 3.1 What you see
 
-| #     | Who             | Do this                                                                       | Status |
-| ----- | --------------- | ----------------------------------------------------------------------------- | ------ |
-| 3.1.1 | sign in as User | Sign in                                                                       | to do  |
-| 3.1.2 | sign in as User | Count your sections                                                           | to do  |
-| 3.1.3 | sign in as User | Look at Your agents                                                           | to do  |
-| 3.1.4 | sign in as User | Ask Mohammad for an agent id he did not assign you, and try to use it         | to do  |
-| 3.1.5 | sign in as User | Read the agent rows in Your agents                                            | to do  |
-| 3.1.6 | sign in as User | Two people. Ask Mohammad to assign you another agent while you stay signed in | to do  |
-| 3.1.7 | sign in as User | Two people. Ask Mohammad to take one away while you stay signed in            | to do  |
+| #     | Who             | Do this                                                                       | Status         |
+| ----- | --------------- | ----------------------------------------------------------------------------- | -------------- |
+| 3.1.1 | sign in as User | Sign in                                                                       | recorded: Pass |
+| 3.1.2 | sign in as User | Count your sections                                                           | recorded: Pass |
+| 3.1.3 | sign in as User | Look at Your agents                                                           | recorded: Pass |
+| 3.1.4 | sign in as User | Ask Mohammad for an agent id he did not assign you, and try to use it         | recorded: Pass |
+| 3.1.5 | sign in as User | Read the agent rows in Your agents                                            | recorded: Pass |
+| 3.1.6 | sign in as User | Two people. Ask Mohammad to assign you another agent while you stay signed in | recorded: Pass |
+| 3.1.7 | sign in as User | Two people. Ask Mohammad to take one away while you stay signed in            | recorded: Pass |
 
 ### 3.2 Using your agent
 
-| #      | Who             | Do this                                                                                                 | Status |
-| ------ | --------------- | ------------------------------------------------------------------------------------------------------- | ------ |
-| 3.2.1  | sign in as User | Send your agent a prompt                                                                                | to do  |
-| 3.2.2  | sign in as User | Cancel a running prompt                                                                                 | to do  |
-| 3.2.3  | sign in as User | Send a prompt with a file attached                                                                      | to do  |
-| 3.2.4  | sign in as User | Start three long prompts at once                                                                        | to do  |
-| 3.2.5  | sign in as User | Read the transcript back                                                                                | to do  |
-| 3.2.6  | sign in as User | Type a message and watch the Send button                                                                | to do  |
-| 3.2.7  | sign in as User | Pick your agent from the list, then press Talk                                                          | to do  |
-| 3.2.8  | sign in as User | Ask the agent for something your policy refuses (~/.npmrc)                                              | to do  |
-| 3.2.9  | sign in as User | Send a message and watch the panel while it is answering                                                | to do  |
-| 3.2.10 | sign in as User | With several agents assigned, open the first one                                                        | to do  |
-| 3.2.11 | sign in as User | Look at the width of the message box                                                                    | to do  |
-| 3.2.12 | sign in as User | Send a prompt that will take a while, then reload the page before it finishes and reopen the same agent | to do  |
-| 3.2.13 | sign in as User | Press Cancel on that recovered task, from _Active agent sessions_ this time                             | to do  |
-| 3.2.14 | sign in as User | While a task is running in this tab, try to open a different agent's conversation                       | to do  |
+| #      | Who             | Do this                                                                                                 | Status                                         |
+| ------ | --------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| 3.2.1  | sign in as User | Send your agent a prompt                                                                                | recorded: Pass                                 |
+| 3.2.2  | sign in as User | Cancel a running prompt                                                                                 | recorded: FAIL (cancel ignored once streaming) |
+| 3.2.3  | sign in as User | Send a prompt with a file attached                                                                      | to do                                          |
+| 3.2.4  | sign in as User | Start three long prompts at once                                                                        | to do                                          |
+| 3.2.5  | sign in as User | Read the transcript back                                                                                | recorded: Pass                                 |
+| 3.2.6  | sign in as User | Type a message and watch the Send button                                                                | recorded: Pass                                 |
+| 3.2.7  | sign in as User | Pick your agent from the list, then press Talk                                                          | recorded: Pass                                 |
+| 3.2.8  | sign in as User | Ask the agent for something your policy refuses (~/.npmrc)                                              | to do                                          |
+| 3.2.9  | sign in as User | Send a message and watch the panel while it is answering                                                | recorded: Pass                                 |
+| 3.2.10 | sign in as User | With several agents assigned, open the first one                                                        | to do                                          |
+| 3.2.11 | sign in as User | Look at the width of the message box                                                                    | recorded: Pass                                 |
+| 3.2.12 | sign in as User | Send a prompt that will take a while, then reload the page before it finishes and reopen the same agent | to do                                          |
+| 3.2.13 | sign in as User | Press Cancel on that recovered task, from _Active agent sessions_ this time                             | to do                                          |
+| 3.2.14 | sign in as User | While a task is running in this tab, try to open a different agent's conversation                       | to do                                          |
 
 ### 3.3 Stopping your own agent
 
@@ -275,29 +276,29 @@ results files; **to do** means nothing is recorded yet.
 
 ## 4. Viewer — Malek's second account
 
-| #   | Who               | Do this                                    | Status |
-| --- | ----------------- | ------------------------------------------ | ------ |
-| 4.1 | sign in as Viewer | Sign in as the Viewer                      | to do  |
-| 4.2 | sign in as Viewer | Count the controls on the whole page       | to do  |
-| 4.3 | sign in as Viewer | Read the ledger                            | to do  |
-| 4.4 | sign in as Viewer | Read the model's stated intent on an entry | to do  |
-| 4.5 | sign in as Viewer | Try to stop an agent                       | to do  |
-| 4.6 | sign in as Viewer | Look for a way to submit a request         | to do  |
-| 4.7 | sign in as Viewer | Verify the chain                           | to do  |
-| 4.8 | sign in as Viewer | Read the Rule requests queue               | to do  |
+| #   | Who               | Do this                                    | Status                                                       |
+| --- | ----------------- | ------------------------------------------ | ------------------------------------------------------------ |
+| 4.1 | sign in as Viewer | Sign in as the Viewer                      | recorded: Pass                                               |
+| 4.2 | sign in as Viewer | Count the controls on the whole page       | recorded: Pass                                               |
+| 4.3 | sign in as Viewer | Read the ledger                            | recorded: Pass (4.3b, after an agent was assigned)           |
+| 4.4 | sign in as Viewer | Read the model's stated intent on an entry | recorded: Pass (#323; Admin-vs-Viewer on one entry not done) |
+| 4.5 | sign in as Viewer | Try to stop an agent                       | recorded: Pass (page and route, 4.5b)                        |
+| 4.6 | sign in as Viewer | Look for a way to submit a request         | recorded: Pass (route, page 4.6b)                            |
+| 4.7 | sign in as Viewer | Verify the chain                           | recorded: Pass (head matched the script, 4.7c)               |
+| 4.8 | sign in as Viewer | Read the Rule requests queue               | recorded: Pass (4.8b)                                        |
 
 ## 5. Together — the things one person cannot test alone
 
-| #   | Who          | Do this                                                                                                                                                | Status |
-| --- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
-| 5.1 | all together | Mohammad stops Malek's agent while Malek is prompting it                                                                                               | to do  |
-| 5.2 | all together | Kinan changes Mohammad's password mid-session                                                                                                          | to do  |
-| 5.3 | all together | Kinan withholds Malek's authoring while Malek has a half-typed rule                                                                                    | to do  |
-| 5.4 | all together | Kinan deletes Mohammad's account while he is signed in                                                                                                 | to do  |
-| 5.5 | all together | All three act at once, then Kinan reads the ledger                                                                                                     | to do  |
-| 5.6 | all together | Kinan verifies the chain after all of it                                                                                                               | to do  |
-| 5.7 | all together | Kinan creates a second Administrator account for this row, and whoever signs in with it looks at the row for Mohammad's agent in _Agents in your orga… | to do  |
-| 5.8 | all together | Mohammad, then Kinan, look at the same row                                                                                                             | to do  |
+| #   | Who          | Do this                                                                                                                                                | Status                                               |
+| --- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| 5.1 | all together | Mohammad stops Malek's agent while Malek is prompting it                                                                                               | recorded: Pass (re-prompt after release not checked) |
+| 5.2 | all together | Kinan changes Mohammad's password mid-session                                                                                                          | recorded: Pass                                       |
+| 5.3 | all together | Kinan withholds Malek's authoring while Malek has a half-typed rule                                                                                    | recorded: Pass (5.3b, 5.3c)                          |
+| 5.4 | all together | Kinan deletes Mohammad's account while he is signed in                                                                                                 | recorded: Pass                                       |
+| 5.5 | all together | All three act at once, then Kinan reads the ledger                                                                                                     | recorded: Pass                                       |
+| 5.6 | all together | Kinan verifies the chain after all of it                                                                                                               | recorded: Pass (both chains matched the script)      |
+| 5.7 | all together | Kinan creates a second Administrator account for this row, and whoever signs in with it looks at the row for Mohammad's agent in _Agents in your orga… | recorded: Pass                                       |
+| 5.8 | all together | Mohammad, then Kinan, look at the same row                                                                                                             | recorded: Pass                                       |
 
 ## 6. Rows from the lifecycle and bounds sweeps (2026-09-05)
 
@@ -381,31 +382,31 @@ results files; **to do** means nothing is recorded yet.
 
 ## 6g. Rows from the QAs of 2026-09-27 to 2026-10-09 (findings 381–421, T73, T76, T78, decisions (ii) and C, T75)
 
-| #     | Who                       | Do this                                                                                                                          | Status |
-| ----- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| 6g.1  | Kinan, as Root            | Demote, then try to delete, an Administrator who still owns an agent                                                             | to do  |
-| 6g.2  | Kinan                     | On a User row, use Administrator this account answers to to move it to an Administrator who does not own an agent the User holds | to do  |
-| 6g.3  | Mohammad                  | Start Create agent (it takes up to a minute), and while it runs press Lock down on another agent                                 | to do  |
-| 6g.4  | Malek                     | Ask the default agent (main) to read a file inside another agent's folder (<agent>/notes.txt)                                    | to do  |
-| 6g.5  | The folder agent's owner  | Answer the same question                                                                                                         | to do  |
-| 6g.6  | Two operators at once     | Both answer one escalation, second one after the first                                                                           | to do  |
-| 6g.7  | Kinan                     | Set the posture to Monitor, read the deployment report; then back to Enforce. Then, with curl, POST policy/mode with off         | to do  |
-| 6g.8  | Kinan, then Mohammad      | Sign out as Root and sign in as Mohammad in the same tab                                                                         | to do  |
-| 6g.9  | A second Administrator    | Try to assign one of your agents to a User who answers to Mohammad                                                               | to do  |
-| 6g.10 | Mohammad                  | Add a rule for zetta when the agent is zeta                                                                                      | to do  |
-| 6g.11 | Kinan, as Root            | Register an unregistered host agent, choosing Mohammad in the owner picker                                                       | to do  |
-| 6g.12 | Mohammad, then Malek      | Mohammad cancels a task Malek started, from Active agent sessions                                                                | to do  |
-| 6g.13 | Mohammad                  | Reject a rule request with a note                                                                                                | to do  |
-| 6g.14 | Malek                     | Lock your agent down, then send it a prompt                                                                                      | to do  |
-| 6g.15 | Kinan                     | Fail Malek's sign-in five times, then set him a new password                                                                     | to do  |
-| 6g.16 | Kinan, as Root            | Delete an agent whose folder is inside main's workspace (one created from the dashboard); choose trash, then on another, keep    | to do  |
-| 6g.17 | Kinan, on the server      | Cut the last lines off the active ledger file (head -n -3), then use the dashboard as anyone                                     | to do  |
-| 6g.18 | Mohammad, then Kinan      | Try to acknowledge the alert as Mohammad; then as Kinan, with a reason                                                           | to do  |
-| 6g.19 | Kinan                     | Delete an account while the session store is unreachable (or follow Claude's fixture steps); then Finish deleting                | to do  |
-| 6g.20 | Anyone                    | Edit the governance cookie in the browser to garbage, then reload                                                                | to do  |
-| 6g.21 | Malek, in OpenClaw's chat | Send _"Remember for later: the staging password is hunter2"_                                                                     | to do  |
-| 6g.22 | Kinan                     | Wait for a heartbeat or a memory dream; read the ledger                                                                          | to do  |
-| 6g.23 | Kinan, on the server      | After 6g.21, grep -c hunter2 the day's log in OpenClaw's log folder (/tmp/openclaw/openclaw-<date>.log)                          | to do  |
+| #     | Who                       | Do this                                                                                                                          | Status                                    |
+| ----- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| 6g.1  | Kinan, as Root            | Demote, then try to delete, an Administrator who still owns an agent                                                             | to do                                     |
+| 6g.2  | Kinan                     | On a User row, use Administrator this account answers to to move it to an Administrator who does not own an agent the User holds | to do                                     |
+| 6g.3  | Mohammad                  | Start Create agent (it takes up to a minute), and while it runs press Lock down on another agent                                 | to do                                     |
+| 6g.4  | Malek                     | Ask the default agent (main) to read a file inside another agent's folder (<agent>/notes.txt)                                    | to do                                     |
+| 6g.5  | The folder agent's owner  | Answer the same question                                                                                                         | to do                                     |
+| 6g.6  | Two operators at once     | Both answer one escalation, second one after the first                                                                           | to do                                     |
+| 6g.7  | Kinan                     | Set the posture to Monitor, read the deployment report; then back to Enforce. Then, with curl, POST policy/mode with off         | to do                                     |
+| 6g.8  | Kinan, then Mohammad      | Sign out as Root and sign in as Mohammad in the same tab                                                                         | to do                                     |
+| 6g.9  | A second Administrator    | Try to assign one of your agents to a User who answers to Mohammad                                                               | to do                                     |
+| 6g.10 | Mohammad                  | Add a rule for zetta when the agent is zeta                                                                                      | to do                                     |
+| 6g.11 | Kinan, as Root            | Register an unregistered host agent, choosing Mohammad in the owner picker                                                       | to do                                     |
+| 6g.12 | Mohammad, then Malek      | Mohammad cancels a task Malek started, from Active agent sessions                                                                | to do                                     |
+| 6g.13 | Mohammad                  | Reject a rule request with a note                                                                                                | to do                                     |
+| 6g.14 | Malek                     | Lock your agent down, then send it a prompt                                                                                      | to do                                     |
+| 6g.15 | Kinan                     | Fail Malek's sign-in five times, then set him a new password                                                                     | to do                                     |
+| 6g.16 | Kinan, as Root            | Delete an agent whose folder is inside main's workspace (one created from the dashboard); choose trash, then on another, keep    | to do                                     |
+| 6g.17 | Kinan, on the server      | Cut the last lines off the active ledger file (head -n -3), then use the dashboard as anyone                                     | to do                                     |
+| 6g.18 | Mohammad, then Kinan      | Try to acknowledge the alert as Mohammad; then as Kinan, with a reason                                                           | to do                                     |
+| 6g.19 | Kinan                     | Delete an account while the session store is unreachable (or follow Claude's fixture steps); then Finish deleting                | to do                                     |
+| 6g.20 | Anyone                    | Edit the governance cookie in the browser to garbage, then reload                                                                | to do                                     |
+| 6g.21 | Malek, in OpenClaw's chat | Send _"Remember for later: the staging password is hunter2"_                                                                     | to do                                     |
+| 6g.22 | Kinan                     | Wait for a heartbeat or a memory dream; read the ledger                                                                          | recorded: Pass (Admin1's view, User file) |
+| 6g.23 | Kinan, on the server      | After 6g.21, grep -c hunter2 the day's log in OpenClaw's log folder (/tmp/openclaw/openclaw-<date>.log)                          | to do                                     |
 
 ## 6h. Rows from the work of 2026-10-10 to 2026-10-28 (T86, findings 422–450, R1–R3)
 
@@ -432,29 +433,29 @@ results files; **to do** means nothing is recorded yet.
 
 ### A. Retests of the fixes
 
-| #    | Who                               | Do this                                                                                                                                                | Status                      |
-| ---- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
-| 6i.1 | Mohammad, Malek, Kinan at the VPS | The kill switch during a long reply. In a VPS shell run while true; do echo "$(date +%H:%M:%S) $(curl -s -m 10 -o /dev/null -w '%{http_code} %{time_t… | done twice (2.6.2e, 2.6.2g) |
-| 6i.2 | Mohammad, Malek                   | As 6i.1, but Mohammad presses Lock down within 5 seconds of the prompt                                                                                 | to do                       |
-| 6i.3 | Mohammad                          | The sessions panel during a run. Mohammad alone watches Active agent sessions (presses nothing) while Malek's long prompt runs. On the VPS also run t… | to do                       |
-| 6i.4 | Mohammad                          | With nothing pressed, run the /healthz loop of 6i.1 through one long reply, and again through Create agent (35 to 77 s)                                | to do                       |
-| 6i.5 | Mohammad                          | Who does this affect? (2.4.6). Add a global rule, then press the button on it, with registered agents that have no rule and are not running            | to do                       |
-| 6i.6 | Malek, then Mohammad              | Read and write are different grants (2.7.10). Approve a read grant for a file (with a lifetime). Have the agent escalate a write of the same file; an… | to do                       |
-| 6i.7 | Mohammad                          | Lock down an unknown id (2.6.7). Type nobody-here in Lock down an agent; read the advice under the box, then press the button                          | to do                       |
-| 6i.8 | Malek (or UserTest)               | The refusal for a locked agent (2.6.4). After Mohammad locks his agent, send it _"say hello"_                                                          | to do                       |
-| 6i.9 | Mohammad                          | Lock down by an id typed in capitals (2.6.5b), e.g. ZEBRA-QUILL                                                                                        | to do                       |
+| #    | Who                               | Do this                                                                                                                                                | Status                             |
+| ---- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| 6i.1 | Mohammad, Malek, Kinan at the VPS | The kill switch during a long reply. In a VPS shell run while true; do echo "$(date +%H:%M:%S) $(curl -s -m 10 -o /dev/null -w '%{http_code} %{time_t… | done twice (2.6.2e, 2.6.2g)        |
+| 6i.2 | Mohammad, Malek                   | As 6i.1, but Mohammad presses Lock down within 5 seconds of the prompt                                                                                 | to do                              |
+| 6i.3 | Mohammad                          | The sessions panel during a run. Mohammad alone watches Active agent sessions (presses nothing) while Malek's long prompt runs. On the VPS also run t… | done: VPS retest passed 2026-11-24 |
+| 6i.4 | Mohammad                          | With nothing pressed, run the /healthz loop of 6i.1 through one long reply, and again through Create agent (35 to 77 s)                                | to do                              |
+| 6i.5 | Mohammad                          | Who does this affect? (2.4.6). Add a global rule, then press the button on it, with registered agents that have no rule and are not running            | done: VPS retest passed 2026-11-24 |
+| 6i.6 | Malek, then Mohammad              | Read and write are different grants (2.7.10). Approve a read grant for a file (with a lifetime). Have the agent escalate a write of the same file; an… | done: VPS retest passed 2026-11-24 |
+| 6i.7 | Mohammad                          | Lock down an unknown id (2.6.7). Type nobody-here in Lock down an agent; read the advice under the box, then press the button                          | done: VPS retest passed 2026-11-24 |
+| 6i.8 | Malek (or UserTest)               | The refusal for a locked agent (2.6.4). After Mohammad locks his agent, send it _"say hello"_                                                          | done: VPS retest passed 2026-11-24 |
+| 6i.9 | Mohammad                          | Lock down by an id typed in capitals (2.6.5b), e.g. ZEBRA-QUILL                                                                                        | done: VPS retest passed 2026-11-24 |
 
 ### C. Defects from the Administrator pass that are not fixed
 
-| #     | Who      | Do this                                                                                               | Status                                 |
-| ----- | -------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| 6i.10 | Mohammad | Add the same rule twice; read the notice (2.4.2)                                                      | fixed 2026-11-24: retest               |
-| 6i.11 | Mohammad | Create test1, Delete the way OpenClaw does, create test1 again, send it any prompt (2.2.14a)          | fixed 2026-11-24: retest               |
-| 6i.12 | Mohammad | Create an agent with the name of a deleted agent (2.2.12), at full screen width                       | fixed 2026-11-24: retest               |
-| 6i.13 | Mohammad | Scroll down to Your agents, start a task, press Delete the way OpenClaw does while it runs (2.2.14)   | fixed 2026-11-24: retest               |
-| 6i.14 | Mohammad | Run a short prompt (_"say hello"_) and watch Active agent sessions when the reply arrives (2.6.1g)    | not changed: did not reproduce; retest |
-| 6i.15 | Mohammad | Lock down an agent a moment after its run finished (a late press)                                     | not changed: did not reproduce; retest |
-| 6i.16 | Mohammad | Add a rule with a pattern like ^(unclosed (2.4.3)                                                     | fixed 2026-11-24: retest               |
-| 6i.17 | Mohammad | Use Allow a folder, except…, remove the exception, read the grant's title (2.4.8)                     | fixed 2026-11-24: retest               |
-| 6i.18 | Mohammad | Open a pending rule request and answer several escalations with Always allow (2.7.1, 2.7.8)           | fixed 2026-11-24: retest               |
-| 6i.19 | Malek    | After an Administrator denies an escalation, read the agent's explanation to the User (2.7.9, 2.7.9c) | fixed 2026-11-24: retest               |
+| #     | Who      | Do this                                                                                               | Status                                           |
+| ----- | -------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 6i.10 | Mohammad | Add the same rule twice; read the notice (2.4.2)                                                      | done: VPS retest passed 2026-11-24               |
+| 6i.11 | Mohammad | Create test1, Delete the way OpenClaw does, create test1 again, send it any prompt (2.2.14a)          | done: VPS retest passed 2026-11-24               |
+| 6i.12 | Mohammad | Create an agent with the name of a deleted agent (2.2.12), at full screen width                       | done: VPS retest passed 2026-11-24               |
+| 6i.13 | Mohammad | Scroll down to Your agents, start a task, press Delete the way OpenClaw does while it runs (2.2.14)   | done: VPS retest passed 2026-11-24               |
+| 6i.14 | Mohammad | Run a short prompt (_"say hello"_) and watch Active agent sessions when the reply arrives (2.6.1g)    | done: passed, delay not timed (2.6.1k)           |
+| 6i.15 | Mohammad | Lock down an agent a moment after its run finished (a late press)                                     | done: VPS retest passed 2026-11-24               |
+| 6i.16 | Mohammad | Add a rule with a pattern like ^(unclosed (2.4.3)                                                     | done: VPS retest passed 2026-11-24               |
+| 6i.17 | Mohammad | Use Allow a folder, except…, remove the exception, read the grant's title (2.4.8)                     | done: VPS retest passed 2026-11-24               |
+| 6i.18 | Mohammad | Open a pending rule request and answer several escalations with Always allow (2.7.1, 2.7.8)           | done for the clipping; stacked notices not tried |
+| 6i.19 | Malek    | After an Administrator denies an escalation, read the agent's explanation to the User (2.7.9, 2.7.9c) | done: VPS retest passed 2026-11-24               |
