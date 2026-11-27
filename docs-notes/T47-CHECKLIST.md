@@ -1,11 +1,11 @@
-# T47: every row, with its status
+recorded: Pass |recorded: Pass |# T47: every row, with its status
 
 Updated 2026-11-26 from `T47-TEST-PLAN.md` and the results files (§4 Viewer and §5 Together
 added from `T47-RESULTS-VIEWER.md` and `T47-RESULTS-TOGETHER.md`, both run 2026-11-24). The plan
 has the full wording and what to expect; this is the index. Rows marked recorded or done are in
 the results files; **to do** means nothing is recorded yet.
 
-**283 rows: 155 recorded or done, 128 to do.**
+**283 rows: 199 recorded or done, 84 to do.**
 
 ### 1.1 Identity and the page itself
 
@@ -209,70 +209,70 @@ the results files; **to do** means nothing is recorded yet.
 
 ### 3.2 Using your agent
 
-| #      | Who             | Do this                                                                                                 | Status                                         |
-| ------ | --------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| 3.2.1  | sign in as User | Send your agent a prompt                                                                                | recorded: Pass                                 |
-| 3.2.2  | sign in as User | Cancel a running prompt                                                                                 | recorded: FAIL (cancel ignored once streaming) |
-| 3.2.3  | sign in as User | Send a prompt with a file attached                                                                      | to do                                          |
-| 3.2.4  | sign in as User | Start three long prompts at once                                                                        | to do                                          |
-| 3.2.5  | sign in as User | Read the transcript back                                                                                | recorded: Pass                                 |
-| 3.2.6  | sign in as User | Type a message and watch the Send button                                                                | recorded: Pass                                 |
-| 3.2.7  | sign in as User | Pick your agent from the list, then press Talk                                                          | recorded: Pass                                 |
-| 3.2.8  | sign in as User | Ask the agent for something your policy refuses (~/.npmrc)                                              | to do                                          |
-| 3.2.9  | sign in as User | Send a message and watch the panel while it is answering                                                | recorded: Pass                                 |
-| 3.2.10 | sign in as User | With several agents assigned, open the first one                                                        | to do                                          |
-| 3.2.11 | sign in as User | Look at the width of the message box                                                                    | recorded: Pass                                 |
-| 3.2.12 | sign in as User | Send a prompt that will take a while, then reload the page before it finishes and reopen the same agent | to do                                          |
-| 3.2.13 | sign in as User | Press Cancel on that recovered task, from _Active agent sessions_ this time                             | to do                                          |
-| 3.2.14 | sign in as User | While a task is running in this tab, try to open a different agent's conversation                       | to do                                          |
+| #      | Who             | Do this                                                                                                 | Status                                                     |
+| ------ | --------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 3.2.1  | sign in as User | Send your agent a prompt                                                                                | recorded: Pass                                             |
+| 3.2.2  | sign in as User | Cancel a running prompt                                                                                 | recorded: FAIL (cancel ignored once streaming)             |
+| 3.2.3  | sign in as User | Send a prompt with a file attached                                                                      | recorded: FAIL (file never reaches the agent)              |
+| 3.2.4  | sign in as User | Start three long prompts at once                                                                        | recorded: Pass                                             |
+| 3.2.5  | sign in as User | Read the transcript back                                                                                | recorded: Pass                                             |
+| 3.2.6  | sign in as User | Type a message and watch the Send button                                                                | recorded: Pass                                             |
+| 3.2.7  | sign in as User | Pick your agent from the list, then press Talk                                                          | recorded: Pass                                             |
+| 3.2.8  | sign in as User | Ask the agent for something your policy refuses (~/.npmrc)                                              | recorded: Pass                                             |
+| 3.2.9  | sign in as User | Send a message and watch the panel while it is answering                                                | recorded: Pass                                             |
+| 3.2.10 | sign in as User | With several agents assigned, open the first one                                                        | recorded: Pass; name=id printed twice, fixed (uncommitted) |
+| 3.2.11 | sign in as User | Look at the width of the message box                                                                    | recorded: Pass                                             |
+| 3.2.12 | sign in as User | Send a prompt that will take a while, then reload the page before it finishes and reopen the same agent | recorded: Pass                                             |
+| 3.2.13 | sign in as User | Press Cancel on that recovered task, from _Active agent sessions_ this time                             | recorded: Pass                                             |
+| 3.2.14 | sign in as User | While a task is running in this tab, try to open a different agent's conversation                       | recorded: Pass                                             |
 
 ### 3.3 Stopping your own agent
 
-| #     | Who             | Do this                                  | Status |
-| ----- | --------------- | ---------------------------------------- | ------ |
-| 3.3.1 | sign in as User | Stop your assigned agent                 | to do  |
-| 3.3.2 | sign in as User | Try to stop an agent not assigned to you | to do  |
-| 3.3.3 | sign in as User | Release your agent                       | to do  |
+| #     | Who             | Do this                                  | Status         |
+| ----- | --------------- | ---------------------------------------- | -------------- |
+| 3.3.1 | sign in as User | Stop your assigned agent                 | recorded: Pass |
+| 3.3.2 | sign in as User | Try to stop an agent not assigned to you | recorded: Pass |
+| 3.3.3 | sign in as User | Release your agent                       | recorded: Pass |
 
 ### 3.4 Policy, read and write
 
-| #     | Who             | Do this                                   | Status |
-| ----- | --------------- | ----------------------------------------- | ------ |
-| 3.4.1 | sign in as User | Read the Policy section                   | to do  |
-| 3.4.2 | sign in as User | Add a rule without naming an agent        | to do  |
-| 3.4.3 | sign in as User | Add a rule naming your own agent          | to do  |
-| 3.4.4 | sign in as User | Add a rule naming somebody else's agent   | to do  |
-| 3.4.5 | sign in as User | Remove a rule you wrote                   | to do  |
-| 3.4.6 | sign in as User | Look at a core rule and a global rule     | to do  |
-| 3.4.7 | sign in as User | Look for the installation posture control | to do  |
+| #     | Who             | Do this                                   | Status         |
+| ----- | --------------- | ----------------------------------------- | -------------- |
+| 3.4.1 | sign in as User | Read the Policy section                   | recorded: Pass |
+| 3.4.2 | sign in as User | Add a rule without naming an agent        | recorded: Pass |
+| 3.4.3 | sign in as User | Add a rule naming your own agent          | recorded: Pass |
+| 3.4.4 | sign in as User | Add a rule naming somebody else's agent   | recorded: Pass |
+| 3.4.5 | sign in as User | Remove a rule you wrote                   | recorded: Pass |
+| 3.4.6 | sign in as User | Look at a core rule and a global rule     | recorded: Pass |
+| 3.4.7 | sign in as User | Look for the installation posture control | recorded: Pass |
 
 ### 3.5 Rule requests
 
-| #     | Who             | Do this                                                     | Status |
-| ----- | --------------- | ----------------------------------------------------------- | ------ |
-| 3.5.1 | sign in as User | Submit a request naming your agent                          | to do  |
-| 3.5.2 | sign in as User | Submit one with the agent left blank                        | to do  |
-| 3.5.3 | sign in as User | With twenty of your requests waiting, submit a twenty-first | to do  |
-| 3.5.4 | sign in as User | Watch Mohammad approve one                                  | to do  |
+| #     | Who             | Do this                                                     | Status         |
+| ----- | --------------- | ----------------------------------------------------------- | -------------- |
+| 3.5.1 | sign in as User | Submit a request naming your agent                          | recorded: Pass |
+| 3.5.2 | sign in as User | Submit one with the agent left blank                        | recorded: Pass |
+| 3.5.3 | sign in as User | With twenty of your requests waiting, submit a twenty-first | recorded: Pass |
+| 3.5.4 | sign in as User | Watch Mohammad approve one                                  | recorded: Pass |
 
 ### 3.6 The audit ledger
 
-| #     | Who             | Do this                      | Status |
-| ----- | --------------- | ---------------------------- | ------ |
-| 3.6.1 | sign in as User | Open the ledger              | to do  |
-| 3.6.2 | sign in as User | Filter to Agent actions      | to do  |
-| 3.6.3 | sign in as User | Filter to Policy changes     | to do  |
-| 3.6.4 | sign in as User | Press Verify chain integrity | to do  |
+| #     | Who             | Do this                      | Status                       |
+| ----- | --------------- | ---------------------------- | ---------------------------- |
+| 3.6.1 | sign in as User | Open the ledger              | recorded: Pass               |
+| 3.6.2 | sign in as User | Filter to Agent actions      | recorded: Pass               |
+| 3.6.3 | sign in as User | Filter to Policy changes     | recorded: Pass               |
+| 3.6.4 | sign in as User | Press Verify chain integrity | recorded: Pass (heads match) |
 
 ### 3.7 The refusals (record the exact wording of each)
 
-| #     | Who             | Do this                                | Status |
-| ----- | --------------- | -------------------------------------- | ------ |
-| 3.7.1 | sign in as User | Try to create an account               | to do  |
-| 3.7.2 | sign in as User | Try to switch off a core rule          | to do  |
-| 3.7.3 | sign in as User | Try to change another person's account | to do  |
-| 3.7.4 | sign in as User | Try to set the installation posture    | to do  |
-| 3.7.5 | sign in as User | Try to read the deployment report      | to do  |
+| #     | Who             | Do this                                | Status         |
+| ----- | --------------- | -------------------------------------- | -------------- |
+| 3.7.1 | sign in as User | Try to create an account               | recorded: Pass |
+| 3.7.2 | sign in as User | Try to switch off a core rule          | recorded: Pass |
+| 3.7.3 | sign in as User | Try to change another person's account | recorded: Pass |
+| 3.7.4 | sign in as User | Try to set the installation posture    | recorded: Pass |
+| 3.7.5 | sign in as User | Try to read the deployment report      | recorded: Pass |
 
 ## 4. Viewer — Malek's second account
 
@@ -302,40 +302,40 @@ the results files; **to do** means nothing is recorded yet.
 
 ## 6. Rows from the lifecycle and bounds sweeps (2026-09-05)
 
-| #   | Who              | Do this                                                                                                                                                | Status |
-| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
-| 6.1 | Kinan + Malek    | Malek sends the agent a prompt with something recognisable in it ("the Ahmad matter"). Kinan sets Malek's escalation override to off, then deletes Ma… | to do  |
-| 6.2 | Kinan            | Before deleting an account that has a transcript, note the number of turns. After deleting, search the audit ledger for the deleted account's name.    | to do  |
-| 6.3 | Kinan            | Read the ledger entry for the deletion itself.                                                                                                         | to do  |
-| 6.4 | Malek + Mohammad | Malek's agent triggers three or four distinct unanswered escalations (vary the path each time), and Mohammad's agent triggers one.                     | to do  |
+| #   | Who              | Do this                                                                                                                                                | Status         |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| 6.1 | Kinan + Malek    | Malek sends the agent a prompt with something recognisable in it ("the Ahmad matter"). Kinan sets Malek's escalation override to off, then deletes Ma… | recorded: Pass |
+| 6.2 | Kinan            | Before deleting an account that has a transcript, note the number of turns. After deleting, search the audit ledger for the deleted account's name.    | recorded: Pass |
+| 6.3 | Kinan            | Read the ledger entry for the deletion itself.                                                                                                         | recorded: Pass |
+| 6.4 | Malek + Mohammad | Malek's agent triggers three or four distinct unanswered escalations (vary the path each time), and Mohammad's agent triggers one.                     | recorded: Pass |
 
 ## 6b. Rows from T60 and T63 (built 2026-09-11)
 
-| #    | Who                      | Do this                                                                                                          | Status |
-| ---- | ------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------ |
-| 6b.1 | Anyone with an agent     | Get the agent to attempt something no rule covers, with escalation on, so an approval card appears               | to do  |
-| 6b.2 | Same                     | Press Always allow                                                                                               | to do  |
-| 6b.3 | Kinan + Mohammad         | Mohammad approves that request in Rule requests; the agent attempts the same action again                        | to do  |
-| 6b.4 | Kinan                    | With one escalation timed out into Awaiting your decision, press Would allow                                     | to do  |
-| 6b.5 | Two people, two browsers | Malek starts a long task; Kinan cancels it from _Active agent sessions_ while Malek watches his own conversation | to do  |
+| #    | Who                      | Do this                                                                                                          | Status                                                    |
+| ---- | ------------------------ | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 6b.1 | Anyone with an agent     | Get the agent to attempt something no rule covers, with escalation on, so an approval card appears               | recorded: Pass                                            |
+| 6b.2 | Same                     | Press Always allow                                                                                               | recorded: Pass                                            |
+| 6b.3 | Kinan + Mohammad         | Mohammad approves that request in Rule requests; the agent attempts the same action again                        | recorded: Pass                                            |
+| 6b.4 | Kinan                    | With one escalation timed out into Awaiting your decision, press Would allow                                     | recorded: Pass, finding 458 fixed (not deployed)          |
+| 6b.5 | Two people, two browsers | Malek starts a long task; Kinan cancels it from _Active agent sessions_ while Malek watches his own conversation | recorded: Pass, findings 459 and 460 fixed (not deployed) |
 
 ## 6c. Rows from the dashboard QA pass (2026-09-12 and 13)
 
-| #     | Who                                                                             | Do this                                                                                                                          | Status |
-| ----- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| 6c.1  | Anyone with an agent, on the governance page                                    | From _Your agents_, ask the agent to do something no rule covers, with escalation on                                             | to do  |
-| 6c.2  | Same                                                                            | Ask again, and leave the card unanswered                                                                                         | to do  |
-| 6c.3  | Anyone                                                                          | Press Remove on a rule, or any button that asks "Are you sure?", then press Escape                                               | to do  |
-| 6c.4  | Kinan                                                                           | Sign in, open every section, sign out. Then open the browser's developer tools → Application → Cache Storage                     | to do  |
-| 6c.5  | Kinan                                                                           | While signed in, stop the Gateway for a minute, then start it again                                                              | to do  |
-| 6c.6  | Anyone with an agent                                                            | As row 3.2.12, but close the tab instead of reloading, then open the dashboard again                                             | to do  |
-| 6c.7  | Kinan                                                                           | Engage the kill switch on an agent, then Release it                                                                              | to do  |
-| 6c.8  | Kinan + a User                                                                  | With the User's conversation with an agent open, unassign that agent from them in _Accounts_                                     | to do  |
-| 6c.9  | A User                                                                          | In _Rule requests_, paste a reason longer than 500 characters and submit                                                         | to do  |
-| 6c.10 | A User with an agent, an Administrator, and a Viewer, each on their own machine | The User asks the agent for something no rule covers                                                                             | to do  |
-| 6c.11 | A User with an agent                                                            | Ask for something no rule covers, and while its card is up press Cancel on the task in the conversation                          | to do  |
-| 6c.12 | Kinan + a User with an agent                                                    | The User asks for something no rule covers. While the card is up on the User's screen, change the User to a Viewer in _Accounts_ | to do  |
-| 6c.13 | Kinan + a User with an agent                                                    | The User asks for something no rule covers. While its card is up, Kinan engages the kill switch on that agent                    | to do  |
+| #     | Who                                                                             | Do this                                                                                                                          | Status                           |
+| ----- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| 6c.1  | Anyone with an agent, on the governance page                                    | From _Your agents_, ask the agent to do something no rule covers, with escalation on                                             | recorded: Pass (from 6b.1 / 6.4) |
+| 6c.2  | Same                                                                            | Ask again, and leave the card unanswered                                                                                         | recorded: Pass (from 6b.1 / 6.4) |
+| 6c.3  | Anyone                                                                          | Press Remove on a rule, or any button that asks "Are you sure?", then press Escape                                               | recorded: Pass                   |
+| 6c.4  | Kinan                                                                           | Sign in, open every section, sign out. Then open the browser's developer tools → Application → Cache Storage                     | recorded: Pass                   |
+| 6c.5  | Kinan                                                                           | While signed in, stop the Gateway for a minute, then start it again                                                              | to do                            |
+| 6c.6  | Anyone with an agent                                                            | As row 3.2.12, but close the tab instead of reloading, then open the dashboard again                                             | to do                            |
+| 6c.7  | Kinan                                                                           | Engage the kill switch on an agent, then Release it                                                                              | to do                            |
+| 6c.8  | Kinan + a User                                                                  | With the User's conversation with an agent open, unassign that agent from them in _Accounts_                                     | to do                            |
+| 6c.9  | A User                                                                          | In _Rule requests_, paste a reason longer than 500 characters and submit                                                         | to do                            |
+| 6c.10 | A User with an agent, an Administrator, and a Viewer, each on their own machine | The User asks the agent for something no rule covers                                                                             | to do                            |
+| 6c.11 | A User with an agent                                                            | Ask for something no rule covers, and while its card is up press Cancel on the task in the conversation                          | to do                            |
+| 6c.12 | Kinan + a User with an agent                                                    | The User asks for something no rule covers. While the card is up on the User's screen, change the User to a Viewer in _Accounts_ | to do                            |
+| 6c.13 | Kinan + a User with an agent                                                    | The User asks for something no rule covers. While its card is up, Kinan engages the kill switch on that agent                    | to do                            |
 
 ## 6d. Rows from the work after the push (2026-09-13 and 14)
 
