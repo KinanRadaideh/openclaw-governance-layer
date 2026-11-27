@@ -70,3 +70,62 @@ describe("progress snapshot spacing", () => {
     }
   });
 });
+
+describe("following the reply chunk by chunk (T47 6c.6, 2026-11-28)", () => {
+  // Each streamed event carries the whole reply so far and the new piece. The listener
+  // compared the whole reply with what it held on every event (`startsWith`): 1.7 s of
+  // the main thread for a 38,000-character reply on the VPS, growing with the square of
+  // the length. When the whole is exactly what it holds plus the piece, the piece is enough.
+  async function stream(events: Array<{ text: string; delta?: string }>): Promise<string> {
+    installGovernanceAgentRunner();
+    const runId = "run-follow-1";
+    command.run.mockImplementation(async () => {
+      for (const data of events) {
+        emitAgentEvent({ runId, stream: "assistant", data });
+      }
+      return { payloads: [{ text: events.at(-1)?.text ?? "" }] };
+    });
+    let last = "";
+    await runAgentPrompt({
+      agentId: "main",
+      sessionKey: "agent:main:governance:user1",
+      message: "write a long story",
+      runId,
+      signal: new AbortController().signal,
+      onProgress: (replySoFar) => {
+        last = replySoFar;
+      },
+    });
+    return last;
+  }
+
+  it("does not compare the whole reply on each chunk", async () => {
+    const events: Array<{ text: string; delta: string }> = [];
+    let text = "";
+    for (let index = 0; index < 400; index += 1) {
+      const delta = `word${index} `.padEnd(50, ".");
+      text += delta;
+      events.push({ text, delta });
+    }
+    const startsWith = vi.spyOn(String.prototype, "startsWith");
+    try {
+      expect(await stream(events)).toBe(text);
+      const longComparisons = startsWith.mock.contexts.filter(
+        (context) => String(context).length > 5_000,
+      ).length;
+      expect(longComparisons).toBe(0);
+    } finally {
+      startsWith.mockRestore();
+    }
+  });
+
+  it("still follows a reply whose pieces do not add up to the whole", async () => {
+    // A piece the listener never saw (an event not emitted) must not leave a gap.
+    expect(
+      await stream([
+        { text: "Chapter 1", delta: "Chapter 1" },
+        { text: "Chapter 1. The fox", delta: " The fox" },
+      ]),
+    ).toBe("Chapter 1. The fox");
+  });
+});

@@ -156,6 +156,40 @@ describe("prompt recovery in the conversation and active sessions", () => {
     expect(h.controller.slice().promptPending).toBe(true);
   });
 
+  it("puts a recovered task's Cancel next to the message box, below the history (T47 3.2.12)", async () => {
+    // Measured on the VPS: after a reload the task's "Running · Cancel" row sat at the top
+    // of the conversation, above the history, out of view from the message box, which
+    // said only "Task in progress".
+    const h = harness();
+    h.list.mockResolvedValue({ runs: [task("recovered")] });
+    h.transcript.mockResolvedValue({
+      agentId: "scout",
+      supported: true,
+      turns: [
+        {
+          id: "t1",
+          role: "user",
+          body: "an earlier message",
+          at: "2026-11-27T10:00:00Z",
+          runId: "earlier",
+        },
+      ],
+    });
+    await h.controller.showConversation("scout");
+    h.draw();
+    const [cancel] = cancelButtons(h.conversation);
+    const history = [...h.conversation.querySelectorAll("div")].find(
+      (element) => element.getAttribute("role") === "log",
+    );
+    const box = h.conversation.querySelector("textarea");
+    expect(cancel && history && box).toBeTruthy();
+    // After the history, before the message box.
+    expect(
+      history!.compareDocumentPosition(cancel!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(cancel!.compareDocumentPosition(box!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("hides unassigned agents from a user's central activity", async () => {
     const h = harness();
     h.list.mockResolvedValue({ runs: [task("own"), task("unassigned", { agentId: "probe" })] });
@@ -382,6 +416,34 @@ describe("prompt recovery in the conversation and active sessions", () => {
     expect(h.cancel).toHaveBeenCalledTimes(1);
   });
 
+  it("empties the message box once the agent has the message (T47 3.2, 2026-11-28)", async () => {
+    // Measured on the VPS: while the run worked the box still held the sent text, shown a
+    // second time on the "You" line above it. Kept only for a prompt refused unsent (415).
+    const h = harness();
+    await h.controller.showConversation("scout");
+    const finish = deferred<GovernancePromptOutcome>();
+    vi.spyOn(GovernanceApi.prototype, "promptAgentStreaming").mockImplementation(
+      async (_agentId, _message, handlers) => {
+        handlers?.onStart?.({ runId: "run-accepted", sessionKey: "agent:scout:governance:lina" });
+        return finish.promise;
+      },
+    );
+    h.controller.setDraft("Write a long story");
+    const sending = h.controller.sendPrompt();
+    await vi.waitFor(() => expect(h.controller.slice().promptRunId).toBe("run-accepted"));
+
+    expect(h.controller.slice().promptDraft).toBe("");
+    expect(h.controller.slice().promptSent).toBe("Write a long story");
+
+    finish.resolve({
+      ok: true,
+      runId: "run-accepted",
+      sessionKey: "agent:scout:governance:lina",
+      reply: "done",
+    } as GovernancePromptOutcome);
+    await sending;
+  });
+
   it("says why a prompt was refused unsent, and keeps what was typed (finding 415)", async () => {
     // A locked-down agent's refusal arrives on the stream as an ordinary outcome, not
     // the thrown 409 the code expected: the typed message vanished and nothing said why.
@@ -421,6 +483,42 @@ describe("prompt recovery in the conversation and active sessions", () => {
     for (const view of [h.conversation, h.activity]) {
       expect(view.textContent).not.toContain("Cancellation requested");
     }
+  });
+
+  it("drops 'no longer running' once a new task starts (T47 6b.5, 2026-11-27)", async () => {
+    // Measured on the VPS: Admin1's Cancel landed on a task that had just ended and was
+    // told "This task is no longer running". The notice belonged to no task, so no
+    // refresh ever retired it, and minutes later it sat above deltest's next task, plainly
+    // running, with a working Cancel under it.
+    const h = harness("administrator");
+    h.list.mockResolvedValue({ runs: [task("ended-task")] });
+    await h.controller.showConversation("scout");
+    h.cancel.mockResolvedValueOnce({ cancelled: false });
+    h.list.mockResolvedValue({ runs: [] });
+    await h.controller.cancelPrompt("ended-task");
+    h.draw();
+    expect(h.activity.textContent).toContain("This task is no longer running");
+
+    h.list.mockResolvedValue({ runs: [task("next-task")] });
+    await h.controller.refreshRuns();
+    h.draw();
+    for (const view of [h.conversation, h.activity]) {
+      expect(view.textContent).not.toContain("no longer running");
+    }
+  });
+
+  it("keeps 'no longer running' while nothing new has started", async () => {
+    // The other side: a refresh that changes nothing is not a reason to take back the
+    // answer the operator was just given.
+    const h = harness("administrator");
+    h.list.mockResolvedValue({ runs: [task("ended-task")] });
+    await h.controller.showConversation("scout");
+    h.cancel.mockResolvedValueOnce({ cancelled: false });
+    h.list.mockResolvedValue({ runs: [] });
+    await h.controller.cancelPrompt("ended-task");
+    await h.controller.refreshRuns();
+    h.draw();
+    expect(h.activity.textContent).toContain("This task is no longer running");
   });
 
   it("keeps its finished task hidden from a task list read before it finished", async () => {

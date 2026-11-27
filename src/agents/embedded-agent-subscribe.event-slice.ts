@@ -26,6 +26,13 @@
 export const EVENT_SLICE_MS = 25;
 /** How many events a burst handles before time is even considered. */
 export const EVENT_SLICE_MIN_EVENTS = 64;
+/**
+ * The longest one slice holds the thread, however few events that took (T47 6c.6,
+ * 2026-11-28). The minimum above keeps cheap events synchronous; when each event is
+ * itself expensive (a 38,000-character reply on the VPS), 64 of them held the thread
+ * for hundreds of milliseconds per slice and dashboard requests waited 11 to 30 s.
+ */
+export const EVENT_SLICE_MAX_MS = 100;
 
 // Captured at load so a test's fake timers cannot stall a real burst forever.
 const realSetImmediate: ((callback: () => void) => unknown) | undefined =
@@ -61,7 +68,10 @@ export function createEventSlice(): EventSlice {
         return false;
       }
       events += 1;
-      return events > EVENT_SLICE_MIN_EVENTS && now - startedAt >= EVENT_SLICE_MS;
+      const held = now - startedAt;
+      return (
+        (events > EVENT_SLICE_MIN_EVENTS && held >= EVENT_SLICE_MS) || held >= EVENT_SLICE_MAX_MS
+      );
     },
   };
 }

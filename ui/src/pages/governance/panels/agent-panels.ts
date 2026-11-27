@@ -60,10 +60,11 @@ import {
   canonicalAgentQuery,
   hasAgentToGovern,
   manageableAgentIds,
+  nameIsId,
 } from "../identity.ts";
 import type { KillNotice } from "../kill-notice.ts";
 import type { PanelEffects } from "./account-panels.ts";
-import { streamText, turnText } from "./conversation-text.ts";
+import { sentTurn, streamText, turnText } from "./conversation-text.ts";
 import { foreignFolderWithheldTip, foreignFolderWords } from "./foreign-folder.ts";
 import { formatAttachmentSize, formatTurnTime, unassignedAgentsHint } from "./format.ts";
 import {
@@ -134,6 +135,8 @@ export type ConversationProps = AgentPanelBase & {
   promptDraft: string;
   /** The message being answered, shown as a turn while the run is in flight. */
   promptSent: string;
+  /** When it was sent; empty when not known. */
+  promptSentAt?: string;
   promptAttachments: readonly GovernanceAttachment[];
   promptError: string | null;
   promptPending: boolean;
@@ -675,7 +678,6 @@ export function renderConversation(
       class="governance-conversation"
       style="display:flex;flex-direction:column;gap:0.5rem;flex:1;min-width:0"
     >
-      ${recovered}
       ${transcript.turns.length === 0 && !props.promptPending
         ? // **"No messages yet" only when there really are none.** It used to
           // render beside the live "replying..." block below, so the first
@@ -707,10 +709,7 @@ export function renderConversation(
             }
           </div>`}
       ${props.promptPending && props.promptSent
-        ? html`<div>
-            <strong>${t("governance.conversation.you")}</strong>
-            <div style="white-space:pre-wrap">${props.promptSent}</div>
-          </div>`
+        ? sentTurn(props.promptSent, props.promptSentAt)
         : nothing}
       ${props.promptPending && (props.promptRunId || props.promptSent)
         ? html`<div>
@@ -770,6 +769,11 @@ export function renderConversation(
             )}
           </div>`
         : nothing}
+      ${
+        // A task recovered after a reload is stopped from here, beside the message box,
+        // not from above the history where it sat out of view (T47 3.2.12, 2026-11-28).
+        recovered
+      }
       ${transcript.supported
         ? html`<div style="display:flex;gap:0.5rem">
             <!-- A textarea since 2026-10-03: a prompt may run to 8,000 characters and
@@ -916,7 +920,8 @@ export function renderAgentsSection(props: AgentsSectionProps): TemplateResult |
   );
   const label = (agentId: string): TemplateResult => {
     const displayName = nameOf.get(canonicalAgentQuery(agentId));
-    return displayName
+    // A name that is the id adds nothing: "test1 test1" (T47 3.2.10, 2026-11-27).
+    return displayName && !nameIsId(displayName, agentId)
       ? html`${displayName} <code>${agentId}</code>`
       : html`<code>${agentId}</code>`;
   };
@@ -1008,7 +1013,7 @@ export function renderAgentsSection(props: AgentsSectionProps): TemplateResult |
                           .filter((agent) => agent.registered !== false)
                           .map(
                             (agent) => html`<option value=${agent.agentId}>
-                              ${agent.displayName
+                              ${agent.displayName && !nameIsId(agent.displayName, agent.agentId)
                                 ? `${agent.displayName} (${agent.agentId})`
                                 : agent.agentId}
                             </option>`,

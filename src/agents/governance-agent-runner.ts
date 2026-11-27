@@ -135,6 +135,15 @@ function subscribeToReply(runId: string, onProgress: (text: string) => void): ()
       // A genuine retraction. Representable here precisely because this surface
       // sends snapshots; the OpenAI path has to abort the stream instead.
       text = raw;
+    } else if (
+      typeof raw === "string" &&
+      typeof evt.data?.delta === "string" &&
+      evt.data.delta &&
+      raw.length === text.length + evt.data.delta.length
+    ) {
+      // The whole is what was held plus this piece: append the piece, without comparing
+      // the whole reply on every chunk (1.7 s of a 38,000-character reply, T47 6c.6).
+      text += evt.data.delta;
     } else {
       const delta =
         typeof raw === "string" && raw.startsWith(text)
@@ -213,6 +222,15 @@ async function runGovernancePrompt(request: AgentRunRequest): Promise<AgentRunRe
       defaultRuntime,
       createDefaultDeps(),
     );
+    // **A stopped run's reply is what streamed** (T47 6b.5, 2026-11-27). An aborted host run
+    // can still end with a payload, and the one it gives is its own stand-in, "LLM request
+    // timed out.": stored as the reply and counted in the ledger ("run cancelled after 22
+    // chars") while the chapter the operator had watched arrive was dropped.
+    if (request.signal?.aborted) {
+      // Flushed first: the last words may still be waiting on the snapshot timer.
+      stopStreaming();
+      return { ok: false, reply: replySoFar, error: "The run was stopped." };
+    }
     return { ok: true, reply: resolveReplyText(result) };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -220,6 +238,10 @@ async function runGovernancePrompt(request: AgentRunRequest): Promise<AgentRunRe
     // model outage, an aborted run) and the operator is already told about it
     // through the returned result and the ledger entry.
     logWarn(`governance: agent prompt failed for "${request.agentId}": ${error}`);
+    if (request.signal?.aborted) {
+      stopStreaming();
+      return { ok: false, reply: replySoFar, error };
+    }
     return { ok: false, reply: "", error };
   } finally {
     // Unsubscribed on every path, including the abort a cancellation or a

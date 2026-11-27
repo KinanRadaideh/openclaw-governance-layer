@@ -298,6 +298,7 @@ export const enGovernance: TranslationMap = {
       tierCore: "core (built-in, cannot be removed)",
       tierBaseline: "baseline (shipped default)",
       tierAdmin: "added by an operator",
+      tierAdminBy: "added by {name}",
       conflictDismiss: "Got it",
       expiresIn: "expires in",
       expired: "expired",
@@ -394,7 +395,9 @@ export const enGovernance: TranslationMap = {
       adminBadge: "admin",
       filterAll: "All",
       filterAgent: "Agent actions",
-      filterAdmin: "Policy changes",
+      // Every administrative entry, not only policy edits: prompts, stops, releases,
+      // accounts and requests too (T47 3.6.3); the same word as each entry's "admin" tag.
+      filterAdmin: "Administrative actions",
       filterAuth: "Sign-ins",
       // T73: a chain that verifies with the ledger's own alerts in it is intact
       // *since* them, and must not read as "intact" alone.

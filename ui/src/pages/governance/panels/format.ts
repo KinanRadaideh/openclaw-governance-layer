@@ -93,3 +93,25 @@ export function unassignedAgentsHint(identity: GovernanceIdentity | null | undef
     ? t("governance.conversation.chooseAgentHintUnassignedNamed", { admin: identity.answersTo })
     : t("governance.conversation.chooseAgentHintUnassigned");
 }
+
+/**
+ * The direction a path rule or request covers, as written after its kind: " (read)",
+ * " (write)", or " (read + write)" when it names neither, because a path with no direction
+ * grants both (T47 3.5.2, 2026-11-28: a read + write request read as plain "path", the same
+ * as a row that simply did not say). Other kinds have no direction and get nothing.
+ */
+export function accessSuffix(resourceKind: string, access: "read" | "write" | undefined): string {
+  if (access) {
+    return ` (${access === "read" ? t("governance.policy.readOnlyBadge") : t("governance.policy.writeOnlyBadge")})`;
+  }
+  return resourceKind === "path" ? ` (${t("governance.policy.accessBoth")})` : "";
+}
+
+/**
+ * A rule as a confirmation names it: what it is for, then what it matches. A description
+ * that already ends its sentence keeps one mark, not "(read).: path …" (T47 6c.3,
+ * 2026-11-28).
+ */
+export function ruleSubject(description: string, resourceKind: string, pattern: string): string {
+  return `${description.trimEnd().replace(/[.:]+$/, "")}: ${resourceKind} ${pattern}`;
+}

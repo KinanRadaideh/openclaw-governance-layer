@@ -387,6 +387,8 @@ export async function handleGovernanceOversightRoutes(
             resourceKind: decided.resourceKind,
             resource: decided.resource,
             toolName: decided.toolName,
+            // The direction the held question recorded (T47 6b.4): absent, a request grants both.
+            ...(decided.access ? { access: decided.access } : {}),
             // Stored redacted: no rule request can be built from it (finding 454).
             containsSecret: decided.containsSecret === true,
             // The account that pressed Would allow, named on the proposal (C15).

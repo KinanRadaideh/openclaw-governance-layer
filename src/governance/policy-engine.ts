@@ -1326,6 +1326,8 @@ export async function evaluateGovernancePolicy(
               toolName: event.toolName,
               resourceKind: spec.resourceKind,
               resource,
+              // The direction, so a late "Would allow" asks for what was asked (T47 6b.4).
+              ...(spec.access ? { access: spec.access } : {}),
               waitedMs: Date.now() - askedAtMs,
               endedBy: resolutionDecision,
             });

@@ -245,6 +245,39 @@ describe("a path request's direction", () => {
 
     expect(readable(queue.container)).toContain("path (read)");
   });
+
+  it("says both directions when a path request names neither (T47 3.5.2, 2026-11-28)", () => {
+    // Measured on the VPS: UserTest's read + write request for every agent was listed as
+    // "path", the same as a row whose direction was simply not shown; a path rule with no
+    // direction grants reading and writing, the fact the Administrator is deciding.
+    const queue = mountQueue(identity("viewer"), {
+      ruleRequests: [
+        {
+          id: "request-2",
+          resourceKind: "path",
+          pattern: "^/tmp/t47-request\\.txt$",
+          reason: "test 3.5.2",
+          requestedBy: "usertest",
+          requestedAt: "2026-11-27T10:00:00.000Z",
+          status: "pending",
+        },
+        {
+          id: "request-3",
+          resourceKind: "command",
+          pattern: "^ls$",
+          reason: "list files",
+          requestedBy: "usertest",
+          requestedAt: "2026-11-27T10:00:00.000Z",
+          status: "pending",
+        },
+      ],
+    });
+
+    const shown = readable(queue.container);
+    expect(shown).toContain("path (read + write)");
+    // A command has no direction, and says none.
+    expect(shown).not.toContain("command (");
+  });
 });
 
 type PageState = HTMLElement & {

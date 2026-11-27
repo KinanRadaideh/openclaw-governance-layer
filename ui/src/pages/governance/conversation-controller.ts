@@ -62,6 +62,8 @@ export type ConversationSlice = {
    * what to retry, not of what is running.
    */
   promptSent: string;
+  /** When it was sent, for its time beside "You" as the turns above have (T47 3.2). */
+  promptSentAt: string;
   promptDraft: string;
   promptAttachments: GovernanceAttachment[];
   promptError: string | null;
@@ -99,11 +101,18 @@ export class ConversationController implements ReactiveController {
   private uploading = false;
   /** The message being answered right now. See `ConversationSlice.promptSent`. */
   private sent = "";
+  private sentAt = "";
   private runs: GovernancePromptRun[] = [];
   private runsError: string | null = null;
   private runNotice: string | null = null;
   /** The task a "Cancellation requested" notice is about; the notice goes with it. */
   private runNoticeRunId = "";
+  /**
+   * The tasks listed when a "no longer running" notice was given. That notice is about no
+   * task still listed, so it goes once a task not among these appears (T47 6b.5, 2026-11-27):
+   * it stayed until the next press, beside a new task plainly running.
+   */
+  private runNoticeListed: ReadonlySet<string> | null = null;
   private cancelling = new Set<string>();
   private runAgentId = "";
   private sessionVersion = 0;
@@ -151,6 +160,7 @@ export class ConversationController implements ReactiveController {
       conversationAgentId: this.agentId,
       transcript: this.transcript,
       promptSent: showingLocalRun ? this.sent : "",
+      promptSentAt: showingLocalRun ? this.sentAt : "",
       promptDraft: this.draft,
       promptAttachments: this.attachments,
       promptError: this.error ?? this.completionError,
@@ -287,6 +297,9 @@ export class ConversationController implements ReactiveController {
     if (state.promptSent !== undefined) {
       this.sent = state.promptSent;
     }
+    if (state.promptSentAt !== undefined) {
+      this.sentAt = state.promptSentAt;
+    }
     this.changed();
   }
 
@@ -299,6 +312,7 @@ export class ConversationController implements ReactiveController {
     this.runs = [];
     this.runsError = null;
     this.runNotice = null;
+    this.runNoticeListed = null;
     this.cancelling.clear();
     this.transcriptRefreshAgents.clear();
     this.completionError = null;
@@ -314,6 +328,7 @@ export class ConversationController implements ReactiveController {
     this.runId = "";
     this.stream = "";
     this.sent = "";
+    this.sentAt = "";
     this.changed();
   }
 
@@ -418,6 +433,10 @@ export class ConversationController implements ReactiveController {
         // The task "Cancellation requested" was about has finished stopping.
         this.runNotice = null;
         this.runNoticeRunId = "";
+      }
+      if (this.runNoticeListed && runs.some((run) => !this.runNoticeListed?.has(run.runId))) {
+        this.runNotice = null;
+        this.runNoticeListed = null;
       }
       this.runsError = null;
       this.changed();
@@ -558,6 +577,7 @@ export class ConversationController implements ReactiveController {
     // Held for the panel to render while the run is in flight; the transcript
     // does not learn about it until the run ends.
     this.sent = message;
+    this.sentAt = new Date().toISOString();
     this.error = null;
     // Cleared before the run rather than after, so the partial reply from a
     // previous prompt is never left on screen beside a new one.
@@ -577,6 +597,10 @@ export class ConversationController implements ReactiveController {
               return;
             }
             this.runId = info.runId;
+            // The agent has the message: the box empties now, not when the reply ends,
+            // which showed it twice for the whole run (T47 3.2). A prompt refused before
+            // it started never gets here and keeps what was typed (finding 415).
+            this.draft = "";
             void this.refreshRuns();
             this.changed();
           },
@@ -640,6 +664,7 @@ export class ConversationController implements ReactiveController {
         // for the whole run and disappears exactly when the transcript below is
         // re-read and contains it.
         this.sent = "";
+        this.sentAt = "";
         try {
           const transcript = await this.bridge.api().agentTranscript(agentId);
           if (session === this.sessionVersion && agentId === this.agentId) {
@@ -692,6 +717,7 @@ export class ConversationController implements ReactiveController {
     this.runsVersion++;
     this.runsError = null;
     this.runNotice = null;
+    this.runNoticeListed = null;
     this.changed();
     try {
       const outcome = await this.bridge.api().cancelPrompt(runId);
@@ -732,6 +758,7 @@ export class ConversationController implements ReactiveController {
           if (alreadyEnded && agentId && this.hasNewerRun(agentId, runId)) {
             this.runNotice = t("governance.conversation.newerTaskRunning", { agent: agentId });
           }
+          this.runNoticeListed = alreadyEnded ? new Set(this.runs.map((run) => run.runId)) : null;
           this.cancelling.delete(runId);
           this.changed();
         }

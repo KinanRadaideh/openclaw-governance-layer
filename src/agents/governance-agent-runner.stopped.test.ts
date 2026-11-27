@@ -84,6 +84,42 @@ describe("the governance runner closes a stopped task's turn", () => {
     expect(outcome).toMatchObject({ ok: true, reply: "12 files" });
   });
 
+  it("reports what streamed, not the host's stand-in text, when a run is stopped (T47 6b.5)", async () => {
+    // Measured on the VPS (2026-11-27): Admin1 cancelled a story while Chapter 1 was on
+    // deltest's screen. The host's run ended with the payload "LLM request timed out.",
+    // which governance stored as the reply and counted in the ledger ("run cancelled
+    // after 22 chars"): untrue twice, since nothing timed out and far more had streamed.
+    installGovernanceAgentRunner();
+    const controller = new AbortController();
+    command.run.mockImplementation(async () => {
+      emitAgentEvent({
+        runId: request.runId,
+        stream: "assistant",
+        data: { text: "Chapter 1: The Weight of Silence" },
+      });
+      controller.abort();
+      return { payloads: [{ text: "LLM request timed out." }] };
+    });
+
+    const outcome = await runAgentPrompt({ ...request, signal: controller.signal });
+
+    expect(outcome.reply).toBe("Chapter 1: The Weight of Silence");
+  });
+
+  it("reports what streamed when the stopped run throws instead", async () => {
+    installGovernanceAgentRunner();
+    const controller = new AbortController();
+    command.run.mockImplementation(async () => {
+      emitAgentEvent({ runId: request.runId, stream: "assistant", data: { text: "Counting" } });
+      controller.abort();
+      throw new Error("aborted");
+    });
+
+    const outcome = await runAgentPrompt({ ...request, signal: controller.signal });
+
+    expect(outcome).toMatchObject({ ok: false, reply: "Counting" });
+  });
+
   it("leaves a run that finished, or failed on its own, to upstream", async () => {
     installGovernanceAgentRunner();
     command.run.mockResolvedValueOnce({ payloads: [{ text: "12 files" }] });

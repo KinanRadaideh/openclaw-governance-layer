@@ -62,7 +62,7 @@ import type { PanelEffects } from "./account-panels.ts";
 import { renderRuleTargets } from "./agent-policy-lookup.ts";
 import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend-panel.ts";
 import { renderFolderGrantPanel } from "./folder-grant-panel.ts";
-import { formatDuration, unassignedAgentsHint } from "./format.ts";
+import { accessSuffix, formatDuration, ruleSubject, unassignedAgentsHint } from "./format.ts";
 import { currentRuleTitle, earlierRuleTitle } from "./grant-title.ts";
 import { renderAgentAskRow, renderObserveAgentRow } from "./policy-agent-overrides.ts";
 import { renderAgentTimeoutOverrides, renderAgentTimeoutRow } from "./policy-agent-timeout.ts";
@@ -113,12 +113,18 @@ function formatRuleLifetime(expiresAt: string | undefined): string {
   return `, ${t("governance.policy.expiresIn")} ${formatDuration(Math.round(remainingMs / 1000))}`;
 }
 
-function tierLabel(tier: GovernancePolicyRule["tier"]): string {
-  return tier === "core"
-    ? t("governance.policy.tierCore")
-    : tier === "baseline"
-      ? t("governance.policy.tierBaseline")
-      : t("governance.policy.tierAdmin");
+function tierLabel(rule: Pick<GovernancePolicyRule, "tier" | "createdBy">): string {
+  if (rule.tier === "core") {
+    return t("governance.policy.tierCore");
+  }
+  if (rule.tier === "baseline") {
+    return t("governance.policy.tierBaseline");
+  }
+  // Named when the rule recorded who added it (the approver, for a request), as the
+  // ledger entry for the same moment does (T47 6b.3, 2026-11-28).
+  return rule.createdBy
+    ? t("governance.policy.tierAdminBy", { name: rule.createdBy })
+    : t("governance.policy.tierAdmin");
 }
 
 /**
@@ -167,6 +173,8 @@ export type PolicyPanelProps = PanelEffects & {
   agentLabel: (agentId: string) => string;
   agentPolicyView: GovernanceAgentPolicyView | null;
   agentPolicyError: string | null;
+  /** The agent id the lookup above answered for (T47 3.1). */
+  agentPolicyFor: string | null;
   agentAccess: GovernanceAgentAccess | null;
   ruleTargets: Record<string, GovernanceRuleTargets>;
   conflictNotice: ConflictNotice | null;
@@ -600,11 +608,9 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
             // A rule narrowed to one direction reads identically to one
             // covering both unless the list says so, and the difference is
             // the whole point of the narrowing.
-            rule.access
-              ? ` (${rule.access === "read" ? t("governance.policy.readOnlyBadge") : t("governance.policy.writeOnlyBadge")})`
-              : ""
+            accessSuffix(rule.resourceKind, rule.access)
           }
-          · ${tierLabel(rule.tier)} ·
+          · ${tierLabel(rule)} ·
           ${rule.agentId
             ? `agent ${rule.agentId}`
             : t("governance.policy.globalScope")}${formatRuleLifetime(rule.expiresAt)}${
@@ -704,7 +710,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                           : t("governance.confirm.removeRule"),
                       // Named by what it is for as well as what it matches,
                       // so the operator confirms the rule they meant (T70).
-                      details: `${rule.description}: ${rule.resourceKind} ${rule.pattern}`,
+                      details: ruleSubject(rule.description, rule.resourceKind, rule.pattern),
                       confirmLabel: t("governance.policy.removeRule"),
                     },
                     async () => {

@@ -52,6 +52,8 @@ type PageState = {
   ledger: GovernanceLedgerEntry[];
   ruleRequests: GovernanceRuleRequest[];
   agentPolicyView: GovernanceAgentPolicyView | null;
+  agentPolicyFor: string | null;
+  agentPolicyAgentId: string;
   /**
    * Declared 2026-09-09, finding 344, and the omission is the point.
    *
@@ -177,6 +179,8 @@ describe("327, 328: Agent permissions", () => {
       identity: identity("root"),
       agents: [{ agentId: "scout", displayName: "Scout", registered: true }],
       policy: policyNaming(["scout"]),
+      agentPolicyFor: "scoot",
+      agentPolicyAgentId: "scoot",
       agentPolicyView: viewFor("scoot"),
     });
 
@@ -195,6 +199,8 @@ describe("327, 328: Agent permissions", () => {
       identity: identity("root"),
       agents: [{ agentId: "scout", displayName: "Scout", registered: true }],
       policy: policyNaming(["scout"]),
+      agentPolicyFor: "scout",
+      agentPolicyAgentId: "scout",
       agentPolicyView: viewFor("scout"),
     });
 
@@ -371,7 +377,7 @@ describe("340: the ledger count says what it is counting", () => {
     // rendered and the assertion passed against the unfixed code as happily as
     // against the fixed one. Finding 224's trap, met while repairing 340.
     //
-    // Every seeded row *is* an admin entry, so "Policy changes" matches all
+    // Every seeded row *is* an admin entry, so "Administrative actions" matches all
     // twenty and the row renders — and the wording is then the only difference
     // between the two versions.
     const text = sectionText("Audit ledger");

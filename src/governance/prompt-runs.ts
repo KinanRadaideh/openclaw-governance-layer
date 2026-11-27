@@ -288,6 +288,12 @@ export function cancelPromptRun(input: {
    * defect by omission; this one is required for the same reason.
    */
   groupAgentIds: readonly string[];
+  /**
+   * The canceller's name as the account writes it, for the stopped turn's sentence.
+   * `username` is folded for comparing owners; shown, it read "cancelled by admin1" for
+   * Admin1 (T47 6b.5, 2026-11-28).
+   */
+  displayName?: string;
 }): CancelPromptOutcome {
   const run = runs.get(input.runId);
   // Reported as "not-found" rather than "forbidden", unlike the ownership
@@ -309,7 +315,7 @@ export function cancelPromptRun(input: {
     return { cancelled: false, reason: "not-found" };
   }
   if (run.username !== input.username) {
-    run.cancelledBy = input.username;
+    run.cancelledBy = input.displayName ?? input.username;
   }
   return { cancelled: true, agentId: run.agentId };
 }

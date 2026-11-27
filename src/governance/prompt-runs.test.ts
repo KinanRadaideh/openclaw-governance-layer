@@ -20,6 +20,7 @@ import {
   MAX_CONCURRENT_PROMPTS_PER_ACCOUNT,
   PromptCapacityError,
   PROMPT_TIMEOUT_MS,
+  promptRunCancelledBy,
   resetPromptRunsForTests,
   settlePromptRun,
 } from "./prompt-runs.js";
@@ -206,6 +207,19 @@ describe("cancellation is owned by the account that asked", () => {
     ).toMatchObject({
       cancelled: false,
     });
+  });
+  it("names who stopped it as the account writes its name (T47 6b.5, 2026-11-28)", () => {
+    // Measured on the VPS: Admin1 cancelled deltest's task and deltest read "The prompt was
+    // cancelled by admin1": the name folded for comparing owners, shown as if it were the name.
+    const { runId } = start("deltest");
+    cancelPromptRun({
+      runId,
+      username: "admin1",
+      displayName: "Admin1",
+      mayCancelOthers: true,
+      groupAgentIds: ["agent-a"],
+    });
+    expect(promptRunCancelledBy(runId)).toBe("Admin1");
   });
 });
 

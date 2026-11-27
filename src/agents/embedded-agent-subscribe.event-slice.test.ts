@@ -9,7 +9,11 @@
  */
 import { describe, expect, it } from "vitest";
 import { createStubSessionHarness } from "./embedded-agent-subscribe.e2e-harness.js";
-import { EVENT_SLICE_MIN_EVENTS, EVENT_SLICE_MS } from "./embedded-agent-subscribe.event-slice.js";
+import {
+  EVENT_SLICE_MAX_MS,
+  EVENT_SLICE_MIN_EVENTS,
+  EVENT_SLICE_MS,
+} from "./embedded-agent-subscribe.event-slice.js";
 import { subscribeEmbeddedAgentSession } from "./embedded-agent-subscribe.js";
 
 const CHUNKS = 300;
@@ -75,6 +79,48 @@ describe("a burst of streamed events", () => {
     const sliceCost = Math.max(EVENT_SLICE_MS, EVENT_SLICE_MIN_EVENTS * HANDLER_COST_MS);
     expect(servedAt - startedAt).toBeLessThan(sliceCost + 150);
     expect(handledWhenServed).toBeLessThan(CHUNKS / 2);
+  });
+
+  it("lets the event loop run when each chunk is expensive, before 64 of them (T47 6c.6)", async () => {
+    // Measured on the VPS (2026-11-28): with a 38,000-character reply each chunk cost
+    // several milliseconds, so one slice of 64 chunks held the thread for hundreds of
+    // milliseconds, and a dashboard request that needs many steps waited a slice for
+    // each: identity took 11 s and the agent list 30 s while the reply was written.
+    const { session, emit } = createStubSessionHarness();
+    const texts: string[] = [];
+    const subscription = subscribeEmbeddedAgentSession({
+      session,
+      runId: "run-expensive",
+      onAgentEvent: (evt) => {
+        const data = evt.data as { text?: unknown } | undefined;
+        if (evt.stream === "assistant" && typeof data?.text === "string") {
+          texts.push(data.text);
+          busyWait(20);
+        }
+      },
+    });
+    const startedAt = performance.now();
+    const served = new Promise<{ servedAt: number; handledWhenServed: number }>((resolve) => {
+      setImmediate(() => {
+        resolve({ servedAt: performance.now(), handledWhenServed: texts.length });
+      });
+    });
+
+    emit({ type: "message_start", message: { role: "assistant" } });
+    for (let index = 0; index < 30; index += 1) {
+      emit({
+        type: "message_update",
+        message: { role: "assistant" },
+        assistantMessageEvent: { type: "text_delta", delta: `word${index} ` },
+      });
+    }
+    await subscription.waitForPendingEvents();
+    const { servedAt, handledWhenServed } = await served;
+
+    // 30 chunks at 20 ms is 600 ms; the waiting work runs after about a slice's ceiling.
+    expect(servedAt - startedAt).toBeLessThan(EVENT_SLICE_MAX_MS + 200);
+    expect(handledWhenServed).toBeLessThan(15);
+    expect(texts.length).toBe(30);
   });
 
   it("still delivers every chunk, in order", async () => {

@@ -53,7 +53,7 @@ describe("filterLedger", () => {
     // Authentication entries are administrative, same chain, same entryKind,
     // but there are far more of them. Left in this view they would bury "who
     // removed that rule?" exactly as agent entries once buried the whole
-    // ledger, and the button says "Policy changes".
+    // ledger, and the button says "Administrative actions".
     const result = filterLedger([entry(), adminEntry, authEntry], "admin");
     expect(result.map((e) => e.seq)).toEqual([2]);
   });

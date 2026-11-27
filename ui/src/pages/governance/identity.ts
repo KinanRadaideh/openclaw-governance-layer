@@ -227,6 +227,15 @@ export function canonicalAgentQuery(agentId: string): string | undefined {
   return normalizeAgentId(trimmed);
 }
 
+/**
+ * Whether an agent's display name only repeats its id, so showing both prints the
+ * id twice ("test1 test1", T47 3.2.10, 2026-11-27). Compared as written, ignoring
+ * case and surrounding space, the way an operator reads it.
+ */
+export function nameIsId(displayName: string, agentId: string): boolean {
+  return displayName.trim().toLowerCase() === agentId.trim().toLowerCase();
+}
+
 /** The subset of `ids` this operator may act on, in the order given. */
 export function manageableAgentIds(
   identity: GovernanceIdentity | null,

@@ -404,6 +404,8 @@ describe("the other policy views title rules the same way", () => {
     await mount({
       identity: identity("administrator"),
       policy: policyWith([CORE, BASELINE, OPERATOR]),
+      agentPolicyFor: "agent-a",
+      agentPolicyAgentId: "agent-a",
       agentPolicyView: {
         posture: {
           agentId: "agent-a",

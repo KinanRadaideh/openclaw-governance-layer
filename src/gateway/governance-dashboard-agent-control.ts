@@ -610,6 +610,7 @@ export async function handleGovernanceAgentControlRoutes(
     const outcome = cancelPromptRun({
       runId: runId.trim(),
       username: fold(session.username),
+      displayName: session.username,
       // A prompt belongs to the account that sent it. Administrators and Root
       // may stop any of them, because §1.6 gives them real-time control over
       // agent sessions and a runaway prompt is exactly that; a User may stop

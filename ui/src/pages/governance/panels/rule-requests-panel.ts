@@ -17,6 +17,7 @@ import type { GovernanceIdentity, GovernancePolicyRule, GovernanceRuleRequest } 
 import { patternPlaceholderFor, renderKindOptions } from "../rule-kind-hints.ts";
 import type { PanelEffects } from "./account-panels.ts";
 import { renderAgentSettingRequestRow } from "./agent-setting-request.ts";
+import { accessSuffix } from "./format.ts";
 import {
   lifetimeMinutes,
   lifetimeValue,
@@ -134,9 +135,7 @@ export function renderRuleRequestsSection(
           // The direction a path request asks for (A11). Approving grants exactly
           // it, and a row reading only "path" looks the same whether it asks for
           // reading, writing or both — the difference the Administrator is deciding.
-          request.access
-            ? ` (${request.access === "read" ? t("governance.policy.readOnlyBadge") : t("governance.policy.writeOnlyBadge")})`
-            : ""
+          accessSuffix(request.resourceKind, request.access)
         }
         · ${t("governance.requests.by")} ${requester(request)},
         ${request.reason}${

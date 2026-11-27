@@ -22,6 +22,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { GovernanceAgentEntry, GovernanceIdentity, GovernanceTranscript } from "./api.ts";
 import "./governance-page.ts";
+import { formatTurnTime } from "./panels/format.ts";
 
 type PageState = {
   identity: GovernanceIdentity | null;
@@ -33,6 +34,7 @@ type PageState = {
     transcript?: GovernanceTranscript | null;
     promptPending?: boolean;
     promptSent?: string;
+    promptSentAt?: string;
   };
   updateComplete: Promise<unknown>;
   requestUpdate(): void;
@@ -102,6 +104,18 @@ describe("Your agents: the assigned rows (the User tier)", () => {
     await mount({ identity: lina, agents: AGENTS });
     expect(sectionText()).toContain("Scout Bot");
     expect(sectionText()).toContain("Probe One");
+  });
+
+  it("prints an agent once when its name is its id (T47 3.2.10, 2026-11-27)", async () => {
+    // Measured on the VPS as UserTest: an agent created with the name `test1` and
+    // the id `test1` was headed "test1 test1".
+    const same: GovernanceIdentity = { username: "lina", role: "user", assignedAgents: ["test1"] };
+    await mount({
+      identity: same,
+      agents: [{ agentId: "test1", displayName: "test1", registered: true }],
+    });
+    expect(sectionText()).not.toMatch(/test1\s*test1/);
+    expect(sectionText()).toContain("test1");
   });
 
   it("puts the open conversation inside the row of the agent it is with", async () => {
@@ -239,6 +253,24 @@ describe("Your agents: the message being answered", () => {
       },
     });
     expect(sectionText()).toContain("List the files in the workspace");
+  });
+
+  it("gives the message being answered its time, as the turns above it have (T47 3.2)", async () => {
+    // Measured on the VPS: the pending line read "You" alone until the reply arrived,
+    // while every earlier line read "You · 6:39:15 PM".
+    const sentAt = "2026-11-27T18:39:15.000Z";
+    await mount({
+      identity: lina,
+      agents: AGENTS,
+      conversationStateForTests: {
+        conversationAgentId: "scout",
+        transcript: transcript("scout"),
+        promptPending: true,
+        promptSent: "List the files in the workspace",
+        promptSentAt: sentAt,
+      },
+    });
+    expect(sectionText()).toContain(`You · ${formatTurnTime(sentAt)}`);
   });
 
   it("does not say the conversation is empty while a reply is streaming into it", async () => {

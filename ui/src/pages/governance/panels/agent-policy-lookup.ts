@@ -41,6 +41,7 @@ import {
   type GovernanceAgentPolicyView,
   type GovernanceApi,
 } from "../api.ts";
+import { canonicalAgentQuery } from "../identity.ts";
 import { unassignedAgentsHint } from "./format.ts";
 import type { PolicyPanelProps } from "./policy-panels.ts";
 
@@ -111,7 +112,11 @@ function pickHint(props: PolicyPanelProps): string {
 
 export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResult | typeof nothing {
   const choices = props.knownAgentIds;
-  const view = props.agentPolicyView;
+  // Only while the box still names the agent the answer is about: neither the refusal
+  // nor a loaded answer names its agent, so under a cleared or changed box it read as
+  // the answer for whatever the box held (T47 3.1, 2026-11-28).
+  const current = lookupAnswersBox(props.agentPolicyFor, props.drafts.agentPolicyAgentId);
+  const view = current ? props.agentPolicyView : null;
   const rows = [
     renderSettingsRow({
       title: t("governance.agentPolicy.pick"),
@@ -145,7 +150,7 @@ export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResul
         </button>`,
     }),
   ];
-  if (props.agentPolicyError) {
+  if (current && props.agentPolicyError) {
     rows.push(
       renderSettingsRow({
         title: t("governance.agentPolicy.failed"),
@@ -303,13 +308,25 @@ export type AgentPolicyLookupState = {
   agentPolicyView: GovernanceAgentPolicyView | null;
   agentAccess: GovernanceAgentAccess | null;
   agentPolicyError: string | null;
+  /** The id this answer is for; shown only while the box still names it (T47 3.1). */
+  agentPolicyFor: string | null;
 };
 
 export const EMPTY_AGENT_POLICY_LOOKUP: AgentPolicyLookupState = {
   agentPolicyView: null,
   agentAccess: null,
   agentPolicyError: null,
+  agentPolicyFor: null,
 };
+
+/** Whether the lookup's answer is about the agent the box names now. */
+export function lookupAnswersBox(answeredFor: string | null, box: string): boolean {
+  if (answeredFor === null) {
+    return false;
+  }
+  const wanted = canonicalAgentQuery(box);
+  return wanted !== undefined && wanted === canonicalAgentQuery(answeredFor);
+}
 
 /**
  * Reads one agent's lookup.
@@ -332,6 +349,7 @@ export async function readAgentPolicyLookup(
     // different fact from "this agent has no rules", and an empty panel would say the second.
     return {
       ...EMPTY_AGENT_POLICY_LOOKUP,
+      agentPolicyFor: agentId,
       agentPolicyError:
         err instanceof GovernanceApiError ? err.message : t("governance.agentPolicy.failed"),
     };
@@ -340,5 +358,5 @@ export async function readAgentPolicyLookup(
   // context, not the reason the panel was opened, so losing it must not blank out the
   // rules the operator came to read.
   const agentAccess = await api.agentAccess(agentId).catch(() => null);
-  return { agentPolicyView, agentAccess, agentPolicyError: null };
+  return { agentPolicyView, agentAccess, agentPolicyError: null, agentPolicyFor: agentId };
 }

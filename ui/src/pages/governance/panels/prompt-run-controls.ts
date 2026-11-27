@@ -12,8 +12,12 @@ export type PromptRunControls = {
 };
 
 export function renderPromptRunNotices(props?: PromptRunControls) {
-  return html`${props?.error ? html`<div role="alert">${props.error}</div>` : nothing}
-  ${props?.notice ? html`<div role="status">${props.notice}</div>` : nothing}`;
+  // Laid out as a row, so the sentence has the rows' inner spacing instead of touching
+  // the card's edge (seen on the VPS, T47 6b.5, 2026-11-28).
+  return html`${props?.error
+    ? html`<div class="settings-row" role="alert">${props.error}</div>`
+    : nothing}
+  ${props?.notice ? html`<div class="settings-row" role="status">${props.notice}</div>` : nothing}`;
 }
 
 /** Both views act on the same run id and retain the control until the server removes it. */

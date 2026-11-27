@@ -177,6 +177,7 @@ class GovernancePage extends OpenClawLightDomElement {
    */
   private readonly agentRegistry = new AgentRegistryController(this);
   @state() private agentPolicyError: string | null = null;
+  @state() private agentPolicyFor: string | null = null;
   /**
    * Policies → agents, keyed by rule id.
    *
@@ -510,6 +511,7 @@ class GovernancePage extends OpenClawLightDomElement {
       agentLabel: (agentId) => agentLabel(this.agents, agentId),
       agentPolicyView: this.agentPolicyView,
       agentPolicyError: this.agentPolicyError,
+      agentPolicyFor: this.agentPolicyFor,
       onAuditWarning: (message) => {
         // The same band the organisation panel writes its outcome into, and
         // for the same reason: this is a qualifier on a success, not an error.
@@ -860,6 +862,7 @@ class GovernancePage extends OpenClawLightDomElement {
     this.agentPolicyView = null;
     this.agentAccess = null;
     this.agentPolicyError = null;
+    this.agentPolicyFor = null;
     this.agentPolicyAgentId = "";
     this.error = null;
     this.codexBackend = null;

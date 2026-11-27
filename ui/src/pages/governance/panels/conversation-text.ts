@@ -8,9 +8,10 @@
 // Building the content here keeps each box one short line the formatter leaves alone:
 //
 //     <div style="white-space:pre-wrap">${turnText(turn)}</div>
-import { html, type TemplateResult } from "lit";
+import { html, nothing, type TemplateResult } from "lit";
 import { t } from "../../../i18n/index.ts";
 import type { GovernanceConversationTurn } from "../api.ts";
+import { formatTurnTime } from "./format.ts";
 
 /** A finished turn's text, or the words that stand in for it. */
 export function turnText(turn: GovernanceConversationTurn): TemplateResult | string {
@@ -32,4 +33,18 @@ export function turnText(turn: GovernanceConversationTurn): TemplateResult | str
 /** The reply as it streams in, or a placeholder until its first words arrive. */
 export function streamText(stream: string | undefined): TemplateResult | string {
   return stream ? stream : html`<em>${t("governance.conversation.thinking")}</em>`;
+}
+
+/**
+ * The message being answered, as a turn: "You", its time as the turns above it have
+ * (T47 3.2, 2026-11-28: it read "You" alone until the reply arrived), then the text.
+ */
+export function sentTurn(message: string, sentAt?: string): TemplateResult {
+  const time = sentAt
+    ? html`<span style="color:var(--muted)"> · ${formatTurnTime(sentAt)}</span>`
+    : nothing;
+  return html`<div>
+    <strong>${t("governance.conversation.you")}</strong>${time}
+    <div style="white-space:pre-wrap">${message}</div>
+  </div>`;
 }

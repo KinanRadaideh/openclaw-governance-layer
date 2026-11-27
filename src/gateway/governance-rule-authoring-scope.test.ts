@@ -714,6 +714,68 @@ describe("approving an escalation grants the direction that was escalated", () =
       "(read)",
     );
   });
+
+  // **The same defect through the other door (T47 6b.4, 2026-11-27).** A question
+  // nobody answered in time waits in Awaiting your decision, and "Would allow" there
+  // files the same proposal as "Always allow" on the card. The held question never
+  // recorded the direction, so the proposal carried none: measured on the VPS, a read
+  // of /etc/timezone answered "Would allow" was queued as "path", not "path (read)".
+  async function escalateAndLetLapse(toolName: "read" | "write"): Promise<void> {
+    const { evaluateGovernancePolicy } = await import("../governance/policy-engine.js");
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
+    const decision = await evaluateGovernancePolicy(
+      { toolName, params: { path: FILE } },
+      { agentId: "mine", sessionKey: "agent:mine:main" },
+    );
+    if (!decision || !("requireApproval" in decision)) {
+      throw new Error(`expected the gate to escalate an unlisted ${toolName}`);
+    }
+    await decision.requireApproval.onResolution?.("timeout");
+  }
+
+  async function wouldAllowNewest(): Promise<void> {
+    const { listPendingDecisions } = await import("../governance/pending-decisions.js");
+    const [held] = await listPendingDecisions(TEST_GROUP);
+    const answered = await send("POST", "pending-decisions/decide", session("administrator"), {
+      id: held?.id,
+      allow: true,
+    });
+    expect(answered.status).toBe(200);
+  }
+
+  it("a lapsed read, answered Would allow and approved, permits reading and not writing", async () => {
+    await escalateAndLetLapse("read");
+    await wouldAllowNewest();
+
+    const { listRuleRequests } = await import("../governance/rule-requests.js");
+    const proposal = (await listRuleRequests(TEST_GROUP)).find(
+      (request) => request.status === "pending",
+    );
+    expect(proposal, "Would allow must file a proposal").toBeTruthy();
+    expect(proposal?.access, "the held question has to keep the direction").toBe("read");
+
+    await send("POST", "rule-requests/decide", session("administrator"), {
+      id: proposal?.id,
+      approve: true,
+    });
+    expect(await allows("read")).toBe(true);
+    expect(
+      await allows("write"),
+      "Would allow on a read must not permit writing the same path",
+    ).toBe(false);
+  });
+
+  it("a lapsed read and a lapsed write of one file are two held questions, each its own direction", async () => {
+    // Repeats of one question are counted on one row; a read and a write are not
+    // repeats, or the row would keep the first direction and lose the second.
+    await escalateAndLetLapse("read");
+    await escalateAndLetLapse("write");
+    const { listPendingDecisions } = await import("../governance/pending-decisions.js");
+    const held = await listPendingDecisions(TEST_GROUP);
+    expect(
+      held.map((row) => row.access).toSorted((a, b) => (a ?? "").localeCompare(b ?? "")),
+    ).toEqual(["read", "write"]);
+  });
 });
 
 // ---------------------------------------------------------------------------

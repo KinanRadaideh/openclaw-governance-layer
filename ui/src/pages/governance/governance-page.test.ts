@@ -33,6 +33,8 @@ import "./governance-page.ts";
 
 type PageState = {
   agentPolicyView: unknown;
+  agentPolicyFor: string | null;
+  agentPolicyAgentId: string;
   agentAccess: unknown;
   identity: GovernanceIdentity | null;
   policy: GovernancePolicyDocument | null;
@@ -541,6 +543,9 @@ function agentPolicyOpen(access: unknown): Partial<PageState> {
   return {
     identity: identity("administrator"),
     policy: policy([]),
+    // What `loadAgentPolicy` leaves: the answer, the id it is for, and the box naming it.
+    agentPolicyFor: "agent-a",
+    agentPolicyAgentId: "agent-a",
     agentPolicyView: {
       agentId: "agent-a",
       posture: {

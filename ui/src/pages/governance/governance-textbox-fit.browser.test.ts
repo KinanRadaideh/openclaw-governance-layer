@@ -610,7 +610,7 @@ describe.skipIf(!hasBrowserLayout)("the page as an operator uses it", () => {
     await mount(rootState());
 
     const filters = [...page.querySelectorAll<HTMLButtonElement>("button")].filter((button) =>
-      ["All", "Agent actions", "Policy changes", "Sign-ins"].includes(
+      ["All", "Agent actions", "Administrative actions", "Sign-ins"].includes(
         button.textContent?.trim() ?? "",
       ),
     );

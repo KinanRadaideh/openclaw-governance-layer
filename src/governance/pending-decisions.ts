@@ -41,6 +41,13 @@ export type PendingDecision = {
    */
   resource: string;
   /**
+   * For a path, whether the call read or wrote it. "Would allow" files a rule request from this
+   * row, and a request with no direction grants both (`RuleAccess`), so a lapsed read answered
+   * that way asked for a write as well (T47 6b.4, 2026-11-27; finding 279's defect, which the
+   * live "Always allow" path had fixed). Absent on rows written before it was recorded.
+   */
+  access?: "read" | "write";
+  /**
    * Set when redaction changed the resource: it held what looks like a secret (finding 454). A
    * late "Would allow" then files no rule request, because the rule would have to contain the
    * secret, and says so (`proposeRuleFromEscalation`).
@@ -152,7 +159,8 @@ function sameQuestion(a: PendingDecision, b: PendingDecision): boolean {
     a.agentId === b.agentId &&
     a.toolName === b.toolName &&
     a.resourceKind === b.resourceKind &&
-    a.resource === b.resource
+    a.resource === b.resource &&
+    a.access === b.access
   );
 }
 
@@ -256,6 +264,7 @@ export type RecordTimedOutEscalationInput = {
   toolName: string;
   resourceKind: ResourceKind | (string & {});
   resource: string;
+  access?: "read" | "write";
   waitedMs: number;
   endedBy?: "timeout" | "cancelled";
 };
@@ -279,6 +288,7 @@ export async function recordTimedOutEscalation(
       toolName: input.toolName,
       resourceKind: input.resourceKind,
       resource: clampRecordedResource(redacted),
+      ...(input.access ? { access: input.access } : {}),
       ...(redacted !== input.resource ? { containsSecret: true as const } : {}),
       timedOutAt: new Date().toISOString(),
       waitedMs: input.waitedMs,
